@@ -2,8 +2,8 @@
 //!  the registration line for each of its three arms,
 //!  the evidence lines for a record with no clone yet,
 //!  the mounting intent's own placeholder,
-//!  and the settling command's sentence,
-//!  which says the command cannot be run in this release.
+//!  the settling command's sentence,
+//!  and the sentence a slot with a standing destruction plan gets.
 
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{
@@ -106,10 +106,10 @@ fn an_unfinished_adds_evidence_names_its_phase() {
 /// A slot left at `phase=settling` names the add again,
 /// Git's removal and the
 /// settling command,
-/// and says the settling command cannot be run in this release,
+/// and claims no grammar refuses the settling command,
 /// so a person is not sent to one that answers with the usage text.
 #[test]
-fn the_settling_arm_says_the_settling_command_cannot_be_run_yet() {
+fn the_settling_arm_names_the_settling_command_and_what_it_removes() {
     let readings: SlotReadings = SlotReadings {
         intent: IntentFacts::Unasked,
         ..readings_at(Phase::Settling)
@@ -121,12 +121,12 @@ fn the_settling_arm_says_the_settling_command_cannot_be_run_yet() {
         "the command the state needs is named: {action}"
     );
     assert!(
-        action.contains("no management grammar admits it in this release"),
-        "and the sentence says it cannot be run: {action}"
+        !action.contains("no management grammar admits it"),
+        "the sentence no longer claims no grammar admits the command, because one does: {action}"
     );
     assert!(
-        action.contains("cannot be run yet"),
-        "with what a person does instead: {action}"
+        action.contains("once you have confirmed the slot"),
+        "with what the command asks a person to confirm: {action}"
     );
     assert!(
         action.contains(CLONE_DATASET),
@@ -160,6 +160,57 @@ fn the_unmounted_action_names_the_property_and_the_sweep() {
     assert!(
         waited.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"),
         "{waited}"
+    );
+}
+
+/// What:
+///  A slot a destruction plan names says what `git worktree remove` there does:
+///  the wrapper's own removal,
+///  which resumes the plan,
+///  so the sentence neither warns a person off it nor promises it in the words
+///  every other state uses.
+/// Why:
+///  The removal's command path takes a slot a destruction plan names,
+///  because the design's resume path reads the plan and the live pinned parent
+///  and no other fact decides it
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "Which resume path a removal takes"),
+///  and Git's own removal there would drop the registration and the slot folder
+///  while the plan and the clone stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const action = nextSafeAction(classifySlot(pendingRemoval), pendingRemoval);
+/// ```
+#[test]
+fn a_standing_plan_says_what_the_removal_resumes() {
+    let readings: SlotReadings = SlotReadings {
+        plan: PlanReading::NamesTheClone {
+            plan: PathBuf::from(
+                "/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/topic",
+            ),
+        },
+        ..readings_at(Phase::Filled)
+    };
+    let state: SlotRouteState = classify_slot(&readings);
+    let action: String = next_safe_action(&state, &readings);
+    assert!(
+        action.contains("A `git worktree remove` of this slot runs the wrapper's own removal"),
+        "the sentence names what runs there: {action}"
+    );
+    for said in [
+        "reads the plan",
+        "proves every name the plan records again",
+        "sends no request for a name the plan records as destroyed",
+        "ends the plan with the removal's own records",
+        "`-f -f` among them",
+        "an add here is refused while the plan stands",
+    ] {
+        assert!(action.contains(said), "the sentence says {said}: {action}");
+    }
+    assert!(
+        !action.contains("is Git's own removal"),
+        "Git's own removal is not what runs here: {action}"
     );
 }
 

@@ -7,7 +7,7 @@
 //!  "The two inventories").
 //!  The grammar itself is `binding_inventory.rs`;
 //!  this file is the reader,
-//! kept apart so both stay under the file limit.
+//!  kept apart so both stay under the file limit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

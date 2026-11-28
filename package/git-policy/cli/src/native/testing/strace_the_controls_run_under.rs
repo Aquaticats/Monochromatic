@@ -109,14 +109,14 @@ fn the_run_acknowledges_the_absence() -> bool {
 /// or `false` after one line naming the control when this run states the absence is known.
 /// Why:
 ///   A control whose cut,
-/// fault or count cannot be made must not pass as coverage it does not have,
+///  fault or count cannot be made must not pass as coverage it does not have,
 /// so a run that
 ///  never said it has no tracer fails the control with both ways forward.
 /// A run that stated it gets the line that says
 ///  which controls did not run,
 /// and
 ///  `--success-output=final` brings that line of a passing control into the log,
-/// as it does the btrfs one.
+///  as it does the btrfs one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

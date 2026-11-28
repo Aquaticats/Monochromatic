@@ -18,6 +18,117 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
+
+The check before a command is wired with the nudge's switch off
+(`fcaea34f36`),
+so a forwarded command in a repository with no folder of unanswered requests pays one `stat`,
+measured at 1.40 µs.
+The design says the check is compiled out with the switch off
+(`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"Counts and numbers this design does not ship").
+The pick is to keep the check and amend that sentence,
+because the check is what removes an answered entry.
+
+## Open: whether a deadline ends `mpm-shadow`'s wait for a program it started, with three picks beside it (recorded 2026-11-28T03:35:24-05:00)
+
+Two rounds answered the second pass over `mpm-shadow` `0.2.7-alpha.19` and merged on 2026-11-28
+(`be3a61bcd4` and `da10506b07`).
+What each found and changed is in
+`package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`.
+
+### The open choice: a deadline for a wait
+
+`mpm-shadow` starts other programs and waits for each:
+`rustup` to ask which parts a toolchain holds,
+`cargo binstall`,
+`tar`,
+`unzip`,
+`gh`.
+No deadline ends any of those waits.
+Since `da10506b07` one line goes to standard error when a wait passes 2 s,
+naming the program,
+and says that no deadline ends the wait.
+The round measured what an ordinary answer costs,
+on this machine under load,
+as ratios to a real `rustup --version` run in the same rounds:
+a stand-in's answer to the two questions took about 2.9 times that control at the median,
+and the slowest answer of all three arms was 45.61 ms.
+No run has recorded a real `rustup` that never answered;
+the second pass built the state with a stand-in that sleeps.
+
+- 1:
+  no deadline,
+  which is what ships.
+  A program that never answers makes the command wait until a person interrupts it,
+  and the line names what to stop.
+  An unattended run can hang for ever,
+  and nothing tells a script that it hung.
+- 2:
+  a deadline for the two read-only questions to `rustup` alone
+  (`rustup which` and `rustup component list --installed`),
+  ended with a failure that says the toolchain's parts could not be read.
+  `rustup` writes nothing for these questions,
+  so ending it costs no state,
+  and an unattended install or `list` stops hanging on them.
+  A slow answer on a loaded machine or a cold network file system would be reported as unreadable,
+  and the bound has to come from a measurement of the slowest honest answer,
+  which today's figures give only for this machine.
+- 3:
+  a deadline for every program,
+  the installers included.
+  A crate that compiles for minutes would be ended,
+  the bound would have to be a table per program that nothing has measured,
+  and an ended `cargo install` leaves a partial build.
+- 4:
+  a deadline for `install`'s questions and none for `list`.
+  `list` in a status loop hangs where `install` does not,
+  so two commands disagree about one question.
+
+Ranking:
+2 > 1 > 4 > 3.
+2 beats 1 because it ends the one hang that costs nothing to end,
+for the unattended runs this repository's rounds make,
+while 1 leaves every hang to a person.
+1 beats 4 because 4 adds a deadline and still leaves the command a loop runs without one.
+4 beats 3 because 3 ends work that is slow and right.
+The round that built the line recommends 1,
+because its measurement says what an answer costs and not where a late one should be cut off.
+
+### Three picks the rounds made, veto open
+
+- A bin name too long for its exposure folder is refused where the plan is read,
+  with exit status 2,
+  by every command that reads a plan
+  (`list`,
+  `update` and `bin` among them).
+  The length comes from the file system's own answer,
+  less 95 bytes for the temporary name a link is written under,
+  so at most 160 bytes where names hold 255.
+  Not taken:
+  a shorter temporary name,
+  which would give up which process,
+  start,
+  namespace and boot wrote a link;
+  and a check in `install` alone,
+  which would let `list` report on a plan that cannot be installed.
+- A temporary link whose name an earlier release wrote,
+  or that this release wrote without knowing its own boot or namespace,
+  is kept and named on every install,
+  and no run removes it.
+  It used to be removed when no process held its number,
+  which a run in another process namespace cannot know.
+  Not taken:
+  keeping that rule for names that can be judged,
+  which cannot tell the two cases apart.
+  The cost is a line on every install until a person deletes the name by hand.
+- The line for a wait covers every program a command starts,
+  goes to standard error,
+  and is printed once per start.
+  Not taken:
+  the `rustup` questions alone,
+  and a line repeated at every bound.
+
 ## Open: four proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
 
 Four rounds each wrote a proposal on 2026-11-27 and changed no code.
@@ -133,6 +244,28 @@ B beats C because any durable record on the commit beats a line on standard erro
 
 ### What closes the last file loop in `foundation/`
 
+Taken on 2026-11-28 by the coordinating session's pick,
+with the owner's veto open:
+the third way,
+because it alone changes no signature and keeps the notice said when it is said today.
+It is built and on `main` since 2026-11-28T05:54:10-05:00
+(merge `74f34f6af9`).
+No signature changed,
+and the notice is said from the same place,
+on the same thread,
+once:
+the queue's own wait says it through a function its policy names,
+which is how the queue's file names no diagnostic file.
+A control written before the change holds the notice's words,
+its moment and that it is said once,
+and was shown red by a plant.
+The folder's three file-loop lines left the allow list,
+and `lines_written_by_a_thread.rs` is split in three.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
+
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
 The plan's move was applied and the linter run:
@@ -164,7 +297,6 @@ Ranking:
 3 > 1 > 2.
 3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
 1 beats 2 because a returned answer is more local than a flag another file has to take.
-`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
 ### What a landing writes for a path it has not read (issue 6566)
 
@@ -267,6 +399,12 @@ because the gate's verdict is unchanged and a false failure costs more than a sl
 
 
 ## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
+
+
+Answered on 2026-11-28:
+"Read the signatures first (Recommended)"
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The plan's rounds 1 to 3 are done or nearly done
 (`doc/planning/cli-git-source-layout-target-tree.md`,
@@ -4628,37 +4766,77 @@ and each can be undone.
 
 ## For the owner, and veto open: what the night of 2026-11-27 left after 22:15 (recorded 2026-11-27T23:01:36-05:00)
 
-### A question that waits: do rounds that compile the wrapper get a bound of their own?
+### A question that waits: what bounds the guests and the builds that run at once?
 
-The machine ran out of memory twice on 2026-11-27,
-the second time for about twenty minutes
+
+Answered on 2026-11-28:
+the rounds of that night ride,
+and a later batch is bounded by guests alive
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
+
+The machine ran out of memory three times on the night of 2026-11-27,
+the second and third time for about twenty minutes each
 (`doc/handover/cli-git-rust-implementation.md`,
 "Memory";
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
-Fourteen rounds that each compile the wrapper had been started within five minutes of each other,
+Fourteen rounds on the ZFS route had been started within five minutes of each other,
 on the direction to parallelize better and with no start waiting on memory,
 as the owner said on 2026-11-26.
+An earlier text of this entry named the builds as the load.
+A reading of 2026-11-27T23:20:27-05:00 corrects it:
+the unit that holds the guests held 29.9 GB of memory and 50.7 GB of swap with ten guests alive,
+each at the 8,192 MiB the owner kept until the crate split,
+and all the rounds' builds together held 15.8 GB and 1.4 GB.
+That reading counts what was left:
+it was taken seconds after twelve builds had been killed,
+with three compilers alive.
+Over its life the builds' slice has peaked at 55,702,958,080 bytes of memory and 56,149,524,480 of swap,
+and the guests' unit,
+since it started at 20:03:51,
+at 33,109,938,176 and 52,823,150,592
+(`MemoryPeak` and `MemorySwapPeak`,
+read at 23:25:24),
+so neither is shown to be the larger at the moment the memory ran out.
+What both readings of the night show is that the guests' unit holds about 50 GB of the 64.7 GB of swap the whole time,
+whether a guest is in use or not,
+and a build holds its peak for minutes.
+The builds are what the machine kills when the swap is full.
 What it cost,
 measured:
-eleven build scopes ended `oom-kill` in fourteen minutes,
+23 build scopes ended `oom-kill` between 22:34 and 23:20,
 the wrapper gate lost its build after 41 minutes and ran no test,
-and one round's start was refused.
+one round's start was refused,
+and for a third to a half of the worst fourteen minutes no task ran.
 No round and no guest was lost.
-The options,
-each for the rounds that compile the wrapper and for no other round:
+By the owner's criteria of 2026-11-13 the stall fails no level of agents at once;
+those criteria say nothing of a killed build.
+The options:
 
-- A bound of its own on how many such rounds run at once,
-  found the way the owner had the disk's ceiling found
-  (`doc/handover/agents-at-once-on-this-machine.md`):
-  a level,
-  halved when it fails,
-  with tonight's fourteen as a level that failed.
+- A bound on guests alive at once,
+  found the way the disk's ceiling is found
+  (`doc/handover/agents-at-once-on-this-machine.md`),
+  with ten as a level that failed.
   For:
-  it removes the killed builds where they start,
-  and every other round stays bounded by 64 alone.
+  it aims at the largest holder measured,
+  and rounds that need no guest stay bounded by 64 alone.
   Against:
   it is a rule on starts,
-  and the search for the level costs runs.
+  rounds that need a guest queue,
+  and the search costs runs.
+- Smaller guests for rounds that build nothing in the guest.
+  For:
+  ten guests would hold half as much at 4 GiB.
+  Against:
+  the owner shelved the guest memory proposal until the crate split on 2026-11-26,
+  because its figures measure guests building today's one crate,
+  so this reopens a decision.
+- A bound on rounds that compile the wrapper at once.
+  For:
+  it removes the builds the machine kills.
+  Against:
+  rounds wait,
+  and the guests' share of the swap stays as it is.
 - No bound,
   and a killed build made cheap:
   every brief says that a kill by the machine is run again and says nothing about the change.
@@ -4669,18 +4847,21 @@ each for the rounds that compile the wrapper and for no other round:
   and tonight the kills came faster than the builds finished.
 - The crate split,
   which waits for the owner's answer on its fourth round:
-  it lowers the compiler's peak,
-  seen at 28.8 GiB resident for the test build.
-  It goes with either of the other two and replaces neither tonight.
+  it lowers the compiler's peak and lets the guest question be measured again.
+  It goes with any of the others and replaces none tonight.
 
 Ranking:
-the bound over no bound,
-because the bound removes work that the other only repeats;
-the split beside whichever is taken,
-because it is the one that removes the cause.
+the bound on guests over smaller guests,
+because it needs no shelved decision reopened;
+smaller guests over the bound on builds,
+because a guest holds its memory for its round's whole life and a build for minutes,
+though at their peaks the two hold the same range and both bounds can be taken;
+the bound on builds over no bound,
+because it removes work that the other only repeats;
+the split beside whichever is taken.
 Until this is answered the coordinating session starts no second batch of that size:
-it starts the next rounds that compile the wrapper as running ones end.
-That is its own measure after a level that failed,
+it starts the next round that makes a guest or compiles the wrapper as a running one ends.
+That is its own measure,
 with the veto open.
 
 ### Veto open
@@ -4750,3 +4931,35 @@ and each can be undone.
   the logger's file sink verification reporting an internal error after 5000 ms on a loaded host,
   and 6648,
   a slow `git worktree remove` that removes the worktree and then fails.
+- Part D of the handover's history,
+  merged as `00740b0320`,
+  cut 73 of its ledger's 91 entries and kept fifteen open ones.
+  It read two duties as discharged,
+  "the wrapper's next release pass reads it as a change",
+  because the passes of `0.6.1-alpha.48` were the next ones,
+  where no tracked file says a pass read each item;
+  it let five verification figures go as counts of a merged branch's check;
+  it could not name the private helper that removes directories among the seven a split made public,
+  and kept the pass's own words;
+  and it added a two-line comment to `package/git-policy/cli/bin/native-check-commit-line.ts`,
+  a file of code.
+  Its conflict with `main`,
+  in the linter's README,
+  kept both sides.
+- The `cargo-shadow` round on the Low points of the read of `0.1.5-alpha.17` leaves the owner one choice and built neither way:
+  a manager reexec that begins after the route is discovered fails the whole call,
+  and a scope's creation that meets one is either tried again or left.
+  Tried again:
+  a call that overlaps a reexec finishes,
+  which is what a person upgrading packages needs;
+  but `systemd-run --user --scope` gives no idempotence,
+  so a retry can make a second scope beside one that was made and whose reply was lost,
+  and each attempt spends another discovery bound.
+  Left:
+  no new branch and a loud failure with the manager's own words;
+  but a build that overlaps a reexec fails whole,
+  and the read measured 11 of 24 such calls exiting 1.
+  The round also corrected four line ranges the brief did not list,
+  wrote records for its two controls,
+  and measures the pause from a stand-in's own start and end lines,
+  which showed the planted edit in one gap of four on the loaded host.

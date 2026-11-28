@@ -8,7 +8,7 @@
 //!  and whose rows are the binding design's
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //!  "The finder,
-//! and the lock's part in it",
+//!  and the lock's part in it",
 //!  and `doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "The states Git's source can leave").
 //!  This route calls the bindings' rules and states none of its own,

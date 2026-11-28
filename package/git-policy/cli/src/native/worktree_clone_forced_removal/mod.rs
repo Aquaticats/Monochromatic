@@ -7,11 +7,11 @@
 //!  and every word it answers with.
 //! Why:
 //!  Plan step 17 builds,
-//! with `--force`,
+//!  with `--force`,
 //!  "the ending of the holders other than the caller and its session,
-//! once the owed measurement shows it
+//!  once the owed measurement shows it
 //!  works;
-//! the identification of the caller and its session among the holders"
+//!  the identification of the caller and its session among the holders"
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17").
 //!  The design is
@@ -19,8 +19,8 @@
 //!  accepted with its V10 answer "Stop that unit" by
 //!  `doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`.
 //!  Nothing in this folder is reached by a person's command:
-//!  the removal's command path stays behind the cut
-//!  (`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
+//!  the removal's command path ends no holder and offers no `--force`
+//!  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`),
 //!  no sentence of a release offers `--force`,
 //!  and the only callers are this folder's controls and the guest arms.
 //!  The cancelled removal and the `cancel-worktree-removal` command are the sibling design's and not built
@@ -31,7 +31,7 @@
 //!  and by the constant that sizes its wait,
 //!  which ships with no value (`forced_arm_numbers.rs`).
 //!  A kind the evidence does not show is identified and refused,
-//! never ended.
+//!  never ended.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -236,6 +236,16 @@ pub mod the_refusal_sentences;
 #[path = "the_forced_act_guest_fixture_tests.rs"]
 mod the_forced_act_guest_fixture;
 
+/// What the stop's own answer becomes in this folder's words.
+#[cfg(test)]
+#[path = "the_stops_answer_tests.rs"]
+mod the_stops_answer;
+
+/// The guest arm's phase for a locked holder that is a unit of the account's own manager.
+#[cfg(test)]
+#[path = "the_forced_act_guest_arms_locked_unit_tests.rs"]
+mod the_forced_act_guest_arms_locked_unit;
+
 /// The guest arm that proves every kernel call of the act in a throwaway guest.
 #[cfg(test)]
 #[path = "the_forced_act_guest_arms_tests.rs"]
@@ -323,7 +333,7 @@ pub use holder_endings::{
     HolderKind,
     IN_PLACE_SHOWN_BY,
     KindEvidence,
-    LOCKED_NOT_BUILT,
+    LOCKED_UNIT_SHOWN_BY,
     MOVE_SHOWN_BY,
     MissingKind,
     PATH_HOLDER_SHOWN_BY,

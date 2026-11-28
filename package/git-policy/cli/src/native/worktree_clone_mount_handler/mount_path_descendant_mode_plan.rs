@@ -116,7 +116,7 @@ pub enum Answer {
 ///  Where one `mount-path-descendant` run reads and mounts.
 /// Why:
 ///   The release path reads the installed record,
-/// the kernel's tables and the
+///  the kernel's tables and the
 ///  live device,
 ///  and a control hands in fixtures and scripted reads,
 ///  so no control reads this machine's table,

@@ -108,10 +108,10 @@ pub fn attach_the_clone(
 ///  properties resolve to,
 ///  so the attribute set is the caller's and the four calls are the same one
 ///  sequence:
-/// `fsopen`,
-/// `fsconfig` twice,
-/// `fsmount`,
-/// `move_mount`.
+///  `fsopen`,
+///  `fsconfig` twice,
+///  `fsmount`,
+///  `move_mount`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

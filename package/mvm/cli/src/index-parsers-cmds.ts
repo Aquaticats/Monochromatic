@@ -82,7 +82,7 @@ const imageOption = optional(
 
 /**
  TODO: deprecate Optique
- Option parser for `--server-type TYPE`, used by cloud backends (Hetzner).
+ Option parser for `--server-type TYPE`, used by the cloud backends.
  */
 const serverTypeOption = optional(
   option(
@@ -90,14 +90,14 @@ const serverTypeOption = optional(
     string({ metavar: 'TYPE', },),
     {
       description:
-        message`Hetzner server type (e.g. cx23); defaults to the cheapest non-deprecated type; ignored by the libvirt backend`,
+        message`Server type: the Hetzner server type (e.g. cx23) or the OVHcloud flavor name or id (e.g. b3-8); defaults to the cheapest Hetzner type or the smallest OVHcloud flavor in stock; ignored by the libvirt backend`,
     },
   ),
 );
 
 /**
  TODO: deprecate Optique
- Option parser for `--location LOCATION`, used by cloud backends (Hetzner).
+ Option parser for `--location LOCATION`, used by the cloud backends.
  Accepts a single location or a comma-separated fallback series.
  */
 const locationOption = optional(
@@ -106,7 +106,7 @@ const locationOption = optional(
     string({ metavar: 'LOCATION', },),
     {
       description:
-        message`Hetzner location or comma-separated fallback series (e.g. fsn1,nbg1); ignored by the libvirt backend`,
+        message`Location: a Hetzner location series (e.g. fsn1,nbg1) or OVHcloud regions (e.g. bhs5); defaults to the Hetzner EU locations or the project's Canadian regions; ignored by the libvirt backend`,
     },
   ),
 );

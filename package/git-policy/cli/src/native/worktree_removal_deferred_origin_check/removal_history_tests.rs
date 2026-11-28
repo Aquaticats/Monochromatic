@@ -1,7 +1,7 @@
 //! What:
 //!  Controls of the one sentence a refusal prints about what the plan records,
 //!  at both check points and for one,
-//! two and no destroyed snapshots.
+//!  two and no destroyed snapshots.
 //! Why:
 //!  A refusal after the snapshot batch must name every snapshot already gone and never claim
 //!  that nothing was destroyed,

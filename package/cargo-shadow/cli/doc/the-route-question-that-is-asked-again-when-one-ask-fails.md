@@ -12,11 +12,14 @@ and then which transports that read counts,
 from systemd's own source at the two versions it runs beside,
 and what a call that begins inside a reexec meets there,
 and the asks of a manager that answered (the alpha.16 read's Low 1 to Low 4,
+2026-11-27),
+and then the two arms that ended the asking too early and the slice a stop job queued on it was taken from
+(the alpha.17 read's Medium 1 and Medium 2,
 2026-11-27).
 
 Status:
 **unapproved and non-final**.
-Written by five Pi runs:
+Written by six Pi runs:
 one on branch
 `fix/cargo-shadow-cli-issue-6619-ten-scope-tests-failed-together-once-and-passed-in-the-next-two-runs`,
 one on branch
@@ -40,7 +43,13 @@ and one on branch
 `fix/cargo-shadow-cli-cargo-shadow-alpha-17-release-pass-five-record-sentences-say-what-is-so-and-two-controls-can-fail`,
 which corrected five of this record's sentences against systemd's own file at each tag and a same-vendor second read,
 added the control of the pause the call site sleeps and the control of an address beside a runtime directory,
-and said what the span does not cover.
+and said what the span does not cover,
+and one on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-17-release-pass-a-start-that-heals-and-a-queued-stop-keep-the-delegated-route`,
+which made a failed start that met a transport or lost its reply ask the question again,
+made a path the ask after it reports the route,
+read the job queued on the slice in the same ask and started the slice behind that job,
+and added the four controls of those two arms.
 Every claim about behaviour here names what it rests on:
 a command a round ran,
 a line of this package,
@@ -181,15 +190,38 @@ name which ask failed and what it said.
 Since 2026-11-27 the first ask of an attempt is the ask of where the slice is (`ask_where_the_slice_is_once`),
 because that ask answers whatever the slice's state and is carried over a transport the same way:
 a manager that is there answers it,
-so a start that fails after it is the manager's own answer about the slice.
-The slice is started only where that answer is no control group at all,
-and the path is asked for again after the start.
-A start the manager refused is followed by one more ask:
-if the manager answers it,
-the asking ends with the start's own words,
-because a refusal does not change with a wait (measured below);
-if it fails too,
-the failure was a transport and the question is put again.
+so it is the read that says whether a request can reach the manager at all.
+That one ask reads two properties in one program start:
+the slice's control group and the job queued on the slice
+(`--property=ControlGroup --property=Job`).
+The slice is started where that answer is no control group at all,
+and also where it is a path beside a job queued on the slice,
+because a slice being stopped still reports the path it had while a scope made in it would be refused as destructive
+(the second read of `0.1.5-alpha.17`,
+Medium 2);
+the path is asked for again after the start.
+A start that fails is followed by one more ask,
+and what that ask answers decides the asking (`the_manager_answered_a_start`,
+2026-11-27):
+
+- a path is the route and is used,
+  whatever the start's words said,
+  because a start whose reply was lost leaves a slice that really was started;
+- an empty answer ends the asking where the start's own words are the manager's answer about the slice:
+  they name the slice after `Failed to start <slice>: ` and carry none of the words a transport that went away prints.
+  A masked slice's refusal does not change with a wait:
+  it answered the start and the ask after it in 3 asks and about
+  0.1 s,
+  where five asks spent 895 ms (measured 2026-11-27,
+  below);
+- an empty answer after a transport's words,
+  or after words that name neither the slice nor a transport,
+  is a moment,
+  and the whole question is put again inside the same span;
+  the second read of `0.1.5-alpha.17` found the arm that took these for refusals (Medium 1);
+- an ask that fails too is a transport,
+  and the question is put again.
+
 An answer that is not a control group path ends the asking the same way,
 after the ask that followed the start,
 because the manager answered twice.
@@ -229,7 +261,14 @@ The controls are `control_group_route_discovery::asking_again_tests`:
 the question is put again after a failed ask,
 a manager that answered nothing is asked once,
 a program that ended inside its bound is no spent deadline,
-and a question that keeps failing still refuses with the manager's own words.
+and a question that keeps failing still refuses with the manager's own words,
+and,
+since 2026-11-27,
+four more for the arms above:
+a path the ask after a failed start reports is the route,
+a start that never reached the manager is put again,
+a start that failed and the ask after it failing too is put again,
+and a stop job queued on the slice is asked through before the route is taken.
 The last two are not made red by the change being taken out:
 the bound rule is a rule about one program,
 and the manager that answers nothing is asked once either way.
@@ -1118,7 +1157,127 @@ so the two can meet,
 and that read reached the state in 2 of its 24 calls whose reexec was aligned to the call's start.
 What it would print is a refusal of the shape of the three above,
 which names the unit and the verb and is a transport that died.
-It is in the Open list.
+That state is read the other way since 2026-11-27:
+an empty answer after a start whose own words carry a transport's words is a moment and the question is put again
+(`the_manager_answered_a_start`),
+so a window inside that gap costs the span and not the call.
+Which window a call meets is still in the Open list.
+
+## What a start that met a moment does, and a slice with a stop job queued
+
+This is the second read of `0.1.5-alpha.17`'s two Medium points (issue 6645),
+which the two sections above did not cover.
+Both were measured 2026-11-27 in a rootless container whose user manager and bus were its own,
+with 20 services in `background.slice` so `app.slice` was inactive when each call began,
+and one call is `cargo-shadow install --dry-run` in a repository of its own whose lockfile is stale,
+with the package's own stand-in cargo behind it.
+The arms alternate:
+the released `0.1.5-alpha.16`,
+the released `0.1.5-alpha.17`,
+a byte-identical copy of it,
+and the branch's binary.
+A stand-in `systemctl` stages three states and logs every ask:
+a unit load that fails once (a drop-in makes `app.slice` require a unit that is not there,
+the manager refuses the start,
+the drop-in is removed and the manager reloaded),
+a start whose reply is lost (the real start runs and the stand-in answers with the words of a request in flight when the
+manager went away),
+and a start the stand-in refuses once without reaching the manager.
+
+Three calls each arm and state,
+before the change,
+27 calls:
+
+- `0.1.5-alpha.16` delegated in 2 of 3 calls of the first state (its third call's start spent the ten-second bound while
+the layout's 20 services were still starting),
+  and in 3 of 3 of the other two;
+- `0.1.5-alpha.17` and its copy took the weaker path in every call of all three states,
+  18 of 18,
+  each after `show`,
+  `start` and one more `show`,
+  and in the lost-reply state the third ask answered the slice's path and
+  the call was refused anyway.
+
+After the change,
+three calls each arm and state,
+36 calls:
+
+- the branch's binary took the delegated route in 9 of 9 calls:
+  6 asks in the first and third states (a moment of
+  200 ms,
+  then the start again),
+  3 asks in the second (the path the third ask reported);
+- `0.1.5-alpha.17` and its copy stayed on the weaker path in 9 of 9 of the first and third states and,
+  in the second,
+  in 3 of 3 as well,
+  where `0.1.5-alpha.16` delegated in 9 of 9.
+
+The same stand-in aligned to a real reexec of that container's manager,
+with `app.slice` inactive at each call so that the start and the confirming ask are reached,
+16 calls (four arms x two delays x two rounds) in one run:
+`0.1.5-alpha.16` delegated in 4 of 4,
+the branch's binary in 4 of 4,
+`0.1.5-alpha.17` in 3 of 4 and its copy in 3 of 4.
+The call both alpha.17 binaries refused met `start` failing with `Failed to connect to user scope bus via local
+transport: Connection refused` and the ask after it answering nothing,
+which is the shape above;
+the branch's binary in the same state put the question again and delegated.
+
+A slice with a stop job queued,
+the second Medium point:
+a service that ignores SIGTERM holds `app.slice` deactivating for `TimeoutStopSec=4`,
+and `systemctl --user stop app.slice --no-block` is issued about 0.6 s before the call.
+Three calls each arm,
+before the change,
+9 calls:
+`0.1.5-alpha.16` exited 0 and took the delegated route in 3 of 3,
+in 2 asks and 3.9 s to 4.2 s;
+the two alpha.17 binaries exited 1 in 6 of 6,
+in 1 ask and 70 ms to 152 ms,
+with `Failed to start transient scope unit: Transaction for cargo-shadow-....scope/start is destructive (app.slice has
+'stop' job queued, but 'start' is included in transaction).` under "Cargo output" and the install's advice about the
+local index.
+After the change,
+12 calls in the same container,
+11 of them with the state in place at the call (the ground truth
+printed `active/active` with the slice's path):
+the branch's binary exited 0 and delegated in 3 of 3,
+in 3 asks and 3.8 s to 6.1 s;
+`0.1.5-alpha.16` did the same in 3 of 3 (2 asks,
+3.6 s to 5.7 s);
+and `0.1.5-alpha.17` with its copy exited 1 in the 4 calls that met the state.
+The absolute times are this container's,
+under other agents' work;
+the counts and the route are the finding.
+
+A start behind a queued stop,
+measured in the same container's manager,
+four stagings:
+`systemctl --user start app.slice` returned 0 after 3.714 s,
+3.762 s,
+3.681 s and 3.781 s,
+which is the four seconds of the planted stop,
+and `Job=` was empty afterwards where it held a job before.
+A scope made there with `systemd-run`'s own default job mode was refused in 8 ms with the words above;
+the same scope with `--job-mode=replace` returned 0 after 3.719 s.
+What the source says about those two outcomes (`src/core/job.c`,
+`src/core/transaction.c`,
+`src/run/run.c` and `src/systemctl/systemctl.h` at v262 and v255):
+a start and a stop of one unit cannot merge,
+a transaction is refused as destructive only in `fail` or `lenient` mode or against a job marked irreversible,
+`systemctl start` puts its job in `replace` mode and `systemd-run` puts a scope's transaction in `fail`.
+So the start behind the queued stop is not refused,
+and the scope made without a start is.
+That shape is what the discovery uses:
+it starts the slice and asks where it is again,
+which is three asks and the stop's own length in the state where a person is stopping the slice,
+and that wait is bounded by `DISCOVERY_BOUND` (10 s),
+so a slice whose stop is given the manager's own ninety-second default is refused by that bound rather than waited for.
+The way not taken is `--job-mode=replace` on the scope launcher:
+it carries the same call in the same 3.719 s,
+but it makes every call's transaction able to replace a queued job of any
+unit it touches,
+which is the protection `fail` mode is for.
 
 ## A failing run leaves its messages
 

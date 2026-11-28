@@ -13,7 +13,7 @@
 //! An abstract name is the one address that fits both a socket unit
 //! (`ListenStream=@name`,
 //! measured against systemd 262 in a container:
-//! the unit is accepted,
+//!  the unit is accepted,
 //! the name is bound,
 //! and `Listen` reports `@` and the name) and a client,
 //! whatever working directory either of them runs in,
@@ -31,7 +31,7 @@
 //! the name is built from this account's own runtime directory and its user id,
 //! and both ends refuse a connection whose peer is another account
 //! (`service_client_listen_and_ask_to_retire.rs`,
-//! `service_server_connection_handling.rs`).
+//!  `service_server_connection_handling.rs`).
 //! The path form stays for every runtime directory that can carry it,
 //! so the ordinary commit pays nothing for this.
 //!
@@ -90,7 +90,7 @@ pub const DIGEST_DIGITS_IN_AN_ABSTRACT_NAME: usize = 16;
 /// so the two are one name only if what is still to be made is folded the way the file system will walk it.
 /// A component that does not exist yet is a directory `create_dir_all` makes and never a link,
 /// so the `..` and `.` parts below it are folded by hand:
-/// a name joins,
+///  a name joins,
 /// `..` takes the last name away,
 /// and `.` names nothing.
 /// This is what the kernel would answer for those parts once they exist,
@@ -100,7 +100,7 @@ pub const DIGEST_DIGITS_IN_AN_ABSTRACT_NAME: usize = 16;
 /// a directory this account may not read — still gets one name from this fold,
 /// the same name both ends of a commit make;
 /// provisioning then cannot create the directory and stops at once,
-/// naming the setting
+///  naming the setting
 /// (`a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it`).
 ///
 /// In TS you'd write (pseudocode):
@@ -174,9 +174,9 @@ pub fn abstract_name_of(
 
 /// What:
 ///  The part of an abstract name that is the same for every instance of one runtime directory:
-/// the service's own name,
+///  the service's own name,
 ///  the account,
-/// and the digest of the place the runtime directory names.
+///  and the digest of the place the runtime directory names.
 /// Why:
 ///   A unit file names the instance with `%i` and a client names it with the instance's text,
 ///  so the rest of the name is made in one place for both.
@@ -197,7 +197,7 @@ fn abstract_name_prefix_of(runtime_dir: &Path) -> String {
 
 /// What:
 ///  The address one worktree's service listens at,
-/// or would:
+///  or would:
 /// the socket file under the runtime directory when that path fits one socket address,
 /// and an abstract name when it does not.
 /// Why:

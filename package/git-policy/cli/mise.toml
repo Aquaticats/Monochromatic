@@ -129,6 +129,13 @@ run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 description = "Lint the native wrapper with the controls' test-only switches compiled in, so no line of a build made for a control goes unlinted; the feature is off in every build the release ships, and this task exists only beside it"
 run = "cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings"
 
+# The nudge on Git commands is compiled only where its switch is on, and the gate's Clippy step compiles without a feature,
+# so this task is what lints the lines only that build has
+# (doc/how-to-write-this-packages-code-and-tests.md, "A round runs no whole container gate").
+[tasks."native:clippy:zfs-lost-event-nudge"]
+description = "Lint the build that turns the nudge on Git commands on"
+run = "cargo clippy --locked --offline --all-targets --features zfs-lost-event-nudge -- -D warnings"
+
 [tasks."native:clippy:start-probe-raised-deadline"]
 description = "Lint the native wrapper with the start probe's raised deadline compiled in, so no line of a build made for the raised-deadline control goes unlinted; the feature is off in every build the release ships, only a build made for that control turns it on, and this task exists only beside it"
 run = "cargo clippy --locked --offline --all-targets --features start-probe-raised-deadline -- -D warnings"

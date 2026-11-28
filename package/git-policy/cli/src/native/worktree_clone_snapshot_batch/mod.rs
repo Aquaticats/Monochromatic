@@ -14,21 +14,20 @@
 //! keeps the per-name error list,
 //!  skips an empty set
 //! and,
-//! past the budget,
+//!  past the budget,
 //! splits the set by the largest fitting prefix
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Removal and recovery";
 //! `doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//! step 16).
+//!  step 16).
 //!  The request is the binding's own (`destroy_snaps`),
-//! sent through the
+//!  sent through the
 //!  wrapper's existing `/dev/zfs` layer,
 //! so no second encoder and no `zfs` program
 //!  exists between the verified names and the kernel.
-//!  This folder is built ahead of its step and wired by no command:
-//! step 16's wiring
-//!  is what calls it,
-//! and that wiring still owns the fresh lineage proof,
+//!  The removal a person's `git worktree remove` runs calls it
+//! (`removal_command_path.rs`),
+//!  and that removal owns the fresh lineage proof,
 //! the
 //!  deferred-origin check and the head destroy.
 //!  The budget is a parameter and this piece picks no value:

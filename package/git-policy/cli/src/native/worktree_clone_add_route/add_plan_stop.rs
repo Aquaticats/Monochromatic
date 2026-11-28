@@ -36,7 +36,6 @@ use super::add_route_steps::StepRefusal;
 use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::worktree_clone_binding_record::add_state_commands::{
     ClonePresence,
-    NOT_ADMITTED_YET,
     NextCommand,
     PlanHeadWord,
     StateFacts,
@@ -151,7 +150,7 @@ pub fn the_sentence_beside_a_plan(
         command.printed_line(slot)
     );
     if names_the_cancel_command(plan, presence) {
-        sentence.push_str(format!(" A person who wants the worktree kept keeps it: the plan records no destroy, and the cancel command (`git {word} {cancel} {slot}`), which would report that and restore nothing, is built while {NOT_ADMITTED_YET}, so nothing has to be run and the plan, the clone and the worktree's files stay as they stand until a release that answers it ships.", word = COMMAND_WORD.current, cancel = CANCEL_COMMAND_WORD).as_str());
+        sentence.push_str(format!(" A person who wants the worktree kept keeps it: the plan records no destroy, and `git {word} {cancel} {slot}` reports that and restores nothing, so nothing else has to be run and the plan, the clone and the worktree's files stay as they stand.", word = COMMAND_WORD.current, cancel = CANCEL_COMMAND_WORD).as_str());
     }
     return sentence;
 }

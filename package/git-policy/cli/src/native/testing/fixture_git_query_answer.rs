@@ -24,9 +24,9 @@ use std::process::Output;
 #[derive(Debug)]
 pub(crate) struct QueryAnswer {
     /// The status the wait returned,
-    /// and the bytes the two pipes had given by the end of the grace after the ending.
+    ///  and the bytes the two pipes had given by the end of the grace after the ending.
     ///  A descendant that holds a pipe can add bytes in that window,
-    /// and `held_open` says when one did.
+    ///  and `held_open` says when one did.
     pub output: Output,
     /// What ended the query,
     /// as the last status the wait returned showed it.

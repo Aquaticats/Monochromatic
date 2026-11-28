@@ -398,9 +398,8 @@ fn a_foreign_claim_record_or_a_linked_directory_is_refused() {
 ///  The sentence said the `doctor` command reports a claim once plan step 10
 ///  adds it:
 ///  step 10 built the claim,
-/// `doctor` reaches none of the route's checks,
-/// and a
-///  person who typed the bare words got Git's own refusal instead of a line.
+///  `doctor` reaches none of the route's checks,
+///  and a person who typed the bare words got Git's own refusal instead of a line.
 #[test]
 fn the_refusal_names_the_typed_doctor_and_no_claim_line() {
     let refusal: ClaimRefusal = ClaimRefusal::Held {

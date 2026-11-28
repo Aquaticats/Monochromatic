@@ -225,6 +225,7 @@ fn the_healthy_input<'a>(
         head,
         holders,
         settle,
+        cancelling: None,
         budget: the_budget(),
     };
 }
@@ -615,6 +616,7 @@ fn the_claim_is_taken_before_the_first_read_so_a_refused_removal_leaves_it_relea
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
         now: "2026-11-25T09:12:44-05:00",
     };
@@ -677,6 +679,7 @@ fn the_head_gone_removal_takes_the_claim_and_releases_it_at_its_last_step() {
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect("the head-gone removal finishes");

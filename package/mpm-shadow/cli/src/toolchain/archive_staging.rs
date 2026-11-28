@@ -167,12 +167,11 @@ pub(crate) use self::the_owner_of_a_hidden_sibling::{
 };
 /// Imports the owner of a hidden sibling,
 /// and re-exports it and the reads of a process's record for a caller that builds one of these names itself,
-/// with the check on the boot field of a name and the question a name that records only a process number is judged by.
+/// with the check on the boot field of a name.
 pub(crate) use self::the_owner_of_a_hidden_sibling::{
     Liveness,
     Owner,
     is_boot_id,
-    the_number_is_held,
 };
 
 /// Imports `ToolchainError` from `super::error`.
@@ -216,6 +215,34 @@ pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
 /// ```
 pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY: &str = "A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, \
      and removes it as a second finished copy when that name holds one; \
+     it acts on that name in this process namespace and after a reboot, \
+     but an install in another process namespace does not judge that name and leaves the copy where it is, \
+     and prune --toolchain prints that name and what deleting it costs; \
+     a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, \
+     because an older repository tool is never kept";
+
+/// What:
+/// What a later install does with the finished copy a failed recovery named,
+/// in the state the warning that carries it stands in:
+/// the install this run went on to make has just given that version its name.
+/// Why:
+/// The recovering run keeps the lock satisfied by installing the version after the recovery failed,
+/// so the warning it prints speaks of a version whose name holds a finished copy already.
+/// The first half of `WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY`
+/// (an install publishes the copy while the version's name holds no finished copy)
+/// cannot happen from that state,
+/// and a sentence that offers it describes a run that cannot come:
+/// what a later install does is remove the copy as a second one.
+/// The two halves are one sentence each rather than one sentence with a switch,
+/// so the sentence a reader sees is the state the run is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY =
+///   'A later install of that version removes that copy as a second finished copy ...';
+/// ```
+pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY: &str = "A later install of that version removes that copy as a second finished copy, \
+     because the version's name holds a finished copy by then; \
      it acts on that name in this process namespace and after a reboot, \
      but an install in another process namespace does not judge that name and leaves the copy where it is, \
      and prune --toolchain prints that name and what deleting it costs; \
@@ -454,21 +481,23 @@ fn replace_the_copy_that_is_there(
         }
         Err(error) if cannot_exchange(&error) => {
             if a_permission_denial(&error) {
-                // What: `eprintln!` writes one line to standard error, the channel this command's failures use
-                //  (TS: `console.error`).
-                // Why: a policy that refuses only the exchange would otherwise be silent, and the instant the two
-                //  renames leave, in which the version's name holds nothing, would come back unannounced.
+                // What: the crate's notice writer puts one line on standard error, the channel this
+                //  command's failures use (TS: `console.error`), and drops a write the stream refuses.
+                // Why: a policy that refuses only the exchange would otherwise be silent, and the instant
+                //  the two renames leave, in which the version's name holds nothing, would come back
+                //  unannounced; the install then goes on to the two renames, so this warning is not a
+                //  result and must not end the run (the wait line's `SIGABRT` was the same mistake).
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
-                // console.error(`mpm-shadow: warning: ${error}: the exchange ... was refused, so ...`);
+                // say(`mpm-shadow: warning: ${error}: the exchange ... was refused, so ...`);
                 // ```
-                eprintln!(
+                crate::notices::say(&format!(
                     "mpm-shadow: warning: {error}: changing {} and {} in one exchange was refused, so they are changed in two renames instead, and the instant between those renames, in which {} names nothing, is back; a file system that cannot exchange two names answers the same way, and so does a policy that refuses only that one call",
                     staging.display(),
                     final_dir.display(),
                     final_dir.display()
-                );
+                ));
             }
             return two_renames(staging, final_dir, first_bin);
         }

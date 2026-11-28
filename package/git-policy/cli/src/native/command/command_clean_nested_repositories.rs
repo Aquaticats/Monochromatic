@@ -210,8 +210,7 @@ pub fn nested_repositories_the_clean_deletes(
 /// ```
 ///
 /// The route's preflight asks it of a main checkout before its first write,
-/// to
-/// decline a source whose copy the fill's clean would leave unproven
+/// to decline a source whose copy the fill's clean would leave unproven
 /// (`add_source_the_restore_cannot_prove.rs`).
 pub(crate) fn repositories_beneath(
     worktree_root: &Path,

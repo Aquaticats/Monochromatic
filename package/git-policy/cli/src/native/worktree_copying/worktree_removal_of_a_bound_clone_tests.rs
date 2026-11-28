@@ -25,6 +25,10 @@ use crate::testing::mounted_dataset_table::{
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::IntentReading;
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
     CLONE_CREATETXG,
@@ -33,6 +37,8 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     ORIGIN_DATASET,
     ORIGIN_SNAPSHOT,
     ORIGIN_SNAPSHOT_GUID,
+    OWN_CREATETXG,
+    OWN_GUID,
     OWN_SNAPSHOT,
     POOL,
     POOL_GUID,
@@ -221,7 +227,7 @@ impl MountedDatasets for ATableNoControlReads {
 
 /// The refusal's answer for one slot with nothing mounted and no intent set,
 /// which the states that stay Git's ask for.
-fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalRefusal> {
+fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalAnswer> {
     let mounts: ScriptedMountTable = nothing_is_mounted();
     let intents: ScriptedIntent = no_intent_asked();
     let sources: SlotReadingSources<'_> = SlotReadingSources {
@@ -236,9 +242,9 @@ fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalRefusal> {
 fn refusal_of_or_none_with(
     facts: &CopyFacts,
     sources: &SlotReadingSources<'_>,
-) -> Option<BoundSlotRemovalRefusal> {
+) -> Option<BoundSlotRemovalAnswer> {
     let (target, common): (PathBuf, PathBuf) = the_slot_and_its_common(facts)?;
-    return refuse_the_removal_with(
+    return the_removal_with(
         target.as_path(),
         common.as_path(),
         RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
@@ -282,8 +288,8 @@ fn refusal_of_with(
 ) -> String {
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(facts).expect("the facts name one removal");
-    return match refuse_the_removal_with(target.as_path(), common.as_path(), reads, sources) {
-        Some(BoundSlotRemovalRefusal {
+    return match the_removal_with(target.as_path(), common.as_path(), reads, sources) {
+        Some(BoundSlotRemovalAnswer {
             stderr,
             code,
         }) => {
@@ -323,7 +329,7 @@ fn a_whole_worktree_refuses_its_removal() {
         RemovalReads::Unreadable("this control reads no pool"),
     );
     assert!(
-        stderr.contains("this release has no removal for a clone"),
+        stderr.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{stderr}"
     );
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
@@ -366,6 +372,81 @@ fn every_other_slot_stays_gits() {
 }
 
 /// What:
+///  A slot a destruction plan names is the removal's own,
+///  and the lines it prints say what that run resumes.
+/// Why:
+///  The design's rule is that a removal reads the plan and then the live pinned
+///  parent and that no other fact decides its path
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "Which resume path a removal takes"),
+///  and the slot state calls such a slot a pending removal whatever its binding's
+///  phase says,
+///  so the entry took only a mounted or an unmounted clone and left this one to
+///  Git.
+///  Git's own removal there drops the registration and the slot folder while the
+///  plan and the clone stand,
+///  which is the state the slot report warns about.
+#[test]
+fn a_slot_a_destruction_plan_names_is_the_removals_own() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-a-pending-removal");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let plan: PathBuf = fixture.plant_a_plan(
+        HeadWord::Present,
+        vec![fixture.a_line_of_the_plan(
+            OWN_SNAPSHOT,
+            OWN_GUID,
+            OWN_CREATETXG,
+            0,
+            SnapshotOutcome::Planned,
+        )],
+    );
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let left_to_git: Option<BoundSlotRemovalAnswer> = the_removal_with(
+        fixture.slot_path.as_path(),
+        fixture.common_dir.as_path(),
+        RemovalReads::Scripted(&pool),
+        &sources,
+    );
+    let answer: BoundSlotRemovalAnswer = left_to_git.expect(
+        "a slot a destruction plan names is the removal's own, and Git's own removal would drop the registration while the clone stands",
+    );
+    assert_eq!(
+        answer.code, REFUSED_EXIT_CODE,
+        "a control's own pool answer reports what a removal would do rather than removing"
+    );
+    assert!(
+        answer.stderr.contains("state: pending removal"),
+        "{}",
+        answer.stderr
+    );
+    assert!(
+        answer
+            .stderr
+            .contains("stands, so this run resumes it: it reads the plan, proves every name the plan records again, sends no request for a name the plan records as destroyed, carries the loss forward and ends the plan with the removal's own records"),
+        "{}",
+        answer.stderr
+    );
+    assert!(
+        answer
+            .stderr
+            .contains(format!("A removal's destruction plan at {}", plan.display()).as_str()),
+        "the sentence names the plan's own file: {}",
+        answer.stderr
+    );
+    assert_eq!(
+        the_tree(fixture.common()),
+        before,
+        "the answer wrote nothing, the plan it read included"
+    );
+}
+
+/// What:
 ///  A `git worktree remove` that names a bound slot is refused in every
 ///  spelling Git accepts,
 ///  the double force included,
@@ -386,7 +467,7 @@ fn every_spelling_of_a_bound_slots_removal_is_refused() {
     facts.remove_plan = None;
     let stderr: String = refusal_of(&facts, RemovalReads::Scripted(&pool));
     assert!(
-        stderr.contains("this release has no removal for a clone"),
+        stderr.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{stderr}"
     );
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
@@ -428,7 +509,7 @@ fn a_record_that_cannot_be_read_refuses_the_removal() {
     };
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
-    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
         target.as_path(),
         common.as_path(),
         RemovalReads::Unreadable("this control reads no pool"),
@@ -499,7 +580,7 @@ fn a_slot_with_no_record_and_a_mount_at_it_refuses_the_removal() {
     };
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
-    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
         target.as_path(),
         common.as_path(),
         RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
@@ -557,7 +638,7 @@ fn a_record_naming_another_path_refuses_the_removal() {
         mounts: &mounts,
         intents: &NoIntentMayBeAsked,
     };
-    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
         plain.as_path(),
         bound.common.as_path(),
         RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
@@ -615,7 +696,7 @@ fn an_unreadable_mount_table_refuses_the_removal() {
     };
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
-    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
         target.as_path(),
         common.as_path(),
         RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
@@ -671,7 +752,7 @@ fn an_unreadable_mount_table_refuses_from_the_phase_that_makes_a_clone() {
             mounts: &mounts,
             intents: &intents,
         };
-        let answer: Option<BoundSlotRemovalRefusal> =
+        let answer: Option<BoundSlotRemovalAnswer> =
             refusal_of_or_none_with(&facts_of(&bound), &sources);
         assert_eq!(
             answer.is_some(),
@@ -701,7 +782,7 @@ fn a_repository_without_records_reads_no_mount_table() {
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
     assert!(
-        refuse_the_removal_with(
+        the_removal_with(
             target.as_path(),
             common.as_path(),
             RemovalReads::Unreadable("this control reads no pool"),
@@ -782,10 +863,11 @@ fn the_refusal_asks_the_intent_reader_it_was_given() {
 ///  and writes no record,
 ///  no intent and no plan.
 /// Why:
-///  This release removes no clone,
-///  so the printed proof and loss are what a person gets,
+///  This control answers the pool itself,
+///  so the printed proof and loss are what a person gets from the release's
+///  path without the device,
 ///  and the unchanged tree is the promise that nothing was unmounted or
-///  recorded for a step this release cannot finish.
+///  recorded for a step the control cannot finish.
 #[test]
 fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
     let fixture: RemovalFixture = RemovalFixture::healthy("command-path-healthy");
@@ -798,7 +880,7 @@ fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
     // The refusal a person reads is this whole block, so a log of one run keeps its shape beside the assertions.
     println!("{stderr}");
     assert!(
-        stderr.contains("this release has no removal for a clone"),
+        stderr.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{stderr}"
     );
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
@@ -821,7 +903,7 @@ fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
         "{stderr}"
     );
     assert!(
-        stderr.contains("this release does not remove a clone yet"),
+        stderr.contains("the removal itself did not run here"),
         "{stderr}"
     );
     assert_eq!(
@@ -1082,7 +1164,7 @@ fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
         mounts: &mounts,
         intents: &NoIntentMayBeAsked,
     };
-    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
         plain.as_path(),
         bound.common.as_path(),
         RemovalReads::Unreadable(NO_POOL_WAS_ASKED),

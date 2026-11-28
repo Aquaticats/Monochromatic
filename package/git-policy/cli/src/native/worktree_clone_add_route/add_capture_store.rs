@@ -1,23 +1,22 @@
 //! What:
 //!  Where the capture and the proof's phase marker live,
-//! how they are published
+//!  how they are published
 //!  so a kill leaves either the old record or the new one,
-//! and how an add that
+//!  and how an add that
 //!  took the claim clears another add's records at its slot.
 //! Why:
 //!  The capture stands beside the binding in the wrapper's folder,
-//! keyed by the
+//!  keyed by the
 //!  slot and owned by the add's nonce
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "What 'the captured source' is").
 //!  The marker is a small file an add flips once the proof has passed,
-//! so a
-//!  resume does not prove a tree that has already been written.
+//!  so a resume does not prove a tree that has already been written.
 //!  Every publication is a private staging name,
-//! one exclusive link that
+//!  one exclusive link that
 //!  replaces nothing,
-//! and the staging name's removal,
-//! which is the store
+//!  and the staging name's removal,
+//!  which is the store
 //!  precedent this repository uses.
 //!
 //! In TS you'd write (pseudocode):
@@ -84,11 +83,10 @@ const RECORD_MODE: u32 = 0o600;
 
 /// What:
 ///  Publish one capture under its real name,
-/// replacing nothing.
+///  replacing nothing.
 /// Why:
 ///  A capture belongs to one add's nonce and is written once per add,
-/// so a
-///  second publication at the same name is a refusal and not a merge.
+///  so a second publication at the same name is a refusal and not a merge.
 ///
 /// # Errors
 /// The staging file cannot be made or written,
@@ -110,10 +108,10 @@ pub fn publish_capture(
 
 /// What:
 ///  Read one slot's capture,
-/// or nothing when no capture stands.
+///  or nothing when no capture stands.
 /// Why:
 ///  A resume needs the facts,
-/// and a capture whose bytes do not fit the grammar
+///  and a capture whose bytes do not fit the grammar
 ///  is refused by name rather than half read.
 ///
 /// # Errors
@@ -146,8 +144,7 @@ pub fn read_capture(
 ///  Publish the proof's phase marker for one nonce.
 /// Why:
 ///  The marker says the clone's tree was proven before the first write,
-/// and its
-///  nonce says whose proof it is.
+///  and its nonce says whose proof it is.
 ///
 /// # Errors
 /// The staging file or the link was refused.
@@ -179,7 +176,7 @@ fn marker_staging_name(slot: &str) -> String {
 ///  Whether the marker at one slot names this add's nonce.
 /// Why:
 ///  A resume reads the marker rather than the capture,
-/// and another add's marker
+///  and another add's marker
 ///  is no proof of this one's.
 ///
 /// # Errors
@@ -214,14 +211,13 @@ pub fn marker_is_ours(
 
 /// What:
 ///  Remove one capture and its marker,
-/// in the design's order:
-/// the marker,
-/// then
-///  the record,
-/// and the settle marker last when this step wrote one.
+///  in the design's order:
+///  the marker,
+///  then the record,
+///  and the settle marker last when this step wrote one.
 /// Why:
 ///  A kill at any removal leaves a state the resume can read,
-/// and a leftover
+///  and a leftover
 ///  marker whose capture is gone is refused by the reader rather than trusted.
 pub fn remove_capture(
     home: &Path,
@@ -233,17 +229,15 @@ pub fn remove_capture(
 
 /// What:
 ///  Clear another add's capture,
-/// marker,
-/// settle marker and staging name at one
+///  marker,
+///  settle marker and staging name at one
 ///  slot,
-/// and leave this add's own alone.
+///  and leave this add's own alone.
 /// Why:
 ///  An add that has just taken the claim is the only owner of the slot,
-/// so a
-///  record with another nonce was left by an add that is not running.
-/// The next
-///  add clears it,
-/// which is what makes "remove it and run the same add again"
+///  so a record with another nonce was left by an add that is not running.
+///  The next add clears it,
+///  which is what makes "remove it and run the same add again"
 ///  work after a pending worktree is removed.
 ///
 /// # Errors

@@ -12,7 +12,7 @@
 //!  stops rather than retrying by name when even one tuple cannot fit
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Removal and recovery",
-//! step 3).
+//!  step 3).
 //!  Every chunk is measured by packing the exact request it becomes,
 //! so the split
 //!  moves with the encoder's bytes and not with a name count.

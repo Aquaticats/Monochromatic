@@ -32,7 +32,7 @@ import {
  ```
  */
 export const BACKEND_ARGUMENT: OptionalDescribedString = optionalString(
-  'Backend to target: libvirt (default, local KVM, Linux only) or hetzner (Hetzner Cloud; requires HCLOUD_TOKEN). There is no record of which backend a VM lives on, so pass the same backend used at create to every follow-up call.',
+  'Backend to target: libvirt (default, local KVM, Linux only), hetzner (Hetzner Cloud; requires HCLOUD_TOKEN) or ovh (OVHcloud Public Cloud; requires OVH_ENDPOINT, OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, OVH_CONSUMER_KEY and MVM_OVH_PROJECT_ID). There is no record of which backend a VM lives on, so pass the same backend used at create to every follow-up call.',
 );
 
 /**

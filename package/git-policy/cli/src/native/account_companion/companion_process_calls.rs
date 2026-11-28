@@ -16,10 +16,10 @@
 //! "Its deadline").
 //!  A child a signal cannot end is handed to the crate's reaper for a child the
 //!  starter holds only as a number,
-//! rather than waited on here
+//!  rather than waited on here
 //!  (`process/stuck_children_reaped_when_the_kernel_lets_go.rs`,
 //!  `reap_soon_pid`),
-//! which is that file's rule for a command's child applied
+//!  which is that file's rule for a command's child applied
 //!  to the raw pid this module forked.
 //!
 //! In TS you'd write (pseudocode):

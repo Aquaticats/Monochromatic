@@ -6,7 +6,7 @@
 //!  and the live reads one slot's state is decided from.
 //! Why:
 //!  Plan step 12's guest arm makes a real registration,
-//! a real clone and a real
+//!  a real clone and a real
 //!  move,
 //!  so the record it writes must name the guest's own datasets and identities
 //!  rather than a host fixture's,

@@ -255,8 +255,7 @@ fn a_refused_gate_opens_with_the_words() {
 /// the holder scan and the unbuilt mode
 /// answer their own sentences without the words,
 /// and the gate,
-/// the caller's
-/// sentence and the two modes that build a prefix answer with them;
+/// the caller's sentence and the two modes that build a prefix answer with them;
 /// the one place every refusal is printed adds them where they are missing.
 #[test]
 fn a_refusal_a_mode_answers_opens_with_the_words_exactly_once() {

@@ -11,7 +11,7 @@
 //!  A caller that waited there would hold that thing for as long as the reader does not read,
 //!  and every command waiting for the thing would wait with it
 //!  (`doc/planning/cli-git-no-unbounded-waits.md`,
-//! "Writes to the caller's own streams").
+//!  "Writes to the caller's own streams").
 //!  So the line is handed to a queue of bounded length and written on a thread that may wait as long as it likes;
 //!  a line that finds no room is dropped and counted,
 //!  and the next line that gets through says how many were dropped before it,
@@ -39,18 +39,35 @@
 //! a commit at its process limit failed on 2026-11-25 saying nothing at all,
 //!  because its refusal waited in a queue that no thread would ever write (issue 6476).
 //!  That answer is the queue's own (`lines_written_by_a_thread.rs`),
-//! because the service's log lines
+//!  because the service's log lines
 //!  meet the same refusal from the same limit;
 //!  this file asks for it,
-//! and names what its lines are for.
+//!  and names what its lines are for.
+//!  One line of the queue's is said here rather than by its caller:
+//!  when a caller's wait gives the reader up at its bound,
+//!  the queue says once,
+//!  on that caller's thread,
+//!  that the reader of this queue's stream took no line within it.
+//!  The wait is this file's (`wait_until_written` is called from `write_bytes` alone),
+//!  so the notice is said where every diagnostic line is said,
+//!  through this file's own `write`,
+//!  and a caller that hands a line in by any path says it the same way.
+//!  Its words are
+//!  `the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote.rs`,
+//!  which the door over them shares.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! hand(`[warn] ...\n`); // waits for the line to reach the stream, at most WARNING_WRITE_CEILING
 //! ```
 
+/// The current time in `toISOString` form,
+/// which the notice about a stopped reader is stamped with.
+use crate::iso_time::now_iso;
 /// The bounded queue,
-/// its thread and its control hooks,
+/// its thread,
+/// the reader's own state,
+/// and its control hooks,
 /// which this file gives the diagnostics' words and rules.
 use crate::lines_written_by_a_thread::{
     HandedOver,
@@ -62,6 +79,7 @@ use crate::lines_written_by_a_thread::{
     write_what_waits as queue_write_what_waits,
 };
 /// The queue's control hooks,
+/// and the one reader of its state,
 /// which only a control reads.
 #[cfg(test)]
 use crate::lines_written_by_a_thread::{
@@ -72,6 +90,19 @@ use crate::lines_written_by_a_thread::{
 };
 /// The stream that is this process's standard error without the shared lock.
 use crate::standard_error_descriptor::StandardErrorDescriptor;
+/// The record of the lines this thread wrote,
+/// which every line said here is remembered in.
+#[cfg(test)]
+use crate::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote::remember_the_line;
+/// The words of a diagnostic line,
+/// the switch a debug record answers to,
+/// and the notice the queue says when its reader stopped,
+/// which are written below this file.
+use crate::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote::{
+    diagnostic_line,
+    the_reader_stopped_sentence,
+    verbose_enabled,
+};
 /// The bound of one write,
 /// measured beside that constant.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
@@ -183,6 +214,9 @@ static THE_POLICY: QueuePolicy = QueuePolicy {
     //  is the lines themselves rather than a line about them.
     refused_thread_purpose: Some("write this command's own lines"),
     tag: TAG,
+    // Said by this file, at the moment the queue's wait gives the reader up, so a gap in what a command says is a gap
+    //  the command states.
+    reader_stopped_notice: Some(say_the_reader_stopped),
 };
 
 /// The one queue of this process,
@@ -225,6 +259,72 @@ pub fn write(line: &str) {
 }
 
 /// What:
+///  Write one complete rendered line through the one write a diagnostic takes,
+///  ignoring a closed stream,
+///  and never waiting for a reader that has stopped draining,
+///  and remember it for the control of a command's words where this build carries one.
+/// Why:
+///   A diagnostic must never turn into a failure of the command it describes,
+///  and it must never hold what the command holds:
+///  a line is said at whatever moment the code reaches it,
+///  inside a landing that holds the index lock or a push that holds its claim included,
+///  so the wait for the person's reader is the writer thread's and not the caller's
+///  (`lines_written_by_a_thread.rs`).
+///  Both the door over the words and the notice about a stopped reader say their line here,
+///  so the words a person reads and the words a control reads are one path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(line);
+/// ```
+pub(crate) fn write_line(line: &str) {
+    #[cfg(test)]
+    remember_the_line(line);
+    // The line is handed over and the caller goes on: a reader that stopped taking lines must not be able to hold
+    //  whatever this command holds at this moment.
+    write(line);
+}
+
+/// What:
+///  Says that this queue's reader took no line within the bound,
+///  as a debug record,
+///  through the same write every diagnostic line takes.
+/// Why:
+///   One reader that was not taking a line by the bound is a reader that is not taking lines,
+///  so the person is told how long it was given and that nothing waits for it any more.
+///  It is said by the caller whose wait gave the reader up,
+///  at that moment,
+///  and not by the queue's thread,
+///  because a reader that stopped is the one thing that thread cannot reach:
+///  a line said to that stream would wait there for as long as the reader does not read.
+///  The queue hands this file the tag and the bound and asks for no line of its own,
+///  which is how the words stay here while the moment stays the queue's.
+///  The switch is the debug record's own,
+///  so a command that says no debug line says no notice either.
+///  It is said once for one reader that stopped,
+///  because the queue's wait comes here only from the caller that first found its bound passed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sayTheReaderStopped = (tag, within) => { if (!DEBUG_ON) return; writeLine(diagnosticLine('debug', nowIso(), tag, readerStoppedSentence(within))) }
+/// ```
+fn say_the_reader_stopped(
+    tag: &'static str,
+    within: std::time::Duration,
+) {
+    if !verbose_enabled() {
+        return;
+    }
+    let line: String = diagnostic_line(
+        "debug",
+        now_iso().as_str(),
+        tag,
+        the_reader_stopped_sentence(within).as_str(),
+    );
+    write_line(line.as_str());
+}
+
+/// What:
 ///  Hands one rendered line's bytes to the thread that writes it,
 ///  waits for it to reach the stream only while the reader is still taking lines,
 ///  and answers what the stream holds now.
@@ -258,7 +358,8 @@ pub fn write_bytes(line: &[u8]) -> HandedOver {
     let Some(ticket) = hand(queue, line.to_vec(), QUEUED_LINES) else {
         return HandedOver::Unwritten;
     };
-    // What:     `wait_until_written(...)` waits, bounded, for exactly this line and answers whether it is in the stream.
+    // What:     `wait_until_written(...)` waits, bounded, for exactly this line and answers whether it is in the stream;
+    //           the notice a stopped reader is owed is said from inside that wait, by this file's own function.
     // Why:      A later line's write must not be taken for this one, and the caller waits for its own line alone.
     //
     // In TS you'd write (pseudocode):
@@ -326,7 +427,7 @@ pub fn give_the_thread(writer: Box<dyn Write + Send>) {
 }
 
 /// Whether a caller of this process stopped waiting for the reader,
-/// which a control reads and no release path asks for.
+/// which a control reads and which says whether the notice is owed.
 #[cfg(test)]
 pub fn the_reader_stopped() -> bool {
     return queue_the_reader_stopped(queue());

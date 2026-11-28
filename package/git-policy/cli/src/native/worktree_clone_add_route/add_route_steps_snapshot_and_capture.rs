@@ -124,7 +124,7 @@ pub fn step_snapshot(
 ///  or use the one an earlier run published.
 /// Why:
 ///  The capture must predate the snapshot,
-/// so a run that finds a snapshot but no
+///  so a run that finds a snapshot but no
 ///  capture has lost the only proof its clone can be compared with.
 fn write_the_capture(
     steps: &Steps<'_>,

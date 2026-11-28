@@ -791,9 +791,8 @@ fn the_scene_records_the_object_it_made() {
 
 /// What:
 ///  The removals of a release,
-/// in their order with the process killed after the first,
-/// leave a
-/// finished add that no command names as owing the ignored state it holds.
+///  in their order with the process killed after the first,
+///  leave a finished add that no command names as owing the ignored state it holds.
 /// Why:
 ///   A release removes the record of the object the stage's creation made before the claim's own
 /// records,

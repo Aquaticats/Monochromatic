@@ -12,7 +12,7 @@
 //!  shell word
 //!  (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "The refusal,
-//! and what it leaves").
+//!  and what it leaves").
 //!  Each says what was and was not changed,
 //!  because a person's next act depends on whether the clone,
 //!  its snapshots and the Git registration are as they were.

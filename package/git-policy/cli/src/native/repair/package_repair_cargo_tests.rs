@@ -248,7 +248,7 @@ fn a_new_workspace_and_existing_state_are_left_alone() {
 ///
 /// What:
 ///  The worktree's build directory is absent,
-/// so Cargo has no fingerprint of its own crates to trust:
+///  so Cargo has no fingerprint of its own crates to trust:
 /// it rebuilds them,
 /// and a clean would delete nothing a build could reuse.
 /// Why:
@@ -431,7 +431,7 @@ fn a_worktree_with_no_build_directory_of_its_own_runs_no_clean() {
 /// the same stand-in records a Cargo run for the worktree whose build directory is absent,
 /// and records none at all where the copy carried state a build could trust.
 /// Cargo would treat that state as fresh,
-/// so it must be out of the way before the add returns,
+///  so it must be out of the way before the add returns,
 /// and the rename is what puts it there without a `cargo clean` the add would have to wait for.
 ///
 /// In TS you'd write (pseudocode):
@@ -535,7 +535,7 @@ fn a_build_directory_the_copy_carried_is_moved_aside_before_the_add_answers() {
 /// skipped the linked-target guard:
 /// a copied `target` link plus a source with no build directory chose `CleanOnly`,
 /// and the clean deleted the artifact the link names (`README.md`,
-/// "the target is left alone").
+///  "the target is left alone").
 /// The workspace holds no build directory of its own here,
 /// so nothing a build could reuse is in the worktree and no clean runs at all.
 ///

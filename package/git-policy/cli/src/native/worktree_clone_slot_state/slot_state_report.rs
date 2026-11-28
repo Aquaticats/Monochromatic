@@ -107,7 +107,7 @@ impl SlotStateReport {
 ///  The report for one slot's readings.
 /// Why:
 ///  The state,
-/// the dataset and the action all come from the same readings,
+///  the dataset and the action all come from the same readings,
 ///  and the record is the only source of the dataset and pool names,
 ///  so a report with no record says so rather than leaving them blank.
 ///

@@ -75,7 +75,7 @@ pub struct MountRow {
 ///  which are global,
 ///  but whether a member keeps a receiver is a question about that member's own
 ///  namespace:
-/// only a member with a mount at the slot's dentry receives the
+///  only a member with a mount at the slot's dentry receives the
 ///  unmount.
 ///
 /// In TS you'd write (pseudocode):

@@ -57,7 +57,7 @@ pub fn slot_pointer_path(slot: &Path) -> PathBuf {
 /// Why:
 ///  The bytes are compared as they stand on disk and never as words Git printed
 ///  (`L5`),
-/// and a file wider than the sentence the add writes is no lock this add wrote.
+///  and a file wider than the sentence the add writes is no lock this add wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,7 +76,7 @@ pub fn read_the_lock(registration: &Path) -> Reading {
 /// Why:
 ///  The pointer's presence is the fact that decides whether `git worktree prune` falls through to the
 ///  registration's index and the expiry (`F5`),
-/// and its absence is the state S5,
+///  and its absence is the state S5,
 ///  which stands beside the lock's own state rather than instead of it.
 ///
 /// In TS you'd write (pseudocode):

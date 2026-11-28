@@ -249,7 +249,7 @@ pub(crate) fn a_merge_the_branch_moved_under(
 
 /// What:
 ///  The line for a merge whose branch moved while it was prepared,
-/// so it cannot be saved for a later command either.
+///  so it cannot be saved for a later command either.
 /// Why:
 ///   A save promises that the next command finishes this very merge,
 /// and a merge built on a head the branch no longer names can never be

@@ -93,21 +93,39 @@ export const expectedMarkers: readonly string[] = [
   'STEP22 add-total control-ms=',
   'STEP22 sweep clones=1',
   'STEP22 sweep clones=64',
+  'STEP22 parent-sweep spread run=0 clones=64',
+  'STEP22 parent-sweep round=0 clones=512',
+  'STEP22 parent-sweep times clones=512',
+  'STEP22 parent-sweep done',
   'STEP22 unmount holder=none',
   'STEP22 forced-arm t-wait-ms=',
   'STEP22 forced-arm t-stop-ms=',
   'STEP22 retention after-removal=',
+  'STEP22 pinned case=incompressible stage=after-expiry',
+  'STEP22 pinned case=incompressible readings snapshot-used-at-snapshot=',
+  'STEP22 pinned case=incompressible frees freed-by-removal-clone-used=',
+  'freed-by-expiry-dataset=',
+  'STEP22 pinned case=repeated-byte stage=after-expiry',
+  'STEP22 pinned case=repeated-byte readings snapshot-used-at-snapshot=',
+  'STEP22 pinned case=repeated-byte frees freed-by-removal-clone-used=',
   'STEP22 request-budget names=2048',
   'STEP22 done',
 ];
 
 /**
  Milliseconds the guest's build of the test target may take.
+
+ Two measurements size it: the round of 2026-11-27's fourth `run` built the
+ target in 53 minutes at one job, and an eighth attempt at the same tree met the
+ old ninety-minute bound unfinished while the host ran at a load average of 86
+ with many rounds compiling the same crate. A bound a loaded host can reach is
+ no bound on the build but on the machine, so it is two hours here.
  */
-export const crateBuildTimeoutMilliseconds = 5_400_000;
+export const crateBuildTimeoutMilliseconds = 7_200_000;
 
 /**
- Milliseconds the guest arm may take.
+ Milliseconds the guest arm may take, which one run of every arm it performs
+ fits in: the clones the past-64 arm makes and takes away are the longest part.
  */
 export const armTimeoutMilliseconds = 3_600_000;
 

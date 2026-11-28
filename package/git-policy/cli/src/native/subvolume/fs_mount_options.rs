@@ -422,6 +422,32 @@ pub fn read_mount_facts(path: &Path) -> Result<Option<MountFacts>, String> {
 }
 
 /// What:
+///  Every mount row of this process's table,
+///  read the one way every read under `/proc` is read.
+/// Why:
+///   A report that names the mounts a removal staged a clone under needs the
+///  table's rows and not one path's mount,
+///  and the read is the bounded one this file's own reader takes,
+///  so no caller opens a file that can wait.
+///  A table nobody read lists no mount,
+///  and each caller says which answer its absence proves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rows = theMountRowsOnThisMachine(); // parseMountTable(readPlainFile(MOUNTINFO_PATH, MOUNT_TABLE_LIMIT))
+/// ```
+pub(crate) fn the_mount_rows_on_this_machine() -> Vec<MountFacts> {
+    let text: Vec<u8> = match crate::plain_file::read_plain_file(
+        Path::new(MOUNTINFO_PATH),
+        crate::plain_file::MOUNT_TABLE_LIMIT,
+    ) {
+        Ok(bytes) => bytes,
+        Err(_why) => return Vec::new(),
+    };
+    return parse_mount_table(text.as_slice());
+}
+
+/// What:
 ///  Decode the `\ooo` octal escapes of a mountinfo field exactly as libmount's `unmangle_to_buffer` does:
 ///  a backslash followed by three octal digits becomes one byte,
 ///  anything else stays.
