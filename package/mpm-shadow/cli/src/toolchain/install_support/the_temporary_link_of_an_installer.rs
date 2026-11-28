@@ -9,7 +9,8 @@
 //! and a second install rebuilding the farm at the same instant must not take a link an install that still runs is
 //! about to rename.
 //! A process id alone answers that wrongly
-//! (the system hands those numbers out again, and a number means one thing only inside the process namespace that
+//! (the system hands those numbers out again,
+//! and a number means one thing only inside the process namespace that
 //! gave it out),
 //! which is why the name carries the same four facts a hidden sibling's name carries
 //! (`archive_staging`,
@@ -164,7 +165,8 @@ pub(crate) fn liveness_of_the_installer(name: &str) -> Option<Liveness> {
 /// Why:
 /// The number is an answer only while it belongs to no process:
 /// then the install that wrote the name has ended beyond doubt;
-/// while some process holds the number it may be that install, or one that took the number over after it ended,
+/// while some process holds the number it may be that install,
+/// or one that took the number over after it ended,
 /// and nothing in the name tells those apart,
 /// so the link stays and a later rebuild asks again.
 ///

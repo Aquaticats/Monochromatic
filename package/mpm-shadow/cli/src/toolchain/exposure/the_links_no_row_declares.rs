@@ -7,7 +7,8 @@
 //! and the sentence one removal prints belongs beside the rule that decides it;
 //! `exposure.rs` keeps the linking and this file the taking away.
 //!
-//! Which names stay, and why:
+//! Which names stay,
+//! and why:
 //! a name a row of the lock declares is the plan's;
 //! the program's own link is the one a shell outside a checkout reaches `mpm-shadow` through,
 //! and it stays while it resolves into an installed copy (`exposure.rs`,
@@ -17,12 +18,15 @@
 //! (`install_support`,
 //! `the_temporary_link_of_an_installer`);
 //! and everything else at such a name is not a symbolic link,
-//! so a file, a directory or a hard link is a person's.
+//! so a file,
+//! a directory or a hard link is a person's.
 //! A name this run has just linked is never removed for a third reason:
 //! it is either a name the lock declares or the program's own link,
 //! which the two rules above already keep.
 //! A link another run removed in the instant before this one reaches it is no failure:
-//! the name is gone, which is what this run wanted, and the run that took it named it.
+//! the name is gone,
+//! which is what this run wanted,
+//! and the run that took it named it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -56,7 +60,8 @@ use super::declares_bin;
 use super::the_link_the_farm_keeps;
 
 /// What:
-/// The links one pass removed and the error that stopped it, if any:
+/// The links one pass removed and the error that stopped it,
+/// if any:
 /// the links removed before the error still left the folder and are named.
 /// Why:
 /// A sentence is built when its link is removed,
@@ -80,7 +85,8 @@ pub(super) struct Removals {
 /// with where it pointed and whether it was a held link an install that ended left.
 /// Why:
 /// The sentence says which of the two a name was,
-/// and both are read before the removal, when the link still answers.
+/// and both are read before the removal,
+/// when the link still answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

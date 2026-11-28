@@ -20,8 +20,6 @@
 //! export function unresolvableBins(scope: Scope, tools: LockedTool[]): string[]
 //! ```
 
-/// Imports `BTreeMap` from `std::collections`.
-use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
@@ -50,16 +48,8 @@ use super::launcher_source::{
 };
 /// Imports `find_tool_bin` from `super::layout`.
 use super::layout::find_tool_bin;
-/// Imports what this module uses from `super::model`.
-use super::model::{
-    LockedTool,
-    Postinstall,
-};
-/// Imports what this module uses from `super::runner`.
-use super::runner::{
-    RunOutcome,
-    RunRequest,
-};
+/// Imports `LockedTool` from `super::model`.
+use super::model::LockedTool;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports `file_name_text` from `super::util`.
@@ -127,7 +117,8 @@ pub struct ExposureReport {
 }
 
 /// What:
-/// The farm a rebuild left and the error that stopped it, if any.
+/// The farm a rebuild left and the error that stopped it,
+/// if any.
 /// Why:
 /// The links a rebuild removed before a later removal failed still left the folder a person's `PATH` reads,
 /// so the run that failed must name them,
@@ -150,7 +141,7 @@ pub struct ExposureOutcome {
 
 /// The directories searched in addition to a route's own:
 /// the scope's bin directory.
-fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
+pub(super) fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
     return vec![ctx.scope.toolchain_bin_dir.clone()];
 }
 
@@ -165,7 +156,7 @@ fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
 /// ```ts
 /// function exposedTarget(scope: Scope, tool: LockedTool, name: string, found: string): string
 /// ```
-fn exposed_target(
+pub(super) fn exposed_target(
     scope: &Scope,
     tool: &LockedTool,
     name: &str,
@@ -408,235 +399,31 @@ fn declares_bin(
     return false;
 }
 
-/// The directory a postinstall link goes in:
-/// the link's own `linkDir` (absolute,
-/// or relative to the scope root),
-/// or the
-/// scope's link directory.
-pub fn link_directory(
-    scope: &Scope,
-    link_dir: &Option<String>,
-) -> PathBuf {
-    return match link_dir {
-        None => scope.link_dir.clone(),
-        Some(directory) => {
-            let path: &Path = Path::new(directory);
-            if path.is_absolute() {
-                path.to_path_buf()
-            } else {
-                scope.root.join(path)
-            }
-        }
-    };
-}
-
-/// One postinstall link that was just made.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MadeLink {
-    /// The file name of the link.
-    pub name: String,
-    /// The full path of the link.
-    pub path: PathBuf,
-    /// What the link points at.
-    pub target: PathBuf,
-}
-
-/// The links a pass made and the error that stopped it,
-/// if any:
-/// the links made before the error still exist and must be recorded.
-#[derive(Debug, Default)]
-pub struct MadeLinks {
-    /// The links made,
-    /// in plan order.
-    pub made: Vec<MadeLink>,
-    /// The error that ended the pass.
-    pub error: Option<ToolchainError>,
-}
-
 /// What:
-/// Makes each postinstall link of `tools`:
-/// `<link dir>/<link name>` pointing at the tool's `sourceBin`,
-/// and reports every link made even when a later one failed.
+/// The steps a sync runs after its installers:
+/// the postinstall links and the postinstall commands.
 /// Why:
-/// The cleanup of links the lock no longer declares needs the full path and target of each link made.
-pub fn make_postinstall_links(
-    ctx: &Context,
-    tools: &[&LockedTool],
-) -> MadeLinks {
-    let mut outcome: MadeLinks = MadeLinks::default();
-    for tool in tools {
-        let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
-            continue;
-        };
-        let Some(found) =
-            find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
-        else {
-            continue;
-        };
-        let target: PathBuf = match exposed_target(ctx.scope, tool, &link.source_bin, &found) {
-            Ok(target) => target,
-            Err(error) => {
-                outcome.error = Some(error);
-                return outcome;
-            }
-        };
-        let path: PathBuf = link_directory(ctx.scope, &link.link_dir).join(&link.link_name);
-        if let Err(error) = atomic_symlink(&path, &target) {
-            outcome.error = Some(error);
-            return outcome;
-        }
-        outcome.made.push(MadeLink {
-            name: link.link_name.clone(),
-            path,
-            target,
-        });
-    }
-    return outcome;
-}
-
-/// What:
-/// Makes each postinstall link of `tools`:
-/// `<link dir>/<link name>` pointing at the tool's `sourceBin`.
-/// Why:
-/// This is how `mpm-shadow` becomes `mpm` in a directory that comes first on `PATH`.
+/// They read the programs the installers put on disk the way the farm does,
+/// and they belong beside the farm rather than inside its rules.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function runPostinstallLinks(ctx: Context, tools: LockedTool[]): string[]
+/// export { runPostinstallLinks, runPostinstallCommands } from './exposure/the-postinstall-steps.ts';
 /// ```
-pub fn run_postinstall_links(
-    ctx: &Context,
-    tools: &[&LockedTool],
-) -> Result<Vec<String>, ToolchainError> {
-    let outcome: MadeLinks = make_postinstall_links(ctx, tools);
-    if let Some(error) = outcome.error {
-        return Err(error);
-    }
-    let mut names: Vec<String> = Vec::with_capacity(outcome.made.len());
-    for link in outcome.made {
-        names.push(link.name);
-    }
-    return Ok(names);
-}
-
-/// The postinstall commands' outcome:
-/// tool ids that succeeded,
-/// and tool id with the failure text for those that did not.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct CommandReport {
-    /// Tools whose command exited 0.
-    pub succeeded: Vec<String>,
-    /// Tools whose command failed,
-    /// with what it printed.
-    pub failed: Vec<(String, String)>,
-}
-
-/// What:
-/// The `PATH` a postinstall command runs with:
-/// the exposure directory and the toolchain bin directory first,
-/// then the inherited `PATH`.
-/// Why:
-/// A directory name holding the path separator cannot be joined into `PATH`,
-/// so the failure is returned for the caller to report instead of being thrown away.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function postinstallPath(exposure: string, toolchainBin: string, inherited?: string): string  // throws
-/// ```
-pub(crate) fn postinstall_path(
-    exposure: &Path,
-    toolchain_bin: &Path,
-    inherited: Option<&str>,
-) -> Result<String, std::env::JoinPathsError> {
-    let mut directories: Vec<PathBuf> = vec![exposure.to_path_buf(), toolchain_bin.to_path_buf()];
-    if let Some(existing) = inherited {
-        directories.extend(std::env::split_paths(existing));
-    }
-    return std::env::join_paths(&directories).map(path_text);
-}
-
-/// One joined `PATH` entry as text.
-/// A named function and not a closure:
-/// nothing is captured,
-/// and a reader sees where the text comes from.
-fn path_text(path: std::ffi::OsString) -> String {
-    return path.to_string_lossy().to_string();
-}
-
-/// What:
-/// Runs each postinstall command of `tools` from the scope root,
-/// with the exposure and toolchain bin
-///           directories first on `PATH`.
-/// Why:
-/// A command such as `search-shadow link` decides its own links from the tools it finds on `PATH`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function runPostinstallCommands(ctx: Context, tools: LockedTool[]): CommandReport
-/// ```
-pub fn run_postinstall_commands(
-    ctx: &Context,
-    tools: &[&LockedTool],
-) -> CommandReport {
-    let mut report: CommandReport = CommandReport::default();
-    let joined: String = match postinstall_path(
-        &ctx.scope.exposure_dir,
-        &ctx.scope.toolchain_bin_dir,
-        ctx.env.get("PATH"),
-    ) {
-        Ok(path) => path,
-        Err(error) => {
-            // Refusing beats running the command on the inherited PATH alone, where it would miss the tools the
-            // exposure and toolchain directories link.
-            for tool in tools {
-                if let Some(Postinstall::Run(_)) = &tool.declaration.options.postinstall {
-                    report.failed.push((
-                        tool.declaration.id.clone(),
-                        format!(
-                            "the postinstall command was not run: the exposure and toolchain directories cannot be put on PATH ({error})"
-                        ),
-                    ));
-                }
-            }
-            return report;
-        }
-    };
-    let mut env: BTreeMap<String, String> = ctx.env.all().clone();
-    env.insert("PATH".to_string(), joined);
-    for tool in tools {
-        let Some(Postinstall::Run(step)) = &tool.declaration.options.postinstall else {
-            continue;
-        };
-        let Some(target) =
-            find_tool_bin(tool, &step.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
-        else {
-            continue;
-        };
-        let request: RunRequest = RunRequest {
-            command: target.to_string_lossy().to_string(),
-            args: step.args.clone(),
-            env: Some(env.clone()),
-            cwd: Some(ctx.scope.root.clone()),
-        };
-        let outcome: RunOutcome = ctx.run(&request);
-        if outcome.succeeded() {
-            report.succeeded.push(tool.declaration.id.clone());
-        } else {
-            report.failed.push((
-                tool.declaration.id.clone(),
-                format!(
-                    "postinstall command failed with exit code {}: {}\n{}{}",
-                    outcome.code,
-                    request.line(),
-                    outcome.stdout,
-                    outcome.stderr
-                ),
-            ));
-        }
-    }
-    return report;
-}
-
+mod the_postinstall_steps;
+/// Re-exports the postinstall step every plan row may name:
+/// its link,
+/// its command,
+/// and what each one reported.
+pub use self::the_postinstall_steps::{
+    CommandReport,
+    MadeLink,
+    MadeLinks,
+    link_directory,
+    make_postinstall_links,
+    run_postinstall_commands,
+    run_postinstall_links,
+};
 /// The declared binary names of `tools` whose exposure link does not resolve.
 pub fn unresolvable_bins(
     scope: &Scope,

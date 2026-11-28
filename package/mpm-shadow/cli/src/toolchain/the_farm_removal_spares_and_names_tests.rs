@@ -50,7 +50,8 @@ use super::exposure::{
     What,
     planting_at_the_removal_of,
 };
-/// Imports the disposable scope, the lock and the fakes a control runs against.
+/// Imports the disposable scope,
+/// the lock and the fakes a control runs against.
 use super::fakes::{
     Rig,
     write_executable,
@@ -118,7 +119,8 @@ fn a_rig_with_no_tools() -> Rig {
 /// written through the fixture's own executable writer.
 /// Why:
 /// A link whose target is there is the ordinary shape of a link an install made,
-/// and the removal must judge the link, never whether its target lives.
+/// and the removal must judge the link,
+/// never whether its target lives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,7 +171,8 @@ fn the_owner_of_an_install_that_ended() -> Owner {
 /// Why:
 /// A farm written by `0.2.7-alpha.18` still holds such names,
 /// and a control has to plant one to show what the rebuild does with it.
-/// STAND-IN: the shape is copied from that build's write,
+/// STAND-IN:
+/// the shape is copied from that build's write,
 /// and no claim about a real program rests on it.
 ///
 /// In TS you'd write (pseudocode):
@@ -188,7 +191,8 @@ fn the_name_the_earlier_build_wrote(
 /// and the names that link has while the install holds it and after.
 /// Why:
 /// A second rebuild that runs in that instant is what the release failed:
-/// it removed the temporary link, and the install's rename then had no name to move.
+/// it removed the temporary link,
+/// and the install's rename then had no name to move.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,7 +215,8 @@ fn a_farm_with_a_held_install(rig: &Rig) -> (PathBuf, PathBuf, PathBuf) {
 }
 
 /// What:
-/// The farm's `mpm-shadow` link, pointing at an installed copy through that install's `current` link.
+/// The farm's `mpm-shadow` link,
+/// pointing at an installed copy through that install's `current` link.
 /// Why:
 /// That is the link every run by an installed copy makes,
 /// and the one a shell outside a checkout reaches the program through.
@@ -237,7 +242,8 @@ fn the_farm_shadow_link(rig: &Rig) -> PathBuf {
 /// A rig whose lock declares no `mpm-shadow` row,
 /// so the farm's own link for the program is a name no row declares.
 /// Why:
-/// The row would own the name, and the rebuild would take it for the plan's rather than the program's.
+/// The row would own the name,
+/// and the rebuild would take it for the plan's rather than the program's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

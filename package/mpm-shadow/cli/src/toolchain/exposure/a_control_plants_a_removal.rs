@@ -47,7 +47,9 @@ use std::cell::Cell;
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum What {
-    /// Another run's rebuild removes the link, and names it, in the instant before this run's own removal.
+    /// Another run's rebuild removes the link,
+    /// and names it,
+    /// in the instant before this run's own removal.
     AnotherRunRemovesIt,
     /// The removal answers with this operating system's error number.
     Refused {
@@ -57,7 +59,8 @@ pub(crate) enum What {
 }
 
 /// What:
-/// The plant one control made: the link name it is about and what happens at that removal.
+/// The plant one control made:
+/// the link name it is about and what happens at that removal.
 /// Why:
 /// A rebuild removes several links,
 /// and a control is about one of them,
@@ -167,7 +170,8 @@ pub(crate) fn planting_at_the_removal_of(
 /// The error a control planted for the removal of `name`,
 /// or nothing when this removal is to be made.
 /// Why:
-/// A control shows what a run leaves when another run took the link, or when the unlink is refused,
+/// A control shows what a run leaves when another run took the link,
+/// or when the unlink is refused,
 /// and this is the one place that answers whether its own plant stands here.
 ///
 /// In TS you'd write (pseudocode):

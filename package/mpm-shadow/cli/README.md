@@ -1807,7 +1807,9 @@ and it holds one link per declared bin
   (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
   A run that fails at a later removal still names the removals it made before that failure,
   and a link another run removed in the instant before this run reached it is no failure here:
-  the name is gone, which is what both runs wanted, and the run that took it named it.
+  the name is gone,
+  which is what both runs wanted,
+  and the run that took it named it.
   A regular file,
   a directory,
   or anything else at such a name belongs to a person and stays.
@@ -1822,12 +1824,16 @@ and it holds one link per declared bin
     and which a rebuild removes and names once that install has ended
     (`removed the temporary link .thirdbin.tmp.... (it pointed at ...), which an install that ended left before it gave the link its name`).
     The name carries the install that wrote it:
-    its process id, the moment that process started, the process namespace that gave the id out,
+    its process id,
+    the moment that process started,
+    the process namespace that gave the id out,
     and the boot's identifier,
     the facts a hidden name of an install carries too
     (see "What a kill leaves and what the next install does about it").
-    A name this build cannot judge against those facts, such as one from another process namespace,
-    keeps its link, and a later rebuild asks again.
+    A name this build cannot judge against those facts,
+    such as one from another process namespace,
+    keeps its link,
+    and a later rebuild asks again.
     A name an earlier build wrote carries the process id alone,
     so its link is removed only once no process holds that number,
     and one whose number some process still holds stays.
@@ -1855,10 +1861,12 @@ makes those names reachable from a fresh shell:
   `expose_running_shadow`).
   A rebuild keeps it while it resolves into an installed `mpm-shadow` of either toolchain root,
   whatever binary runs that rebuild,
-  so a run from a build folder, a `cargo install` binary or the bootstrap archive
+  so a run from a build folder,
+  a `cargo install` binary or the bootstrap archive
   no longer takes the name away from a scope that has the program installed.
   A scope that has the program installed nowhere,
-  or a link that resolves nowhere, removes it as a link no row declares
+  or a link that resolves nowhere,
+  removes it as a link no row declares
   (see "What the exposure folder holds").
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
