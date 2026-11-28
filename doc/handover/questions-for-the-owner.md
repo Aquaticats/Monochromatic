@@ -133,6 +133,16 @@ B beats C because any durable record on the commit beats a line on standard erro
 
 ### What closes the last file loop in `foundation/`
 
+Taken on 2026-11-28 by the coordinating session's pick,
+with the owner's veto open:
+the third way,
+because it alone changes no signature and keeps the notice said when it is said today.
+A round builds it
+(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
+started at 2026-11-28T03:13:06-05:00),
+and it stops and reports if the third way turns out to change a signature,
+a behaviour or the moment the notice is said.
+
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
 The plan's move was applied and the linter run:

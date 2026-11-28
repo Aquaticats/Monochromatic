@@ -6,6 +6,7 @@
 //!  and the one next safe action,
 //!  plus the lines a command prints.
 
+use crate::worktree_clone_binding_record::add_state_commands::THE_REMOVALS_WORDS;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_mounts::{
     MountRows,
@@ -197,6 +198,11 @@ fn a_pending_removal_reports_the_plan() {
         "{}",
         report.next_safe_action
     );
+    assert!(
+        !report.next_safe_action.contains(THE_REMOVALS_WORDS),
+        "and names no removal this release runs at a slot whose plan stands: {}",
+        report.next_safe_action
+    );
 }
 
 /// A known unmounted clone says where the checkout lives and what each intent means.
@@ -252,12 +258,13 @@ fn a_known_unmounted_clone_reports_its_files_and_each_intent() {
     let parked: String = report_of(&unmounting).next_safe_action;
     assert!(parked.contains("keeps it unmounted"), "{parked}");
     assert!(
-        parked.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        parked.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{parked}"
     );
     assert!(
-        !parked.contains("run the removal"),
-        "no text names a removal this release has not: {parked}"
+        !parked.contains("no removal for a clone")
+            && !parked.contains("does not remove a clone yet"),
+        "no text denies the removal `git worktree remove` now runs: {parked}"
     );
 }
 
