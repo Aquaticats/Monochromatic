@@ -481,21 +481,23 @@ fn replace_the_copy_that_is_there(
         }
         Err(error) if cannot_exchange(&error) => {
             if a_permission_denial(&error) {
-                // What: `eprintln!` writes one line to standard error, the channel this command's failures use
-                //  (TS: `console.error`).
-                // Why: a policy that refuses only the exchange would otherwise be silent, and the instant the two
-                //  renames leave, in which the version's name holds nothing, would come back unannounced.
+                // What: the crate's notice writer puts one line on standard error, the channel this
+                //  command's failures use (TS: `console.error`), and drops a write the stream refuses.
+                // Why: a policy that refuses only the exchange would otherwise be silent, and the instant
+                //  the two renames leave, in which the version's name holds nothing, would come back
+                //  unannounced; the install then goes on to the two renames, so this warning is not a
+                //  result and must not end the run (the wait line's `SIGABRT` was the same mistake).
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
-                // console.error(`mpm-shadow: warning: ${error}: the exchange ... was refused, so ...`);
+                // say(`mpm-shadow: warning: ${error}: the exchange ... was refused, so ...`);
                 // ```
-                eprintln!(
+                crate::notices::say(&format!(
                     "mpm-shadow: warning: {error}: changing {} and {} in one exchange was refused, so they are changed in two renames instead, and the instant between those renames, in which {} names nothing, is back; a file system that cannot exchange two names answers the same way, and so does a policy that refuses only that one call",
                     staging.display(),
                     final_dir.display(),
                     final_dir.display()
-                );
+                ));
             }
             return two_renames(staging, final_dir, first_bin);
         }
