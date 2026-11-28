@@ -16,7 +16,7 @@ and the asks of a manager that answered (the alpha.16 read's Low 1 to Low 4,
 
 Status:
 **unapproved and non-final**.
-Written by four Pi runs:
+Written by five Pi runs:
 one on branch
 `fix/cargo-shadow-cli-issue-6619-ten-scope-tests-failed-together-once-and-passed-in-the-next-two-runs`,
 one on branch
@@ -35,7 +35,12 @@ which changed the transports the read counts to the ones systemd's source shows,
 added the controls of each of them,
 made the discovery ask where the slice is before it starts the slice so an answer of the manager's ends the asking,
 added the controls of that refusal and of an answer that is not a path,
-and made the warning a kept unit carries say what the read saw.
+and made the warning a kept unit carries say what the read saw,
+and one on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-17-release-pass-five-record-sentences-say-what-is-so-and-two-controls-can-fail`,
+which corrected five of this record's sentences against systemd's own file at each tag and a same-vendor second read,
+added the control of the pause the call site sleeps and the control of an address beside a runtime directory,
+and said what the span does not cover.
 Every claim about behaviour here names what it rests on:
 a command a round ran,
 a line of this package,
@@ -326,6 +331,25 @@ so no figure here is sized to that event,
 and what makes an ask fail after a reexec has ended is still unknown.
 The constants are sized to a reexec,
 which is what a measurement showed.
+
+What the span does not cover:
+the rest of a call.
+A reexec that begins after the discovery has answered fails everything after it,
+in both releases.
+A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
+0 to 110 ms after each of its 24 calls began,
+so every discovery was done before the window opened,
+and 11 of the 24 calls exited 1
+(7 of `0.1.5-alpha.16`'s 12 and 4 of `0.1.5-alpha.17`'s 12,
+every one on the delegated route),
+with the scope launcher's
+`Failed to connect to user scope bus via local transport: Connection refused`
+in the output of the calls whose standard error that read kept,
+and `cargo update --workspace --offline failed` from the install.
+The two releases differ only in where the reexec fell inside each call,
+and the code that makes the scopes is the same,
+so neither release tried a scope's creation again.
+It is in the Open list.
 
 ### The two controls of the span
 
@@ -1163,6 +1187,15 @@ and the figure above is the run as it was measured then.
   against a gap of one program start.
   A host whose `app.slice` is inactive and whose manager reexecutes at that instant is the state,
   and nothing here stages it.
+- A call whose scope creation meets a reexec.
+  The span is the discovery's,
+  and no wait covers the scopes a call makes after it (above),
+  so a reexec that begins after the discovery has answered fails the call in both releases.
+  Either a scope's creation that meets a reexec is tried again,
+  which needs a retry around `systemd-run` that can tell a transport that died from a scope that was made,
+  or the failure stays as it is,
+  which costs a failed call inside that window.
+  No measurement here says how often a call meets one.
 - Whether an empty `$XDG_RUNTIME_DIR` beside a live address should end the asking.
   systemd 262 treats an empty variable as a set one and refuses at once (`/systemd/private`),
   while the read names the address and keeps the asking,
