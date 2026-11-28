@@ -33,10 +33,13 @@
 //!  a name ending `_tests.rs` or holding `test_support`),
 //!  which `lib.rs` gates with `#[cfg(test)]` today.
 //!  The manager's program is read where the call's `(` ends its line and its literal stands on the next
-//!  one, and the import that renames the type (`use std::process::Command as Cmd;`) is a finding of its own,
+//!  one,
+//!  and the import that renames the type (`use std::process::Command as Cmd;`) is a finding of its own,
 //!  so a start whose type another name spells is refused where that name is brought in.
-//!  A literal further than the next code line from the call's `(`, and one a comment line separates from
-//!  it, are not read.
+//!  A literal further than the next code line from the call's `(`,
+//!  and one a comment line separates from
+//!  it,
+//!  are not read.
 //!  A comment is a line whose first characters are `//`,
 //!  so a banned text written after code on a line is a finding.
 //! Why:
@@ -213,8 +216,11 @@ fn starts_the_manager_s_program(line: &str) -> bool {
 ///  A start may put its literal on the line after the call's `(`,
 ///  and that literal is the only thing that says which program it starts
 ///  (the alpha.52 read's L2).
-///  Only the next code line is joined, which is the line a literal there stands on;
-///  a literal further down, or one a comment line separates from the call, is no reading here,
+///  Only the next code line is joined,
+///  which is the line a literal there stands on;
+///  a literal further down,
+///  or one a comment line separates from the call,
+///  is no reading here,
 ///  and this guard's top doc says so.
 ///
 /// In TS you'd write (pseudocode):

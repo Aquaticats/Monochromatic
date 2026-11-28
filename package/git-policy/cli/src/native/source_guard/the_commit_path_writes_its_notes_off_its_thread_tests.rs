@@ -48,7 +48,8 @@
 //! and the paths that open the same handle (`THE_SHARED_HANDLE_BY_PATH`).
 //! `eprintln!` is refused in every release source by the door's own guard
 //! (`source_guard/diagnostic_door_tests.rs`);
-//! this guard reads it in the files that say a note, so a note file that spells it fails here too,
+//! this guard reads it in the files that say a note,
+//! so a note file that spells it fails here too,
 //! and this is the guard that says the note was written on the command's own thread.
 //! A path this ban misses is one built from parts (`concat!("/dev/", "stderr")`)
 //! and one a variable holds rather than a literal.
@@ -138,7 +139,8 @@ const THE_SHARED_HANDLE_BY_NUMBER: &[&str] = &["STDERR_FILENO"];
 /// Why:
 ///  `eprintln!` and `eprint!` write this process's shared standard error on the caller's own thread,
 ///  which is the write this ban exists for,
-///  and neither names the handle, the type or the descriptor number.
+///  and neither names the handle,
+///  the type or the descriptor number.
 ///  The door's own guard refuses `eprintln!` in every release source;
 ///  this list is what says a note file may not spell it either.
 ///
@@ -152,7 +154,8 @@ const THE_TERSE_WAYS_TO_SAY_A_NOTE: &[&str] = &["eprintln!", "eprint!"];
 ///  `THE_SHARED_HANDLE_BY_PATH` is every path a file can open this process's standard error by.
 /// Why:
 ///  `File::create("/dev/stderr")` and `std::fs::write("/dev/fd/2", ..)` reach the same handle the call
-///  and the descriptor constant reach, and they name none of them.
+///  and the descriptor constant reach,
+///  and they name none of them.
 ///  `/proc/self/fd/2` is the same descriptor under the name the kernel gives it,
 ///  which is what `/dev/stderr` resolves to.
 ///

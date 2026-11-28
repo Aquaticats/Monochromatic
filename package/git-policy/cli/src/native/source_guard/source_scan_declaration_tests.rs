@@ -215,7 +215,9 @@ fn starts_a_module_declaration(line: &str) -> bool {
 /// What:
 ///  `fn leading_attributes(line: &str) -> (Vec<&str>, &str)` splits the attributes a line starts with from the
 ///  declaration written after them on the same line.
-///  `Vec<&str>` is a growable list of borrowed views of the line (sibling: `String`, owned).
+///  `Vec<&str>` is a growable list of borrowed views of the line (sibling:
+///  `String`,
+///  owned).
 /// Why:
 ///  An attribute may stand on the declaration's own line (`#[inline] pub fn inlined() {}`,
 ///  `#[cfg(test)] mod support;`),

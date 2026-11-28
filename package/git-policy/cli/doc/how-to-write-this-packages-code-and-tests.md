@@ -1137,14 +1137,18 @@ it reads and plants a control for:
 the commit path's ban reads a direct `syscall` call,
 because `libc::syscall(libc::SYS_symlinkat, ...)` writes the system call's name inside a longer constant;
 the login guard reads the manager's program however its literal is spelled,
-bare or as a path, on the call's own line or on the next one,
+bare or as a path,
+on the call's own line or on the next one,
 and refuses the import that brings the type of a start in under another name;
 and the note guard reads a write by descriptor number (`libc::STDERR_FILENO`),
 the two macros that write standard error without asking for a stream,
 and the paths that open the same handle.
 The read of alpha.52 planted six spellings the guards let through and each is read now:
 the link guard reads `std::fs::soft_link`;
-the note guard reads `eprintln!`, `eprint!`, `/dev/stderr`, `/dev/fd/2` and `/proc/self/fd/2`,
+the note guard reads `eprintln!`,
+`eprint!`,
+`/dev/stderr`,
+`/dev/fd/2` and `/proc/self/fd/2`,
 and `eprintln!` is refused in every release source by the door's own guard
 (`source_guard/diagnostic_door_tests.rs`) besides;
 and the login guard reads the import that renames the type and a literal on the line after its `(`.

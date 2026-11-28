@@ -171,8 +171,10 @@ which says what the reading cannot see,
 named none of them:
 
 - `#[macro_export(local_inner_macros)] macro_rules! name`;
-- an attribute and a `pub` item on one line, `#[inline] pub fn f() {}`;
-- an `impl<` whose generics run over several lines, which is the header a long generic list is
+- an attribute and a `pub` item on one line,
+  `#[inline] pub fn f() {}`;
+- an `impl<` whose generics run over several lines,
+  which is the header a long generic list is
   formatted with.
 
 Each shape published a name with no line in `items_nameable_from_outside_release.txt`,
@@ -204,15 +206,18 @@ an_impl_whose_generics_run_over_several_lines_publishes_its_members
 
 ### What the reading reads now
 
-Commit `819bc743ee` reads all three, so the reader's doc lists exactly the shapes it still
+Commit `819bc743ee` reads all three,
+so the reader's doc lists exactly the shapes it still
 cannot see and none of these.
 An attribute on the declaration's line is split from it by `leading_attributes`,
 which counts square brackets and skips string literals;
 `is_a_macro_export` reads the attribute with or without its parentheses;
 and an `impl` whose own generics run over several lines is held as one header text until its
-`{` arrives, and the type is read from all of it.
+`{` arrives,
+and the type is read from all of it.
 `nothing_becomes_nameable_from_outside_tests` compares the whole real surface against the list
-green, so the widening published nothing and the list needs no new line.
+green,
+so the widening published nothing and the list needs no new line.
 
 The same split moved into `source_scan_declaration_tests.rs` in commit `57d381c4cc`,
 because that file owns the attributes a declaration line carries.
@@ -225,7 +230,8 @@ The control in `source_scan_checks_tests.rs` was shown red without the split:
 `left` held no `gated_on_its_attribute_line` and no `renamed_on_its_attribute_line`,
 `right` held both,
 and the same run failed `declarations_refuse_what_they_cannot_place` on a `mod` visibility the
-reading does not place, written on its attribute's line.
+reading does not place,
+written on its attribute's line.
 
 ### What the read found on the three guards
 
@@ -233,15 +239,26 @@ The read planted each spelling by running the guards' own reading functions over
 sources,
 and found the guards green for six spellings:
 
-- the link guard, `hook_self_invocation_tests.rs`, let `std::fs::soft_link` through:
+- the link guard,
+  `hook_self_invocation_tests.rs`,
+  let `std::fs::soft_link` through:
   the deprecated standard-library spelling of a symlink was in no list of link names;
-- the note guard, `the_commit_path_writes_its_notes_off_its_thread_tests.rs`, let `eprintln!`,
-  a file opened at `/dev/stderr`, and a write to `/dev/fd/2` through:
-  it read the call, the type, the rename and the descriptor constant, and no macro or path;
-- the login guard, `no_start_at_login_tests.rs`, let a `Command` imported under another name
+- the note guard,
+  `the_commit_path_writes_its_notes_off_its_thread_tests.rs`,
+  let `eprintln!`,
+  a file opened at `/dev/stderr`,
+  and a write to `/dev/fd/2` through:
+  it read the call,
+  the type,
+  the rename and the descriptor constant,
+  and no macro or path;
+- the login guard,
+  `no_start_at_login_tests.rs`,
+  let a `Command` imported under another name
   (`use std::process::Command as Cmd;` then `Cmd::new("systemctl")`) and a `Command::new(`
   whose literal stands on the next line through:
-  it read one line at a time, for the text `Command::new`.
+  it read one line at a time,
+  for the text `Command::new`.
 
 ### The green that had to be red
 
@@ -257,7 +274,8 @@ no_start_at_login_tests                              test result: ok. 10 passed;
 ```
 
 The plants were a `std::fs::soft_link(..)` call in `commit/commit_command.rs`,
-an `eprintln!`, a `File::create("/dev/stderr")` and a `std::fs::write("/dev/fd/2", ..)`
+an `eprintln!`,
+a `File::create("/dev/stderr")` and a `std::fs::write("/dev/fd/2", ..)`
 in `commit/commit_command_words.rs`,
 and the rename plus the next-line literal in `service/service_instance.rs`.
 They were reverted and never committed.
@@ -270,11 +288,14 @@ and each guard's own self-test plants them:
 - the link guard reads `soft_link` as one more name of a link,
   where no longer name touches it;
 - the note guard reads `eprintln!` and `eprint!` as the terse ways to write standard error,
-  and `/dev/stderr`, `/dev/fd/2` and `/proc/self/fd/2` as the paths that open the same handle;
+  and `/dev/stderr`,
+  `/dev/fd/2` and `/proc/self/fd/2` as the paths that open the same handle;
 - the login guard refuses the import that renames the type of a start,
   and reads a start whose literal stands on the code line after its `(`.
 
-The same plants, in the same files, are findings afterwards:
+The same plants,
+in the same files,
+are findings afterwards:
 
 ```text
 commit/commit_command.rs:109 (soft_link) let _ = std::fs::soft_link("planted-source", "planted-target");
@@ -285,14 +306,18 @@ service/service_instance.rs:118: Command as
 service/service_instance.rs:120: a start of the manager's own program: let _ = std::process::Command::new( "systemctl",
 ```
 
-The last two are quoted with their runs of spaces closed up, since the finding
-prints the line as the file writes it, indentation included,
+The last two are quoted with their runs of spaces closed up,
+since the finding
+prints the line as the file writes it,
+indentation included,
 and the start's is the call's line joined with the literal's line.
 The `Command as` finding's banned text ends with the space between the two words.
 
-`test result: FAILED. 7 passed; 1 failed`, `5 passed; 1 failed` and `11 passed; 1 failed`.
+`test result: FAILED. 7 passed; 1 failed`,
+`5 passed; 1 failed` and `11 passed; 1 failed`.
 With the plants reverted the three modules answer
-`ok. 8 passed`, `ok. 6 passed` and `ok. 12 passed`.
+`ok. 8 passed`,
+`ok. 6 passed` and `ok. 12 passed`.
 
 ### Which other rule refuses a spelling
 
@@ -303,8 +328,11 @@ The note guard's top doc says so and reads it in the note lane besides,
 so a note file that spells it fails there too.
 
 Nothing else refuses any of the six.
-`clippy.toml` bans `std::env::temp_dir`, three `tempfile` constructors and `Result::unwrap`;
-the crate's `[lints.clippy]` turns on `disallowed_methods`, `implicit_return`, `shadow_reuse`,
+`clippy.toml` bans `std::env::temp_dir`,
+three `tempfile` constructors and `Result::unwrap`;
+the crate's `[lints.clippy]` turns on `disallowed_methods`,
+`implicit_return`,
+`shadow_reuse`,
 `shadow_same` and `shadow_unrelated` and no group,
 so `clippy::print_stderr` stays as allow-by-default as it ships;
 and the repository linter's Rust rules are
@@ -316,7 +344,9 @@ and the repository linter's Rust rules are
 `require-explicit-types`,
 `require-rustdoc` and
 `tests-in-sidecars`,
-none of which names a link, a stream, a path or a start.
+none of which names a link,
+a stream,
+a path or a start.
 
 ### What is still unread
 
@@ -329,7 +359,9 @@ and each line of it is still a shape no line covers:
 - a `pub trait`'s methods and a `pub enum`'s variants;
 - an item inside an inline `mod name { ... }`;
 - the names a glob carries out of a module no `pub mod` chain reaches
-  (the guide said "a glob's own names", which is broader than the reading, and now says what the
+  (the guide said "a glob's own names",
+  which is broader than the reading,
+  and now says what the
   reading does);
 - the second path a re-export adds when it keeps the name it re-exports;
 - a signature or a value that changes under a name that stays.
@@ -342,7 +374,9 @@ a start whose program is a value rather than a literal,
 a `member:` whose literal a line break separates from its key,
 a write to the plain descriptor number (`libc::write(2, ..)`),
 a path built from parts or held in a variable,
-and, for the login guard, a literal further than the next code line from its call's `(`.
+and,
+for the login guard,
+a literal further than the next code line from its call's `(`.
 
-The guide's section on the published surface and its section on a guard's scope, excuses and
-anchor now say the same things as those docs.
+The guide's section on the published surface and its section on a guard's scope,
+excuses and anchor now say the same things as those docs.
