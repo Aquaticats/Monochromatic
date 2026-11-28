@@ -175,7 +175,7 @@ fn default_stream() -> Box<dyn Write + Send> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_POLICY = { threadName: 'service log lines', droppedNotice, defaultStream, callersWaitForTheirLine: false, retriesOnATick: false, endsWhenTheStreamIsGone: false, refusedThreadPurpose: "write this service's log lines", tag: 'serviceLog' };
+/// const THE_POLICY = { threadName: 'service log lines', droppedNotice, defaultStream, callersWaitForTheirLine: false, retriesOnATick: false, endsWhenTheStreamIsGone: false, refusedThreadPurpose: "write this service's log lines", tag: 'serviceLog', readerStoppedNotice: undefined };
 /// ```
 static THE_POLICY: QueuePolicy = QueuePolicy {
     thread_name: "service log lines",
@@ -188,6 +188,9 @@ static THE_POLICY: QueuePolicy = QueuePolicy {
     //  so the journal is told which limit it was and the log lines are written where they are said.
     refused_thread_purpose: Some("write this service's log lines"),
     tag: "serviceLog",
+    // The service's log never says a line about a stopped reader: its callers hand a line and go on, so no wait of
+    //  theirs ever gives a reader up.
+    reader_stopped_notice: None,
 };
 
 /// The one queue of this process,

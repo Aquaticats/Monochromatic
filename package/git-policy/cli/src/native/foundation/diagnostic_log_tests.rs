@@ -1,35 +1,15 @@
-//! Controls for diagnostic line formatting.
+//! Controls for the door over a diagnostic line's words:
+//! with the verbose switch on,
+//! a debug record and a warning reach standard error with the userinfo of a URL masked,
+//! and with it off only the warning appears.
+//!
+//! The words themselves are controlled beside the file that holds them
+//! (`the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote_tests.rs`):
+//! one line per record,
+//! the exact values the two switches answer to,
+//! and the userinfo staying off a line.
 
 use super::*;
-
-/// A diagnostic is one line,
-///  whatever its message holds.
-#[test]
-fn a_diagnostic_is_one_line() {
-    assert_eq!(
-        diagnostic_line(
-            "debug",
-            "2026-10-06T21:40:39.524Z",
-            "recovery",
-            "owner 7 alive"
-        ),
-        "[debug] [2026-10-06T21:40:39.524Z] [monochromatic-git-policy-cli] [recovery] owner 7 alive\n"
-    );
-    assert_eq!(
-        diagnostic_line("warn", "t", "capture", "a\nb\r\nc\u{1b}[31m"),
-        "[warn] [t] [monochromatic-git-policy-cli] [capture] a b  c [31m\n"
-    );
-}
-
-/// Only the exact values switch the levels.
-#[test]
-fn the_switches_need_exact_values() {
-    assert!(is_true(std::ffi::OsString::from("true")));
-    assert!(!is_true(std::ffi::OsString::from("TRUE")));
-    assert!(!is_true(std::ffi::OsString::from("1")));
-    assert!(is_false(std::ffi::OsString::from("false")));
-    assert!(!is_false(std::ffi::OsString::from("0")));
-}
 
 /// The user and the password of the URL in the fake Git output;
 /// neither is a real credential.
@@ -40,45 +20,14 @@ const FAKE_PASSWORD: &str = "fakepass1";
 
 /// What Git says when a remote refuses:
 /// its words carry the remote's URL with userinfo.
+///
+/// A copy of the function of the same name beside the words' own control:
+/// the two controls sit in two sidecars after the words moved out of this file,
+/// and neither sidecar reaches the other's items.
 fn git_words_naming_a_remote() -> String {
     return format!(
         "git fetch said: fatal: unable to access 'https://{FAKE_USER}:{FAKE_PASSWORD}@example.invalid/team/repo.git/': 403"
     );
-}
-
-/// The userinfo of a URL in the message never reaches the line,
-/// and the rest of the message stays.
-#[test]
-fn a_diagnostic_line_hides_the_userinfo_of_a_url_in_its_message() {
-    for level in ["debug", "warn"] {
-        let line: String =
-            diagnostic_line(level, "t", "fetch", git_words_naming_a_remote().as_str());
-        assert!(!line.contains(FAKE_USER), "{line}");
-        assert!(!line.contains(FAKE_PASSWORD), "{line}");
-        assert!(
-            line.contains(
-                format!(
-                    "'https://{}@example.invalid/team/repo.git/': 403",
-                    crate::lfs_output_mask::CREDENTIALS_MASK
-                )
-                .as_str()
-            ),
-            "{line}"
-        );
-    }
-}
-
-/// A control character inside the userinfo does not carry the rest of it past the mask.
-#[test]
-fn a_diagnostic_line_hides_userinfo_that_holds_a_control_character() {
-    let line: String = diagnostic_line(
-        "debug",
-        "t",
-        "fetch",
-        format!("https://{FAKE_USER}\u{85}{FAKE_PASSWORD}@example.invalid/").as_str(),
-    );
-    assert!(!line.contains(FAKE_USER), "{line}");
-    assert!(!line.contains(FAKE_PASSWORD), "{line}");
 }
 
 /// The variable that marks the child process of the stream controls.
@@ -134,7 +83,7 @@ fn child_stderr(verbose: bool) -> String {
 /// With the verbose switch on,
 /// the debug line Git's words ride in reaches standard error with the userinfo masked;
 ///  the warning line is masked too,
-/// and with the switch off only the warning appears.
+///  and with the switch off only the warning appears.
 #[test]
 fn git_words_in_a_verbose_debug_line_reach_standard_error_without_the_userinfo() {
     let verbose: String = child_stderr(true);
