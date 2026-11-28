@@ -289,3 +289,79 @@ fn the_shipped_bound_is_far_above_an_ordinary_answer() {
         super::runner::A_WAIT_LONGER_THAN_ORDINARY
     );
 }
+
+/// What:
+/// The script the fixture below runs: it sleeps past the shipped bound and then answers.
+/// Why:
+/// The control has to see the line the shipped runner prints, which only a wait longer than
+/// `A_WAIT_LONGER_THAN_ORDINARY` reaches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME = 'sleep 2.4; echo answered';
+/// ```
+const A_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME: &str = "sleep 2.4; echo answered";
+
+/// The name this fixture is filtered by, the way the control below starts it.
+const THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME: &str =
+    "toolchain::runner_tests::the_program_that_does_not_answer_in_time";
+
+/// What:
+/// A program the shipped runner waits for, started in a process of its own.
+/// Why:
+/// The line the wait prints goes to standard error of whichever process waits,
+/// and a test cannot read its own standard error,
+/// so the fixture runs in a child whose standard error the control reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('the program that does not answer in time', () => { const outcome = ProcessRunner.run(sh(A_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME)); expect(outcome.stdout).toBe('answered\n'); });
+/// ```
+#[test]
+#[ignore = "a fixture a control starts: it waits for a program past the shipped bound"]
+fn the_program_that_does_not_answer_in_time() {
+    let outcome = ProcessRunner.run(&RunRequest::new(
+        "sh",
+        &["-c", A_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME],
+    ));
+    assert_eq!(outcome.stdout, "answered\n", "{outcome:?}");
+    assert_eq!(outcome.code, 0, "{outcome:?}");
+}
+
+/// What:
+/// The line the shipped runner prints for a wait that passes its own bound,
+/// read from the standard error of a process that ran it.
+/// Why:
+/// The controls above pass their own bound and their own sink,
+/// so none of them holds that the shipped program prints the line at all or that its bound is reachable;
+/// this one starts the fixture with nothing changed.
+#[test]
+fn the_shipped_runner_names_a_program_whose_answer_passes_the_bound() {
+    let output = std::process::Command::new(
+        std::env::current_exe().expect("the test binary's own path"),
+    )
+    .arg("--exact")
+    .arg(THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME)
+    .arg("--ignored")
+    .arg("--test-threads=1")
+    .output()
+    .expect("start the fixture the shipped runner waits for");
+    assert!(
+        output.status.success(),
+        "the fixture's own wait ended with an answer: {:?} {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let printed: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(
+        printed.contains(&format!(
+            "still waiting for `sh -c {A_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME}` to answer"
+        )),
+        "the shipped runner names the program it waits for: {printed}"
+    );
+    assert_eq!(
+        printed.matches("still waiting for").count(),
+        1,
+        "one line however long the wait lasts: {printed}"
+    );
+}
