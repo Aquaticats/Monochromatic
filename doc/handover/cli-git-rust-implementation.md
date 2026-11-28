@@ -1188,6 +1188,60 @@ Unapproved and non-final.
   the deletion guard refuses a path with a segment named `null`,
   and a reboot clears that folder.
 
+#### Started and done between 08:38 and 08:54
+
+Unapproved and non-final.
+
+- **No removal of a ZFS worktree clone finishes on a real pool**,
+  in `0.6.1-alpha.53`,
+  `0.6.1-alpha.54` and on `main`:
+  issue 6669.
+  It stops before its first destroy,
+  so nothing is lost.
+  Two causes,
+  both read on `main`:
+  the removal's command path hands `now_iso()` to the origin cleanup record,
+  whose reader takes only whole seconds with an offset;
+  and no release code calls `create_the_staging_folder`.
+  The slot-state guest arm's round found it in a local guest and an OVHcloud one (merge `5536339cae`).
+  The round `zfs-removal-of-a-real-clone-finishes-its-moment-is-accepted-and-its-staging-folder-is-made` fixes both
+  and runs that arm green on OVHcloud.
+  Six running guest rounds were told through their inboxes.
+  The next wrapper release waits for that merge and says so in its note.
+- The fix round on the read of `0.6.1-alpha.53` is merged (`559e163abc`):
+  a removal resumed from a plan whose clone is gone reads a person's lock before any write.
+- A corrective comment stands on the release commit `b35e62237f`:
+  its note said two forces pass every refusal,
+  and four refusals are not loosened.
+- An OVHcloud size listed with 4 holds 4000 MiB,
+  measured by a second billed run and recorded in
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`.
+  A floor typed in GiB and compared number to number is met by a size 2.3 percent smaller,
+  which makes the sizes proposal's sixth decision a choice for the owner.
+- The round that built the wrapper's test binaries outside the guest is merged (`708f41d524`):
+  the lock driver's arm passed from pushed binaries on a rented machine listed with 4.
+  A gate read by Claude Sonnet reads its section before its three questions are put.
+- Issue 6668:
+  a build of `package/mvm/cli` removes the file the `mvm` shim runs before writing it again,
+  and `test:unit` there depends on the build.
+  Until its round (`mvm-cli-a-build-never-leaves-the-file-the-mvm-shim-runs-absent`) merges,
+  neither task runs in the main checkout while a guest round runs.
+- The line-break proposal's narrow read and the hosted-runners proposal's third read each came back with two High findings,
+  text only.
+  Each has a last text revision running,
+  after which its questions are put with no further whole read.
+- The stop rule for the reads still out,
+  taken from the advisor:
+  when a read lands,
+  the one question is whether a High would change which option the owner picks;
+  if not,
+  the questions are put with that High stated in the question's own text.
+- The two-forces gate review is read whole,
+  and its revision round was told three things from it:
+  write the six text changes before any run,
+  name the stack of every reading,
+  and examine a wrapper that detaches itself before it ends its own ancestors.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
