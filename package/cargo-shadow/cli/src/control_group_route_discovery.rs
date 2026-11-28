@@ -42,21 +42,25 @@ use crate::control_group_route_child_runs::run_plain;
 /// ```
 use crate::control_group_route_manager_reach::a_refusal_that_ends_the_asking;
 /// What:
-/// `use crate::control_group_route_one_ask::{FailedAsk, WhereTheSliceIs, ask_where_the_slice_is_once, spent_its_bound};` imports one
-/// ask of the manager and the words it may fail with.
+/// `use crate::control_group_route_one_ask::{FailedAsk, WhereTheSliceIs, ask_where_the_slice_is_once, spent_its_bound,
+/// the_manager_answered_a_start};` imports one
+/// ask of the manager,
+/// the words it may fail with,
+/// and the reading that tells the manager's own refusal among them.
 /// Why:
 /// The asking again is a loop of that one ask,
 /// and the file it lives in is split out to keep this one under the code-line limit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { FailedAsk, WhereTheSliceIs, askWhereTheSliceIsOnce, spentItsBound } from 'crate/control_group_route_one_ask';
+/// import { FailedAsk, WhereTheSliceIs, askWhereTheSliceIsOnce, spentItsBound, theManagerAnsweredAStart } from 'crate/control_group_route_one_ask';
 /// ```
 pub(crate) use crate::control_group_route_one_ask::{
     FailedAsk,
     WhereTheSliceIs,
     ask_where_the_slice_is_once,
     spent_its_bound,
+    the_manager_answered_a_start,
 };
 /// What:
 /// `use crate::inherited_limits::{InheritedLimits, caller_limits};` imports the limits a scope keeps from its caller and the read of them.
@@ -198,7 +202,9 @@ pub(crate) const STRAGGLER_INTERVAL: Duration = Duration::from_millis(50);
 /// It bounds two things since 2026-11-27:
 /// the ask of where the slice is,
 /// and the start that waits a queued job out.
-/// The start was measured against a container's own manager at 3.68 s, 3.71 s, 3.76 s and 3.78 s,
+/// The start was measured against a container's own manager at 3.68 s,
+/// 3.71 s,
+/// 3.76 s and 3.78 s,
 /// each the four seconds of the planted `TimeoutStopSec=4` stop it was queued behind,
 /// so a slice whose stop is given the manager's default of ninety seconds is refused by this bound rather than waited for,
 /// and the refusal names the program and this bound.
@@ -462,9 +468,11 @@ pub(crate) const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
 /// and one ask after it answered again,
 /// which is the manager saying the same thing twice).
 /// Two answers of that ask are not the manager's refusal and are asked through instead:
-/// a path it reports after a failed start, which is a start that ran and lost its reply,
+/// a path it reports after a failed start,
+/// which is a start that ran and lost its reply,
 /// and no control group after a start whose own failure was a transport rather than the manager's answer.
-/// A path reported beside a job queued on the slice is a slice being stopped, which the start waits out.
+/// A path reported beside a job queued on the slice is a slice being stopped,
+/// which the start waits out.
 /// The words are the refusal the caller names,
 /// so they say which ask failed.
 ///
@@ -639,79 +647,6 @@ fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
     };
 }
 
-/// The words systemd's own client prints where the connection to the manager went away under a request,
-/// which are the words an answer of the manager's cannot carry.
-/// What it rests on,
-/// each form copied from a capture of 2026-11-27:
-/// `Transport endpoint is not connected`
-/// (a start in flight, `Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status
-/// app.slice' for details.`,
-/// read in a container whose manager reexecuted under the request),
-/// `Connection refused`
-/// (a manager reexecuting, `Failed to connect to user scope bus via local transport: Connection refused`),
-/// `Connection reset by peer`
-/// (the same in the package document's container measurement),
-/// and `Message recipient disconnected from message bus without replying`
-/// (the guest's session bus, same document).
-/// What it does not rest on:
-/// any list of the manager's own answers:
-/// those are recognised by naming the slice, not by their reason,
-/// and a reason no one has seen is read as a moment rather than as a refusal.
-pub(crate) const THE_WORDS_OF_A_TRANSPORT_THAT_WENT_AWAY: [&str; 4] = [
-    "Transport endpoint is not connected",
-    "Connection reset by peer",
-    "Connection refused",
-    "Message recipient disconnected from message bus without replying",
-];
-
-/// What:
-/// `fn the_manager_answered_a_start(reason: &str, slice: &str) -> bool` says whether the words of a failed start are the manager's
-/// own answer about the slice.
-/// Why:
-/// A start can fail three ways and the words are what tells them apart:
-/// it can fail before the manager sees it (`Failed to connect to user scope bus via local transport: Connection refused`),
-/// its reply can be lost after the manager accepted it (`Failed to start app.slice: Transport endpoint is not connected ...`),
-/// or the manager can answer about the slice (`Failed to start app.slice: Unit app.slice is masked.`).
-/// Only the third is a refusal a wait cannot change,
-/// so it is recognised positively: the answer names the slice after the verb,
-/// and carries none of the transport's words.
-/// The first two are what the asking again is for (measured 2026-11-27 in a container's own manager:
-/// `0.1.5-alpha.16` delegated in every call of the three states,
-/// `0.1.5-alpha.17` in none).
-/// Where the words cannot tell:
-/// a manager that refuses with the slice's name and a transport's words in one sentence,
-/// a refusal that does not name the slice (`Job canceled`),
-/// and a transport failure that names neither the slice nor anything this list holds,
-/// are all read as moments, which spends the span of the asking on a refusal rather than refusing a call over a moment.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function theManagerAnsweredAStart(reason: string, slice: string): boolean
-/// ```
-pub(crate) fn the_manager_answered_a_start(
-    reason: &str,
-    slice: &str,
-) -> bool {
-    // What:     `after_the_verb` is what the manager said after `Failed to start <slice>: `, or nothing where its words have no such
-    //           opening.
-    // Why:      The slice's name appears in the opening of every start failure, so only what comes after it says whether the
-    //           manager was speaking about the slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const afterTheVerb = reason.split(`Failed to start ${slice}: `)[1] ?? ''
-    // ```
-    let opening: String = format!("Failed to start {slice}: ");
-    let after_the_verb: &str = match reason.split_once(&opening) {
-        Some((_, rest)) => rest,
-        None => return false,
-    };
-    let carries_a_transports_words: bool = THE_WORDS_OF_A_TRANSPORT_THAT_WENT_AWAY
-        .iter()
-        .any(|words| return reason.contains(words));
-    return after_the_verb.contains(slice) && !carries_a_transports_words;
-}
-
 /// What:
 /// `fn ask_where_the_slice_is(settings: &RouteSettings) -> Result<String, String>` asks until the manager reports the path of the
 /// slice,
@@ -732,8 +667,10 @@ pub(crate) fn the_manager_answered_a_start(
 /// in 3 asks and about 0.1 s,
 /// where five asks spent 895 ms (measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped).
 /// What that start's failure says decides whether that answer ends the asking:
-/// where the words are the manager's answer about the slice, the asking ends;
-/// where they are a transport that did not reach it or a reply that was lost, the question is put again
+/// where the words are the manager's answer about the slice,
+/// the asking ends;
+/// where they are a transport that did not reach it or a reply that was lost,
+/// the question is put again
 /// (`the_manager_answered_a_start`),
 /// and the path such an answer reports is the route and is used.
 ///

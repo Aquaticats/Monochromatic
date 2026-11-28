@@ -164,7 +164,8 @@ fn real_systemctl() -> String {
 
 /// What:
 /// `fn the_slice_the_manager_reports(real: &str) -> String` is the control group the real manager reports for the slice the
-/// ordinary settings name, or nothing where it reports none.
+/// ordinary settings name,
+/// or nothing where it reports none.
 /// Why:
 /// A control that plays an answer carrying a path needs a path this host really has,
 /// because the discovery checks it as a directory of the cgroup file system with `cgroup.kill`;
@@ -484,7 +485,8 @@ fn an_answer_that_is_not_a_path_ends_the_asking() {
 /// The start in that state really ran,
 /// so that path is the route,
 /// and the control plays the answer it left behind
-/// (the state itself was measured 2026-11-27 in a container: the start ran and the ask after it answered the path).
+/// (the state itself was measured 2026-11-27 in a container:
+/// the start ran and the ask after it answered the path).
 #[test]
 fn a_path_the_ask_after_a_failed_start_reports_is_the_route() {
     this_test_needs_a_delegated_scope();

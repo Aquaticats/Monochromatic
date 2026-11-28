@@ -134,7 +134,8 @@ pub(crate) enum WhereTheSliceIs {
 /// What:
 /// `fn what_the_manager_reported(answered: &str) -> WhereTheSliceIs` reads the answer of one ask.
 /// Why:
-/// The question asks for two properties, so an answer is the named lines `systemctl show` prints;
+/// The question asks for two properties,
+/// so an answer is the named lines `systemctl show` prints;
 /// a control may replace the question with a program that answers one value and no names,
 /// and that value is read as the path it stands for.
 ///
@@ -295,6 +296,85 @@ pub(crate) fn ask_where_the_slice_is_once(
     // return whatTheManagerReported(answered)
     // ```
     return Ok(what_the_manager_reported(&answered));
+}
+
+/// The words systemd's own client prints where the connection to the manager went away under a request,
+/// which are the words an answer of the manager's cannot carry.
+/// What it rests on,
+/// each form copied from a capture of 2026-11-27:
+/// `Transport endpoint is not connected`
+/// (a start in flight,
+/// `Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status
+/// app.slice' for details.`,
+/// read in a container whose manager reexecuted under the request),
+/// `Connection refused`
+/// (a manager reexecuting,
+/// `Failed to connect to user scope bus via local transport: Connection refused`),
+/// `Connection reset by peer`
+/// (the same in the package document's container measurement),
+/// and `Message recipient disconnected from message bus without replying`
+/// (the guest's session bus,
+/// same document).
+/// What it does not rest on:
+/// any list of the manager's own answers:
+/// those are recognised by naming the slice,
+/// not by their reason,
+/// and a reason no one has seen is read as a moment rather than as a refusal.
+pub(crate) const THE_WORDS_OF_A_TRANSPORT_THAT_WENT_AWAY: [&str; 4] = [
+    "Transport endpoint is not connected",
+    "Connection reset by peer",
+    "Connection refused",
+    "Message recipient disconnected from message bus without replying",
+];
+
+/// What:
+/// `fn the_manager_answered_a_start(reason: &str, slice: &str) -> bool` says whether the words of a failed start are the manager's
+/// own answer about the slice.
+/// Why:
+/// A start can fail three ways and the words are what tells them apart:
+/// it can fail before the manager sees it (`Failed to connect to user scope bus via local transport: Connection refused`),
+/// its reply can be lost after the manager accepted it (`Failed to start app.slice: Transport endpoint is not connected ...`),
+/// or the manager can answer about the slice (`Failed to start app.slice: Unit app.slice is masked.`).
+/// Only the third is a refusal a wait cannot change,
+/// so it is recognised positively:
+/// the answer names the slice after the verb,
+/// and carries none of the transport's words.
+/// The first two are what the asking again is for (measured 2026-11-27 in a container's own manager:
+/// `0.1.5-alpha.16` delegated in every call of the three states,
+/// `0.1.5-alpha.17` in none).
+/// Where the words cannot tell:
+/// a manager that refuses with the slice's name and a transport's words in one sentence,
+/// a refusal that does not name the slice (`Job canceled`),
+/// and a transport failure that names neither the slice nor anything this list holds,
+/// are all read as moments,
+/// which spends the span of the asking on a refusal rather than refusing a call over a moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theManagerAnsweredAStart(reason: string, slice: string): boolean
+/// ```
+pub(crate) fn the_manager_answered_a_start(
+    reason: &str,
+    slice: &str,
+) -> bool {
+    // What:     `after_the_verb` is what the manager said after `Failed to start <slice>: `, or nothing where its words have no such
+    //           opening.
+    // Why:      The slice's name appears in the opening of every start failure, so only what comes after it says whether the
+    //           manager was speaking about the slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const afterTheVerb = reason.split(`Failed to start ${slice}: `)[1] ?? ''
+    // ```
+    let opening: String = format!("Failed to start {slice}: ");
+    let after_the_verb: &str = match reason.split_once(&opening) {
+        Some((_, rest)) => rest,
+        None => return false,
+    };
+    let carries_a_transports_words: bool = THE_WORDS_OF_A_TRANSPORT_THAT_WENT_AWAY
+        .iter()
+        .any(|words| return reason.contains(words));
+    return after_the_verb.contains(slice) && !carries_a_transports_words;
 }
 
 /// What:
