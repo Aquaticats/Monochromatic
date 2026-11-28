@@ -2069,6 +2069,54 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Nineteenth batch: a swap file on the 860 drive's file system, 2026-11-28T02:45:46-05:00
+
+Recorded by the coordinating session,
+which applied it under the owner's rule "Always widen apparmor."
+Unapproved and non-final.
+
+Swap was nearly full again at 2026-11-28T02:44:23-05:00
+(`SwapFree` 3,280,544 kB of 64,667,644 kB,
+with eighteen rounds and nine guests alive),
+and the old NVMe's swap partition was still waiting on its file system's shrink.
+The session made a 64 GiB swap file on the 860 drive's file system as a bridge,
+and two profiles refused two steps of it.
+
+`btrfs filesystem mkswapfile --size 64g <the file>` answered `ERROR: cannot create new swapfile: Permission denied`,
+and the audit log named the cause:
+
+```text
+apparmor="DENIED" operation="mknod" class="file" profile="btrfs" name="/var/mnt/encrypted/swap-file-that-bridges-until-the-old-nvme-swap-partition-is-up-2026-11-28" comm="btrfs" requested_mask="c" denied_mask="c"
+```
+
+After the rule and a reload at 02:44:35 the file was made.
+`swapon --priority 10 <the file>` then answered `Permission denied`:
+
+```text
+apparmor="DENIED" operation="open" class="file" profile="swapon" name="/var/mnt/encrypted/swap-file-that-bridges-until-the-old-nvme-swap-partition-is-up-2026-11-28" comm="swapon" requested_mask="r"
+```
+
+The rules,
+one in each profile's local file
+(`swapon` had no local file before):
+
+```text
+# /etc/apparmor.d/local/btrfs, nineteenth batch
+/var/mnt/encrypted/swap-file-* rw,
+
+# /etc/apparmor.d/local/swapon, nineteenth batch
+/var/mnt/encrypted/swap-file-* rw,
+```
+
+After the second reload at 02:45:46 the swap file went on behind `zram`,
+and `SwapFree` read 72,571,516 kB of 131,776,504 kB.
+The file is in no `fstab`,
+so it does not survive a reboot,
+and it is switched off and deleted once the partition is up.
+While it is on,
+`mount-860.service` cannot be stopped,
+because the mount is held.
+
 ## Eighteenth batch: cryptsetup reads the 860 drive's key file, 2026-11-28T01:50:04-05:00
 
 Recorded by the coordinating session,
