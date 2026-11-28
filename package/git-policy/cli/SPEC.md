@@ -955,11 +955,31 @@ the holders of a clone,
 the managed Git lock's line,
 the blocked-removal state,
 the deferred-origin check,
+the boot setup plan step 19 installs,
+the checkout's covered entry,
+the cancel command plan step 17 built,
+Sanoid's coverage,
 and the backup coverage.
 Each check takes its facts as a value and answers a pass,
 a finding that names the failing field or path component,
 or unknown with the reason it could not read the proof;
 the facts themselves are a wiring run's to gather once from the live system.
+Four of these answer from facts that exist today:
+the boot setup's line reads the gate,
+the files beside it and the datasets measured under the checkout,
+and names the provider the gate orders itself on,
+the key-loading unit when the machine has one,
+the two bounds,
+the installed files' identity,
+and every dataset under the checkout not set `canmount=noauto` with the command that sets it;
+the checkout's covered entry answers the underlay entry's own verdict;
+the cancel command's line answers from the command's own usage;
+and Sanoid's coverage answers from the comparison in `src/native/health/sanoid_coverage/`,
+with the correction for each confirmed drift below its line.
+The backup coverage is the one line that answers unknown,
+because the arm that reads which paths a configured backup job can see,
+and whether a restore brings the checkout back with its origins still pinned,
+is not built.
 `doctor` reaches none of them in this release,
 except the add route's own call to the delegation and the dataset checks,
 so a person reads no receipt,
