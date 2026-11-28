@@ -2923,14 +2923,8 @@ and the two `truepeak` files wait on their branch.
 - That the repaired planted controls still compile,
   and that a campaign notices each of them,
   is owed to the next `native:mutation:planted` run.
-- This host's AppArmor profile for Git confines a container's `/usr/bin/git` as well,
-  since it attaches by path.
-  The service-manager install proof runs Git as the container's root in a directory its user owns,
-  which needs a capability the profile refuses on purpose,
-  so the proof has not run to its end since 2026-11-13 (issue 6587;
-  `doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
-  A round's session cannot read `/var/log/audit/audit.log`,
-  where these records are and the kernel journal's are not:
+- A round's session cannot read `/var/log/audit/audit.log`,
+  where a denial's record is and the kernel journal's is not:
   when a round reports a refusal only one program meets,
   the coordinator reads that log.
 - `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again and is brought up to date (`f69208a309`);
