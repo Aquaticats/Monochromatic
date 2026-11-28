@@ -1249,6 +1249,34 @@ the largest figure each bounds was measured on this round's guest,
 interleaved with a control,
 and the margin is stated as a ratio.
 
+## How a later round re-runs these arms
+
+Every arm above ran to its end on a local guest of this round's own,
+before the project decided on 2026-11-28 that all guest work runs on OVHcloud
+(`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+"All guest work runs on OVHcloud, 2026-11-28").
+That guest is destroyed and nothing in this document rests on where it ran:
+every reading is a kernel's, a file system's or a manager's answer,
+and the values are stated as multiples of them.
+
+To re-run one arm,
+with the backend the drivers now take from `MVM_BACKEND`
+(`package/git-policy/cli/bin/mvm-guest-backend.ts`):
+
+```sh
+# package/git-policy/cli, with the run's own guest name and log folder
+MVM_BACKEND=ovh node e2e/forced-act-guest.ts create --name <guest> --log-dir <dir>
+```
+
+and then the arm with the probe program of this round,
+`probe-holders-and-stops.py`,
+which this document's "The guest, its kernel and the fixture" quotes the calls of.
+Two things stand in the way on OVHcloud today,
+and neither is a reason to run a local guest:
+an arm's script reaches its guest through the shared folder a local guest has,
+which a driver on that backend refuses, and
+the fixture's pool has to be made in the guest the arm runs in.
+
 ## What could not be measured, and why
 
 - A copy that receives from a shared parent, and the peer and slave shapes of the receiver closure.
