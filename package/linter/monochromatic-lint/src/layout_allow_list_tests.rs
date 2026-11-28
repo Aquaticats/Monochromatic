@@ -2757,11 +2757,13 @@ fn a_list_of_dead_key_lines_that_read_as_uses_scans_no_other_line() {
         findings[0].message
     );
     // What: the entries the reporting handed out to its callers, which a scan of the entries would grow for each line.
-    // Why: the index answers each question, so a scan that came back would hand out the whole list once more for every line.
+    // Why: the index answers each question, so a scan that came back would hand out the whole list once more for every line,
+    // and a counter that never counted would read nothing, which is as green as an index for a bound above it.
     let walked: usize = counted_work::entries_walked();
-    assert!(
-        walked <= PASSES * LINES,
-        "{LINES} dead key lines read {walked} entries of the list, where the reporting hands out at most {PASSES} lists"
+    assert_eq!(
+        walked,
+        PASSES * LINES,
+        "{LINES} dead key lines read {walked} entries of the list, where the reporting hands out {PASSES} lists"
     );
 }
 
