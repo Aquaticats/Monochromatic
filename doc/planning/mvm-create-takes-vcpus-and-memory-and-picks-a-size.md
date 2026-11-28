@@ -309,7 +309,7 @@ The image the backend picked before the image fix was "Ubuntu 26.04 - NVIDIA - v
 ## What OVHcloud documents about its families
 
 `https://docs.ovhcloud.com/en/guides/public-cloud/compute/key-concepts/`
-(fetched 2026-11-28T06:05:05-05:00,
+(fetched 2026-11-28T06:03:55-05:00,
 and its Markdown form
 `https://docs.ovhcloud.com/en/guides/public-cloud/compute/key-concepts.md`)
 lists the instance families:
@@ -328,7 +328,7 @@ the table's pipes are kept here only to show the page's own shape,
 and this document uses no tables elsewhere).
 
 `https://docs.ovhcloud.com/en/guides/public-cloud/compute/deploy-a-gpu-instance/`
-(fetched 2026-11-28T06:05:05-05:00) says:
+(fetched 2026-11-28T06:03:59-05:00) says:
 
 > At the moment,
 > most of our old GPU instances (Tesla V100 and V100s) are only available in the GRA7,
@@ -361,7 +361,7 @@ and they belong to the family the documentation calls `Cloud GPU`.
 
 The same families appear on the provider's price page.
 `https://www.ovhcloud.com/en-ca/public-cloud/prices/`
-(fetched 2026-11-28T06:02:44-05:00)
+(fetched 2026-11-28T06:02:57-05:00)
 groups its instance products under
 `iops`,
 `cpu`,
@@ -416,12 +416,12 @@ the storage family the documentation calls Storage Optimized.
 Two more documents bear on the `-flex` suffix:
 
 `https://docs.ovhcloud.com/en/guides/public-cloud/compute/resize-instance-manager.md`
-(fetched 2026-11-28T06:05:05-05:00):
+(fetched 2026-11-28T06:04:55-05:00):
 
 > Only **Flexible instances** can be upgraded and downgraded while maintaining a fixed disk size of 50GB.
 
 `https://docs.ovhcloud.com/en/guides/public-cloud/compute/revert-a-flex-instance.md`
-(fetched at the same time):
+(fetched 2026-11-28T06:04:55-05:00):
 
 > A flex instance is a single size disk (50GB) instance which offers a faster process for snapshots.
 > It allows resizing to higher or lower models with a fix storage space,
@@ -436,7 +436,7 @@ and a classic one only grows.
 
 OVHcloud's instance API documentation
 (`https://developers.eu.ovhcloud.com/reference/public-cloud/compute/instances.md`,
-fetched 2026-11-28T06:16:00-05:00)
+fetched 2026-11-28T06:15:54-05:00)
 documents a GPU count on the flavour an instance reports,
 the field `currentState.flavor.gpus`,
 described as:
@@ -455,7 +455,7 @@ which is why the rule in the next section uses the family instead.
 ## Prices
 
 Read from `https://www.ovhcloud.com/en-ca/public-cloud/prices/`
-on 2026-11-28T06:02:44-05:00,
+on 2026-11-28T06:02:57-05:00,
 Linux,
 "Price (excl.
 VAT/hour)",
@@ -586,7 +586,7 @@ on these prices:
 ## What Hetzner's documented server type object carries
 
 `https://docs.hetzner.cloud/cloud.spec.json`
-(fetched 2026-11-28T06:08:00-05:00)
+(fetched 2026-11-28T06:05:17-05:00)
 describes the object `GET /server_types` returns.
 Its fields,
 with the file's own descriptions:
@@ -2060,7 +2060,7 @@ Pages fetched on 2026-11-28 for this revision,
 each with what was taken from it:
 
 - `https://www.ovhcloud.com/en-ca/public-cloud/prices/`,
-  fetched 2026-11-28T06:02:44-05:00 and loaded in headless Chromium:
+  fetched 2026-11-28T06:02:57-05:00 and loaded in headless Chromium:
   the hourly and monthly prices,
   the family groups,
   the `GB` wording and the "excl.
@@ -2068,46 +2068,46 @@ each with what was taken from it:
   and the absence of any `-flex` name.
 - `https://docs.ovhcloud.com/en/guides/public-cloud/compute/key-concepts/`
   and its Markdown form `.md`,
-  fetched 2026-11-28T06:05:05-05:00:
+  fetched 2026-11-28T06:03:55-05:00:
   the seven families and their descriptions.
 - `https://docs.ovhcloud.com/en/guides/public-cloud/compute/deploy-a-gpu-instance/`
   and its Markdown form,
-  fetched at the same time:
+  fetched 2026-11-28T06:03:59-05:00:
   the GPU regions,
   the models named,
   and the image sentence.
 - `https://docs.ovhcloud.com/en/guides/public-cloud/compute/resize-instance-manager.md`,
-  fetched at the same time:
+  fetched 2026-11-28T06:04:55-05:00:
   the Flexible instances sentence.
 - `https://docs.ovhcloud.com/en/guides/public-cloud/compute/revert-a-flex-instance.md`,
-  fetched at the same time:
+  fetched at 2026-11-28T06:04:55-05:00:
   what a flex instance is and that the option is not on every model.
 - `https://developers.eu.ovhcloud.com/reference/public-cloud/compute/instances.md`,
-  fetched 2026-11-28T06:16:00-05:00:
+  fetched 2026-11-28T06:15:54-05:00:
   `currentState.flavor.gpus` and the unit of `currentState.flavor.ram`.
 - `https://docs.hetzner.cloud/cloud.spec.json`,
-  fetched 2026-11-28T06:08:00-05:00,
+  fetched 2026-11-28T06:05:17-05:00,
   with `https://docs.hetzner.cloud/`:
   the documented server type object's fields and descriptions.
 - `https://canonical.com/multipass/docs/latest/reference/command-line-interface/launch/`
   (the address `https://documentation.ubuntu.com/multipass/en/latest/reference/command-line-interface/launch/`
   redirects to it),
-  fetched 2026-11-28T06:05:05-05:00:
+  fetched 2026-11-28T06:04:58-05:00:
   the `--cpus` and `--memory` help text.
 - `https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-attribute-based-instance-type-selection.html`,
-  fetched at the same time:
+  fetched 2026-11-28T06:05:00-05:00:
   the attribute sentence,
   price protection,
   the lowest price allocation strategy,
   and the preview section.
 - `https://docs.openstack.org/python-openstackclient/latest/cli/command-objects/flavor.html`,
-  fetched at the same time:
+  fetched 2026-11-28T06:05:01-05:00:
   `--min-disk` and `--min-ram`.
 - `https://docs.skypilot.co/en/latest/reference/yaml-spec.html`,
-  fetched at the same time:
+  fetched 2026-11-28T06:05:01-05:00:
   the `cpus` and `memory` formats and the `4+` example.
 - `https://cloud.google.com/compute/docs/instances/creating-instance-with-custom-machine-type`,
-  fetched at the same time:
+  fetched 2026-11-28T06:05:05-05:00:
   the custom machine type sentence and the sample code's refusals.
 
 The catalogue facts come from a read-only read of the owner's project on
