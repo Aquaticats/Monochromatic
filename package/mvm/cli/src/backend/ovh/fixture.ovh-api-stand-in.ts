@@ -714,6 +714,8 @@ export async function errorFrom({
 /**
  An instance body, from the schema's `cloud.instance.Instance`.
  
+ @param flavorId - identifier of the flavor the instance runs
+ 
  @param id - instance identifier
  
  @param imageUser - login account the carried image names
@@ -736,6 +738,7 @@ export async function errorFrom({
  ```
  */
 export function instanceAnswer({
+  flavorId = 'flavor-small',
   id = 'instance-1',
   imageUser = 'ubuntu',
   ip = '192.0.2.10',
@@ -744,6 +747,7 @@ export function instanceAnswer({
   status = 'ACTIVE',
   withImage = true,
 }: {
+  readonly flavorId?: string;
   readonly id?: string;
   readonly imageUser?: string;
   readonly ip?: string;
@@ -757,7 +761,7 @@ export function instanceAnswer({
     name,
     region,
     status,
-    flavorId: 'flavor-small',
+    flavorId,
     imageId: 'image-ubuntu',
     ...(withImage ? { image: imageAnswer({ user: imageUser, },), } : {}),
     ipAddresses: (ip === '')

@@ -29,6 +29,7 @@ import {
   createSnapshot,
   deleteInstance,
   deleteSnapshot,
+  listFlavors,
   listSnapshots,
 } from './api-resources.ts';
 import {
@@ -323,9 +324,14 @@ export async function ovhDestroyAll(): Promise<void> {
 }
 
 /**
- Lists the instances mvm owns with their state.
+ Lists the instances mvm owns with their state and the size they run.
  
- @returns VM entries with the unprefixed name and the lower-cased OVHcloud status
+ The size is read from the flavor each instance names, in that instance's own
+ region, because a flavor identifier means nothing in another region. One flavor
+ list is read per region in play, never one per instance.
+ 
+ @returns VM entries with the unprefixed name, the lower-cased OVHcloud status,
+ and the flavor's virtual CPUs and memory where the region still lists it
  
  @example
  ```ts
@@ -337,12 +343,33 @@ export async function ovhList(): Promise<readonly VmInfo[]> {
    Instances mvm owns, of those the project holds.
    */
   const owned = await listMvmInstances();
+  /**
+   Regions the listed instances run in, each read once.
+   */
+  const regions = [...new Set(owned.map(function regionOf(instance,) {
+    return instance.region;
+  },),),];
+  /**
+   Each region's flavors, by region name, so an instance's flavor id resolves.
+   */
+  const flavorsByRegion = new Map(await Promise.all(regions.map(async function readRegion(region,) {
+    return [region, await listFlavors({ region, },),] as const;
+  },),),);
   return owned.map(function toVmInfo(instance,) {
+    /**
+     Flavor the instance names, when its region still lists it.
+     */
+    const flavor = flavorsByRegion.get(instance.region,)
+      ?.find(function sameId(candidate,) {
+        return candidate.id === instance.flavorId;
+      },);
     return {
       name: instance.name
         .slice(VM_PREFIX.length,),
       state: instance.status
         .toLowerCase(),
+      ...((flavor === undefined) ? {} : { memoryGiB: flavor.ram, }),
+      ...((flavor === undefined) ? {} : { vcpus: flavor.vcpus, }),
     };
   },);
 }

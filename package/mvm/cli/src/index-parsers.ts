@@ -34,8 +34,10 @@ export type MvmArgs =
     image?: string;
     name: string;
     from?: string;
+    memoryGiB?: number;
     serverType?: string;
     location?: string;
+    vcpus?: number;
   }
     | {
       cmd: 'shell';
@@ -57,6 +59,8 @@ export type MvmArgs =
       cmd: 'run';
       command: string;
       from?: string;
+      memoryGiB?: number;
+      vcpus?: number;
     }
     | {
       cmd: 'push';

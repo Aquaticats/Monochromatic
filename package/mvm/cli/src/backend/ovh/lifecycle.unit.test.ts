@@ -25,6 +25,7 @@ import {
   ovhClone,
   ovhCreate,
   ovhDestroyAll,
+  ovhList,
 } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
@@ -624,5 +625,88 @@ await describe({
     },),
 
     //endregion Destroy all
+    //region Listing
+
+    it({
+      name: 'a listing reports each machine size from its own region flavor list, read once per region',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              flavorId: 'flavor-c3',
+              id: 'instance-1',
+              name: 'mvm-dev',
+            },),
+            instanceAnswer({
+              flavorId: 'flavor-b3',
+              id: 'instance-2',
+              ip: '192.0.2.11',
+              name: 'mvm-build',
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              id: 'flavor-c3',
+              name: 'c3-4',
+              ram: 4,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'flavor-b3',
+              name: 'b3-8',
+              ram: 8,
+              vcpus: 2,
+            },),
+          ],),],
+        },),);
+        const vms = await ovhList();
+        expect(vms,).toEqual([
+          {
+            memoryGiB: 4,
+            name: 'dev',
+            state: 'active',
+            vcpus: 2,
+          },
+          {
+            memoryGiB: 8,
+            name: 'build',
+            state: 'active',
+            vcpus: 2,
+          },
+        ],);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'GET',
+            path: `${cloudPath('/flavor',)}?region=bhs5`,
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a listing says nothing about a size whose flavor the region no longer lists',
+      fn: async () => {
+        await using _env = await installEnv();
+        using _standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              flavorId: 'flavor-gone',
+              id: 'instance-1',
+              name: 'mvm-dev',
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([flavorAnswer(),],),],
+        },),);
+        expect(await ovhList(),).toEqual([{
+          name: 'dev',
+          state: 'active',
+        },],);
+      },
+    },),
+
+    //endregion Listing
   ],
 },);

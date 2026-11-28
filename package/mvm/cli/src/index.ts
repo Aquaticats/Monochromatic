@@ -60,7 +60,12 @@ export { createWithFallback, } from './backend/hetzner/lifecycle.ts';
 
  @internal
  */
-export { resolveCheapestServerType, } from './backend/hetzner/server-types.ts';
+export {
+  describeServerType,
+  orderServerTypes,
+  resolveCheapestServerType,
+  resolveServerType,
+} from './backend/hetzner/server-types.ts';
 /**
  Hetzner SSH and scp argument builders, exposed for built-artifact verification.
 
