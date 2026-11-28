@@ -2456,6 +2456,10 @@ which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
 (`SPEC.md`,
 "Removal of a ZFS worktree clone").
+The worktree a spelling names is the one Git's own list holds,
+so a slot whose folder a person moved aside or deleted is read too,
+because its registration and its binding record still name it,
+while a path whose folder is gone and which Git's list does not hold stays Git's own refusal.
 The force each spelling carries is counted the way Git counts it
 (`-f`,
 `--force`,

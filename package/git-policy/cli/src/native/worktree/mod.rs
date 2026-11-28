@@ -327,6 +327,10 @@
 //! - `worktree_remove_outcome.rs`:
 //!   how one attempt to remove a worktree ended,
 //!   and what each ending needs of the caller.
+//! - `path_git_resolves_an_operand_to.rs`:
+//!   the path Git's own reading resolves one command operand to,
+//!   following every symbolic link and allowing the last component to be
+//!   missing.
 //! - `worktree_remove_registry.rs`:
 //!   which registration of the invoking repository a worktree directory belongs to,
 //!   and whether Git would pick that same worktree for the name the person typed.
@@ -903,6 +907,11 @@ pub mod worktree_clean_content_attribute_sources;
 /// read the way Git's own option parser leaves them.
 #[cfg(unix)]
 pub mod worktree_operands;
+
+/// The path Git's own reading resolves one command operand to,
+/// following every symbolic link and allowing the last component to be missing.
+#[cfg(unix)]
+pub(crate) mod path_git_resolves_an_operand_to;
 
 /// The plan of a `git worktree remove` that names one directory and no option.
 #[cfg(unix)]

@@ -393,6 +393,10 @@ fn a_registered_worktree_whose_folder_is_gone_is_still_the_one_the_command_names
         .join("topic");
     std::fs::rename(topic.as_path(), root.join("moved-aside"))
         .expect("the slot's folder moves aside");
+    // What: A link a person kept pointing at the slot, whose target is now gone.
+    // Why:  Git follows the link and reads the registered path it names, so the removal through the link is the slot's.
+    let link: PathBuf = root.join("link");
+    std::os::unix::fs::symlink(topic.as_path(), link.as_path()).expect("a link to the slot");
     let absolute: String = topic.to_str().expect("a utf-8 fixture path").to_string();
     for values in [
         vec!["worktree", "remove", "topic"],
@@ -401,6 +405,8 @@ fn a_registered_worktree_whose_folder_is_gone_is_still_the_one_the_command_names
         vec!["worktree", "remove", "--", absolute.as_str()],
         // A path that reaches the registration without ending in it, which Git resolves and its suffix match does not.
         vec!["worktree", "remove", "../topic"],
+        // The same through the link, whose target Git resolves although no folder stands there.
+        vec!["worktree", "remove", "../link"],
     ] {
         assert_eq!(
             parse_removal_target(

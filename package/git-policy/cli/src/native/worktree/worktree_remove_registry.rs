@@ -243,41 +243,6 @@ fn registered_paths(
 }
 
 /// What:
-///  A path as it resolves,
-///  read through the nearest folder above it that stands,
-///  so the answer is the same whether or not the last components are there.
-/// Why:
-///  A worktree's folder can be moved aside or deleted while its registration and
-///  its binding record stand,
-///  and the path those name is still the one the command means.
-///  Resolving the standing part and appending the rest answers the path a whole
-///  path would answer had the folder stood:
-///  a symbolic link above the slot is resolved either way,
-///  and nothing about the answer depends on the slot's own existence.
-///  Nothing stands at a path with no standing folder at all,
-///  which is no worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const resolved = pathResolvedThroughItsNearestStandingFolder('/repo/.claude/worktrees/gone'); // '/repo/.claude/worktrees/gone'
-/// ```
-fn path_resolved_through_its_nearest_standing_folder(path: &Path) -> Option<PathBuf> {
-    let mut below: Vec<&OsStr> = Vec::new();
-    let mut here: &Path = path;
-    loop {
-        if let Ok(resolved) = std::fs::canonicalize(here) {
-            let mut whole: PathBuf = resolved;
-            for name in below.iter().rev() {
-                whole.push(name);
-            }
-            return Some(whole);
-        }
-        below.push(here.file_name()?);
-        here = here.parent()?;
-    }
-}
-
-/// What:
 ///  The worktree path Git's own list holds for `operand`,
 ///  whether or not a folder stands there,
 ///  or nothing when Git's suffix match picks none or more than one.
@@ -286,6 +251,10 @@ fn path_resolved_through_its_nearest_standing_folder(path: &Path) -> Option<Path
 ///  resolves a real path (`find_worktree_by_suffix` in `worktree.c`),
 ///  and its list holds that path after the folder is gone too,
 ///  so the worktree the command names is read from the list alone.
+///  The registered bytes are Git's own resolved path,
+///  because the add wrote them from `strbuf_realpath`,
+///  so a name whose folder and folder above are both gone is still the path the
+///  record names.
 ///  A name two registered paths end in is Git's ambiguous case,
 ///  which falls back to the resolved path,
 ///  and the answer here is nothing.
@@ -310,8 +279,11 @@ fn registered_path_git_picks(
         }
         picked = Some(listed.path.as_slice());
     }
-    let only: &[u8] = picked?;
-    return path_resolved_through_its_nearest_standing_folder(Path::new(OsStr::from_bytes(only)));
+    let only: PathBuf = PathBuf::from(OsStr::from_bytes(picked?));
+    return Some(
+        crate::path_git_resolves_an_operand_to::path_git_resolves_an_operand_to(only.as_path())
+            .unwrap_or(only),
+    );
 }
 
 /// What:
@@ -336,9 +308,13 @@ fn a_registration_names(
         return false;
     };
     return registered.iter().any(|listed| {
-        let spelled: &Path = Path::new(OsStr::from_bytes(listed.path.as_slice()));
-        return path_resolved_through_its_nearest_standing_folder(spelled)
-            .is_some_and(|resolved| return resolved == target);
+        let spelled: PathBuf = PathBuf::from(OsStr::from_bytes(listed.path.as_slice()));
+        let resolved: PathBuf =
+            crate::path_git_resolves_an_operand_to::path_git_resolves_an_operand_to(
+                spelled.as_path(),
+            )
+            .unwrap_or(spelled);
+        return resolved == target;
     });
 }
 
@@ -371,8 +347,9 @@ pub(crate) fn the_worktree_path_git_would_remove(
     if let Some(picked) = registered_path_git_picks(common_dir, operand) {
         return Some(picked);
     }
-    let target: PathBuf =
-        path_resolved_through_its_nearest_standing_folder(start?.join(operand).as_path())?;
+    let target: PathBuf = crate::path_git_resolves_an_operand_to::path_git_resolves_an_operand_to(
+        start?.join(operand).as_path(),
+    )?;
     if target.is_dir() {
         return Some(target);
     }

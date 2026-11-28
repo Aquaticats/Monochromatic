@@ -5504,6 +5504,16 @@ whatever options the command carries:
 every spelling Git accepts is read for the worktree it names,
 `-f -f` included,
 because that is the spelling Git's own lock message suggests.
+The worktree a spelling names is the one Git's own list holds,
+read the way Git reads an operand:
+the last components of the registered paths first,
+then the operand as a path.
+A slot whose folder a person moved aside or deleted is read too,
+because its registration and its binding record still name it,
+and Git's own removal of that spelling would delete the registration while the clone stands
+(`worktree_remove_registry::the_worktree_path_git_would_remove`).
+A path whose folder is gone answers only when Git's list holds it,
+so a mistyped name stays Git's own refusal.
 The global options before `worktree` are read the same way,
 by Git's own table of them:
 `-c`,
@@ -5957,6 +5967,8 @@ and what a person still has to do.
 Nothing is left for a second command to delete.
 Every spelling of `git worktree remove` takes this path,
 `-f -f` included,
+whether the slot's folder stands or a person moved it aside or deleted it,
+because Git's own list still holds the registration that names it,
 and the force each spelling carries is counted the way Git counts it
 (`worktree_remove_plan::count_of_the_force`,
 `worktree_clone_removal_proof_and_plan::removal_force`).
