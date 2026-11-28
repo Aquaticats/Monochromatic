@@ -388,6 +388,22 @@ fn write_the_record(
     std::fs::write(home.join(origin_inventory_name(slot)), inventory.encode())
         .expect("the origin inventory");
     write_a_complete_registration(fixture, slot);
+    // The managed Git lock the add's own writer installs beside the
+    // registration, so a healthy slot is the state the route leaves and not
+    // the one a killed add leaves.
+    let answer: crate::worktree_clone_managed_lock::InstallAnswer =
+        crate::worktree_clone_managed_lock::write_the_lost_lock(
+            registration(fixture, slot).as_path(),
+            slot,
+            &RequestNonce::parse(NONCE).expect("the arm's nonce"),
+        );
+    assert!(
+        matches!(
+            answer,
+            crate::worktree_clone_managed_lock::InstallAnswer::Wrote { .. }
+        ),
+        "the arm's own lock is written for `{slot}`: {answer:?}"
+    );
 }
 
 /// The origin-side inventory the add recorded for one slot,
