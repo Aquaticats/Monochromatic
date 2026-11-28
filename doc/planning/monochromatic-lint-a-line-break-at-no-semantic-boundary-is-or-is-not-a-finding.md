@@ -118,6 +118,9 @@ Four kinds of line are counted apart because they are not one defect:
   `- **Naming every status.** The status filter is the next thing.`
   writes the break after `.**` and settles there.
   A predicate that reported this ending would ask for a join the rule breaks again.
+  The merge named in question 4 makes the boundary test climb `*` `_` and `~` too,
+  so a rerun at the branch's tip would count such a line as a boundary
+  and this class would be empty there.
 - A line ending `e.g.`,
   `etc.` or `...` is treated as a boundary here,
   although `break_offsets` never breaks after an abbreviation or an ellipsis.
@@ -697,6 +700,10 @@ its guards and its width are unmeasured because it does not exist.
   `2,997` for every joinable break,
   `1,163` for the short line,
   and none for either clause predicate.
+  These are the survey commit's,
+  where the boundary test did not climb the emphasis delimiters;
+  after the merge named in question 4 it does,
+  so the class is empty there.
 - The exit status:
   at `error` a scoped run exits `1` on any finding,
   and at `warn` it exits `0` while `--fix` still rewrites the file.
@@ -893,12 +900,27 @@ which is none:
 and no rule enforces MD1's `120` today
   (a 123-character prose line passes with exit 0).
 - MD1's `120` on the virtual line,
-which is what the shipped join does:
+which is what `0.5.2-alpha.24` and the survey commit do:
   a host doc line may stand up to 11 characters over `120` at an indent of 8.
-- MD1's `120` on the host line:
-  a join would need the indent and marker in its width.
-  The earlier round refused a host-aware bound,
+- MD1's `120` on the host line,
+marker and host indent included:
+  this is what the tree does after the merge named below,
+  and the earlier round refused it,
   so the owner is being asked again with the measured widths above.
+
+Update,
+2026-11-28:
+the join and the boundary test changed after the survey ran.
+Commit `fc679b9392` (2026-11-28T03:02:49-05:00) makes the join count the host line,
+its comment marker and host indent included,
+so a joined Rust doc line stays under `120` in the host file,
+and it settles in one pass;
+the same commit makes the boundary test climb `*` `_` and `~`.
+Both merged into this branch after the survey commit,
+the survey was not rerun,
+and the widths above are the release's.
+The record of that choice and of what each option costs is in
+`package/linter/monochromatic-lint/doc/second-pass-reads-of-released-versions.md`.
 
 ### 5. Does the hold still govern this rule
 
@@ -958,8 +980,8 @@ are the owner's to say.
 `delimiter_tail`).
   This holds at `bc5b4ca2ba` and in `0.5.2-alpha.24`,
   where the emphasis fixture above is rewritten as shown.
-- The join answers only about the fragment an inserted break cut,
-  so a line that was already alone is never joined.
+- The join answers only about the fragments one pass's own planned breaks cut,
+  so a line that was already alone in the input is never joined.
   This holds at `bc5b4ca2ba` and in `0.5.2-alpha.24`,
   where `Aaa bbb, ccc ddd eee` / `the` / `fff ggg hhh.`
   keeps its lone `the` after `--fix`.
@@ -969,13 +991,19 @@ are the owner's to say.
   at `bc5b4ca2ba` it does not,
   because the merge of `96c930201f` joined it.
   The defect remains reachable and its exhibit is now a fixture.
-- The linter's `README.md` line 2629 says
+- The linter's `README.md` line 2629 said
   "The fix never rewrites a line the author wrote."
-  That sentence holds at `bc5b4ca2ba`;
-  a run on a copy shows the author's second line gaining a fragment at its start.
+  That sentence held at `bc5b4ca2ba`,
+  and a run on a copy shows an author's second line gaining a fragment at its start.
   The round `monochromatic-lint-alpha-24-read-the-line-break-fix-settles-in-one-pass-and-keeps-the-line-limit`
-  is changing that join and that README now,
-  so the sentence and the join may differ after it.
+  removed or reworded it:
+  the README on the branch after that round's merge holds no such sentence.
+- The width a join counts was the line the rule sees
+  at `bc5b4ca2ba` and in `0.5.2-alpha.24`,
+  which the widths in question 4 measure,
+  and it is the host line after the merge named there.
+  The survey was not rerun for that change,
+  and its counts are the commit's it names.
 - No rule reports a fence that is never closed,
   and CommonMark runs an unterminated fence to the end of its container,
   so every Markdown rule,

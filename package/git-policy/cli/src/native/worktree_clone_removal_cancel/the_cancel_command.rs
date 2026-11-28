@@ -24,9 +24,8 @@
 //!  it asks for one attach,
 //!  settles the removal's own records,
 //!  and reports what cannot be restored.
-//!  Nothing reaches it in this release:
-//!  the round that switches the removal's command path on adds the management grammar entry and
-//!  prints the lines this function returns on standard error,
+//!  This release's management grammar admits the command,
+//!  and the lines this function returns are printed on standard error,
 //!  because the repository's stream rule keeps an empty standard output.
 //!
 //! In TS you'd write (pseudocode):

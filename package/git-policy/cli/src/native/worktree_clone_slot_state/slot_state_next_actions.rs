@@ -28,8 +28,8 @@
 //! ```
 
 use crate::worktree_clone_binding_record::add_state_commands::{
-    NO_REMOVAL_WORDS,
     SETTLING_COMMAND_WORDS,
+    THE_REMOVALS_WORDS,
 };
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::SettleReason;
@@ -94,8 +94,8 @@ fn intent_sentence(
             " No mount request was asked of the clone, because the record names no clone dataset yet.",
         ),
         IntentFacts::Absent => format!(
-            " No mount request stands on the clone. To use the worktree again, write one on it (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it, {}.",
-            NO_REMOVAL_WORDS
+            " No mount request stands on the clone. To use the worktree again, write one on it (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it: {}.",
+            THE_REMOVALS_WORDS
         ),
         IntentFacts::Mounting {
             nonce,
@@ -105,20 +105,20 @@ fn intent_sentence(
         IntentFacts::Unmounting {
             nonce,
         } => format!(
-            " The clone's own intent keeps it unmounted under nonce `{nonce}`, so this is the state a person asked for. To use the worktree again, write a mount request back on the clone (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it, {}.",
-            NO_REMOVAL_WORDS
+            " The clone's own intent keeps it unmounted under nonce `{nonce}`, so this is the state a person asked for. To use the worktree again, write a mount request back on the clone (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it: {}.",
+            THE_REMOVALS_WORDS
         ),
         IntentFacts::Inherited {
             from,
         } => format!(
-            " The clone's property is inherited from `{from}` and authorizes nothing, so no mount request stands. To use the worktree again, write a request on the clone itself (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it, {}.",
-            NO_REMOVAL_WORDS
+            " The clone's property is inherited from `{from}` and authorizes nothing, so no mount request stands. To use the worktree again, write a request on the clone itself (`zfs set {DESIRED_STATE_PROPERTY}=v1:{NONCE_PLACEHOLDER}:mount {clone_dataset}`) and let the handler's next sweep attach it; to be rid of it: {}.",
+            THE_REMOVALS_WORDS
         ),
         IntentFacts::Unreadable {
             reason,
         } => format!(
-            " The clone's mount intent cannot be read, so no request stands that a person can rely on: {reason} Write the intent again in the designed form on `{clone_dataset}`; to be rid of it, {}.",
-            NO_REMOVAL_WORDS
+            " The clone's mount intent cannot be read, so no request stands that a person can rely on: {reason} Write the intent again in the designed form on `{clone_dataset}`; to be rid of it: {}.",
+            THE_REMOVALS_WORDS
         ),
     };
 }
@@ -202,9 +202,8 @@ pub fn next_safe_action(
             plan,
             ..
         } => format!(
-            "do not run Git in this folder and do not add here: a removal's destruction plan at {} names this clone, so a removal is in flight or was killed. The removal that wrote it resumes from the plan and ends it, and {}. {}",
+            "do not run Git in this folder, do not add here and do not run `git worktree remove`: a removal's destruction plan at {} names this clone, so a removal is in flight or was killed. The removal that wrote it is the one that resumes from the plan and ends it, and no command of this release runs that removal while the plan stands: a `git worktree remove` of this slot now is Git's own removal, which drops the registration and the slot folder while the plan and the clone stand. Read the plan's own file for the names it records as destroyed. {}",
             plan.display(),
-            NO_REMOVAL_WORDS,
             registration_sentence(readings.registration_stands)
         ),
         SlotRouteState::KnownUnmountedClone {
@@ -219,8 +218,8 @@ pub fn next_safe_action(
         SlotRouteState::MountedManagedClone {
             clone_dataset,
         } => format!(
-            "nothing: `{clone_dataset}` is mounted at its slot, so run Git in the worktree as usual. The slot is fixed and `git worktree move` is refused for it; to be rid of it, {}.",
-            NO_REMOVAL_WORDS
+            "nothing: `{clone_dataset}` is mounted at its slot, so run Git in the worktree as usual. The slot is fixed and `git worktree move` is refused for it; to be rid of it: {}.",
+            THE_REMOVALS_WORDS
         ),
         SlotRouteState::CannotProve {
             reason,

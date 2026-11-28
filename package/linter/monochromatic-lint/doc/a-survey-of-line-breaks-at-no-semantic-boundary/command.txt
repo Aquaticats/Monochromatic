@@ -41,6 +41,12 @@ SURVEY_M13_DIR holds the copies the shipped fix changes; it is outside the repos
 and the harness writes its one-rule configuration into it.
 The installed binary is monochromatic-lint 0.5.2-alpha.24.
 
+Run at commit bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c.
+The join and the boundary test changed after it (fc679b9392, 2026-11-28T03:02:49-05:00):
+the join counts the host line, and the boundary test climbs the emphasis delimiters.
+The harness kept in this folder is the later form; a rerun at the recorded commit needs it as that commit holds it.
+The survey was not rerun.
+
 The three edits were reverted after the run:
 git status --short named none of them.
 

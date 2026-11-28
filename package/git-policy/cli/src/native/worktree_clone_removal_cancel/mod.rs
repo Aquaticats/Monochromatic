@@ -13,11 +13,11 @@
 //!  killed after it recorded the unmount or that ran past its deadline,
 //!  and requires it to report every snapshot already destroyed and restore none
 //!  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
-//!  This folder is built ahead of that wiring:
-//!  no release path reaches it,
-//!  and the round that switches the removal's command path on calls
-//!  `the_cancelled_removal::the_removal_cancels_itself` at each of its stop points and adds the
-//!  management grammar entry that reaches `the_cancel_command::cancel_the_removal`.
+//!  This folder is reached in this release two ways:
+//!  the management grammar admits `cancel-worktree-removal`,
+//!  which runs `the_cancel_command::cancel_the_removal`,
+//!  and the removal's own stop points call
+//!  `the_cancelled_removal::the_removal_cancels_itself` through the removal's seam.
 //!  The removal order may not name this folder,
 //!  so its stop points ask it through the removal's own seam and
 //!  `the_self_cancelling_answer.rs` is where the answer lives.

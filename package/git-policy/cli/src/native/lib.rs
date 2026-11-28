@@ -302,8 +302,8 @@ pub use worktree_clone_unmount::*;
 ///  in.
 /// It is Linux only,
 /// like the `/dev/zfs` requests it sends,
-/// and no command calls it yet:
-/// step 16's wiring is what reaches it.
+/// and the removal a person's `git worktree remove` runs calls it
+/// (`removal_command_path.rs`).
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_snapshot_batch;
 
@@ -370,9 +370,8 @@ pub use worktree_clone_binding_record::*;
 ///  the look the lineage proof makes before anything is taken down,
 ///  and the words a refusal prints.
 /// Plan step 15's piece,
-/// built ahead of the plan's order:
-/// no command reaches it until that
-///  step wires it in.
+/// and the removal a person's `git worktree remove` runs calls it before each
+/// destroy.
 /// It is Linux only,
 ///  like the two reads it makes through the binding.
 #[cfg(target_os = "linux")]
@@ -386,8 +385,9 @@ pub use worktree_removal_deferred_origin_check::*;
 ///  the states `doctor` and the removal tell apart,
 ///  the write that puts a lost lock back,
 ///  and the release the registration-cleanup step makes after the clone is proven gone.
-/// The piece is built ahead of the plan's order and unwired:
-///  no command of the wrapper calls it until plan step 13 wires it in.
+/// The add,
+///  the removal's own settle and `doctor`'s checks read it;
+///  the registration-cleanup step plan step 13 describes is not built.
 /// It is Linux only,
 ///  like the descriptor-relative release it makes.
 #[cfg(target_os = "linux")]
@@ -397,15 +397,15 @@ pub mod worktree_clone_managed_lock;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_managed_lock::*;
 
-/// The removal-side half of the ZFS worktree route that needs no command yet:
+/// The removal-side half of the ZFS worktree route:
 ///  the lineage proof a removal makes before its first delete,
 ///  the clone inventory and the decided bookmark rule,
 ///  the persisted destruction plan with its two-stage reader,
 ///  the removal's `unmount` intent and verified answer,
 ///  and the names it prints as lost.
 /// Plan step 14's piece,
-/// built ahead of the plan's order:
-/// no command reaches it until that step wires it in.
+/// and the order it holds is what a person's `git worktree remove` runs
+/// (`removal_command_path.rs`).
 /// It is Linux only,
 /// like the pool reads and the folder modes it checks.
 #[cfg(target_os = "linux")]
@@ -416,8 +416,10 @@ pub mod worktree_clone_removal_proof_and_plan;
 pub use worktree_clone_removal_proof_and_plan::*;
 
 /// Plan step 17's piece,
-/// built ahead of the plan's order:
-/// no command reaches it until the round that switches the removal's command path on wires it in.
+/// reached two ways in this release:
+/// the management grammar's `cancel-worktree-removal` word,
+/// and the removal's own stop points,
+/// which ask it through the removal's seam.
 /// It is Linux only,
 /// like the mount table and the claim it reads.
 #[cfg(target_os = "linux")]
@@ -453,7 +455,8 @@ pub(crate) mod worktree_clone_cancel_and_settle_commands;
 /// the identity proof one attempt makes,
 /// and the look the worktree commands make at it.
 /// Built ahead of the plan's order:
-/// no command reaches it until that step wires it in.
+/// the removal's own origin step publishes and attempts the record,
+/// and the look the five worktree commands make is reached from no command yet.
 /// It is Linux only,
 /// like the pool reads and the folder modes it checks.
 #[cfg(target_os = "linux")]
@@ -468,8 +471,8 @@ pub use worktree_clone_origin_cleanup::*;
 ///  removes the binding's files and then the plan,
 ///  and releases the slot's claim last.
 /// Plan step 16's piece,
-///  built ahead of the plan's order:
-///  no command reaches it until that step wires it in.
+///  and a forwarded command runs it before its own work
+///  (`invocation/wrapped_command_notices_snapshots_and_manual_push.rs`).
 /// It is Linux only,
 ///  like the claim,
 /// the pool reads and the folder modes it checks.
@@ -519,16 +522,14 @@ pub mod checkout_underlay_entry;
 #[cfg(target_os = "linux")]
 pub use checkout_underlay_entry::*;
 
-/// The settling command a state a resume meets names and this release does not have yet:
+/// The settling command a state a resume meets names,
+/// which this release's management grammar admits:
 ///  its grammar and the two values a person confirms,
 ///  its six reads in the design's order,
 ///  its two modes over the records and the registration,
 ///  and its refusal.
-/// Built ahead of the plan's order and unwired:
-/// no path from a `git` command,
-/// `doctor`,
-/// the mount handler or a boot unit
-/// calls it until the round that switches removal on adds it to the grammar.
+/// The grammar's `settle-worktree-clone-record` word runs it,
+/// and no other path does.
 /// It is Linux only,
 /// like the record modes and the pool reads it makes.
 #[cfg(target_os = "linux")]

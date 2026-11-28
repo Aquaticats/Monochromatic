@@ -9,6 +9,7 @@
 //! the farm's own `mpm-shadow` link,
 //! a declared name a partial sync does not link,
 //! a link another run removed first,
+//! at each of the three calls a removal makes,
 //! and the removals a run names before a later one fails.
 //! Why:
 //! The rebuild is the one thing in this tool that deletes from a folder a person sees,
@@ -91,6 +92,19 @@ const AN_ORPHAN: &str = "orphan";
 /// The name of a second link no row declares,
 /// which the removal that fails is about.
 const A_SECOND_ORPHAN: &str = "orphan-d";
+
+/// The version a stand-in install of another tool sits at,
+/// which a `current` link beside it names.
+const ANOTHER_TOOLS_VERSION: &str = "1.0.0";
+
+/// The directory another tool's install sits in,
+/// below the toolchain root,
+/// which is what tells it from this program's own install.
+const ANOTHER_TOOLS_DIRECTORY: &str = "fixtool";
+
+/// The crate this program is published as,
+/// which names the directory a cargo-route install of it sits in.
+const THE_PROGRAMS_CRATE: &str = env!("CARGO_PKG_NAME");
 
 /// A process namespace's inode number that is not this one,
 /// which no reader on this machine is ever inside.
@@ -261,6 +275,91 @@ fn a_rig_whose_lock_declares_no_shadow() -> Rig {
     return rig;
 }
 
+/// What:
+/// A program a farm link points at inside another tool's install directory.
+/// Why:
+/// The farm's own-name link is kept only while it resolves into an install of this program,
+/// and this is the file an install of another tool could hold under that name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function anInstallOfAnotherTool(rig: Rig): string
+/// ```
+fn an_install_of_another_tool(rig: &Rig) -> PathBuf {
+    let install: PathBuf = rig.scope.toolchain_root.join(ANOTHER_TOOLS_DIRECTORY);
+    let version: PathBuf = install.join(ANOTHER_TOOLS_VERSION);
+    let program: PathBuf = version.join(SHADOW_PROGRAM);
+    write_executable(&program);
+    symlink(ANOTHER_TOOLS_VERSION, install.join("current")).expect("link current");
+    return program;
+}
+
+/// What:
+/// A program of this program's own name inside the directory a cargo-route install of it sits in,
+/// `<toolchain root>/cargo/<crate>/<version>/bin/mpm-shadow`.
+/// Why:
+/// The repository bootstraps this tool with `cargo install` as well as with a release archive,
+/// so the farm's own-name link has to be kept for that install of it too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aCargoInstallOfTheShadow(rig: Rig): string
+/// ```
+fn a_cargo_install_of_the_shadow(rig: &Rig) -> PathBuf {
+    let install: PathBuf = rig
+        .scope
+        .toolchain_root
+        .join("cargo")
+        .join(THE_PROGRAMS_CRATE);
+    let version: PathBuf = install.join(AN_INSTALLED_VERSION);
+    let program: PathBuf = version.join("bin").join(SHADOW_PROGRAM);
+    write_executable(&program);
+    symlink(AN_INSTALLED_VERSION, install.join("current")).expect("link current");
+    return program;
+}
+
+/// What:
+/// A link in the farm called after this program,
+/// pointing where `target` names.
+/// Why:
+/// One name of the farm carries the rule the controls here are about,
+/// and only its target differs between them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theFarmLinkTo(rig: Rig, target: string): string
+/// ```
+fn the_farm_link_to(
+    rig: &Rig,
+    target: &std::path::Path,
+) -> PathBuf {
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let link: PathBuf = rig.scope.exposure_dir.join(SHADOW_PROGRAM);
+    symlink(target, &link).expect("link the program's own name into the farm");
+    return link;
+}
+
+/// What:
+/// The line one sentence of the report occupies,
+/// or nothing when the report holds no such line.
+/// Why:
+/// A control about a sentence reads the whole line,
+/// because the words a person acts on are the line's and not a substring of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theLineStartingWith(text: string, start: string): string | undefined
+/// ```
+fn the_line_starting_with(
+    text: &str,
+    start: &str,
+) -> Option<String> {
+    return text
+        .lines()
+        .find(|line| return line.starts_with(start))
+        .map(|line| return line.to_string());
+}
+
 // What:
 // `#[test] fn a_sync_spares_the_temporary_link_of_an_install_that_still_runs()`
 // holds a farm in the state an install stands in while its write is between its two steps,
@@ -402,29 +501,31 @@ fn a_sync_spares_a_temporary_link_an_install_in_another_process_namespace_holds(
 }
 
 // What:
-// `#[test] fn a_sync_removes_the_temporary_link_of_a_run_that_could_not_read_its_own_place()`
+// `#[test] fn a_sync_keeps_and_names_the_temporary_link_of_a_run_that_could_not_read_its_own_place()`
 // plants a temporary link whose name carries no boot and no process namespace,
 // as the write of a run that could not read its own leaves,
 // and whose number belongs to no process,
 // runs the whole sync,
 // and reads the folder and the printed lines.
 // Why:
-// The shorter name an earlier shape writes still says one thing this run can act on:
-// no process holds the number, so the install that wrote the name has ended,
-// and the link is a leftover to remove and report.
+// The name records no process namespace,
+// so nothing here can show that the install that wrote it was in this one:
+// a number free here says nothing about a name written in another namespace,
+// where the install that holds it may still run.
+// The link stays, and the report says which name it left and why.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// test('a sync removes the temporary link of a run that could not read its own place', () => { ... });
+// test('a sync keeps and names the temporary link of a run that could not read its own place', () => { ... });
 // ```
 #[test]
-fn a_sync_removes_the_temporary_link_of_a_run_that_could_not_read_its_own_place() {
+fn a_sync_keeps_and_names_the_temporary_link_of_a_run_that_could_not_read_its_own_place() {
     let rig: Rig = a_rig_with_no_tools();
     std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
     let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
     let ended: Owner = the_owner_of_an_install_that_ended();
     // What: the same name with the boot and the namespace left out, as a run that could not read its own writes it.
-    // Why: the number is then the only fact the name carries, and a free number is an install that ended.
+    // Why: the name then records no place, so no run can say which install holds the link.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -449,34 +550,38 @@ fn a_sync_removes_the_temporary_link_of_a_run_that_could_not_read_its_own_place(
     let report = sync_tools(&rig.context(), None);
     let text: String = format_sync_report(&report);
     assert!(
-        std::fs::symlink_metadata(&temporary).is_err(),
-        "no process holds this name's number, so its install ended and the link is a leftover; {text}"
+        std::fs::symlink_metadata(&temporary).is_ok(),
+        "the name records no place, so the sync leaves the link; {text}"
     );
-    assert!(
-        text.lines().any(|line| {
-            return line.starts_with("toolchain install: removed the temporary link")
-                && line.contains(&name);
-        }),
-        "the sync names the leftover it removed and says what it was; {text}"
+    let start: String = format!("toolchain install: left the temporary link {name}: ");
+    assert_eq!(
+        the_line_starting_with(&text, &start),
+        Some(format!(
+            "{start}this run cannot judge the install its name records, so it is not removed, and deleting it by hand may make that install fail where it gives the link its name"
+        )),
+        "the sync names the link it left and what deleting it by hand would risk; {text}"
     );
 }
 
 // What:
-// `#[test] fn a_sync_removes_the_earlier_builds_temporary_link_once_its_number_is_free()`
+// `#[test] fn a_sync_keeps_and_names_the_earlier_builds_temporary_link()`
 // plants the name `0.2.7-alpha.18` wrote for a process that has ended,
 // runs the whole sync,
 // and reads the folder and the printed lines.
 // Why:
-// A farm written by the release still holds those names,
-// and a kill under that build leaves one;
-// the rebuild must take it for a leftover rather than leave it for ever.
+// A farm written by that release still holds those names,
+// and the name records a process number and nothing else:
+// no run can say whether the number's holder is the install that wrote it,
+// or whether that install was ever in this process namespace,
+// so the link stays and the report names it
+// rather than claiming an install has ended.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// test('a sync removes the earlier builds temporary link once its number is free', () => { ... });
+// test('a sync keeps and names the earlier builds temporary link', () => { ... });
 // ```
 #[test]
-fn a_sync_removes_the_earlier_builds_temporary_link_once_its_number_is_free() {
+fn a_sync_keeps_and_names_the_earlier_builds_temporary_link() {
     let rig: Rig = a_rig_with_no_tools();
     std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
     let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
@@ -488,35 +593,34 @@ fn a_sync_removes_the_earlier_builds_temporary_link_once_its_number_is_free() {
     let report = sync_tools(&rig.context(), None);
     let text: String = format_sync_report(&report);
     assert!(
-        std::fs::symlink_metadata(&temporary).is_err(),
-        "the number this name carries belongs to no process, so its install ended and the link is a leftover; {text}"
+        std::fs::symlink_metadata(&temporary).is_ok(),
+        "the name records one process number and no place, so nothing here can judge it; {text}"
     );
+    let start: String = format!("toolchain install: left the temporary link {name}: ");
     assert!(
-        text.lines().any(|line| {
-            return line.starts_with("toolchain install: removed the temporary link")
-                && line.contains(&name);
-        }),
-        "the sync names the leftover it removed and says what it was; {text}"
+        the_line_starting_with(&text, &start).is_some(),
+        "the sync names the link it left; {text}"
     );
 }
 
 // What:
-// `#[test] fn a_sync_spares_the_earlier_builds_temporary_link_while_its_number_is_held()`
+// `#[test] fn a_sync_keeps_and_names_the_earlier_builds_temporary_link_while_its_number_is_held()`
 // plants the name `0.2.7-alpha.18` wrote, carrying the number of a process that runs now,
 // runs the whole sync,
-// and reads the folder.
+// and reads the folder and the printed lines.
 // Why:
-// A number some process holds may be the install that wrote the name,
-// which is exactly the state two installs meet while one of them is between its two steps;
-// the name cannot tell that install from a program that took the number over,
-// so the link stays.
+// The same rule covers both states of that name:
+// a number some process holds may be the install that wrote the name,
+// a number no process holds here may belong to an install in another process namespace,
+// and the name cannot tell either from a program that took the number over,
+// so the link stays and the report names it.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// test('a sync spares the earlier builds temporary link while its number is held', () => { ... });
+// test('a sync keeps and names the earlier builds temporary link while its number is held', () => { ... });
 // ```
 #[test]
-fn a_sync_spares_the_earlier_builds_temporary_link_while_its_number_is_held() {
+fn a_sync_keeps_and_names_the_earlier_builds_temporary_link_while_its_number_is_held() {
     let rig: Rig = a_rig_with_no_tools();
     std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
     let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
@@ -529,6 +633,11 @@ fn a_sync_spares_the_earlier_builds_temporary_link_while_its_number_is_held() {
     assert!(
         std::fs::symlink_metadata(&temporary).is_ok(),
         "a process holds this number, so the install that wrote the name may still run; {text}"
+    );
+    let start: String = format!("toolchain install: left the temporary link {name}: ");
+    assert!(
+        the_line_starting_with(&text, &start).is_some(),
+        "the sync names the link it left; {text}"
     );
 }
 
@@ -766,5 +875,344 @@ fn a_run_names_the_removals_it_made_before_a_later_one_failed() {
             return line.contains("exposure directory failed") && line.contains(&second);
         }),
         "the run names the removal that failed; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_link_another_run_took_before_this_run_read_it_is_not_a_failure()`
+// plants an orphan link,
+// has another run's removal take it in the instant before this run reads the entry's own metadata,
+// and reads the report.
+// Why:
+// The rebuild lists the folder and reads each entry after that,
+// so this is the state of an install meeting another one's removal between those two steps;
+// the name is gone either way,
+// and a run that reports `1 failed` for it sends a person to look at a folder that is right.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a link another run took before this run read it is not a failure', () => { ... });
+// ```
+#[test]
+fn a_link_another_run_took_before_this_run_read_it_is_not_a_failure() {
+    let rig: Rig = a_rig_with_no_tools();
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let orphan: PathBuf = rig.scope.exposure_dir.join(AN_ORPHAN);
+    symlink(a_program_beside_the_farm(&rig, AN_ORPHAN), &orphan).expect("leave an orphan");
+    let _plant = planting_at_the_removal_of(AN_ORPHAN, What::AnotherRunRemovesItBeforeTheLinkIsRead);
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(&orphan).is_err(),
+        "the orphan is gone from the folder; {text}"
+    );
+    assert!(
+        !text.contains("exposure directory failed"),
+        "a name another run took before this run read it is no failure; {text}"
+    );
+    assert!(
+        !text.contains(&format!("removed the exposure link {AN_ORPHAN}")),
+        "the run that took the link named it, so this one does not name it again; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_link_another_run_took_before_this_run_read_its_target_is_not_a_failure()`
+// plants an orphan link,
+// has another run's removal take it in the instant before this run reads the link's target,
+// and reads the report.
+// Why:
+// The metadata read and the target read are two calls,
+// so a name that was there for the first can be gone for the second;
+// that gap is the second of the three calls the removal's claim has to cover.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a link another run took before this run read its target is not a failure', () => { ... });
+// ```
+#[test]
+fn a_link_another_run_took_before_this_run_read_its_target_is_not_a_failure() {
+    let rig: Rig = a_rig_with_no_tools();
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let orphan: PathBuf = rig.scope.exposure_dir.join(AN_ORPHAN);
+    symlink(a_program_beside_the_farm(&rig, AN_ORPHAN), &orphan).expect("leave an orphan");
+    let _plant = planting_at_the_removal_of(
+        AN_ORPHAN,
+        What::AnotherRunRemovesItBeforeTheTargetIsRead,
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(&orphan).is_err(),
+        "the orphan is gone from the folder; {text}"
+    );
+    assert!(
+        !text.contains("exposure directory failed"),
+        "a name another run took before this run read its target is no failure; {text}"
+    );
+    assert!(
+        !text.contains(&format!("removed the exposure link {AN_ORPHAN}")),
+        "the run that took the link named it, so this one does not name it again; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_says_of_a_removed_temporary_link_only_what_it_could_show()`
+// plants a temporary link named after an install that has ended,
+// runs the whole sync,
+// and reads the sentence it printed.
+// Why:
+// The name has the shape an install writes,
+// and a person's own dotted link can have the same shape;
+// nothing in the folder tells the two apart,
+// so the line says what the name is and what the run could show of the process it records,
+// and never that an install wrote it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync says of a removed temporary link only what it could show', () => { ... });
+// ```
+#[test]
+fn a_sync_says_of_a_removed_temporary_link_only_what_it_could_show() {
+    let rig: Rig = a_rig_with_no_tools();
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
+    let temporary: PathBuf = the_temporary_link_of(
+        &rig.scope.exposure_dir.join(A_DECLARED_BIN),
+        the_owner_of_an_install_that_ended(),
+    );
+    symlink(&target, &temporary).expect("stand in for the link a killed install left");
+    let name: String = temporary
+        .file_name()
+        .expect("a file name")
+        .to_string_lossy()
+        .to_string();
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert_eq!(
+        the_line_starting_with(&text, "toolchain install: removed the temporary link"),
+        Some(format!(
+            "toolchain install: removed the temporary link {name} (it pointed at {}), a name of the shape an install writes while it holds a link, and the process that name records is not running",
+            target.display()
+        )),
+        "the sentence says what the name is and what the run could show; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_keeps_and_names_a_temporary_link_an_install_in_another_process_namespace_holds()`
+// plants a temporary link whose name records a process namespace that is not this one,
+// runs the whole sync,
+// and reads the folder and the printed lines.
+// Why:
+// A link this run cannot judge may belong to an install that still runs,
+// and leaving it silently kept a name in a folder a person reads with nothing said about it:
+// the report names it once and says what deleting it by hand would risk.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync keeps and names a temporary link an install in another process namespace holds', () => { ... });
+// ```
+#[test]
+fn a_sync_keeps_and_names_a_temporary_link_an_install_in_another_process_namespace_holds() {
+    let rig: Rig = a_rig_with_no_tools();
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
+    let held: Owner = the_owner_of_an_install_that_ended();
+    let temporary: PathBuf = the_temporary_link_of(
+        &rig.scope.exposure_dir.join(A_DECLARED_BIN),
+        Owner {
+            pid: held.pid,
+            started: held.started,
+            boot: held.boot,
+            namespace: Some(ANOTHER_PROCESS_NAMESPACE),
+        },
+    );
+    symlink(&target, &temporary).expect("stand in for a link another namespace's install holds");
+    let name: String = temporary
+        .file_name()
+        .expect("a file name")
+        .to_string_lossy()
+        .to_string();
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(&temporary).is_ok(),
+        "the number means nothing in this namespace, so the sync leaves the link; {text}"
+    );
+    let start: String = format!("toolchain install: left the temporary link {name}: ");
+    assert!(
+        the_line_starting_with(&text, &start).is_some(),
+        "the sync names the link it left and why; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_removes_and_names_the_farms_mpm_shadow_link_into_another_tools_install()`
+// builds a farm whose `mpm-shadow` link resolves to a file of that name inside another tool's install directory,
+// runs the whole sync,
+// and reads the folder and the printed lines.
+// Why:
+// The name is the scope's way to the installed program,
+// and an install of another tool is not that program's install;
+// the link is a name no row declares, and the release kept it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync removes and names the farms mpm-shadow link into another tools install', () => { ... });
+// ```
+#[test]
+fn a_sync_removes_and_names_the_farms_mpm_shadow_link_into_another_tools_install() {
+    let rig: Rig = a_rig_whose_lock_declares_no_shadow();
+    let program: PathBuf = an_install_of_another_tool(&rig);
+    let link: PathBuf = the_farm_link_to(&rig, &program);
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(&link).is_err(),
+        "another tool's install is not an install of {SHADOW_PROGRAM}, so the link goes; {text}"
+    );
+    assert!(
+        text.contains(&format!("removed the exposure link {SHADOW_PROGRAM}")),
+        "the sync names the link it removed; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_removes_and_names_the_farms_mpm_shadow_link_that_resolves_nowhere()`
+// builds a farm whose `mpm-shadow` link points at a path nothing stands at,
+// runs the whole sync,
+// and reads the folder and the printed lines.
+// Why:
+// A scope that has the program installed nowhere removes the name:
+// with nothing there it reaches nothing,
+// and the README says so.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync removes and names the farms mpm-shadow link that resolves nowhere', () => { ... });
+// ```
+#[test]
+fn a_sync_removes_and_names_the_farms_mpm_shadow_link_that_resolves_nowhere() {
+    let rig: Rig = a_rig_whose_lock_declares_no_shadow();
+    let gone: PathBuf = rig
+        .scope
+        .toolchain_root
+        .join(SHADOW_PROGRAM)
+        .join(AN_INSTALLED_VERSION)
+        .join(SHADOW_PROGRAM);
+    let link: PathBuf = the_farm_link_to(&rig, &gone);
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(&link).is_err(),
+        "the link resolves nowhere, so the sync removes it; {text}"
+    );
+    assert!(
+        text.contains(&format!("removed the exposure link {SHADOW_PROGRAM}")),
+        "the sync names the link it removed; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_removes_and_names_the_farms_mpm_shadow_link_to_a_program_that_belongs_to_no_install()`
+// builds a farm whose `mpm-shadow` link resolves to a file of that name in a build folder,
+// runs the whole sync,
+// and reads the folder and the printed lines.
+// Why:
+// A build folder is no install,
+// so the name reaches no installed program and is a name no row declares.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync removes and names the farms mpm-shadow link to a program that belongs to no install', () => { ... });
+// ```
+#[test]
+fn a_sync_removes_and_names_the_farms_mpm_shadow_link_to_a_program_that_belongs_to_no_install() {
+    let rig: Rig = a_rig_whose_lock_declares_no_shadow();
+    let built: PathBuf = rig.scope.root.join("build").join(SHADOW_PROGRAM);
+    write_executable(&built);
+    let link: PathBuf = the_farm_link_to(&rig, &built);
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(&link).is_err(),
+        "a program that belongs to no install is not the farm's program, so the link goes; {text}"
+    );
+    assert!(
+        text.contains(&format!("removed the exposure link {SHADOW_PROGRAM}")),
+        "the sync names the link it removed; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_keeps_the_farms_mpm_shadow_link_that_resolves_into_the_other_toolchain_roots_install()`
+// builds the installed copy of the program in the machine-global root,
+// links the farm's own name to it,
+// runs the whole sync,
+// and reads the folder.
+// Why:
+// Either toolchain root's install of the program is one the name may reach:
+// the two roots are one set for this repository's tools,
+// and a rebuild must not take the name away from the root that has the program.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync keeps the farms mpm-shadow link that resolves into the other toolchain roots install', () => { ... });
+// ```
+#[test]
+fn a_sync_keeps_the_farms_mpm_shadow_link_that_resolves_into_the_other_toolchain_roots_install() {
+    let rig: Rig = a_rig_whose_lock_declares_no_shadow();
+    let install: PathBuf = rig.scope.other_toolchain_root.join(SHADOW_PROGRAM);
+    let version: PathBuf = install.join(AN_INSTALLED_VERSION);
+    let program: PathBuf = version.join(SHADOW_PROGRAM);
+    write_executable(&program);
+    symlink(AN_INSTALLED_VERSION, install.join("current")).expect("link current");
+    let link: PathBuf = the_farm_link_to(&rig, &install.join("current").join(SHADOW_PROGRAM));
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert_eq!(
+        std::fs::read_link(&link).expect("the farm still holds the program's own link"),
+        install.join("current").join(SHADOW_PROGRAM),
+        "the other root's install is an install of the program, so the link stays; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_sync_keeps_the_farms_mpm_shadow_link_that_resolves_into_the_cargo_routes_install()`
+// builds the installed copy of the program where a cargo-route install puts it,
+// links the farm's own name to it,
+// runs the whole sync,
+// and reads the folder.
+// Why:
+// A machine bootstraps this tool with `cargo install` as well as with a release archive,
+// and that install's directory is named after the crate:
+// the rule has to keep the name for both ways of installing the program.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync keeps the farms mpm-shadow link that resolves into the cargo routes install', () => { ... });
+// ```
+#[test]
+fn a_sync_keeps_the_farms_mpm_shadow_link_that_resolves_into_the_cargo_routes_install() {
+    let rig: Rig = a_rig_whose_lock_declares_no_shadow();
+    let program: PathBuf = a_cargo_install_of_the_shadow(&rig);
+    let install: PathBuf = rig
+        .scope
+        .toolchain_root
+        .join("cargo")
+        .join(THE_PROGRAMS_CRATE);
+    let link: PathBuf = the_farm_link_to(&rig, &install.join("current").join("bin").join(SHADOW_PROGRAM));
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert_eq!(
+        std::fs::read_link(&link).expect("the farm still holds the program's own link"),
+        install.join("current").join("bin").join(SHADOW_PROGRAM),
+        "a cargo install of the program is an install of it, so the link stays; {text}"
+    );
+    assert!(
+        std::fs::canonicalize(&link).expect("the link resolves")
+            == std::fs::canonicalize(&program).expect("the program is there"),
+        "the link reaches the program a cargo route installed; {text}"
     );
 }

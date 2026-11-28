@@ -421,6 +421,19 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
   the split of whitespace fixes from content fixes is built as described in
   `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`:
   plain `--fix` applies only whitespace fixes and `--fix-content` also applies the content fixes.
+  Update,
+  2026-11-28:
+  the entry about a blockquote line is wrong and was wrong when it was written.
+  The fix writes the quote markers of the paragraph's own first line again,
+  so a line broken inside a block quote carries `>`;
+  `continuation_prefix` copied the marker from `3af7894e01`
+  (2026-10-04T20:35:38-04:00) on,
+  and a test names it
+  (`package/linter/monochromatic-lint/src/run_command_whitespace_fix_tests.rs`,
+  `a_blockquote_break_keeps_the_marker_at_the_same_depth`).
+  The package README's sentence that said otherwise is corrected,
+  and the reason is in
+  `package/linter/monochromatic-lint/doc/second-pass-reads-of-released-versions.md`.
 - Every other per-file,
    per-rule Markdown count is identical between the two linters.
 
