@@ -234,6 +234,12 @@ impl RemovalStop {
             } => format!(
                 "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan's file in the wrapper's plan folder and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
             ),
+            RemovalStop::TheLocksWordsAreNotThisAdds {
+                slot,
+                cause,
+            } => format!(
+                "the Git registration of the slot `{slot}` holds a lock this add cannot attribute to itself ({cause}), so a person's lock may stand there and this removal stops before its first write. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: run `git worktree unlock {slot}` to remove the lock, then run the removal again; every spelling of `git worktree remove` refuses here, `-f -f` among them, because this removal destroys the clone and its own snapshots whereas Git's own two forces would only drop the registration."
+            ),
             RemovalStop::TheSettleRefused {
                 step,
                 said,

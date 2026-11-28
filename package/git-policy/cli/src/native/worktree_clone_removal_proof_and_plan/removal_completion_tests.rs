@@ -62,9 +62,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
-    OWN_SNAPSHOT,
     RemovalFixture,
-    SANOID_SNAPSHOT,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_report::OriginCleanupDone;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
@@ -582,24 +580,27 @@ fn an_incomplete_namespace_read_is_carried_into_the_report() {
 /// What:
 ///  The order a removal meets a lock a person wrote,
 ///  measured through the scripted seams:
-///  every request it sends,
-///  and the step that first names the lock.
+///  it refuses before a single request,
+///  and the sentence names the lock,
+///  what was not removed,
+///  and the one command that clears it.
 /// Why:
 ///  Git refuses its own removal for a lock and steers a person to the double force,
 ///  which here runs this wrapper's removal and destroys a clone and its snapshots
 ///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 ///  "What Git 2.56.1 does").
-///  The settle is the only step of the removal's order that reads `locked`,
-///  and it refuses words that are not the sentence recomposed from the add's nonce
-///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-///  "How doctor and removal tell the states apart",
-///  S3),
-///  so this control answers what stands when that refusal is reached:
-///  the clone's own snapshots,
-///  the origin snapshot and the head are gone,
-///  and the person's lock and the registration still stand.
+///  Measured at `8bdae8a0d8`:
+///  with a person's lock on the fixture's registration,
+///  this same removal destroyed the clone's own snapshots,
+///  the origin snapshot and the head,
+///  and only then did the Git settle refuse the lock's words,
+///  because the settle is the order's only step that reads `locked`.
+///  So the lock is read before the first write now,
+///  and this control holds that:
+///  no request of either device,
+///  no intent and no plan.
 #[test]
-fn a_persons_lock_is_met_after_the_snapshots_the_head_and_the_origin_are_destroyed() {
+fn a_persons_lock_refuses_the_removal_before_any_request() {
     let fixture: RemovalFixture = a_fixture("completion-persons-lock");
     let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
     let check: Pool = the_checks_pool();
@@ -615,8 +616,6 @@ fn a_persons_lock_is_met_after_the_snapshots_the_head_and_the_origin_are_destroy
         Rc::clone(&hidden),
     );
     let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
-    // The reason item 6's guest gave `git worktree lock --reason`, which Git's `write_file`
-    // completes with one newline (the lock design, "Where the lock lives").
     let locked: PathBuf = fixture.registration.join("locked");
     std::fs::write(locked.as_path(), PERSON_LOCK_WORDS).expect("the person's lock");
     let settle: TheLiveSettle = TheLiveSettle;
@@ -634,46 +633,53 @@ fn a_persons_lock_is_met_after_the_snapshots_the_head_and_the_origin_are_destroy
     });
     let stop: RemovalStop = match stopped {
         Ok(done) => panic!(
-            "the settle releases no lock a person wrote, so the removal stops there: {}",
+            "a person's lock refuses the removal, so nothing finishes: {}",
             done.text()
         ),
         Err(stop) => stop,
     };
-    assert_eq!(
-        device.sent.borrow().clone(),
-        vec![
-            vec![
-                format!("{CLONE}@{SANOID_SNAPSHOT}"),
-                format!("{CLONE}@{OWN_SNAPSHOT}"),
-            ],
-            vec![the_origin_full_name()],
-        ],
-        "the clone's own snapshots and then the origin snapshot were destroyed before anything named the lock, in the split rule's ascending order"
-    );
-    assert_eq!(
-        head.sent.borrow().clone(),
-        vec![String::from(CLONE)],
-        "the head was destroyed before anything named the lock"
-    );
     match &stop {
-        RemovalStop::TheSettleRefused {
-            step,
-            said,
+        RemovalStop::TheLocksWordsAreNotThisAdds {
+            slot,
+            cause,
         } => {
-            assert_eq!(step, "the managed lock", "the settle stopped at the lock");
-            assert!(said.contains("the lock is not this add's"), "{said}");
+            assert_eq!(slot, "fix-flaky-test");
+            assert!(
+                cause.contains("ZFS test underlay"),
+                "the refusal names the lock's own words: {cause}"
+            );
         }
-        other => panic!("the settle's own refusal, not {other:?}"),
+        other => panic!("the lock's own refusal, not {other:?}"),
+    }
+    assert!(
+        device.sent.borrow().is_empty(),
+        "no snapshot request was sent: {:?}",
+        device.sent.borrow()
+    );
+    assert!(
+        head.sent.borrow().is_empty(),
+        "no head destroy was sent: {:?}",
+        head.sent.borrow()
+    );
+    assert!(
+        std::fs::symlink_metadata(plans_folder(fixture.common()).as_path()).is_err(),
+        "no removal intent was filed and no plan was written"
+    );
+    let message: String = stop.message();
+    for said in [
+        "a person's lock may stand there",
+        "Nothing was unmounted, nothing was destroyed",
+        "`git worktree unlock fix-flaky-test`",
+        "`-f -f` among them",
+    ] {
+        assert!(
+            message.contains(said),
+            "the sentence says {said}: {message}"
+        );
     }
     assert!(
         locked.is_file(),
         "the person's lock stands where it was, and the removal never rewrote it"
-    );
-    assert!(
-        plans_folder(fixture.common())
-            .join(fixture.recorded().clone_guid.file_name())
-            .is_file(),
-        "the plan keeps the record of what was destroyed"
     );
 }
 
