@@ -327,10 +327,14 @@ the `map` closure that adds each break's separator;
 `markdown_fragment_joins.rs`,
 a `written` rebound from `written`;
 and a `&` before a `repeat` in a `format!` argument of the join tests.
-A run of the same command with those four files at `4cf7cc74b8` reports the three of the lib
-(`error: `written` is shadowed`,
-and `error: missing `return` statement` twice),
-so the task was red before this round and is green after it.
+A run of the same command with those four files at `4cf7cc74b8` reports three of them,
+all in the lib:
+`error: `written` is shadowed`,
+and `error: missing `return` statement` twice.
+The fourth is in a test file,
+and that target did not compile in that run because the rest of the branch stayed in place,
+so that one is read and not measured.
+The task was red before this round and is green after it.
 All nine are fixed,
 because a check that stays red for any reason stops showing the next regression.
 
