@@ -331,13 +331,18 @@ fn wait_until_the_child_ended(
 /// Why:
 /// The reports go to standard output and the wait is not part of one,
 /// so a reader piping the report nowhere sees the line and a parser of the report does not.
+/// The line is a courtesy and not the command's result,
+/// so it goes through the crate's notice writer,
+/// which drops a write the stream refuses:
+/// `0.2.7-alpha.20` wrote it with `eprintln!`,
+/// and a full or broken standard error then ended the whole install with `SIGABRT`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sayOnStandardError(line: string): void { process.stderr.write(line + '\n'); }
+/// function sayOnStandardError(line: string): void { say(line); }
 /// ```
 fn say_on_standard_error(line: &str) {
-    eprintln!("{line}");
+    crate::notices::say(line);
 }
 
 /// What:
