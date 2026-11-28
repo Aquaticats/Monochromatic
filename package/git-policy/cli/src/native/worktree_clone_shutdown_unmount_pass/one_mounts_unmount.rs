@@ -126,14 +126,33 @@ fn unmount_under_the_claim(
             };
         }
     };
-    return match request.calls.unmount_top(&checked.target) {
+    // A descriptor on the clone would hold it busy, and the route's own unmount drops that descriptor before the call
+    // for the same reason (`worktree_clone_unmount/unmount_pair.rs`): "A descriptor on the clone would hold it busy ...
+    // so nothing needs to keep this one alive". The call is named by the underlay folder's own descriptor, which is on
+    // the checkout dataset, so unmounting what stands at the slot takes down the clone's mount and not the checkout's.
+    let mount_id: u64 = checked.mount_id;
+    drop(checked.target);
+    let underlay: std::fs::File = match request
+        .walk
+        .open_the_slot_uncrossed(configuration_checkout, candidate.slot.as_str())
+    {
+        Ok(underlay) => underlay,
+        Err(refusal) => {
+            return MountEnding::Left {
+                said: refusal.message(
+                    "the underlay folder at the slot could not be opened without crossing the clone's mount",
+                ),
+            };
+        }
+    };
+    return match request.calls.unmount_top(&underlay) {
         Ok(()) => MountEnding::Unmounted {
-            mount_id: checked.mount_id,
+            mount_id,
         },
         // A mount a task holds is `EBUSY`, and the kernel's number is what tells
         // that from a mount that is not there any more.
         Err(refusal) if refusal.errno == libc::EBUSY => MountEnding::Held {
-            mount_id: checked.mount_id,
+            mount_id,
             said: refusal.detail,
             holdings: holders_of(request, candidate),
         },

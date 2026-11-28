@@ -131,6 +131,7 @@ impl World {
     /// The walk that hands this world's slot back.
     fn walk(&self) -> StatedWalk {
         return StatedWalk {
+            underlay: None,
             slot: self
                 .slot
                 .try_clone()
@@ -180,6 +181,7 @@ fn world(name: &str) -> World {
         slot,
         candidate,
         calls: StatedCalls {
+            unmounted_by: std::cell::RefCell::new(None),
             mount_id: MOUNT_ID,
             observed_path: PathBuf::new(),
             rows,
@@ -207,6 +209,7 @@ fn turn(world: &World) -> ReachedMount {
     let walk: StatedWalk = world.walk();
     let lookup: StatedLookups = world.lookup();
     let mut calls: StatedCalls = StatedCalls {
+        unmounted_by: std::cell::RefCell::new(None),
         mount_id: world.calls.mount_id,
         observed_path: world.candidate.slot_path.clone(),
         rows: world.calls.rows.clone(),
@@ -234,6 +237,73 @@ fn turn(world: &World) -> ReachedMount {
             .expect("the checkout"),
         &world.recorded,
         &world.candidate,
+    );
+}
+
+/// The unmount is named by the underlay folder's descriptor and never by the
+/// clone's,
+/// because a descriptor on the clone would hold it busy.
+#[test]
+fn the_unmount_is_named_by_the_underlay_folder_and_not_the_clone() {
+    let world: World = world("unmount-underlay-descriptor");
+    // The underlay is the folder the walk reaches without crossing the clone's
+    // mount, which is a folder of this fixture standing for the checkout dataset.
+    let underlay: std::fs::File = world
+        .slot
+        .try_clone()
+        .expect("the fixture descriptor is copied");
+    let underlay_inode: u64 = {
+        use std::os::unix::fs::MetadataExt;
+        underlay.metadata().expect("the underlay is examined").ino()
+    };
+    let walk: StatedWalk = StatedWalk {
+        underlay: Some(underlay),
+        slot: world.walk().slot,
+        look_again: MOUNT_ID,
+    };
+    let lookup: StatedLookups = world.lookup();
+    let mut calls: StatedCalls = StatedCalls {
+        unmounted_by: std::cell::RefCell::new(None),
+        mount_id: MOUNT_ID,
+        observed_path: world.candidate.slot_path.clone(),
+        rows: world.calls.rows.clone(),
+        unmount: Ok(()),
+    };
+    calls.observed_path = world.candidate.slot_path.clone();
+    let rows: StatedMounts = world.rows();
+    let recorded: StatedWorktrees = world.recorded_folder();
+    let request: ShutdownUnmountRequest<'_> = ShutdownUnmountRequest {
+        places: &world.places,
+        mounts: &rows,
+        calls: &calls,
+        walk: &walk,
+        lookups: &lookup,
+        worktrees: &recorded,
+        guids: &world.guids,
+        holders: &world.holders,
+    };
+    let reached: ReachedMount = unmount_one(
+        &request,
+        world
+            .candidate
+            .slot_path
+            .parent()
+            .expect("the slot has a parent")
+            .parent()
+            .expect("the checkout"),
+        &world.recorded,
+        &world.candidate,
+    );
+    assert_eq!(
+        reached.ending,
+        MountEnding::Unmounted {
+            mount_id: MOUNT_ID
+        }
+    );
+    assert_eq!(
+        *calls.unmounted_by.borrow(),
+        Some(underlay_inode),
+        "the call is named by the underlay's own descriptor, which is the one this control handed it"
     );
 }
 
@@ -388,6 +458,7 @@ fn another_kernel_refusal_leaves_the_mount() {
 fn a_mount_whose_checks_refuse_is_never_unmounted() {
     let world: World = world("unmount-checks-refuse");
     let mut calls: StatedCalls = StatedCalls {
+        unmounted_by: std::cell::RefCell::new(None),
         mount_id: MOUNT_ID + 9,
         observed_path: world.candidate.slot_path.clone(),
         rows: world.calls.rows.clone(),

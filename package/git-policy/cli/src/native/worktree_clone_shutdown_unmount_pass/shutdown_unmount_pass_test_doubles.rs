@@ -94,6 +94,10 @@ pub(crate) struct StatedWalk {
     /// which is a real folder of the test's fixture,
     /// so the descriptor's facts are the kernel's.
     pub(crate) slot: std::fs::File,
+    /// The underlay folder's descriptor,
+    /// which the unmount is named by,
+    /// and which a control states so it can tell the two apart.
+    pub(crate) underlay: Option<std::fs::File>,
     /// The mount number a fresh walk reaches.
     pub(crate) look_again: u64,
 }
@@ -115,7 +119,14 @@ impl SlotWalk for StatedWalk {
         _checkout: &Path,
         _slot: &str,
     ) -> Result<std::fs::File, StagingCallRefusal> {
-        return self.open_the_slot(_checkout, _slot);
+        return match &self.underlay {
+            // A control that states an underlay proves the unmount is named by that
+            //  descriptor and not by the clone's.
+            Some(underlay) => underlay.try_clone().map_err(|error| {
+                return refusal(StagingCall::OpenSlot, 0, error.to_string().as_str());
+            }),
+            None => self.open_the_slot(_checkout, _slot),
+        };
     }
 
     fn look_again(
@@ -130,6 +141,9 @@ impl SlotWalk for StatedWalk {
 /// The staging route's calls a control states:
 /// the readings it makes and the answer its unmount gives.
 pub(crate) struct StatedCalls {
+    /// The inode of the descriptor the unmount was named by,
+    ///  which a control reads to prove which folder's descriptor the call used.
+    pub(crate) unmounted_by: std::cell::RefCell<Option<u64>>,
     /// The mount number the slot's descriptor is on.
     pub(crate) mount_id: u64,
     /// The path the descriptor names.
@@ -167,8 +181,10 @@ impl StagingCalls for StatedCalls {
 
     fn unmount_top(
         &self,
-        _held: &std::fs::File,
+        held: &std::fs::File,
     ) -> Result<(), StagingCallRefusal> {
+        use std::os::unix::fs::MetadataExt;
+        *self.unmounted_by.borrow_mut() = held.metadata().ok().map(|facts| return facts.ino());
         return match &self.unmount {
             Ok(()) => Ok(()),
             Err(refusal) => Err(refusal.clone()),

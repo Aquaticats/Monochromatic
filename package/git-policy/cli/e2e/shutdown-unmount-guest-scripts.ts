@@ -16,6 +16,13 @@ import {
 export const CRATE_DIR = '/opt/shutdown-unmount-pass';
 
 /**
+ Where the guest's cargo keeps what it built, which lies outside the folder an
+ arm replaces: a second run of the arm on a kept guest then pays only for what
+ changed, and the first run's dependencies are still there.
+ */
+export const CARGO_TARGET_DIR = '/opt/shutdown-unmount-target';
+
+/**
  The log the build writes, inside the guest's shared folder.
  */
 export const BUILD_LOG = 'shutdown-unmount-build.log';
@@ -143,6 +150,7 @@ export function buildScript(): string {
     'fi',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
+    `export CARGO_TARGET_DIR=${CARGO_TARGET_DIR}`,
     'df --human-readable / /mnt/shared',
     // `free` with no option, because the guest's procps has no `--mebytes` and `set -e` would end the build there.
     'free',
@@ -174,6 +182,7 @@ export function armScript({ name, }: { readonly name: string; },): string {
     `export PATH=${OPENZFS_PATH}:/root/.cargo/bin:$PATH`,
     ...armEnvironmentLines({ name, },),
     `cd ${CRATE_DIR}/package/git-policy/cli`,
+    `export CARGO_TARGET_DIR=${CARGO_TARGET_DIR}`,
     // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion.
     'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level fail ' +
       `--filterset "test(the_shutdown_unmount_guest_arm)" > /root/${ARM_LOG} 2>&1; then status=0; else status=$?; fi`,

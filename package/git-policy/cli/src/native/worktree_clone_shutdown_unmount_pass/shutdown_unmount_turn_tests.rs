@@ -193,6 +193,7 @@ fn world(name: &str) -> World {
             }],
         },
         calls: StatedCalls {
+            unmounted_by: std::cell::RefCell::new(None),
             mount_id: MOUNT_ID,
             observed_path: slot_path.clone(),
             rows,
@@ -218,6 +219,7 @@ fn pass(world: &World) -> Result<PassOutcome, String> {
         answer: Ok(Box::new(fresh_lookup_of(&world.slot, &world.recorded))),
     };
     let walk: StatedWalk = StatedWalk {
+        underlay: None,
         slot: world
             .slot
             .try_clone()

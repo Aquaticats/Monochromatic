@@ -110,6 +110,7 @@ fn agreeing_calls(candidate: &CandidateMount) -> StatedCalls {
     let mut rows: BTreeMap<u64, MountFacts> = BTreeMap::new();
     rows.insert(MOUNT_ID, agreeing_row(candidate));
     return StatedCalls {
+        unmounted_by: std::cell::RefCell::new(None),
         mount_id: MOUNT_ID,
         observed_path: candidate.slot_path.clone(),
         rows,
@@ -159,6 +160,7 @@ fn a_clones_own_mount_at_its_slot_passes_every_comparison() {
         &recorded,
         &agreeing_lookup(&fixture, &recorded),
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
@@ -194,6 +196,7 @@ fn a_slot_in_another_worktrees_folder_is_refused() {
         &recorded,
         &lookup,
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
@@ -224,6 +227,7 @@ fn a_descriptor_on_another_mount_is_refused() {
         &recorded,
         &agreeing_lookup(&fixture, &recorded),
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
@@ -252,6 +256,7 @@ fn a_replaced_slot_folder_is_refused() {
             answer: Ok(Box::new(capture)),
         },
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
@@ -278,6 +283,7 @@ fn a_descriptor_that_shows_another_path_is_refused() {
         &recorded,
         &agreeing_lookup(&fixture, &recorded),
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
@@ -302,6 +308,7 @@ fn a_second_walk_that_reaches_another_mount_is_refused() {
         &recorded,
         &agreeing_lookup(&fixture, &recorded),
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
@@ -378,6 +385,7 @@ fn each_field_of_the_row_refuses_on_its_own() {
         let mut rows: BTreeMap<u64, MountFacts> = BTreeMap::new();
         rows.insert(MOUNT_ID, row);
         let calls: StatedCalls = StatedCalls {
+            unmounted_by: std::cell::RefCell::new(None),
             mount_id: MOUNT_ID,
             observed_path: fixture.candidate.slot_path.clone(),
             rows,
@@ -388,6 +396,7 @@ fn each_field_of_the_row_refuses_on_its_own() {
             &recorded,
             &agreeing_lookup(&fixture, &recorded),
             &StatedWalk {
+                underlay: None,
                 slot: fixture
                     .slot
                     .try_clone()
@@ -418,6 +427,7 @@ fn a_walk_that_refused_is_a_sentence() {
             )),
         },
         &StatedWalk {
+            underlay: None,
             slot: fixture
                 .slot
                 .try_clone()
