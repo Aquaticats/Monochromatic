@@ -2827,9 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-What the two shadow tools' passes found,
-each with no High finding:
-
 - `mpm-shadow` alpha.12:
   the claim of no change of behaviour holds.
   Of 929 production items,
