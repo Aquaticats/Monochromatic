@@ -312,7 +312,8 @@ export type PriceChoice =
      */
     readonly currency: string;
     /**
-     Hourly price per plan code.
+     Whole-hour price per instance plan code, counting every line the machine is
+     billed for.
      */
     readonly prices: ReadonlyMap<string, number>;
   }
@@ -479,17 +480,17 @@ function orderFlavorsByPrice({
 }
 
 /**
- Hourly price of one size, for a caller that prints the pick.
+ Whole-hour price of one size, for a caller that prints the pick.
  
  @param flavor - size to price
  
- @param priceChoice - the hourly prices, or the record that they could not be read
+ @param priceChoice - the whole-hour prices, or the record that they could not be read
  
  @returns the price per hour in the catalogue's currency, or {@link NO_PRICE}
  
  @example
  ```ts
- hourlyPriceFor({ flavor, priceChoice }); // 0.0596
+ hourlyPriceFor({ flavor, priceChoice }); // 0.06392
  ```
  */
 export function hourlyPriceFor({

@@ -113,16 +113,19 @@ const REAL_SHAPED = [
 //region Price fixtures
 
 /**
- The live hourly prices of 2026-11-28, in Canadian dollars per hour, as the
- catalogue stated them: the two that make the order matter are `b2-7` at 0.1135
- and `d2-8` at 0.0596, which has more vCPUs and more memory for less money.
+ The whole hourly prices the price read builds from the live catalogue of
+ 2026-11-28, in Canadian dollars per hour: an instance row, the public IPv4
+ address line every machine carries, and the size's own GB of local storage at
+ the rate its family names. The two that make the order matter are `b2-7` at
+ 0.11782 and `d2-8` at 0.06392, which has more vCPUs and more memory for less
+ money.
  */
 const PRICES = new Map([
-  ['b2-7.consumption', 0.1135,],
-  ['c3-4.consumption', 0.0732,],
-  ['d2-2.consumption', 0.0167,],
-  ['d2-4.consumption', 0.033,],
-  ['d2-8.consumption', 0.0596,],
+  ['b2-7.consumption', 0.11782,],
+  ['c3-4.consumption', 0.089185,],
+  ['d2-2.consumption', 0.02102,],
+  ['d2-4.consumption', 0.03732,],
+  ['d2-8.consumption', 0.06392,],
 ],);
 
 /**
@@ -487,8 +490,9 @@ await describe({
           priceChoice: PRICED_CHOICE,
           request: { memoryGiB: 6, vcpus: 2 },
         });
-        // b2-7 (2 vCPUs, 7 GiB) fits and costs 0.1135; d2-8 (4 vCPUs, 8 GiB)
-        // fits and costs 0.0596, so the larger machine is the one taken.
+        // b2-7 (2 vCPUs, 7 GiB) fits and costs 0.11782 for its whole hour;
+        // d2-8 (4 vCPUs, 8 GiB) fits and costs 0.06392, so the larger machine
+        // is the one taken.
         expect(fit.flavors[0]?.id).toBe('d2-8');
         expect(fit.order).toBe('price');
         /**
@@ -499,7 +503,7 @@ await describe({
           throw new Error('expected one size that fits',);
         }
         expect(hourlyPriceFor({ flavor: winner, priceChoice: PRICED_CHOICE }))
-          .toBeCloseTo(0.0596);
+          .toBeCloseTo(0.06392);
       },
     }),
     it({

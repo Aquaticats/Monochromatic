@@ -142,6 +142,8 @@ export {
  @internal
  */
 export {
+  ADDRESS_PLAN_CODE,
+  addressPriceOf,
   currencyOf,
   hourlyPriceOf,
   NO_PRICE,

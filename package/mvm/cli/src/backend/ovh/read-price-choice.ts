@@ -47,9 +47,13 @@ export async function readPriceChoice({ rl, }: { readonly rl: Logger; },): Promi
       subsidiary: subsidiaryOf({ endpointRoot: requireCredentials()
         .endpointRoot, },),
     },);
+    /**
+     How many sizes the answer prices in full.
+     */
+    const pricedSizes = index.prices
+      .size;
     rl.info(
-      `read ${String(index.prices
-        .size,)} hourly prices in ${index.currency} from OVHcloud's public catalogue`,
+      `read the whole hourly price of ${String(pricedSizes,)} ${(pricedSizes === 1) ? 'size' : 'sizes'} in ${index.currency} from OVHcloud's public catalogue`,
     );
     return {
       kind: 'priced',
