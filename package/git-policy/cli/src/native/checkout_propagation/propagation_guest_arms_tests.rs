@@ -389,13 +389,10 @@ fn the_trigger_measurement(fixture: &Fixture) -> String {
         reloaded,
         "the manager could not reload its units: {reload_said}"
     );
+    // The stand-in gate carries no `[Install]` section, so it is started and not enabled: nothing here survives a boot.
     let (started, said) = fixture.ask(
         "systemctl",
-        &[
-            "enable",
-            "--now",
-            "reconcile-git-worktree-clone-mounts.service",
-        ],
+        &["start", "reconcile-git-worktree-clone-mounts.service"],
     );
     assert!(started, "the gate could not be started: {said}");
     // The mount unit's own activation is what arms the propagation service, so the first replacement is the arming one.
