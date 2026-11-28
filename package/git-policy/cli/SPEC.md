@@ -8709,6 +8709,66 @@ merged as `0a58781554`,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`;
 the owner chooses the moment of the migration and of any reboot.
 
+#### The private-propagation step, built and reached by no command
+
+Plan step 19's step lives in `src/native/checkout_propagation/`,
+and no command and no root mode reaches it:
+its call at the head of `boot-reconcile` and of the default sweep is that step's
+wiring,
+which is not built,
+so `zfs-root boot-reconcile` and the ZED event's own run do exactly what they did
+before.
+
+- One mount's propagation is read as the kernel's three flags,
+  by the descriptor's own unique mount number (`statx(2)`) and `statmount(2)`,
+  and named `private`,
+  `shared`,
+  `slave`,
+  `unbindable` or `shared+slave`.
+  A mount that is shared and slave at once counts as shared,
+  which is the project's answer of 2026-11-22,
+  and its master is recorded as the cost the set paid.
+- The step changes the checkout's own mount and no mount beneath it,
+  and only through the descriptor it verified:
+  `mount_setattr(2)` with `AT_EMPTY_PATH`,
+  no path fallback and no `AT_RECURSIVE`.
+- Before it touches anything it proves which instance it read:
+  the point is the checkout path,
+  the type is `zfs`,
+  the source is the resolved checkout dataset,
+  the instance has a namespace,
+  and the mount table's row found by the reused number describes the same mount.
+- A set is proved by a second read of the same unique number with no peer group
+  and no master,
+  so a set that answers success and leaves the previous set standing is a
+  refusal.
+- The states the project decided to report and leave are reported and left:
+  `already-private` for a private mount,
+  `left` for a slave or an unbindable one.
+- The shared mounts beneath the checkout are counted exactly,
+  four of them are named in the kernel's own spelling,
+  and the count reads `unread` for a run that refused before it read the table.
+- The answer is filed in `/run/git-worktree-clone-mount-propagation/result`,
+  a root-owned `0755` directory and a `0644` record published by one rename,
+  carrying both mount numbers,
+  the set before and after,
+  the master a set detached,
+  the outcome,
+  the act that refused and the kernel's error number.
+  A refusal files no receipt and still writes the record,
+  and the writer reads its own record back before it calls the write done.
+
+Nothing in the folder opens `/dev/zfs`,
+writes a checkout or asks a service manager for anything,
+so its decisions are tested on fixture facts on this machine,
+and its kernel half is the arm in a throwaway guest:
+a mount made shared and slave,
+private,
+slave and unbindable,
+and one that is not the checkout's,
+each driven through the step as root,
+beside the measurement of the provisional systemd trigger the accepted design
+asks for.
 #### The event filter and the merge device, built and reached by no command
 
 Plan step 19's lost-event triggers have a handler side that lives in two folders,
