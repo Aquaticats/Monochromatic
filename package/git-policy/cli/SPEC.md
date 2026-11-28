@@ -5544,12 +5544,23 @@ A slot command behind a `!` alias whose shell's directory Git could not be asked
 for is one nothing placed,
 so it is refused with words saying what could not be read,
 and never forwarded in silence.
+A plain `git worktree prune` behind such an alias is the one slot command that is not
+refused there,
+because it reads no operand and so no directory changes what its pass reads;
+a prune behind such an alias that names a place of its own,
+with `-C`,
+`--git-dir` or `--work-tree`,
+is refused as a removal and a move are.
 When the rule is off or escaped it says nothing about the command;
 at `warn` its finding and the line saying the policy is warn-unsafe are printed
 before a refusal of any of the three slot commands,
 a removal's,
 a move's and a prune's alike,
 in the order a removal prints them.
+The lines the stage printed lead two failures as well,
+not only those three refusals:
+a repository location that cannot be read,
+and a configuration the command needs and cannot use.
 The spellings that reach that reading are the guard's own,
 stated in the passage "git by the word Git will run":
 a value whose bytes are letters,
