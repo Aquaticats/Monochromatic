@@ -930,7 +930,11 @@ fn claim_files_of(
     };
     let mut claims: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(prefix.as_str())
+        {
             claims.push(entry.path());
         }
     }
@@ -957,11 +961,7 @@ fn claim_files_of(
 ///  then reads what the run left.
 #[test]
 fn a_persons_lock_refuses_a_resumed_removal_whose_clone_is_gone_before_any_write() {
-    for head in [
-        HeadWord::Requested,
-        HeadWord::Unknown,
-        HeadWord::Gone,
-    ] {
+    for head in [HeadWord::Requested, HeadWord::Unknown, HeadWord::Gone] {
         let fixture: RemovalFixture =
             a_fixture(format!("completion-resumed-lock-{}", head.word()).as_str());
         // The plan a killed removal leaves: the head's request recorded and every name still `planned`. The writer

@@ -17,13 +17,13 @@ use crate::worktree_command_facts::{
     AddPlan,
     RemovePlan,
 };
+/// The words a failed step is named with,
+/// written in the file that reports every run's ending.
+use crate::worktree_copy_forward_outcome::words_of;
 use crate::worktree_copying::worktree_removal_of_a_bound_clone::{
     BoundSlotRemovalAnswer,
     TheSlotRemoval,
 };
-/// The words a failed step is named with,
-/// written in the file that reports every run's ending.
-use crate::worktree_copy_forward_outcome::words_of;
 use std::path::{
     Path,
     PathBuf,
@@ -374,8 +374,12 @@ fn a_finished_bound_slots_removal_stops_its_units_and_takes_its_shadow_pool() {
     );
     match &finished {
         ForwardedRun::Failed {
-            code, ..
-        } => assert_eq!(*code, REMOVED_EXIT_CODE, "the removal reported that it finished"),
+            code,
+            ..
+        } => assert_eq!(
+            *code, REMOVED_EXIT_CODE,
+            "the removal reported that it finished"
+        ),
         other => panic!("a finished removal's answer travels, not {other:?}"),
     }
     assert!(!worktree.exists(), "the removal took the worktree");

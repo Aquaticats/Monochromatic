@@ -473,10 +473,13 @@ pub fn the_removal_with(
         ),
         _ => String::new(),
     };
-    // The slot holds a whole managed clone, so the wrapper removes it rather than Git. The slot's own report is printed
+    // The slot holds a whole managed clone, so the wrapper removes it rather than Git. The slot's own report is said
     //  first either way, because it is what proves the step is about this clone; the removal's report or the control's
     //  reading follows it.
-    let mut stderr: String = match &readings.reads {
+    //  A live removal says its lines to the terminal before the removal starts, so a person waiting can tell a removal
+    //  that runs from one that hung and a kill leaves a line saying one was running; a control's reading is returned
+    //  whole, because nothing runs there to announce.
+    let said: String = match &readings.reads {
         RemovalReads::Live => format!(
             "the removal of `{}` runs here: a whole managed clone is bound to this slot, and {}.{resuming} Git does not run. This removal ends no holder and forces nothing beyond what the command's own force count passes: `{}` force(s) were counted in the words, where two pass every refusal the removal has.\n",
             request.target.display(),
@@ -489,22 +492,29 @@ pub fn the_removal_with(
             crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
         ),
     };
+    let mut stderr: String = said;
     for line in at.lines() {
         stderr.push_str(line.as_str());
         stderr.push('\n');
     }
     return match &readings.reads {
         RemovalReads::Live => {
-            let answer: TheRemovalAnswer = complete_the_bound_clones_removal(
-                request.common_dir,
-                slot.as_str(),
-                crate::worktree_clone_add_route::the_removals_cancelling(),
-                request.force,
+            let answer: TheRemovalAnswer = crate::worktree_copying::worktree_removal_said_before_it_runs::say_then_run_the_removal(
+                crate::worktree_copying::worktree_removal_said_before_it_runs::TheRemovalSaidBeforeItRuns {
+                    said: stderr.as_str(),
+                    said_to: &mut std::io::stderr(),
+                    the_removal: &|| {
+                        return complete_the_bound_clones_removal(
+                            request.common_dir,
+                            slot.as_str(),
+                            crate::worktree_clone_add_route::the_removals_cancelling(),
+                            request.force,
+                        );
+                    },
+                },
             );
-            stderr.push_str(answer.lines.as_str());
-            stderr.push('\n');
             Some(BoundSlotRemovalAnswer {
-                stderr,
+                stderr: format!("{}\n", answer.lines),
                 code: answer.code,
             })
         }

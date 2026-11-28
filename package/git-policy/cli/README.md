@@ -2171,7 +2171,8 @@ A socket unit has no idle exit,
 and the service exits only three hours after its last client,
 so units of a worktree that was removed would run on.
 When the wrapper serves `git worktree remove <path>` (the subvolume destroy,
-or Git's own removal run as a child),
+Git's own removal run as a child,
+or the removal of a slot a whole managed clone is bound to),
 it reads the worktree's registration first,
 and once the removal ended well and the registration is gone it stops that worktree's socket unit and then its service
 unit through the user manager,
@@ -2492,9 +2493,16 @@ One force - you pick.",
 A holder is ended by no force count:
 the stop points below cancel the removal and put the clone back,
 which the round that would pass a holder has not built.
-The command prints the slot's state,
-its dataset and the one next safe action,
-then takes the slot's per-slot claim,
+The command says the removal runs before it runs:
+one line naming the slot,
+that a whole managed clone is bound to it and that Git does not run,
+with the slot's state,
+its dataset and the one next safe action beside it,
+is written to standard error before the removal's first step,
+so a person waiting at a terminal can tell a removal that runs from one that hung,
+and a kill leaves a line saying a removal was running.
+A terminal that refuses the line does not keep the removal from running.
+The removal then takes the slot's per-slot claim,
 proves the lineage,
 files the `unmount` request and waits for its verified answer,
 writes the destruction plan,
@@ -3018,10 +3026,14 @@ A lock holding a person's words is never overwritten:
 the add refuses,
 says what stands,
 and names `git worktree unlock <slot>` as the way out.
-A `git worktree remove` of that slot refuses for the same lock before its first
-write,
+A `git worktree remove` of that slot refuses for the same lock before it
+unmounts or destroys anything,
 and its sentence names the same command,
 so nothing of the clone is unmounted or destroyed while a person's lock stands.
+The removal's first write is the slot's claim file,
+which stopping gives back;
+the lock is read before the unmount, the plan and every destroy on every path,
+the resumed one whose clone is already gone included.
 The lock is released only by the removal's registration-cleanup step,
 after the clone's destruction is proven.
 

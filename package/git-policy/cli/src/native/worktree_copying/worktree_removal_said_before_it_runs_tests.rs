@@ -29,7 +29,8 @@ use std::cell::RefCell;
 /// The line a control says,
 /// which is the release's own opening words,
 /// so a reader of the control reads the form a person meets.
-const THE_LINE: &str = "the removal of `fix-flaky-test` runs here: a whole managed clone is bound to this slot\n";
+const THE_LINE: &str =
+    "the removal of `fix-flaky-test` runs here: a whole managed clone is bound to this slot\n";
 
 /// The report the removal a control runs answers with.
 const THE_REPORT: &str = "the clone, its snapshots and its records are destroyed\n";

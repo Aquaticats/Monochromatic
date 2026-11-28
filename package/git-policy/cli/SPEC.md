@@ -5123,7 +5123,7 @@ and every step reads the state a kill at the step before it leaves:
   a pool that could not be read,
   a record that names no clone GUID,
   and a lock that is not this add's own.
-  The removal reads the lock before its first write,
+  The removal reads the lock before it unmounts or destroys anything,
   so a lock holding a person's words refuses the removal before anything is
   destroyed
   (the section "Removal of a ZFS worktree clone" below).
@@ -5910,6 +5910,17 @@ and the slot's per-slot claim is its first step and its last:
    after the plan is proved gone,
    so no command meets a free slot whose removal's last witness still stands.
 
+A removal that runs says so before it runs:
+the line naming the slot,
+that a whole managed clone is bound to it and that Git does not run is written
+to standard error before the order's first step,
+with the slot's own report beside it,
+so a person waiting at a terminal can tell a removal that runs from one that
+hung,
+and a kill leaves a line saying a removal was running.
+The line is the wrapper's own notice,
+so a terminal that refuses it does not keep the removal from running.
+
 Two commands on one slot meet that claim rather than each other's writes:
 a second removal of the slot is refused while the first holds it,
 with the owner's process and claim file named,
@@ -6150,15 +6161,23 @@ and no other fact decides its path
   and names the settling command for every head word but `gone`,
   whose route is the finish pass once the pool answers.
 
-A lock on the registration whose words are not the add's own refuses the removal
-before its first write with no force and with one,
+A lock on the registration whose words are not the add's own refuses the removal,
+with no force and with one,
+before it unmounts or destroys anything,
 in the same words the add's own resume uses,
-because the Git settle is the order's only step that reads `locked` and it comes
-after every destroy:
+because the Git settle reads `locked` after the unmount, the plan and every
+destroy,
+so a lock met only there would be met after the clone's history went.
+The slot's claim file is the only record the run writes,
+and stopping gives the slot back:
 nothing is unmounted,
 nothing is destroyed,
 no intent is filed and no plan is written,
 and the sentence names `git worktree unlock <slot>` and the double force.
+Every path that writes reads it first,
+the resumed path whose clone is already gone included:
+that path publishes the plan's own lines and destroys the origin snapshot,
+so a person's lock refuses it before either.
 Two forces delete the lock file and then run the removal,
 as the force section above states.
 
