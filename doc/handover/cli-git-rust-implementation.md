@@ -2982,8 +2982,6 @@ and the two `truepeak` files wait on their branch.
   the IDE needs one container run before it is called green,
   and the three regenerated locks were written by `cargo fetch`,
   not through `cargo-shadow`'s trust policy.
-- The driver's pool gate counts no virtual run (`88a9363636`).
-  A member a caller closes with `PI_RUNS_POOL_LIMITS` therefore no longer stops a run on a virtual selection.
 - `source_guard/standards_review_boundary_tests.rs` now treats the declaration of a module
   whose name begins with a service-only module's name as a declaration,
   not a mention (`3fd13e17fe`);
