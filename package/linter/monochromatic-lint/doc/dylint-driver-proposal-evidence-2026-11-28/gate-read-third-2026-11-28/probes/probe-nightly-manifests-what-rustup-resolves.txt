@@ -1,0 +1,60 @@
+# static.rust-lang.org channel manifests, read-only fetch, 2026-11-28T07:27:58-05:00
+## dist/2026-11-13/channel-rust-nightly.toml
+curl status 0
+2:date = "2026-11-13"
+[pkg.rustc]
+version = "1.102.0-nightly (8eb778d04 2026-11-12)"
+git_commit_hash = "8eb778d04094d3af4b26580cab327e0413eb1e02"
+rustc-dev available for x86_64-unknown-linux-gnu:
+[pkg.rustc-dev.target.x86_64-unknown-linux-gnu]
+available = true
+url = "https://static.rust-lang.org/dist/2026-11-13/rustc-dev-nightly-x86_64-unknown-linux-gnu.tar.gz"
+## dist/2026-11-16/channel-rust-nightly.toml
+curl status 0
+2:date = "2026-11-16"
+[pkg.rustc]
+version = "1.102.0-nightly (5f4effd57 2026-11-13)"
+git_commit_hash = "5f4effd579500175af844241eb179e756190f1e7"
+rustc-dev available for x86_64-unknown-linux-gnu:
+[pkg.rustc-dev.target.x86_64-unknown-linux-gnu]
+available = true
+url = "https://static.rust-lang.org/dist/2026-11-16/rustc-dev-nightly-x86_64-unknown-linux-gnu.tar.gz"
+## dist/2026-11-17/channel-rust-nightly.toml
+curl status 0
+2:date = "2026-11-17"
+[pkg.rustc]
+version = "1.102.0-nightly (5df8c02af 2026-11-16)"
+git_commit_hash = "5df8c02afdf6b882bc301442cea70f026e3d3974"
+rustc-dev available for x86_64-unknown-linux-gnu:
+[pkg.rustc-dev.target.x86_64-unknown-linux-gnu]
+available = true
+url = "https://static.rust-lang.org/dist/2026-11-17/rustc-dev-nightly-x86_64-unknown-linux-gnu.tar.gz"
+## dist/2026-11-26/channel-rust-nightly.toml
+curl status 0
+2:date = "2026-11-26"
+[pkg.rustc]
+version = "1.102.0-nightly (6c709eb42 2026-11-25)"
+git_commit_hash = "6c709eb428d472a3c3d93681c1ba37d44a1c27cf"
+rustc-dev available for x86_64-unknown-linux-gnu:
+[pkg.rustc-dev.target.x86_64-unknown-linux-gnu]
+available = true
+url = "https://static.rust-lang.org/dist/2026-11-26/rustc-dev-nightly-x86_64-unknown-linux-gnu.tar.gz"
+## dist/2026-11-27/channel-rust-nightly.toml
+curl status 22
+rustc-dev available for x86_64-unknown-linux-gnu:
+## dist/2026-11-28/channel-rust-nightly.toml
+curl status 0
+2:date = "2026-11-28"
+[pkg.rustc]
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+git_commit_hash = "c82ce15637153c025d29abbaff6035a177361788"
+rustc-dev available for x86_64-unknown-linux-gnu:
+[pkg.rustc-dev.target.x86_64-unknown-linux-gnu]
+available = true
+url = "https://static.rust-lang.org/dist/2026-11-28/rustc-dev-nightly-x86_64-unknown-linux-gnu.tar.gz"
+## dist/channel-rust-nightly.toml (latest)
+curl status 0
+2:date = "2026-11-28"
+[pkg.rustc]
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+git_commit_hash = "c82ce15637153c025d29abbaff6035a177361788"

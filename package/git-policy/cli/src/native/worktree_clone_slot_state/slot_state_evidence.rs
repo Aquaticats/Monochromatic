@@ -217,6 +217,11 @@ fn mount_evidence(
         CloneMount::Elsewhere {
             described,
         } => lines.push(format!("mount: the clone is elsewhere ({described})")),
+        CloneMount::AtTheStagingFolder {
+            described,
+        } => lines.push(format!(
+            "mount: the clone is on the staging folder an earlier removal's unmount left it on ({described})"
+        )),
         CloneMount::SomethingElseAtTheSlot {
             described,
         } => lines.push(format!("mount: {described} stands at the slot")),

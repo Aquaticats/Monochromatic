@@ -1,0 +1,103 @@
+== clock 2026-11-28T13:01:24+00:00
+== image localhost/dylint-probe-2026-11-28c
+== rustup
+info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+== toolchains at the start
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+== linter
+monochromatic-lint 0.5.2-alpha.25
+== linter digest
+34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  /work/monochromatic-lint
+== arm A: the linter with auto-install off and a file naming a toolchain that is absent
+a show active-toolchain status 1
+error: override toolchain 'nightly-2026-11-21-x86_64-unknown-linux-gnu' is not installed: the toolchain file at '/work/repo-a/lint-closure/rust-toolchain.toml' specifies an uninstalled toolchain
+a pkg fetch status 0
+a linter status 0
+--- stderr
+--- with --debug, the probe's own note
+a linter --debug status 0
+monochromatic-lint: debug: discovered 127 supported file(s)
+monochromatic-lint: debug: pkg/README.md: selected for linting
+monochromatic-lint: debug: pkg/src/adoption_gate.rs: selected for linting
+monochromatic-lint: debug: pkg/src/adoption_gate_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_marks.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_marks_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_targets.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_targets_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_mark_reconciliation.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_process_events_and_rescans.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_run_and_poll.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service_child_run.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service_start.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_state.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/bounded_command.rs: selected for linting
+monochromatic-lint: debug: pkg/src/bounded_command_tests.rs: selected for linting
+== arm B: a file naming an absent toolchain, auto-install on: what gets installed
+b show active-toolchain status 0
+info: syncing channel updates for nightly-2026-11-20-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-20 for version 1.102.0-nightly (6905905bb 2026-11-19)
+info: downloading 8 components
+warn: the missing active toolchain `nightly-2026-11-20-x86_64-unknown-linux-gnu` has been auto-installed
+warn: auto-installation is deprecated for most `rustup` commands
+warn: scripts relying on this behavior in `rustup` may stop working in the future
+warn: to install the active toolchain, use `rustup install` instead
+warn: see <https://github.com/rust-lang/rustup/issues/4836> for more info
+nightly-2026-11-20-x86_64-unknown-linux-gnu (overridden by '/work/probe-b/rust-toolchain.toml')
+--- the components that toolchain now holds (itemised, not counted)
+cargo-x86_64-unknown-linux-gnu
+clippy-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-docs-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+rustfmt-x86_64-unknown-linux-gnu
+== arm C: a present toolchain that lacks a component the file declares
+--- components before
+cargo-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+c show active-toolchain status 0
+info: syncing channel updates for nightly-2026-11-17-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-17 for version 1.102.0-nightly (5df8c02af 2026-11-16)
+info: downloading 2 components
+nightly-2026-11-17-x86_64-unknown-linux-gnu (overridden by '/work/probe-c/rust-toolchain.toml')
+--- components after show
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+c cargo --version status 0
+cargo 1.102.0-nightly (ede6cefea 2026-11-11)
+--- components after cargo --version
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== arm D: the supported step, rustup toolchain install with no argument, in that directory
+d rustup toolchain install status 0
+info: using existing install for nightly-2026-11-17-x86_64-unknown-linux-gnu
+info: the active toolchain `nightly-2026-11-17-x86_64-unknown-linux-gnu` has been installed
+info: it's active because: overridden by '/work/probe-c/rust-toolchain.toml'
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager
+--- components after rustup toolchain install
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== toolchains at the end
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+nightly-2026-11-20-x86_64-unknown-linux-gnu
+== done 2026-11-28T13:02:01+00:00

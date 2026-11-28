@@ -31,6 +31,9 @@
 //!   the root-owned `/run` directory a record lives in,
 //!   made when it is absent and proved through its own descriptor,
 //!   which uses nothing in this folder and is used by the two writers below.
+//! - `staging_folder_component.rs`:
+//!   the component every staging folder of a removed clone begins with,
+//!   and the question whether a mount point is one.
 //! - `clone_mount_property_names.rs`:
 //!   the two property names,
 //!   the version and operation words and the intent's byte bound.
@@ -143,6 +146,9 @@
 
 /// The root-owned `/run` directory a record lives in.
 pub mod root_owned_directory;
+
+/// The component every staging folder of a removed clone begins with.
+pub mod staging_folder_component;
 
 /// The route's fixed property names,
 /// words and bounds.

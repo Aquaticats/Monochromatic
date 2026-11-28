@@ -4142,3 +4142,29 @@ control on the same host,
 whose cause is recorded in
 `doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`,
 "A machine without the tracer".
+
+### The gate on `ce0d52a686`, read 2026-11-28T08:26:48-05:00
+
+Unapproved and non-final.
+One whole gate on `main` at `ce0d52a686`,
+started at 2026-11-28T08:01:43-05:00 through `mise run //package/git-policy/cli:native:gate:main-tip`,
+in the unit `gpc-gate-wrapper-next-alpha-on-ce0d52a686-20261128T080143-0500`.
+Its own lines:
+`Summary [ 950.633s] 12708 tests run: 12708 passed (6 slow), 52 skipped`
+and `gate-exit-status=0`.
+
+The batch it covers:
+the removal that reads force (`7c4962988d`),
+the private propagation step (`ce0d52a686`),
+the shutdown pass (`871e0be314`),
+the forced arm's ending for a namespace no task is in (`3db7f34154`)
+and the merges of the morning before them.
+No guest ran on this machine while it ran:
+the last local guest was destroyed before 07:53.
+The wrapper's `0.6.1-alpha.54` was dispatched from `main` at `01f7b701d0` after it;
+no commit between the two touches the crate's source or its manifest.
+
+The verdict task needs the unit,
+the log's path and a deadline:
+`mise run //package/git-policy/cli:native:gate:verdict -- --unit <unit>.service <log path> <seconds>`.
+Run without them it prints its usage and exits 1.

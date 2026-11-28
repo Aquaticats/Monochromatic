@@ -1,0 +1,53 @@
+recounted on 2026-11-28T08:05:12-05:00 from the kept files of M3
+== one line per package with its closure finding count (the second column is the count)
+package/browser-selector/desktop-app	0
+package/browserslist/core-rust	0
+package/cargo-shadow/cli	6
+package/catalog-specifier/core-rust	0
+package/codex-plugin/bash-limit	0
+package/cpu-temperature/cli	13
+package/dependency-catalog/core-native	0
+package/file-enforcer/cli	0
+package/file-enforcer/core-rust	0
+package/file-manager/app	0
+package/file-manager/variant-gtk-sticky	0
+package/file-manager/variant-qt	0
+package/forbidden-strings/cli	0
+package/forbidden-strings/core	0
+package/git-policy/cli	1502
+package/ide/app	0
+package/jsonc-edit/core-rust	0
+package/linter/monochromatic-lint-closure	0
+package/linter/monochromatic-lint	31
+package/mpm-shadow/cli	72
+package/music-player/android-app/rust	0
+package/music-player/desktop-app	0
+package/music-player/truepeak-core	0
+package/nested-wayland-session/cli	0
+package/pnpm-shadow/cli	0
+package/search-shadow/cli	0
+package/terminal/app	0
+package/wg/cli-quicker-exempt	6
+package/xml-edit/core-rust	0
+package/zfs/request-to-openzfs-kernel-device	44
+
+== total over the seven packages with findings
+packages with findings: 7, findings: 1674
+== the four packages the issue names
+package/cargo-shadow/cli	6
+package/git-policy/cli	1502
+package/linter/monochromatic-lint	31
+package/mpm-shadow/cli	72
+sum: 1611
+== skip packages
+package/file-manager/app
+package/file-manager/variant-gtk-sticky
+package/file-manager/variant-qt
+package/ide/app
+package/music-player/android-app/rust
+package/terminal/app
+== failure packages
+package/browser-selector/desktop-app
+package/music-player/desktop-app
+== rows and the sum of the wall seconds (third column)
+rows: 30, wall seconds: 1688

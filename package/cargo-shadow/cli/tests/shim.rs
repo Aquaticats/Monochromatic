@@ -1964,3 +1964,149 @@ fn an_explicit_build_dir_of_the_user_wins_and_no_toolchain_means_no_keying() {
     );
     assert!(!base.exists(), "nothing is created when nothing is keyed");
 }
+
+/// The slice this account's user manager reports,
+/// or nothing where a call here would send the manager a request this test may not make:
+/// a manager that reports no control group for `app.slice`,
+/// or one that already has a job queued on it.
+/// The job is read beside the path because a discovery that finds a job starts the slice,
+/// which is a request to this account's manager that no test of this package makes
+/// (`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`).
+fn a_running_slice_with_no_job() -> Option<String> {
+    let answered = Command::new("systemctl")
+        .args([
+            "--user",
+            "show",
+            "app.slice",
+            "--property=ControlGroup",
+            "--property=Job",
+        ])
+        .output();
+    let output: Output = match answered {
+        Ok(found) => found,
+        Err(_) => return None,
+    };
+    if !output.status.success() {
+        return None;
+    }
+    let text: String = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut path: String = String::new();
+    let mut a_job_stands: bool = false;
+    for line in text.lines() {
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
+        match name {
+            "ControlGroup" => path = value.trim().to_string(),
+            "Job" => a_job_stands = !value.trim().is_empty(),
+            _ => {}
+        }
+    }
+    if path.is_empty() || a_job_stands {
+        return None;
+    }
+    return Some(path);
+}
+
+/// The control of a start that spends the discovery's bound and leaves a job on the slice (Medium 1 of the alpha.18 read):
+/// a stand-in `systemctl` answers the first ask with the slice's path and a queued job,
+/// makes the start spend the bound it is given,
+/// and answers the ask after it with the same path and job.
+/// The path beside that job is the stop the start was waiting out,
+/// so the call must stop there,
+/// name the program and the bound,
+/// leave the lockfile as it found it,
+/// and run none of the user's command
+/// (measured 2026-11-28 against the released `0.1.5-alpha.18`:
+/// the same state made that release take the path as its route and
+/// wait 29.8 s to 29.9 s inside the scope launcher).
+#[test]
+fn a_start_that_spends_the_discovery_s_bound_stops_the_command_and_leaves_the_lockfile_as_it_was() {
+    let world = make_world();
+    write_lock(&world, STALE);
+    let slice: String = match a_running_slice_with_no_job() {
+        Some(found) => found,
+        None => {
+            println!(
+                "cargo-shadow tests: not run [{}]: this host's user manager reports no running app.slice with no job queued on it, so a discovery here would start this account's slice; it runs where `systemctl --user show app.slice --property=ControlGroup --property=Job` answers a path and no job",
+                std::thread::current().name().unwrap_or(
+                    "a_start_that_spends_the_discovery_s_bound_stops_the_command_and_leaves_the_lockfile_as_it_was"
+                )
+            );
+            return;
+        }
+    };
+    let standin: PathBuf = world._guard.path().join("standin");
+    std::fs::create_dir_all(&standin).expect("make the stand-in's folder");
+    let asks: PathBuf = world._guard.path().join("systemctl-asks");
+    // The stand-in writes down every ask, spends the bound on the start, and answers every ask of where the slice is with the
+    // path and a queued job.
+    let program: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{asks}'\ncase \" $* \" in\n  *\" start \"*) exec sleep 120 ;;\n  *\" show \"*) printf 'ControlGroup={slice}\\nJob=42\\n'; exit 0 ;;\nesac\nexit 0\n",
+        asks = asks.display(),
+        slice = slice
+    );
+    let systemctl: PathBuf = standin.join("systemctl");
+    std::fs::write(&systemctl, program).expect("write the stand-in");
+    std::fs::set_permissions(&systemctl, std::fs::Permissions::from_mode(0o755))
+        .expect("make it executable");
+    // The real PATH follows the three folders of the world, because the scope launcher and the stand-in cargo start from it.
+    let path: String = format!(
+        "{}:{}",
+        path_of(&[&standin, &world.shadow_directory, &world.fake_directory]),
+        std::env::var("PATH").unwrap_or_default()
+    );
+
+    let began: Instant = Instant::now();
+    let output: Output = shadow_command(&world)
+        .args(["metadata", "--format-version", "1"])
+        .current_dir(world.repository.join(CRATE_DIR))
+        .env("PATH", path)
+        .env("CI", "")
+        .env("FAKE_CARGO_LOG", &world.log)
+        .env("FAKE_CARGO_EXIT", "0")
+        .output()
+        .expect("start the shadow");
+    let took: Duration = began.elapsed();
+
+    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(
+        output.status.code(),
+        Some(cargo_shadow::constants::INSTALL_FAILED_EXIT_CODE),
+        "the call did not stop on a route it cannot wait out: {stderr}"
+    );
+    assert!(
+        stderr.contains("no delegated control group can be had now"),
+        "the refusal does not say what is missing: {stderr}"
+    );
+    assert!(
+        stderr.contains("systemctl did not answer within"),
+        "the refusal does not name the program and the bound: {stderr}"
+    );
+    assert!(
+        stderr.contains("a job is still queued on app.slice"),
+        "the refusal does not say what stands in the way: {stderr}"
+    );
+    assert_eq!(
+        read_lock(&world),
+        STALE,
+        "a refused call changed the lockfile it was checking"
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stdout).contains(FAKE_MARKER),
+        "a refused call ran the user's command: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let asked: String = std::fs::read_to_string(&asks).expect("the stand-in's asks");
+    let asks_of_the_call: Vec<&str> = asked.lines().collect();
+    assert_eq!(
+        asks_of_the_call.len(),
+        3,
+        "the call asked more than the answer that refused it: {asks_of_the_call:?}"
+    );
+    assert!(
+        asks_of_the_call[1].contains("start app.slice"),
+        "the discovery did not ask the start through the slice that a job stands on: {asks_of_the_call:?}"
+    );
+    println!("the call refused after {took:?}");
+}

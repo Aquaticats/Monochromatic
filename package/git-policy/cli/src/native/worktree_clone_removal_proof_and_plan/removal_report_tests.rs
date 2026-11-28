@@ -60,6 +60,9 @@ fn a_finished_removal() -> TheRemovalDone {
             folder_removed: true,
         },
         claim: ClaimEnd::Released,
+        // The report of a removal no force touched prints no act of one.
+        forced:
+            crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs::nothing(),
         plan_path: PathBuf::from(
             "/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/7828944690444299989",
         ),

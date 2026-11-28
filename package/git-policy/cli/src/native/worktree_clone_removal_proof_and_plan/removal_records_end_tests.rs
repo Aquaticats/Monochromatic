@@ -78,7 +78,7 @@ fn the_inventories_go_before_the_binding_and_the_plan_after_them() {
     let (fixture, plan) = a_fixture("records-end-healthy");
     let home: PathBuf = home_folder(fixture.common());
     let gone: RecordsGone =
-        remove_the_removal_records(fixture.common(), SLOT, &plan).expect("the records go");
+        remove_the_removal_records(fixture.common(), SLOT, &plan, None).expect("the records go");
     assert_eq!(
         gone.files,
         vec![
@@ -119,7 +119,7 @@ fn a_binding_of_another_clone_is_left_and_the_plan_with_it() {
         "cloneGuid=1",
     );
     std::fs::write(binding.as_path(), changed).expect("the binding names another clone");
-    let stop: RemovalStop = remove_the_removal_records(fixture.common(), SLOT, &plan)
+    let stop: RemovalStop = remove_the_removal_records(fixture.common(), SLOT, &plan, None)
         .expect_err("another clone's binding is not this removal's");
     assert!(matches!(stop, RemovalStop::TheRecordsCouldNotGo { .. }));
     assert!(stands(binding.as_path()), "the binding stands");

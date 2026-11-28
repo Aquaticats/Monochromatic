@@ -506,6 +506,7 @@ fn the_route_cache_does_not_make_a_caller_wait_for_a_discovery_in_flight() {
             .get_or_discover(&|| {
                 return Err(crate::control_group::GroupUnavailable {
                     reason: "must not be asked".to_string(),
+                    stops_the_call: false,
                 });
             })
             .is_ok(),

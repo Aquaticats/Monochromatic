@@ -161,34 +161,63 @@ and the module holds what each backend answers for the facts a guest step meets:
   and the account's `/home/ubuntu` on `ovh`;
 - whether a step may reboot the guest or cut its power,
   which `ovh` cannot do at all:
-  `mvm` never stops, pauses, shelves or resumes an instance on it.
+  `mvm` never stops,
+  pauses,
+  shelves or resumes an instance on it.
 
+Each backend names the image a run that says nothing is made from:
+`libvirt` takes `mvm`'s own Ubuntu 24.04 template,
+and `ovh` takes the catalogue's `Ubuntu 24.04`,
+which is the release the recipe's packages and kernel pin are written for
+(the record's `defaultGuestImage`,
+read by a driver's `create` with no change of
+its own).
 `--guest-image <name>` names an image in a cloud backend's own catalogue,
 which `prepare` still installs and builds against;
-`--image <template>` is the libvirt custom template, which `prepare` only asserts.
+`--image <template>` is the libvirt custom template,
+which `prepare` only asserts.
 `--kernel-release <release>` names the kernel the prepared guest must boot,
 and defaults to the release `libvirt`'s baked image carries,
 or to the release a cloud guest answers with,
 printed before anything is built against it.
 
 The steps whose subject is a reboot or a power cut refuse on a backend without that,
-by name, before the run creates anything:
-`zfs-add`, `zfs-add-boot-*` and `zfs-add-power-*`.
+by name,
+before the run creates anything:
+`zfs-add`,
+`zfs-add-boot-*` and `zfs-add-power-*`.
+
+The folder the host's files land in is `/mnt/shared` on either backend:
+`mvm create` mounts a libvirt guest's share there,
+and a backend that mounts none has the folder made once,
+as root,
+owned by the account every `scp` and `ssh` runs as
+(`makesThePushedFolder`).
+Every push goes into it and every pulled log comes out of it,
+so a step's scripts are the same on both backends.
 
 A run on `ovh` costs money by the second until the machine is deleted,
 so the round that makes one lists the project before the create,
 makes one machine at a time,
-destroys it by its name (never `--all`, which deletes other rounds' machines),
+destroys it by its name (never `--all`,
+which deletes other rounds' machines),
 and ends with a listing that shows none of its own.
 The recipe's `destroy` step does the first half of that;
 the listing is the round's.
 
-The first run of this kind,
+The first runs of this kind,
 2026-11-28,
-made `b3-16` (4 vCPUs, 16 GiB) in `BHS5` from the image `Ubuntu 24.04`,
-prepared it (kernel `6.8.0-136-generic`, OpenZFS 2.4.4 built in the guest),
-ran the step 4 attach arm (6 passed, teardown clean)
-and destroyed it.
+made `b3-16` in `BHS5` from the image `Ubuntu 24.04`
+(the size `mvm`'s own README names as an example of a larger flavour;
+the guest's own processor count and memory were not read before it was destroyed)
+(the recipe's own run,
+and then a wrapper driver's through its `mise` task with
+`MVM_BACKEND=ovh`),
+prepared one (kernel `6.8.0-136-generic`,
+OpenZFS 2.4.4 built in the guest),
+ran the step 4 attach arm on the first (6 passed,
+teardown clean) and a wrapper driver's guest arm on the second,
+and destroyed each by its name.
 Its timings and what it refused first are in
 `package/git-policy/cli/e2e/README.md`,
 "The recipe's first OVHcloud run".

@@ -510,6 +510,7 @@ pub fn complete(
         cancelling: the.cancelling,
         budget: the.budget,
         now: NOW,
+        force: crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce::none(),
     };
     return crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal(
         &input,

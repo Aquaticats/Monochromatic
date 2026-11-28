@@ -1,0 +1,3 @@
+info: removing component rustc-dev
+info: rolling back changes
+error: could not rename 'component' file from '/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_thread_pool/src/spawn' to '/root/.rustup/tmp/as_62pgs4dl_nizm_dir/bk': Invalid cross-device link (os error 18): Invalid cross-device link (os error 18)

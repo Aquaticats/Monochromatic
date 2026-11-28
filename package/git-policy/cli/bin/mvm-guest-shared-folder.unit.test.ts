@@ -103,13 +103,22 @@ await describe({
         forgetPreparedGuests();
         /** What the stand-in was asked. */
         const standIn = aStandInRun(0,);
-        for (const _ of [1, 2, 3,]) {
-          await ensureTheGuestSharedFolder({
-            chosen: CHOSEN,
-            backend: GUEST_BACKENDS.ovh,
-            run: standIn.run,
-          },);
-        }
+        // Three pushes of one run, one after the other, which is how a driver's steps arrive.
+        await ensureTheGuestSharedFolder({
+          chosen: CHOSEN,
+          backend: GUEST_BACKENDS.ovh,
+          run: standIn.run,
+        },);
+        await ensureTheGuestSharedFolder({
+          chosen: CHOSEN,
+          backend: GUEST_BACKENDS.ovh,
+          run: standIn.run,
+        },);
+        await ensureTheGuestSharedFolder({
+          chosen: CHOSEN,
+          backend: GUEST_BACKENDS.ovh,
+          run: standIn.run,
+        },);
         expect(standIn.asked.length,).toBe(1,);
       },
     },),
@@ -119,16 +128,22 @@ await describe({
         forgetPreparedGuests();
         /** What the stand-in was asked. */
         const standIn = aStandInRun(0,);
-        for (const name of ['guest-a', 'guest-b',]) {
-          await ensureTheGuestSharedFolder({
-            chosen: {
-              ...CHOSEN,
-              name,
-            },
-            backend: GUEST_BACKENDS.ovh,
-            run: standIn.run,
-          },);
-        }
+        await ensureTheGuestSharedFolder({
+          chosen: {
+            ...CHOSEN,
+            name: 'guest-b',
+          },
+          backend: GUEST_BACKENDS.ovh,
+          run: standIn.run,
+        },);
+        await ensureTheGuestSharedFolder({
+          chosen: {
+            ...CHOSEN,
+            name: 'guest-c',
+          },
+          backend: GUEST_BACKENDS.ovh,
+          run: standIn.run,
+        },);
         expect(standIn.asked.length,).toBe(2,);
       },
     },),

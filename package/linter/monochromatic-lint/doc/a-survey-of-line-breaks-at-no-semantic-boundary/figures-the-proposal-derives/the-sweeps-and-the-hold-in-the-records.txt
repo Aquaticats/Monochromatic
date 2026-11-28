@@ -1,0 +1,122 @@
+# The sweeps of this rule's fix, and the hold, read from the records
+
+Every command below is read-only. Run from the repository root at the survey commit's branch,
+on 2026-11-28, in a `systemd-run --user --scope --slice=agent-work.slice` scope.
+
+## the commits the records name, with their own dates
+
+```
+$ git log --format="%H %cI %s" --since=2026-11-05 --until=2026-11-28T08:00-05:00 --first-parent | rg "line.?break|semantic.?line|whitespace"
+dc42566e69cb294a4f2c0bda783e48fef42528a0 2026-11-28T07:15:39-05:00 Merge branch docs/planning-line-break-proposal-revised-against-its-third-gate-read-by-text-and-one-control
+6f52a414fca7b131b97e8e1d973e938e871439ad 2026-11-28T09:43:57Z chore(linter/monochromatic-lint): release 0.5.2-alpha.25: Alpha.24 read fixes: the line-break fix settles in one pass and keeps the line limit; the allow-list reader makes one pass and its sentences name the right edit.
+8638a539285704ec7032879f77f3351e759b1cdf 2026-11-28T04:39:17-05:00 Merge branch 'docs/planning-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again'
+58ed1e6c1809f0d0dcd55c8f2a4507daa938e639 2026-11-28T03:24:34-05:00 docs(troubleshooting): break the shell -c rm prompt record at semantic line breaks
+5bb8813b28a7a95427674dba27511a5c497ce369 2026-11-28T02:05:36-05:00 Merge branch 'docs/planning-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept'
+40710212edb71418ee2ff701bf3c8b2080e4d5f8 2026-11-28T02:43:41Z chore(linter/monochromatic-lint): release 0.5.2-alpha.24: A long gap after file-uses costs linear time; each sentence a dead line or refusal prints is true for its edit; the line-break fix joins the fragment an old wrap cut.
+cdf69930fd8f2b865789ed07c87121a1ec239ada 2026-11-27T21:39:30-05:00 Merge branch 'fix/monochromatic-lint-issue-6642-the-line-break-fix-joins-what-the-old-wrap-cut-and-leaves-no-lone-word'
+487fed53b08e7000ce8b3d50b58c72cbe85d56a0 2026-11-27T18:42:53-05:00 docs(handover): the alias round, the workflow fix, the wrapper's line breaks and cargo-shadow's lib.rs are merged, and the wrapper's gate runs
+beb61ec46b698d78dddeb274d8f165c2b8c01428 2026-11-27T18:38:01-05:00 Merge branch 'style/git-policy-cli-line-breaks-the-linter-fixes-by-whitespace-alone'
+e912700bd9e2715c38ae518b25f1f6de50c7620e 2026-11-27T18:25:53-05:00 docs(handover): the Pi driver's line breaks are fixed by the linter, and rounds run for cargo-shadow's lib.rs and for the store fixture of issue 6410
+e6026dbd46c2dd9a889c08ca6fe5b6f36e72fd37 2026-11-27T18:22:37-05:00 Merge branch 'style/pi-shared-subagent-driver-line-breaks-the-linter-fixes-by-whitespace-alone'
+893035805c12ae9a79d72b056a5f98af8d11f9e1 2026-11-27T18:17:54-05:00 docs(handover): the linter's alpha.22 read is weighed and its round started; two packages' line-break findings are gone by the linter's own fix
+f6b4dc0947c05a086e4fe189f5d7458034cd99ed 2026-11-27T18:16:07-05:00 Merge branch 'style/cargo-shadow-cli-line-breaks-the-linter-fixes-by-whitespace-alone'
+ee8871b190cbdbde29d18c7d6c900a063fdeef49 2026-11-27T18:15:47-05:00 Merge branch 'style/mpm-shadow-cli-line-breaks-the-linter-fixes-by-whitespace-alone'
+2261d05b14f51eba76ba78a8a61a29b1f8730fa9 2026-11-27T14:21:49-05:00 Merge branch 'fix/monochromatic-lint-alpha-20-release-pass-a-whitespace-folder-in-a-file-uses-line-and-messages-that-point-wrong'
+d4a9bb554430dc7283702201479d0d9fb1b47f98 2026-11-27T17:34:40Z chore(linter/monochromatic-lint): release 0.5.2-alpha.20: every spelling of a uses line is read or reported dead with its whitespace named, none stops the rule, and a mistyped file-uses line is told what is wrong with it
+b89d24990d473374804a8e1f4ea244d6618af5b2 2026-11-26T03:21:25-05:00 docs(troubleshooting): record why the apparmor.d bodies changed and fix line breaks
+f12e93fa301c56001354ba1d671e0ab13a0e8b47 2026-11-24T02:31:50-05:00 docs(troubleshooting): semantic line breaks in the ninth batch section
+9ad03b76931a2445b9b6eac6bda60130773f0802 2026-11-24T01:24:19-05:00 docs(zfs-request-to-openzfs-kernel-device): semantic line breaks in the e2e README
+fcaa7b840bdd95c0c99438210c9606189072cb2e 2026-11-24T01:23:27-05:00 docs(handover): one of the two left-out line-break files is fixed
+2b748f3748823f7f34f2db4bd166fae0709c50f6 2026-11-24T01:22:58-05:00 docs(troubleshooting): semantic line breaks in the AppArmor dbus boot failure account
+96fe5ec80401a6fc0f2fe9196e4fe4f06aac56f3 2026-11-24T01:19:33-05:00 docs(*): semantic line breaks in three docs changed tonight
+c2701d58a57706dd320575b0d918843cb98c6704 2026-11-23T21:45:28-05:00 docs(handover): the Markdown line-break fixes of 2026-11-23's files, and what waits for open branches
+23cb42e24acd4fd5d824447d3f877dd22a3ca3a9 2026-11-23T21:43:12-05:00 docs(*): line breaks at sentence and clause boundaries in the Markdown changed on 2026-11-23
+0336e37603f4c5231d0990d6b80c3a53f82a49ad 2026-11-17T17:45:01-05:00 style(browser-selector-desktop-app): trim task file trailing whitespace
+b68463d293bbd445fafed0af3b672ddb6dec2058 2026-11-13T16:57:48-05:00 docs(research): the Kitesurf screening record breaks its correction note at the comma the semantic-line-breaks lint asks for
+17545e93c3e3a9a0d0ead889b48418b0291216df 2026-11-09T17:51:51-05:00 merge(rolldown-plugin-import-attributes): a with clause after any JavaScript whitespace is found
+f7ec38cbc919805512722e02417a22f9e6ea9bcd 2026-11-08T19:05:01-05:00 style(*): commit the whitespace-only reflow a format run left in the main checkout
+f0ad0b689a5de54c697cd13dbe5b8e2cdbe6b523 2026-11-08T18:35:40-05:00 style(*): commit the whitespace-only reflow a format run left in the main checkout
+92065f29b2a4cb44eb25e0d8f2b84123ad3c6bdf 2026-11-08T17:57:43-05:00 style(*): commit the whitespace-only reflow a format run left in the main checkout
+f8017786bc808d1e051a7e495d186c1d2ae2097f 2026-11-08T17:10:55-05:00 style(*): commit the whitespace-only reflow a format run left in the main checkout
+f6b7e12678e48721b8227a2ef6d70fff5427b83d 2026-11-08T03:44:08-05:00 docs(handover): W6 and W7 are applied by the coordinator at the cutover (owner answer); pipe tests show the wrapped hook, status line and MCP commands behave as today; keep the whitespace reflow already in the file
+19e759079c29a71e004546457190fa353aad2092 2026-11-08T03:39:43-05:00 docs(handover): re-break lines in the lean build folders and Rust implementation handovers so semantic-line-breaks passes (word stream unchanged)
+fd195ddb7847fe7dc844f6aca80a761b63385a4c 2026-11-08T03:38:15-05:00 docs(handover): document the Rust API sketches in the candidates handover so require-rustdoc passes; keep the whitespace reflow already in the file
+63642e099908762e8f1a69a72669635aeef966bd 2026-11-08T00:31:54-05:00 docs(planning): whitespace-only line breaks in the tokio plan (fixer output left uncommitted by a run without paths; no word changed)
+89803fbcf0e859f3d4717465ec2639d4490b698f 2026-11-07T23:00:42-05:00 docs(planning): line breaks and the note length in the alpha.3 release record, from the fixer
+e0b808e244d451ca79bb1544bb2eea3da42d1588 2026-11-07T22:39:44-05:00 style(decision): reflow decision records with the whitespace-only fixer
+4de475d142acd3878e4213f46d50b3fbe3a8a456 2026-11-07T16:31:17-05:00 merge(monochromatic-lint): a cargo that fails the dylint probe without saying "no such command" fails the closure check and names mise run toolchain:install (feat/monochromatic-lint-fix-classes-whitespace-and-content)
+2b6c1521ef79c47329dbfdeb84825de421c12d31 2026-11-07T16:21:31-05:00 merge(monochromatic-lint): every fix carries a class; plain --fix applies only whitespace fixes and --fix-content applies content fixes too (feat/monochromatic-lint-fix-classes-whitespace-and-content)
+4365ac97bc5f35e9de59de468b2e9f385d840e8e 2026-11-07T16:20:29-05:00 merge(git-policy-cli): the package lint runs the repository linter at --max-warnings 0 and passes it: whitespace-only line breaks from the fixer, three files split under the code-line limit, 47 closures named (fix/git-policy-cli-passes-the-repository-linter, gate 5199 of 5199)
+```
+
+## the commits cited in the proposal, one line each
+
+```
+$ git show --no-patch --format="%H %cI %s" e3174c31b0 09d670555d fce04655a0 aa559080b7 46a85668cb cc34dc6faf 23cb42e24a c2701d58a5 96fe5ec804 2b748f3748 fcaa7b840b 9ad03b7693 f12e93fa30 ee8871b190 f6b4dc0947 e6026dbd46 beb61ec46b 96c930201f fc679b9392 6f52a414fc 136a40fe69
+e3174c31b01b807b2200e8e1c82d4e6858ef6704 2026-11-07T12:26:57-05:00 merge(*): the repository linter's whitespace fixes land for the documentation families outside doc/decision, and the pnpr-publish workflow step it could not read is rewritten (fix/repository-passes-monochromatic-lint)
+09d670555d59db6e6b7f217768cb64be9087c66a 2026-11-07T12:33:53-05:00 docs(AGENTS.md): the repository linter's semantic line breaks in four rules, whitespace only; CLAUDE.md regenerated
+fce04655a0b1dc02930cbce689979cda9f6e9f89 2026-11-07T12:33:59-05:00 merge(*): the repository linter's whitespace fixes land for every package outside the branches still open, AGENTS.md, README.md and the skills, with hand fixes for the files the fixer could not change safely (fix/repository-passes-monochromatic-lint)
+aa559080b703309ca9885b5335d341ba9e80a7f4 2026-11-07T14:16:16-05:00 merge(*): the repository linter's fixes land for Markdown and rustdoc in every package outside the open branches, with hand fixes, the proposal to keep the count at zero, and two workflow rewrites (fix/repository-passes-monochromatic-lint)
+46a85668cbc63045c56c411654fc8e318afb847b 2026-11-07T14:30:00-05:00 merge(*): the update.rs and sync.rs wording moves that bring two packages under the file-size limit (fix/repository-passes-monochromatic-lint)
+cc34dc6fafa3570451d70bf93d09bed0601945a0 2026-11-07T14:38:23-05:00 merge(*): the last Markdown and rustdoc line breaks that arrived from main while this branch was open (fix/repository-passes-monochromatic-lint)
+23cb42e24acd4fd5d824447d3f877dd22a3ca3a9 2026-11-23T21:43:12-05:00 docs(*): line breaks at sentence and clause boundaries in the Markdown changed on 2026-11-23
+c2701d58a57706dd320575b0d918843cb98c6704 2026-11-23T21:45:28-05:00 docs(handover): the Markdown line-break fixes of 2026-11-23's files, and what waits for open branches
+96fe5ec80401a6fc0f2fe9196e4fe4f06aac56f3 2026-11-24T01:19:33-05:00 docs(*): semantic line breaks in three docs changed tonight
+2b748f3748823f7f34f2db4bd166fae0709c50f6 2026-11-24T01:22:58-05:00 docs(troubleshooting): semantic line breaks in the AppArmor dbus boot failure account
+fcaa7b840bdd95c0c99438210c9606189072cb2e 2026-11-24T01:23:27-05:00 docs(handover): one of the two left-out line-break files is fixed
+9ad03b76931a2445b9b6eac6bda60130773f0802 2026-11-24T01:24:19-05:00 docs(zfs-request-to-openzfs-kernel-device): semantic line breaks in the e2e README
+f12e93fa301c56001354ba1d671e0ab13a0e8b47 2026-11-24T02:31:50-05:00 docs(troubleshooting): semantic line breaks in the ninth batch section
+ee8871b190cbdbde29d18c7d6c900a063fdeef49 2026-11-27T18:15:47-05:00 Merge branch 'style/mpm-shadow-cli-line-breaks-the-linter-fixes-by-whitespace-alone'
+f6b4dc0947c05a086e4fe189f5d7458034cd99ed 2026-11-27T18:16:07-05:00 Merge branch 'style/cargo-shadow-cli-line-breaks-the-linter-fixes-by-whitespace-alone'
+e6026dbd46c2dd9a889c08ca6fe5b6f36e72fd37 2026-11-27T18:22:37-05:00 Merge branch 'style/pi-shared-subagent-driver-line-breaks-the-linter-fixes-by-whitespace-alone'
+beb61ec46b698d78dddeb274d8f165c2b8c01428 2026-11-27T18:38:01-05:00 Merge branch 'style/git-policy-cli-line-breaks-the-linter-fixes-by-whitespace-alone'
+96c930201ff24d0e7c661c35e1893d4c6bd1b31a 2026-11-27T22:35:41-05:00 style(git-policy-cli): join the doc lines the old hard wrap left alone
+fc679b9392f0c4ee4f587c40ce8e7f8889cc9f5e 2026-11-28T03:02:49-05:00 fix(markdown): the join settles in one pass and counts the host line's width
+6f52a414fca7b131b97e8e1d973e938e871439ad 2026-11-28T09:43:57Z chore(linter/monochromatic-lint): release 0.5.2-alpha.25: Alpha.24 read fixes: the line-break fix settles in one pass and keeps the line limit; the allow-list reader makes one pass and its sentences name the right edit.
+136a40fe69a738f777a56c93663baeb4b449aecc 2026-11-07T11:36:20-05:00 merge(git-policy-cli): the index lock is created with O_EXCL when neither a no-replace rename nor a hard link is allowed, never removing an unproven lock (fix/git-policy-cli-index-lock-without-links, gate 5172 of 5172)
+```
+
+## which of them are ancestors of the survey commit
+
+```
+$ for c in ee8871b190 f6b4dc0947 e6026dbd46 beb61ec46b 96c930201f fc679b9392 6f52a414fc; do printf "%s " "$c"; git merge-base --is-ancestor "$c" bc5b4ca2ba && echo "is an ancestor of bc5b4ca2ba" || echo "is NOT an ancestor of bc5b4ca2ba"; done
+ee8871b190 is an ancestor of bc5b4ca2ba
+f6b4dc0947 is an ancestor of bc5b4ca2ba
+e6026dbd46 is an ancestor of bc5b4ca2ba
+beb61ec46b is an ancestor of bc5b4ca2ba
+96c930201f is an ancestor of bc5b4ca2ba
+fc679b9392 is NOT an ancestor of bc5b4ca2ba
+6f52a414fc is NOT an ancestor of bc5b4ca2ba
+```
+
+## the hold's words and the date they were spoken
+
+```
+$ rg --line-number "Put the semantic line break findings on hold" doc/planning/repository-linter-stays-at-zero.md
+40:"Put the semantic line break findings on hold."
+42:"Put the semantic line break findings on hold.
+
+$ git show c84e2f1dbf:doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md | rg --line-number "spoken on" | head -3
+49111:spoken on 2026-11-04 and 2026-11-05.
+```
+
+## the subject search, which is a search and not a count of sweeps
+
+```
+$ git log --format=%s --since=2026-11-05 bc5b4ca2ba | rg -c "line.?breaks?|semantic.?line"
+325
+```
+
+## who wrote AGENTS.md, as far as the commits say (read-only)
+
+```
+$ git log --format=%H -- AGENTS.md | wc -l
+555
+
+$ git log --format=%B -- AGENTS.md | rg -c "^Co-Authored-By: .*(Claude|claude|bot)"; (commits carrying such a trailer)
+84
+
+$ git log --format=%H -- AGENTS.md | while read -r c; do git show --no-patch --format=%B "$c"; done | rg -c "^Co-Authored-By: .*(Claude|claude|bot)"  # commits, not trailer lines
+/bin/bash: line 1: warning: command substitution: ignored null byte in input
+commits touching the file: 555; commits carrying a Co-Authored-By trailer naming a model or a bot: 102
+```

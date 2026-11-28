@@ -839,7 +839,8 @@ then `libvirt`.
 A run that says nothing drives the local guest it always drove,
 so a driver's own command line did not change.
 The one definition of the variable and of the default is
-`package/mvm/cli/src/backend/registry.ts` (`BACKEND_ENV_VAR`, `DEFAULT_BACKEND_KIND`),
+`package/mvm/cli/src/backend/registry.ts` (`BACKEND_ENV_VAR`,
+`DEFAULT_BACKEND_KIND`),
 and the guest recipe's own module reads the same two the same way
 (`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`,
 which the recipe's own `e2e/guest-backend.check.ts` holds against `mvm`'s source).
@@ -860,45 +861,82 @@ because the two backends differ in four ways a guest step meets on every command
   which is the name `mvm` created and the name the crate's guest arms compare
   `gethostname()` with;
 - how a command runs as root:
-  a libvirt guest's command runs through the QEMU guest agent, which is root,
+  a libvirt guest's command runs through the QEMU guest agent,
+  which is root,
   and an OVHcloud instance's runs over SSH as the account its image names,
   so a step that must be root is started through `sudo --non-interactive --` there;
 - where a pushed file is readable:
   libvirt's `mvm push` puts the file in the guest's `/mnt/shared` share under its own name,
   and `ovh`'s writes the absolute path it is given over `scp`,
   which for that account is `/home/ubuntu`;
-- whether an arm runs at all:
-  no arm does yet on `ovh`, for the reason below.
+- where an arm's script,
+  its log and its status line live:
+  the same `/mnt/shared`,
+  which `ovh` keeps inside the guest and libvirt mounts,
+  so the folder is made once per guest where the backend does not mount it
+  (`bin/mvm-guest-shared-folder.ts`) and no arm script changed.
 
 A backend this package does not drive is refused where the run names it,
 with the word and the kinds a driver can drive,
 and not at the first step that reaches a guest.
 
-### What does not run on `ovh` yet
+### What a driver's guest gets, and what does not run on `ovh` yet
 
-The arms themselves.
-Every arm script this package runs is a shell script that reads and writes
-`/mnt/shared` itself,
-the libvirt share,
-and an OVHcloud guest has none:
-`mvm push` there writes a path over `scp` and mounts nothing.
-So a driver's `create`, `prepare` and `destroy` steps run on either backend,
-and a step that runs an arm refuses on `ovh` before it creates anything:
-`refuseAStepWhoseArmsCannotRun` names the step, the backend and the folder the arms need
-(`bin/mvm-guest-backend.unit.test.ts` holds each of those answers).
-Moving an arm to a second backend is therefore the arm's own work:
-take its folder from `guestBackend().guestSharedFolder` instead of writing `/mnt/shared`,
-and its push and pull paths from `pushDestinationOf`.
+A driver's `create` hands the recipe no image word,
+so the recipe names the one
+its backend should get:
+`libvirt` takes `mvm`'s own Ubuntu 24.04 template,
+and `ovh` takes the catalogue's `Ubuntu 24.04`,
+the release this package's arms and
+the recipe's packages are written for.
+That is the record's `defaultGuestImage`,
+and a run that wants another release names it with `--guest-image <name>` on the
+recipe's command line.
+A driver whose image must differ therefore needs an
+option of its own;
+none does today.
 
-The recipe's steps whose subject is a reboot or a power cut refuse on `ovh` too,
-and for a reason of `mvm`'s own:
-it never stops, pauses, shelves or resumes an OVHcloud instance
-(`package/mvm/cli/README.md`,
-"OVHcloud Public Cloud backend"),
-so a guest that did not come back could be neither reset nor inspected
-(`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`).
-The recipe's other steps ran on `ovh` on 2026-11-28:
-see "The recipe's first OVHcloud run".
+Nothing an arm does is refused on `ovh` any more.
+Every arm script this package runs reads and writes `/mnt/shared`,
+and a backend
+that mounts no share there has the folder made once,
+as root,
+owned by the
+account every `scp` and `ssh` runs as
+(`bin/mvm-guest-shared-folder.ts`:
+`install --directory`,
+one command,
+once per guest).
+Pushes go into that folder and pulls come out of it,
+so an arm's script,
+its log and its `DONE=` status line reach and leave the guest the same way on
+either backend.
+
+Two things a run should know:
+
+- the recipe's steps whose subject is a reboot or a power cut refuse on `ovh`,
+  and for a reason of `mvm`'s own:
+  it never stops,
+  pauses,
+  shelves or resumes an
+  OVHcloud instance (`package/mvm/cli/README.md`,
+  "OVHcloud Public Cloud backend"),
+  so a guest that did not come back could be
+  neither reset nor inspected
+  (`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`);
+- `e2e/zfs-step-22-measurements-guest.ts` refuses on `ovh`,
+  and this is the one
+  reader that is different:
+  its wait reads the host's own side of the share
+  (`~/.local/share/mvm/vms/<guest>/shared/`),
+  which only a libvirt guest mounts,
+  because that was what the round which measured step 22 needed (a guest whose
+  agent is busy still hands its log over).
+  Reading it through `mvm pull` instead
+  would put an `ssh` round trip inside a poll that runs for the length of a long
+  build,
+  and nothing has measured that
+  (`e2e/step-22-arms/host-shared-log.ts`).
 
 ### What a round must do so that no machine is left behind
 
@@ -910,7 +948,8 @@ so the round itself is what leaves none behind:
   and create only when it shows fewer than six machines;
   the bound is six alive at once;
 - make one machine at a time;
-- destroy your own machine by its name (`mvm --backend ovh destroy <name>`, which the recipe's
+- destroy your own machine by its name (`mvm --backend ovh destroy <name>`,
+  which the recipe's
   `destroy` step runs) and never `destroy --all`,
   which deletes every `mvm-*` machine in the project,
   including another round's;
@@ -932,33 +971,96 @@ to show the backend coming from one place rather than from a literal at each cal
 that branch named it 47 times in 14 files,
 by ``rg -c "'libvirt'" package/git-policy/cli package/zfs/request-to-openzfs-kernel-device``,
 and names it now in `bin/mvm-guest-backend.ts` and `e2e/guest-backend.ts` alone.
-The run named `--backend ovh`, `--guest-image 'Ubuntu 24.04'`, `MVM_OVH_FLAVOR=b3-16` (4 vCPUs, 16 GiB),
-region `BHS5`, and the machine destroyed by its name at the end.
-The steps were the recipe's `create`, `prepare` (which installs the packages and builds OpenZFS 2.4.4 in the guest)
+The run named `--backend ovh`,
+`--guest-image 'Ubuntu 24.04'`,
+`MVM_OVH_FLAVOR=b3-16`,
+the size `mvm`'s own README and `flavors.ts` doc name as
+an example of a larger flavour (the guest's own processor count and memory were
+not read before it was destroyed,
+so the size rests on that documentation and on
+the create log's `flavor b3-16` line),
+region `BHS5` (the project's one Canadian region,
+from `mvm --backend ovh update`),
+and the machine destroyed by its name at the end.
+The steps were the recipe's `create`,
+`prepare` (which installs the packages and builds OpenZFS 2.4.4 in the guest)
 and `zfs-attach-arm` (plan step 4's descriptor attach against a real clone),
 and each passed:
-the suite reported 6 passed and the teardown left no pool, dataset or mount.
+the suite reported 6 passed and the teardown left no pool,
+dataset or mount.
 
-The wall times, from `date --iso-8601=seconds` at each step's own start and end,
+The wall times,
+from `date --iso-8601=seconds` at each step's own start and end,
 beside the same steps on a local guest of the round of 2026-11-20
 (`~/temp/agent/integration-pass-zfs-step-4-guest-arms-after-their-findings-round-2026-11-20/keep/`,
 whose `mvm-create.log` and log files' own times are all it records):
 
-- `create`: 68 s on `ovh`, and 9.9 s on the local guest
+- `create`:
+  68 s on `ovh`,
+  and 9.9 s on the local guest
   (`mvm-create.log`'s first and last line);
-- `prepare`: 6 m 48 s on `ovh`,
+- `prepare`:
+  6 m 48 s on `ovh`,
   and at most 5 m 40 s on the local guest (the local run's logs name no step start,
   so that figure is the gap between its create's last line and its toolchain log);
-- `destroy`: 21 s on `ovh`, and 2.1 s on the local guest.
+- `destroy`:
+  21 s of `mvm destroy` on `ovh` (its own log's first and last line),
+  39 s for
+  the step as a whole,
+  and 2.1 s on the local guest.
 
-The arm's first run failed after 15 m 37 s,
+A wrapper driver ran there too,
+`e2e/doctor-zfs-route-guest.ts` with `MVM_BACKEND=ovh MVM_OVH_FLAVOR=b3-16` and no
+other change to how it is called:
+`create` (75 s),
+`prepare` (7 m 05 s,
+kernel `6.8.0-136-generic` read from the
+guest),
+`build` (9 m 40 s,
+the archive pushed into the guest's made
+`/mnt/shared`),
+`arm` (2 m 03 s) and `destroy` (35 s).
+Its `guest-arm.log` came back through `mvm pull` and holds two of the driver's
+three guest tests at `test result: ok. 1 passed` each,
+with every `DOCTOR-GUEST-REMOVAL` and `CLONE-FACTS-GUEST` line they print.
+The third test,
+`zfs_doctor_route_guest_three_groups_and_each_finding`,
+fails at `binary_zfs_doctor_route_guest_tests.rs:1568` on a product answer:
+with the step-19 and step-20 facts unread,
+it expects the `cancel-command` check to be
+`unknown` and the product answers `pass`.
+No line of this branch touches the
+doctor or the cancel command,
+and no libvirt control was run for it;
+it is reported here rather than fixed.
+
+The recipe's arm's first run failed after 15 m 37 s,
 in the crate's own name check:
 the recipe handed the arms `${options.name}` where they compare against `gethostname()`,
 which is right on libvirt and wrong on a cloud guest.
 The recipe now hands them `options.backend.hostnameOf(name)`,
 and `guest-backend.check.ts` refuses a recipe that names the run's name instead.
-The second run, with the crate's build already in the guest,
+The second run,
+with the crate's build already in the guest,
 passed in 64 s.
+Every command of that run went through a mise task of this worktree
+(`mise run //package/git-policy/cli:e2e:doctor-zfs-route` or
+`mise run //package/zfs/request-to-openzfs-kernel-device:e2e`),
+which is what puts
+the five OVHcloud names in the environment;
+the recipe's own `spawnSync('mvm')`
+inherits them,
+and `mvm` itself is the one mise puts first on `PATH`
+(`<repository>/node_modules/.bin/mvm`,
+from the main checkout,
+whose source is
+`main`'s;
+this branch changes no line of `mvm`).
+No `node` was started by hand,
+and no key,
+address or identifier was written
+outside this round's scratch folder.
+
 The whole run is unapproved and non-final:
 the owner declares completion,
 and what was checked is these steps and no driver's arms.
@@ -1219,6 +1321,83 @@ and the sweep ignores it
 step 8,
 "Where the checkout and the datasets are found").
 
+## The checkout-propagation step's arm and the trigger measurement
+
+`propagation-step-guest.ts` runs plan step 19's private-propagation step
+(`package/git-policy/cli/src/native/checkout_propagation/`,
+and `SPEC.md`'s passage of the same name)
+in a guest of the adoption driver's recipe:
+one file-backed pool,
+a checkout dataset mounted at `/root/propagation-checkout`,
+and one phase per state the kernel can hand the step.
+
+The step's kernel half is what no control on a person's machine may run,
+because it changes a mount and reads the kernel's own answer about it,
+and no root mode reaches the step in this release:
+its call at the head of `boot-reconcile` and of the default sweep is plan step
+19's wiring,
+which is not built.
+So the arm calls the step itself,
+as root,
+through `run_the_step(places, resolution, TheKernelsCalls)`.
+
+The phases:
+
+- `shared`:
+  the dataset mounted under the guest's shared `/root`,
+  which comes up shared;
+  the step sets it private and the record says `applied`.
+- `shared+slave`:
+  `/root` made a slave first,
+  so the mount receives that master,
+  and then made shared again,
+  which is the set a machine inside a container has;
+  the step sets it private,
+  records the master it detached,
+  and the line says the checkout stops receiving that master's mounts.
+- `private`:
+  reported as `already-private`,
+  and the setter is never called.
+- `slave` and `unbindable`:
+  reported as `left`,
+  which is the state the project decided to leave and report.
+- `refused=source`:
+  another dataset mounted at the checkout path refuses at the source check,
+  changes nothing,
+  and files no receipt.
+
+Every phase runs in a mount namespace of its own,
+which is what makes a mount die with its phase,
+and each one compares the record's set with `findmnt`'s answer and the mount's
+unique number before and after,
+so a set that changed another instance fails the arm.
+
+The same arm carries the accepted design's measurement of the provisional
+systemd trigger
+(`doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`,
+"The trigger the route adds,
+and what it must show").
+It writes the gate and the propagation pair the release code builds,
+with a stand-in gate whose `ExecStart` does nothing and whose `ExecReload`
+appends one line,
+because this release's gate does not call the step;
+then it replaces the checkout mount at a person's pace
+(the count is fixed in the arm before the run),
+reads whether the mount unit's activation started the propagation service once
+and the gate once inside the reading window,
+waits a quiet interval for a loop,
+and finally bursts replacements to read where the three limits sit.
+The two rules turn those readings into "the trigger stays" or "is dropped";
+the numbers are in
+`doc/planning/cli-git-zfs-private-propagation-guest-measurements.md`.
+
+Its build and its arm both run detached through
+`bin/mvm-guest-detached-script.ts`'s helpers,
+so the driver holds no plain long command at all and is not in the list below.
+
+```sh
+# package/git-policy/cli: one throwaway guest for the whole arm and its measurement
+node e2e/propagation-step-guest.ts all --name zfs-r6-propagation --log-dir /home/user/temp/agent/zfs-private-propagation-step-built-ahead-unwired-scratch/keep/propagation-guest
 ## The ZFS shutdown pass's arm
 
 `shutdown-unmount-guest.ts` runs plan step 19's shutdown pass end to end,

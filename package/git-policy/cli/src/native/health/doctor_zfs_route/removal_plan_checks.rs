@@ -206,7 +206,7 @@ pub fn check_removal_plan(facts: &RemovalPlanFacts) -> CheckOutcome {
             path,
             reason,
         } => unknown(format!(
-            "the destruction plan at {} cannot be read ({reason}), so no snapshot state is proved and the file may hold the only record of one an earlier run destroyed",
+            "the destruction plan at {} cannot be read ({reason}), so no snapshot state is proved and the file may hold the only record of one an earlier run destroyed. The owner's answer of 2026-11-28 made this a state a removal refuses without force: run `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`, which prints the plan it finds and acts on none it cannot read, or `git worktree remove --force <slot>`, which proves the clone by the record's GUID against the pool, destroys the clone and its snapshots from the pool's own list, and removes this file with its own records",
             path.display()
         )),
         PlanFileReading::Standing {
