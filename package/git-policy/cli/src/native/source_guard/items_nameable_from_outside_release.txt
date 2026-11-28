@@ -80,9 +80,6 @@ worktree_copying::worktree_copy_owner struct CopyOwner
 #   publishes the chunk size the control reads to compare the candidate's own file
 invocation::real_git_candidate const COMPARED_CHUNK_BYTES
 #   5defef5371 fix(git-policy-cli): the printed sentences name only commands this release has
-#   publishes the sentence the add's answer prints for a state this release has not admitted
-worktree_clone_binding_record::add_state_commands const NOT_ADMITTED_YET
-#   5defef5371 fix(git-policy-cli): the printed sentences name only commands this release has
 #   publishes the sentence the receipts refusal prints where neither line exists
 worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals const NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT
 #   fba7104d6f fix(git-policy-cli): refuse the -C spelling and three more unproven slot removals

@@ -72,6 +72,16 @@ use crate::subvolume_arguments::MigrateArguments;
 #[cfg(target_os = "linux")]
 use crate::subvolume_command::migrate_action;
 use crate::transaction_git::GitContext;
+use crate::worktree_clone_cancel_and_settle_commands::the_place_the_two_commands_run_in::TheRoute;
+use crate::worktree_clone_cancel_and_settle_commands::the_settling_commands_word::SETTLE_COMMAND_WORD;
+/// The two ZFS route words the grammar admits,
+/// and the answer each prints.
+use crate::worktree_clone_cancel_and_settle_commands::{
+    AnAnswer,
+    a_cancel_command_answered,
+    a_settling_command_answered,
+};
+use crate::worktree_clone_removal_cancel::cancel_arguments::CANCEL_COMMAND_WORD;
 use crate::worktree_convert_arguments::ConvertArguments;
 use crate::wrapper_controls::Controls;
 /// What:
@@ -536,6 +546,66 @@ fn plan_doctor(
 }
 
 /// What:
+///  The place a ZFS route word runs in:
+///  the checkout Git names,
+///  the repository's common directory and the account's home.
+/// Why:
+///  Both commands read records under one common directory and name a slot below
+///  one checkout,
+///  and the wrapper resolves real Git and its environment for every command that
+///  needs them,
+///  so the grammar hands the reader the same two and never a path of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theRouteOf('cancel-worktree-removal', gitGlobalArguments, environment, inputs);
+/// ```
+fn the_route_of(
+    word: &str,
+    git_global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+) -> Result<TheRoute, AnAnswer> {
+    let (real_git, _notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
+    let Some(real_git) = real_git else {
+        return Err(AnAnswer::on_standard_error(
+            ENGINE_FAILURE_EXIT_CODE,
+            format!(
+                "git monochromatic-git-policy-cli {word}: the real Git this wrapper forwards to could not be found, so the repository this invocation selects cannot be named."
+            ),
+        ));
+    };
+    let overlay: Vec<(OsString, OsString)> =
+        child_environment_overlay(environment, real_git.as_path());
+    return TheRoute::of(
+        word,
+        git_global_arguments,
+        overlay.as_slice(),
+        real_git.as_path(),
+        environment_home(environment),
+    );
+}
+
+/// What:
+///  One of the two ZFS route words' answers as the action this process ends in.
+/// Why:
+///  The commands answer with a status and the text each stream carries,
+///  and the process's own exit is what the grammar builds from any other
+///  command's answer too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// answer({ code: 0, stdout: 'settled the records of `one`\n', stderr: '' });
+/// ```
+fn answer(answer: AnAnswer) -> Action {
+    return Action::Exit {
+        code: answer.code,
+        stdout: answer.stdout,
+        stderr: answer.stderr,
+    };
+}
+
+/// What:
 ///  Decide the action for the arguments after `git monochromatic-git-policy-cli`.
 ///       `&[OsString]` borrows argument lists;
 ///  `&Controls` borrows what the wrapper
@@ -673,6 +743,24 @@ pub fn plan_management_with_section(
             prune,
         } => {
             return plan_kept_references(prune, git_global_arguments, environment, inputs);
+        }
+        ManagementAction::CancelWorktreeRemoval(invocation) => {
+            let route: Result<TheRoute, AnAnswer> = the_route_of(
+                CANCEL_COMMAND_WORD,
+                git_global_arguments,
+                environment,
+                inputs,
+            );
+            return answer(a_cancel_command_answered(invocation, route));
+        }
+        ManagementAction::SettleWorktreeCloneRecord(invocation) => {
+            let route: Result<TheRoute, AnAnswer> = the_route_of(
+                SETTLE_COMMAND_WORD,
+                git_global_arguments,
+                environment,
+                inputs,
+            );
+            return answer(a_settling_command_answered(invocation, route));
         }
         ManagementAction::MigrateToSubvolume(migrate_parse) => {
             return plan_migrate(migrate_parse, start);

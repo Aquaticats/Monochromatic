@@ -402,6 +402,24 @@ pub mod worktree_clone_removal_cancel;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_removal_cancel::*;
 
+/// The management grammar's two ZFS route words,
+/// `cancel-worktree-removal <slot>` and `settle-worktree-clone-record`,
+/// and the answer each prints:
+/// the place an invocation runs in,
+/// the pool a command reads when a read first needs one,
+/// the reversing request a cancellation files,
+/// and each command's statuses and streams.
+/// The grammar of `invocation/` parses the words and dispatches them here,
+/// and the two commands are reached through no other path in this release.
+/// It is deliberately not `pub mod`:
+/// these are the wrapper's own two commands,
+/// and nothing here is a name a release owes another crate,
+/// so the published surface and its list of names stay as they were.
+/// It is Linux only,
+/// like the pool and the mount table both commands read.
+#[cfg(target_os = "linux")]
+pub(crate) mod worktree_clone_cancel_and_settle_commands;
+
 /// The record that carries an origin snapshot's cleanup past the clone and the registration:
 /// its folder,
 /// its name grammar,
