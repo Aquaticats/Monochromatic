@@ -334,3 +334,82 @@ fn whole_tree_scan_still_reports_a_regular_file() {
     );
     let _ = fs::remove_dir_all(&fixture.root);
 }
+
+// What:     `#[test] fn whole_tree_scan_reports_a_link_name_a_link_target_text_and_a_gitlink_name()`
+//           runs the whole-tree arm over one tree that holds a link whose own
+//           name is forbidden, a link whose stored target text is forbidden and
+//           a gitlink whose own name is forbidden, and expects all three
+//           findings from that one run.
+// Why:      Issue #6640 asks for one whole-tree run over such a tree: the three
+//           kinds of entry arrive in one list, and the `input=` index of each
+//           finding must still name its own entry.
+#[test]
+fn whole_tree_scan_reports_a_link_name_a_link_target_text_and_a_gitlink_name() {
+    let mut fixture = Fixture::new("whole-tree-all-three");
+    fixture.write_workflow_revision(true);
+    fixture.put("base/lib.txt", "clean\n");
+    fixture.commit("A");
+    // `clean-name` sorts before `<NAME_SENTINEL>-folder`, so the index lists the
+    // dangling link first and the name-bearing one second; the gitlink's own
+    // path sorts after both.
+    fixture.link("consumer/uses/clean-name", &format!("../../{}", SENTINEL));
+    fixture.link(
+        &format!("consumer/uses/{}-folder", NAME_SENTINEL),
+        "../../base",
+    );
+    fixture.git(&["add", "--", "consumer/uses/clean-name"]);
+    fixture.git(&[
+        "add",
+        "--",
+        &format!("consumer/uses/{}-folder", NAME_SENTINEL),
+    ]);
+    fixture.gitlink(&format!("vendor/{}-sub", NAME_SENTINEL), "A");
+    fixture.commit_index("B");
+    fixture.write_runs(&[]);
+
+    let result = fixture.run_scan("push", "B", "main", "");
+
+    assert!(
+        result.status == 1,
+        "each forbidden entry must fail the step; got status {}\nstdout: {}\nstderr: {}",
+        result.status,
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stderr.contains(&format!(
+            "consumer/uses/clean-name:1 rule={} input=0",
+            FIXTURE_RULE,
+        )),
+        "the stored target text finding must name the first pair\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stderr.contains(&format!(
+            "consumer/uses/[REDACTED]:name:3 rule={} input=1",
+            NAME_RULE,
+        )),
+        "the name finding must name the second pair\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stderr.contains(&format!(
+            "vendor/[REDACTED]:name:2 rule={} input=2",
+            NAME_RULE,
+        )),
+        "the gitlink's name finding must name the third pair\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result
+            .stdout
+            .contains("tracked links 2, submodule gitlinks 1"),
+        "the arm's line must count two links and one gitlink\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    let _ = fs::remove_dir_all(&fixture.root);
+}

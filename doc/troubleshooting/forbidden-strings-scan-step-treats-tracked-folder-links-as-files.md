@@ -1438,7 +1438,7 @@ in three commits before this record's own:
 
 With the tests in place and the workflow as `main` had it,
 `cargo nextest run --locked --offline --test ci_scan_scope`
-printed `33 tests run: 15 passed, 18 failed, 0 skipped`.
+printed `34 tests run: 15 passed, 19 failed, 0 skipped`.
 The cases the requirement names failed with:
 
 ```text
@@ -1479,6 +1479,13 @@ stdout: Scanning 2 changed file(s) from origin/main...HEAD:
   consumer/uses/lib
 ```
 
+and the case that asks for all three kinds in one run failed the same way:
+
+```text
+each forbidden entry must fail the step; got status 0
+stdout: ::notice::No validated scan baseline; scanning the current tree.
+```
+
 `whole_tree_scan_still_reports_a_regular_file` passed on `main`,
 which is the control that the whole-tree arm's walk still has to work after
 the change.
@@ -1492,7 +1499,7 @@ and restored from the committed file,
 so no plant was ever committed:
 
 - the whole-tree arm listing nothing:
-  5 cases failed,
+  6 cases failed,
   every whole-tree case among them;
 - the delta listing only folder links:
   4 cases failed,
@@ -1500,10 +1507,10 @@ so no plant was ever committed:
   the both-match pair,
   the pull-request case and the clean link's hand-over;
 - reading the path the link points at instead of its blob:
-  16 cases failed;
+  17 cases failed;
 - dropping the whole-tree line's counts:
-  3 cases failed,
-  the three that assert what the arm says it handed over;
+  4 cases failed,
+  the four that assert what the arm says it handed over;
 - unquoting the name handed to `--name-path`:
   2 cases failed,
   one per arm,
@@ -1536,13 +1543,13 @@ In `package/forbidden-strings/cli`:
   (a `body` binding shadowed by the match arm's own `body`),
   a rename fixed it and the next run exited 0.
 - `cargo nextest run --locked --offline --test ci_scan_scope`:
-  `Summary [   1.286s] 33 tests run: 33 passed, 0 skipped`.
+  `Summary [   2.388s] 34 tests run: 34 passed, 0 skipped`.
 - the package's own task,
   `mise run //package/forbidden-strings/cli:test`:
-  `Summary [  20.823s] 392 tests run: 392 passed, 0 skipped`,
+  `Summary [  33.040s] 393 tests run: 393 passed, 0 skipped`,
   exit 0.
   The 6633 round's branch ran 381,
-  and this round adds eleven cases.
+  and this round adds twelve cases.
 
 `monochromatic-lint` reports no finding on any file this round changes:
 the workflow file,
@@ -1568,9 +1575,9 @@ and each printed the same result:
 `cargo check --locked --offline --all-targets` exit 0,
 `cargo clippy --locked --offline --all-targets -- -D warnings` exit 0,
 `cargo nextest run --locked --offline --test ci_scan_scope`
-with `Summary [   1.350s] 33 tests run: 33 passed, 0 skipped`,
+with `Summary [   2.388s] 34 tests run: 34 passed, 0 skipped`,
 and `mise run //package/forbidden-strings/cli:test`
-with `Summary [  24.001s] 392 tests run: 392 passed, 0 skipped`.
+with `Summary [  33.040s] 393 tests run: 393 passed, 0 skipped`.
 `monochromatic-lint` again reported no finding on any changed file,
 and the workflow file's sha256 is still
 `5e85cacd3f0639d16256745f638e0b7324abaaa55d97fcd75cd67ccf65a32d62`.
