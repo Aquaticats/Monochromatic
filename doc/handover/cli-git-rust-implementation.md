@@ -2940,14 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- `native:ts-checks` now sizes its scope from a measurement (`71d9ce980d`,
-  issue 6605):
-  1,024 tasks against a measured peak of 463,
-  4 GiB against 2,218.8 MiB,
-  and 800% of one CPU,
-  where 200% made the unit suite take 2.66 to 2.79 times as long;
-  it says so when a bound and not a test failed.
-  Two unit tests that give a child a fixed 1.5 s to start are issue 6608.
 - Two rounds wrote into the main checkout by mistake and undid it
   (issue 6586's through its edit tool,
   the four-small-points round through a command without its own `cd`);
