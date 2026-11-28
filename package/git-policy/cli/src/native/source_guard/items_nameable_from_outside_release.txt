@@ -541,6 +541,7 @@ checkout_propagation::mount_descriptor_read field DescriptorMount::mount_point
 checkout_propagation::mount_descriptor_read field DescriptorMount::namespace_id
 checkout_propagation::mount_descriptor_read field DescriptorMount::peer_group
 checkout_propagation::mount_descriptor_read field DescriptorMount::propagation
+checkout_propagation::mount_descriptor_read field DescriptorMount::reports_namespace_id
 checkout_propagation::mount_descriptor_read field DescriptorMount::source
 checkout_propagation::mount_descriptor_read fn MountReadFailure::errno
 checkout_propagation::mount_descriptor_read fn MountReadFailure::message
