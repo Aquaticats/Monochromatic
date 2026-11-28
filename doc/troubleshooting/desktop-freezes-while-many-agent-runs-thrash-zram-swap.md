@@ -1597,8 +1597,11 @@ eight compilers,
 nine guests and twenty rounds alive,
 and `Shmem` at 30.5 GB.
 A whole container gate that ran through that minute ended with four tests failed at their bounds.
-So room to swap into is not what was short at that moment;
-what held the 30 GB of `Shmem` was not measured.
+So room to swap into is not what was short at that moment.
+What holds that much `Shmem` was read at the next stall:
+it is the guests' memory,
+as the section "The guests' unit at its own memory cap,
+2026-11-28" records.
 
 ### How to undo it
 
@@ -1612,6 +1615,90 @@ what held the 30 GB of `Shmem` was not measured.
 
 The owner has said every partition of the old NVMe that this system does not need is to be formatted after its data has moved,
 so the undo is here for the time before that.
+
+## The guests' unit at its own memory cap, 2026-11-28
+
+Recorded by the coordinating session.
+Unapproved and non-final.
+This is a second incident of the same morning and is kept apart from the one at 03:51:23,
+when `MemAvailable` read 0 kB for the whole machine.
+
+### What was read
+
+From 05:23:27 to 05:38:03 the machine's own pressure line,
+`full` in `/proc/pressure/memory`,
+read between 55 and 88 over sixty seconds,
+while `MemAvailable` read between 7.7 GB and 13.8 GB
+and no compiler was running.
+One control group accounts for it.
+
+- Every guest `mvm` starts runs inside `mvm-libvirt-session.service`,
+  and `mvm` gives that unit a `MemoryMax` of half the machine's memory
+  (`package/mvm/cli/src/session-daemon-memory.ts`,
+  the project's choice of 2026-11-21 for issue 6338):
+  33,109,835,776 bytes here.
+- Each guest's domain asks for 8 GiB,
+  backed by a shared `memfd`
+  (`memory-backend-memfd`,
+  `share` on,
+  8,589,934,592 bytes),
+  so what a guest touches is charged to that unit as shared memory.
+- Eight guests were alive.
+  At 05:29:55 the unit held 30,301 MiB,
+  29,797 MiB of it shared memory,
+  with 26,933 MiB more in swap.
+  Its `memory.events` counted 1,322,141 meetings with its `max`,
+  and 1,367,471 by 05:38:03.
+  Its own `memory.pressure` read `full avg60=74.71`.
+- In the same reading `agent.slice`,
+  `session.slice` and `system.slice` each read `full avg60=0.00`,
+  the machine had 13,208,452 kB in `MemFree`,
+  and the machine-wide line read `full avg60=60.47`.
+- At 05:38:03:
+  eight guests,
+  31,575 MiB held and 27,983 MiB in swap,
+  which is 7,445 MiB a guest on average.
+  Two guests read alone through `smaps_rollup` held 5,189 MiB and 4,180 MiB,
+  nearly all of it in swap.
+
+So eight guests that between them had touched 59.6 GiB sat in a unit allowed 31.6 GiB,
+and the unit swapped against its own limit while memory stood free outside it.
+The machine-wide pressure line reads that unit's stall as the machine's.
+
+### What followed from it
+
+- A test that reads the machine-wide pressure line says nothing about memory for a build or a gate on the host.
+  A whole container gate had waited behind such a test from 05:14 and was restarted at 05:37:50 behind a test on `MemAvailable`,
+  and a measurement round had waited 1,323 s behind the same test.
+- Under that swap the guests' own work is what slows:
+  rounds of that night report crate builds inside a guest of 30 to 39 minutes,
+  builds cut by their own bounds,
+  and a guest agent that stopped answering.
+- The session had told rounds to create a guest only when fewer than nine were alive.
+  That number was never set against the unit's limit.
+- `package/mvm/cli/README.md` gives the limit's basis as a measurement of 2026-11-21 in which a unit with one 8 GiB guest was charged 990 MB.
+  A guest that builds the wrapper's crate inside itself touches several times that.
+
+### Six of the eight guests could not give memory back
+
+Free page reporting was decided and shipped on 2026-11-25
+(`doc/decision/mvm-guests-report-free-pages.md`,
+commit `269b812807`).
+The six guests made between 2026-11-27T21:25 and 2026-11-28T01:08 were defined with `<memballoon model='virtio'>` alone;
+the two made at 04:53 and 05:16 carry `freePageReporting='on'`.
+The built `mvm` that made the six did not hold the change:
+no file of two rounds' own `package/mvm/cli/dist` folders names `freePageReporting`,
+though their source does,
+and the main checkout's build names it since it was built again on 2026-11-28.
+What the six guests would have returned with it is not measured.
+
+### Not known
+
+- How many guests fit the limit without the unit swapping:
+  the average says four at 7.4 GiB each,
+  and a guest that has touched all of its 8 GiB makes it three.
+- Whether the stall at 03:51:23 had the same unit at its centre:
+  nobody read the unit's own counters then.
 
 ## What is not known
 
