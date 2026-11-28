@@ -447,10 +447,11 @@ pub fn sync_tools(
             .failed
             .push(("postinstall links".to_string(), error.message)),
     }
-    if let Err(error) = rebuild_exposure(ctx, &entries) {
-        report
+    match rebuild_exposure(ctx, &entries) {
+        Ok(exposure) => report.removed_exposure_links.extend(exposure.links_removed),
+        Err(error) => report
             .failed
-            .push(("exposure directory".to_string(), error.message));
+            .push(("exposure directory".to_string(), error.message)),
     }
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
