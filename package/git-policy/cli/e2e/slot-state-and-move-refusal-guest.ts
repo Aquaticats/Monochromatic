@@ -6,10 +6,11 @@
  The arm needs a real pool, a real Git registration and a real clone: it reads one slot's class from the binding
  record, the mount intent and the mount table while the clone is mounted and again while it is unmounted, and it
  shows the wrapper's refusal beside Git's own answer, which is a busy mount while mounted and success while
- unmounted. The same run drives the wrapper's own command path: `git worktree move` and `git worktree remove` are
- refused where Git's own move succeeded, the prune pass writes the recorded pointer back before Git would drop the
- registration, and `git worktree repair` prints what it can and cannot restore. Every one of those is a ZFS or Git
- fact no host control can make, so the arm runs only inside the guest the ZFS binding's recipe creates
+ unmounted. The same run drives the wrapper's own command path: `git worktree move` is refused, the removal of a slot
+ a whole clone is bound to runs the wrapper's own order and destroys the clone, its records and its registration,
+ the prune pass writes the recorded pointer back before Git would drop the registration, and `git worktree repair`
+ prints what it can and cannot restore. Every one of those is a ZFS or Git fact no host control can make, so the arm
+ runs only inside the guest the ZFS binding's recipe creates
  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`).
 
  Usage: node e2e/slot-state-and-move-refusal-guest.ts <create|prepare|run|destroy|all> [--name <guest>]
@@ -17,7 +18,7 @@
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  The evidence of one run is `slot-state-arm.log`, pulled back into the log directory, and a run passes only when it
- carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL-REFUSAL`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
+ carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
  line, so an arm that returned without running fails the run instead of reporting a green suite.
  */
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -50,11 +51,23 @@ import {
 import {
   shellQuote,
 } from '../bin/mvm-guest-command-line.ts';
+import {
+  awaitDetachedGuestScript,
+  startDetachedGuestScript,
+} from '../bin/mvm-guest-detached-script.ts';
 
 /**
  Where the crate is unpacked and built inside the guest, which every account may traverse.
  */
 const CRATE_DIR = '/opt/git-policy-cli-slot-state';
+/**
+ The log the guest's own build writes into the shared folder, which the host reads its status from.
+ */
+const BUILD_LOG = 'slot-state-crate-build.log';
+/**
+ Milliseconds the host waits past the build's own bound, so the guest can write the status line the host reads.
+ */
+const BUILD_FINISH_MARGIN_MS = 180_000;
 /**
  Milliseconds the guest's build of the test target may take.
  */
@@ -102,6 +115,8 @@ const EXPECTED_MARKERS = [
   'SLOT-STATE mounted class=mounted managed clone dataset=',
   'SLOT-STATE record-behind-mount class=cannot be proved',
   'SLOT-STATE unmounted class=known unmounted clone intent=mount-requested',
+  'SLOT-STATE scene slot=removal class=known unmounted clone',
+  'SLOT-STATE scene slot=aliased-removal class=known unmounted clone',
   'SLOT-STATE pending-add class=pending add',
   'SLOT-STATE pending-removal class=pending removal',
   'MOVE-REFUSAL mounted cause=bound',
@@ -110,7 +125,8 @@ const EXPECTED_MARKERS = [
   'MOVE-REFUSAL unmounted cause=bound',
   'MOVE-REFUSAL wrapper-unmounted cause=bound status=refused',
   'MOVE-REFUSAL unmounted git=succeeded',
-  'REMOVAL-REFUSAL wrapper class=known-unmounted-clone status=refused',
+  'REMOVAL wrapper class=known-unmounted-clone status=removed clone=gone records=gone',
+  'REMOVAL wrapper-through-a-shell-alias class=known-unmounted-clone status=removed clone=gone records=gone',
   'PRUNE-POINTER intact registration=kept',
   'PRUNE-POINTER restored registration=kept',
   'REPAIR damaged registration=stands',
@@ -258,11 +274,20 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     'tail --lines=3 /root/slot-state-build.log',
   ]
     .join('\n',);
-  await guest({
+  // The build takes minutes (6m 07s on 2026-11-27), and a guest agent can lose a long command's result
+  // (`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`), so it runs detached and writes the line
+  // that says how it ended into its own log, which the host waits for and pulls.
+  await startDetachedGuestScript({
     chosen,
     script: prepareBuild,
-    log: 'guest-crate-build.log',
+    log: BUILD_LOG,
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+    nameCheck: 'launcher',
+  },);
+  await awaitDetachedGuestScript({
+    chosen,
+    log: BUILD_LOG,
+    finishTimeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + BUILD_FINISH_MARGIN_MS,
   },);
   /**
    The guest's own script: run the arm, refuse a returned one, and copy its log to the shared folder.
