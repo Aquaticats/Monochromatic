@@ -325,16 +325,14 @@ pub fn make_postinstall_links(
         let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
             continue;
         };
-        let Some(found) =
-            find_tool_bin(
+        let Some(found) = find_tool_bin(
             tool,
             &link.source_bin,
             ctx.scope,
             ctx.env,
             &extra_dirs(ctx),
             ctx.the_toolchains_bin_dir(tool).as_deref(),
-        )
-        else {
+        ) else {
             continue;
         };
         let target: PathBuf = match exposed_target(ctx.scope, tool, &link.source_bin, &found) {
@@ -471,16 +469,14 @@ pub fn run_postinstall_commands(
         let Some(Postinstall::Run(step)) = &tool.declaration.options.postinstall else {
             continue;
         };
-        let Some(target) =
-            find_tool_bin(
+        let Some(target) = find_tool_bin(
             tool,
             &step.source_bin,
             ctx.scope,
             ctx.env,
             &extra_dirs(ctx),
             ctx.the_toolchains_bin_dir(tool).as_deref(),
-        )
-        else {
+        ) else {
             continue;
         };
         let request: RunRequest = RunRequest {

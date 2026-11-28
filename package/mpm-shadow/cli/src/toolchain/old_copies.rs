@@ -343,8 +343,7 @@ fn plan_cargo_bin_copies(
                 continue;
             }
             let managed_version: Option<String> = winning_version(ctx.scope, tool);
-            let mine: Option<PathBuf> =
-                find_tool_bin(
+            let mine: Option<PathBuf> = find_tool_bin(
                 tool,
                 &candidate.bin,
                 ctx.scope,

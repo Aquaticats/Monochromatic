@@ -210,7 +210,9 @@ fn precondition_reason(
                 ctx.env,
                 &[],
                 ctx.the_toolchains_bin_dir(tool).as_deref(),
-            ).is_none() {
+            )
+            .is_none()
+            {
                 return Some(format!(
                     "the newest copy has no working {bin}, so this may be the only working one"
                 ));
