@@ -2829,9 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-What `mpm-shadow`'s alpha.13 pass found,
-with no High finding:
-
 - The new message for a start refused as busy says an upgrade or an install is the usual cause,
   which the release's own record contradicts;
   it says "the program's file" when the held file can be a script's interpreter;
