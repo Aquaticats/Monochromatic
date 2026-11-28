@@ -67,8 +67,14 @@ fn a_written_plan(name: &str) -> (RemovalFixture, ScriptedPool) {
         common_dir: fixture.common(),
         slot: SLOT,
     };
-    let _ =
-        enter_the_removal(&at, &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing()).expect("the entry writes the plan");
+    let _ = enter_the_removal(
+        &at,
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect("the entry writes the plan");
     return (fixture, pool);
 }
 
@@ -124,8 +130,15 @@ fn a_plan_whose_head_was_requested_and_whose_clone_is_gone_takes_the_head_gone_p
         common_dir: fixture.common(),
         slot: SLOT,
     };
-    let started: TheStart = start_the_removal(&at, &pool, &unmount, &ScriptedClock, &GoneProbe, &AStagingFolderAControlAnswers::making_nothing())
-        .expect("the absence proves the path");
+    let started: TheStart = start_the_removal(
+        &at,
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &GoneProbe,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect("the absence proves the path");
     match started {
         TheStart::Gone {
             plan,
@@ -152,8 +165,14 @@ fn a_plan_whose_head_is_present_and_whose_clone_is_gone_names_the_settling_comma
         common_dir: fixture.common(),
         slot: SLOT,
     };
-    let started: Result<TheStart, RemovalStop> =
-        start_the_removal(&at, &pool, &unmount, &ScriptedClock, &GoneProbe, &AStagingFolderAControlAnswers::making_nothing());
+    let started: Result<TheStart, RemovalStop> = start_the_removal(
+        &at,
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &GoneProbe,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    );
     let stop: RemovalStop = match started {
         Ok(_) => panic!("a head never requested cannot have been destroyed by this run"),
         Err(refusal) => refusal,
@@ -198,8 +217,14 @@ fn an_adopted_plan_needs_a_live_intent() {
             ),
         ),
     ]);
-    let started: Result<TheStart, RemovalStop> =
-        start_the_removal(&at, &pool, &unmount, &ScriptedClock, &probe, &AStagingFolderAControlAnswers::making_nothing());
+    let started: Result<TheStart, RemovalStop> = start_the_removal(
+        &at,
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &probe,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    );
     let stop: RemovalStop = match started {
         Ok(_) => panic!("a plan with no live intent proves no unmount"),
         Err(refusal) => refusal,
@@ -219,8 +244,15 @@ fn a_fresh_repository_with_no_plan_enters_afresh() {
         common_dir: fixture.common(),
         slot: SLOT,
     };
-    let started: TheStart = start_the_removal(&at, &pool, &unmount, &ScriptedClock, &GoneProbe, &AStagingFolderAControlAnswers::making_nothing())
-        .expect("a repository with no plan enters");
+    let started: TheStart = start_the_removal(
+        &at,
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &GoneProbe,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect("a repository with no plan enters");
     assert!(
         matches!(started, TheStart::Present { .. }),
         "the entry's own proof decides, and the plan it writes stands"
@@ -285,7 +317,14 @@ fn the_start_of(
         common_dir: fixture.common(),
         slot: SLOT,
     };
-    return start_the_removal(&at, pool, &unmount, &ScriptedClock, probe, &AStagingFolderAControlAnswers::making_nothing());
+    return start_the_removal(
+        &at,
+        pool,
+        &unmount,
+        &ScriptedClock,
+        probe,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    );
 }
 
 /// A plan whose head is `gone` and whose clone is gone takes the head-gone path,

@@ -74,7 +74,8 @@ pub(crate) fn publish_the_origin_record(
         .map(|pair| return pair.1)
     else {
         return Err(a_refused_record(
-            origin_cleanups_folder(input.entry.common_dir).join(plan.facts.origin_snapshot.as_str()),
+            origin_cleanups_folder(input.entry.common_dir)
+                .join(plan.facts.origin_snapshot.as_str()),
             format!(
                 "the plan's origin snapshot `{}` names no own name, so no file of that record can be named",
                 plan.facts.origin_snapshot
@@ -242,10 +243,7 @@ pub(crate) fn attempt_the_origin_cleanup(
             destroyed,
         } => {
             folder.remove(own_name).map_err(|refusal| {
-                return a_refused_record(
-                    folder.path().join(own_name),
-                    refusal_words(&refusal),
-                );
+                return a_refused_record(folder.path().join(own_name), refusal_words(&refusal));
             })?;
             let line: Option<String> = destroyed
                 .as_ref()
@@ -260,10 +258,7 @@ pub(crate) fn attempt_the_origin_cleanup(
             detail,
         } => {
             folder.publish(next.as_ref()).map_err(|refusal| {
-                return a_refused_record(
-                    folder.path().join(own_name),
-                    refusal_words(&refusal),
-                );
+                return a_refused_record(folder.path().join(own_name), refusal_words(&refusal));
             })?;
             let reason: BlockReason = next
                 .block

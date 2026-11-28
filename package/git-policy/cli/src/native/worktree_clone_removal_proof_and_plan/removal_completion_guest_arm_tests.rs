@@ -39,8 +39,8 @@ use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::an_existing_cl
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::TheLiveHolderScan;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
-use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{

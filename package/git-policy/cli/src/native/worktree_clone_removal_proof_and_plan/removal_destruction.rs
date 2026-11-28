@@ -187,14 +187,13 @@ pub struct DestructionUnderway {
 pub fn destroy_the_removal(
     input: &RemovalDestruction<'_>
 ) -> Result<DestructionUnderway, RemovalStop> {
-    let entered: EnteredRemoval =
-        enter_the_removal(
-            input.entry,
-            input.reads,
-            input.unmount,
-            input.clock,
-            input.staging,
-        )?;
+    let entered: EnteredRemoval = enter_the_removal(
+        input.entry,
+        input.reads,
+        input.unmount,
+        input.clock,
+        input.staging,
+    )?;
     let planned: PlannedOrigin = planned_origin_of(input.entry.slot, &entered);
     let folder: PlanFolder =
         PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {

@@ -145,8 +145,14 @@ fn the_removal_lineage_guest_arms() {
         common_dir: common.as_path(),
         slot: SLOT,
     };
-    let entered: EnteredRemoval = enter_the_removal(&entry, &reads, &unmount, &TheLiveClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect("the healthy removal enters");
+    let entered: EnteredRemoval = enter_the_removal(
+        &entry,
+        &reads,
+        &unmount,
+        &TheLiveClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect("the healthy removal enters");
     assert_eq!(
         entered.plan.attempts.len(),
         1,

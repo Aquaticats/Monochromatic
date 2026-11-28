@@ -209,9 +209,14 @@ fn a_healthy_removal_writes_the_plan_after_the_unmount_and_prints_its_loss() {
     let fixture: RemovalFixture = RemovalFixture::healthy("entry-healthy");
     let pool: ScriptedPool = fixture.healthy_pool();
     let unmount: ScriptedUnmount = ScriptedUnmount::answering();
-    let entered: EnteredRemoval =
-        enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-            .expect("the healthy removal enters");
+    let entered: EnteredRemoval = enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect("the healthy removal enters");
     assert_eq!(
         unmount.times_asked(),
         1,
@@ -264,8 +269,14 @@ fn a_refused_lineage_stops_before_the_unmount_is_asked_and_writes_no_plan() {
         ORIGIN_CREATETXG,
     ));
     let unmount: ScriptedUnmount = ScriptedUnmount::answering();
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect_err("a transferred snapshot refuses the removal")
+    match enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect_err("a transferred snapshot refuses the removal")
     {
         RemovalStop::TransferredHistory {
             ..
@@ -297,8 +308,14 @@ fn a_refused_bookmark_stops_before_the_unmount_and_names_every_refused_one() {
         21,
     ));
     let unmount: ScriptedUnmount = ScriptedUnmount::answering();
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect_err("a refused bookmark refuses the removal")
+    match enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect_err("a refused bookmark refuses the removal")
     {
         RemovalStop::BookmarksRefused {
             refused,
@@ -315,8 +332,14 @@ fn an_unmount_that_is_not_proved_stops_before_the_plan_is_written() {
     let fixture: RemovalFixture = RemovalFixture::healthy("entry-unmount");
     let pool: ScriptedPool = fixture.healthy_pool();
     let unmount: ScriptedUnmount = ScriptedUnmount::refusing("unmount");
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect_err("a refused unmount stops the removal")
+    match enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect_err("a refused unmount stops the removal")
     {
         RemovalStop::UnmountFailed {
             step,
@@ -338,8 +361,14 @@ fn a_registration_swapped_during_the_unmount_stops_the_plan() {
     let pool: ScriptedPool = fixture.healthy_pool();
     let unmount: ScriptedUnmount =
         ScriptedUnmount::swapping_the_registration(fixture.registration.as_path());
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect_err("a registration swapped during the unmount stops the removal")
+    match enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect_err("a registration swapped during the unmount stops the removal")
     {
         RemovalStop::IdentityDiffers {
             field,
@@ -364,12 +393,23 @@ fn a_plan_already_standing_is_named_and_left() {
     let fixture: RemovalFixture = RemovalFixture::healthy("entry-standing-plan");
     let pool: ScriptedPool = fixture.healthy_pool();
     let first: ScriptedUnmount = ScriptedUnmount::answering();
-    let entered: EnteredRemoval =
-        enter_the_removal(&entry(&fixture), &pool, &first, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-            .expect("the first run writes its plan");
+    let entered: EnteredRemoval = enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &first,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect("the first run writes its plan");
     let second: ScriptedUnmount = ScriptedUnmount::answering();
-    match enter_the_removal(&entry(&fixture), &pool, &second, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect_err("a standing plan stops this entry")
+    match enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &second,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect_err("a standing plan stops this entry")
     {
         RemovalStop::APlanStands {
             slot,
@@ -422,8 +462,14 @@ fn a_registration_of_another_identity_stops_the_removal_before_the_pool() {
     std::fs::remove_dir_all(fixture.registration.as_path()).expect("the registration goes");
     std::fs::create_dir_all(fixture.registration.as_path())
         .expect("another registration takes its name");
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
-        .expect_err("another worktree's registration stops the removal")
+    match enter_the_removal(
+        &entry(&fixture),
+        &pool,
+        &unmount,
+        &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
+    )
+    .expect_err("another worktree's registration stops the removal")
     {
         RemovalStop::IdentityDiffers {
             field,

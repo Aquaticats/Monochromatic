@@ -20,9 +20,9 @@
 //! ```
 
 use crate::testing::test_support::fixture;
-use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
+use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ClearingDevice,
     EpochProbe,
@@ -89,15 +89,14 @@ impl RemovalStagingFolder for AStagingFolderOfAFixtureCache {
         clone_guid: DatasetGuid,
     ) -> Result<(), RemovalStop> {
         self.asked.set(self.asked.get() + 1);
-        return create_the_staging_folder(self.home.as_path(), &self.pin, clone_guid).map(
-            |_made| return (),
-        )
-        .map_err(|said| {
-            return RemovalStop::TheStagingFolderCouldNotBeMade {
-                step: String::from(super::STAGING_FOLDER_STEP),
-                said,
-            };
-        });
+        return create_the_staging_folder(self.home.as_path(), &self.pin, clone_guid)
+            .map(|_made| return ())
+            .map_err(|said| {
+                return RemovalStop::TheStagingFolderCouldNotBeMade {
+                    step: String::from(super::STAGING_FOLDER_STEP),
+                    said,
+                };
+            });
     }
 }
 
@@ -164,7 +163,9 @@ impl RemovalUnmount for AnUnmountThatReadsTheFolder {
 /// ```
 fn the_fixture_pins(cache: &std::fs::File) -> UserCachePin {
     let facts = cache_mount_facts(cache).expect("the fixture cache's mount reads");
-    let opened: std::fs::Metadata = cache.metadata().expect("the fixture cache's metadata reads");
+    let opened: std::fs::Metadata = cache
+        .metadata()
+        .expect("the fixture cache's metadata reads");
     return UserCachePin {
         source: facts.source,
         root_inode: opened.ino(),
@@ -251,7 +252,11 @@ fn a_removal_reaches_its_unmount_with_the_folder_the_release_makes() {
     );
     let folder: PathBuf = cache_path.join(staging_folder_name(clone_guid));
     let facts: std::fs::Metadata = std::fs::metadata(folder.as_path()).expect("the folder stands");
-    assert_eq!(facts.mode() & 0o7777, 0o700, "the folder keeps the route's mode");
+    assert_eq!(
+        facts.mode() & 0o7777,
+        0o700,
+        "the folder keeps the route's mode"
+    );
     assert_eq!(
         facts.uid(),
         std::fs::metadata(cache_path.as_path())

@@ -29,13 +29,13 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::{
     HeadWord,
     SnapshotOutcome,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ADoneUnmount,
     EpochProbe,
     ScriptedClock,
     ScriptedHead,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,

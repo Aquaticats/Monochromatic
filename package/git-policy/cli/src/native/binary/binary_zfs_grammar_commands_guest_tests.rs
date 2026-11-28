@@ -397,8 +397,14 @@ fn the_state_a_kill_leaves(fixture: &TheFixture) {
     let unmount: ADoneUnmount = ADoneUnmount {
         clone_guid: guid,
     };
-    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock, &NoFolderTheHandlerBinds)
-        .expect("the removal's own entry writes its plan");
+    enter_the_removal(
+        &entry,
+        &reads,
+        &unmount,
+        &TheLiveClock,
+        &NoFolderTheHandlerBinds,
+    )
+    .expect("the removal's own entry writes its plan");
     let mut plan: DestructionPlan =
         git_policy_cli::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(
             fixture.place.common.as_path(),

@@ -289,7 +289,9 @@ pub fn adopt_the_removal(request: &TheStartingRemoval<'_>) -> Result<EnteredRemo
     };
     refuse_the_live_intent(request.probe, plan.facts.clone_dataset.as_str())?;
     // The handler's unmount turn opens this folder before anything else, so the wrapper makes it before it asks.
-    request.staging.make_the_folder(prepared.recorded.clone_guid)?;
+    request
+        .staging
+        .make_the_folder(prepared.recorded.clone_guid)?;
     let intent: RemovalIntent = RemovalIntent::fresh()?;
     let answer = request
         .unmount
