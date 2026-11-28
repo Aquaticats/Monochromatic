@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::time::Duration;
 
 use super::fakes::FakeRunner;
 use super::runner::{
@@ -132,5 +133,159 @@ fn the_fake_records_requests_answers_by_prefix_and_defaults_to_success() {
     assert_eq!(
         runner.calls()[0].line(),
         "/some/dir/cargo binstall --no-confirm fd-find"
+    );
+}
+
+/// What:
+/// How a control reads the lines the wait for a program prints,
+/// without writing them to the test's own standard error.
+/// Why:
+/// The one line a long wait prints is the behaviour under test,
+/// so a control has to see it,
+/// and the shipped call's sink writes to standard error rather than to anything a test can read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said: string[] = [];
+/// const say = (line: string) => { said.push(line); };
+/// ```
+fn the_lines_said() -> (std::rc::Rc<std::cell::RefCell<Vec<String>>>, impl Fn(&str)) {
+    let said: std::rc::Rc<std::cell::RefCell<Vec<String>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let sink = std::rc::Rc::clone(&said);
+    let say = move |line: &str| {
+        sink.borrow_mut().push(line.to_string());
+    };
+    return (said, say);
+}
+
+/// Starts `sh -c <script>` and waits for it as the real runner does,
+/// with a bound a control can wait out and a sink the control can read.
+fn wait_for_a_shell(
+    script: &str,
+    bound: std::time::Duration,
+    say: &dyn Fn(&str),
+) -> (std::process::Output, RunRequest) {
+    let request = RunRequest::new("sh", &["-c", script]);
+    let child = std::process::Command::new(&request.command)
+        .args(&request.args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("start the stand-in");
+    let output = super::runner::wait_for_the_program(child, &request, bound, say)
+        .expect("read the stand-in's answer");
+    return (output, request);
+}
+
+/// A wait that ends within the bound says nothing:
+/// the line is for a wait that has outlasted an ordinary answer, not for every start.
+#[test]
+fn a_wait_that_ends_within_the_bound_is_silent() {
+    let (said, say) = the_lines_said();
+    let (output, _) = wait_for_a_shell("echo answered", Duration::from_secs(30), &say);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "answered\n");
+    assert!(
+        said.borrow().is_empty(),
+        "an ordinary answer prints no line about waiting: {:?}",
+        said.borrow()
+    );
+}
+
+/// What:
+/// The one line a wait prints once it has passed the bound,
+/// which names the program and every argument it was started with.
+/// Why:
+/// A run whose `rustup` never answers prints nothing else,
+/// so this line is the only thing that tells a person what is outstanding;
+/// the command it names has to be the one the run is waiting on.
+#[test]
+fn a_wait_that_passes_the_bound_says_what_is_being_waited_for() {
+    let (said, say) = the_lines_said();
+    let bound = Duration::from_millis(50);
+    let (output, request) = wait_for_a_shell("sleep 0.4; echo answered", bound, &say);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "answered\n",
+        "the answer is still read whole"
+    );
+    let lines: Vec<String> = said.borrow().clone();
+    assert_eq!(lines.len(), 1, "the wait is named once: {lines:?}");
+    assert!(
+        lines[0].contains(&format!("still waiting for `{}` to answer", request.line())),
+        "the line names the command the run waits on: {lines:?}"
+    );
+    assert!(
+        lines[0].contains(&format!(
+            "{:.1} s after this command started it",
+            bound.as_secs_f64()
+        )),
+        "the line says how long the bound is, so a reader can judge the wait: {lines:?}"
+    );
+    assert!(
+        lines[0].contains("no deadline ends that wait"),
+        "the line says no cut-off follows, which is what the run does: {lines:?}"
+    );
+}
+
+/// A wait that outlasts the bound several times over is named once,
+/// not once per bound: a program that runs for a minute prints one line.
+#[test]
+fn a_wait_that_outlasts_the_bound_twice_is_still_named_once() {
+    let (said, say) = the_lines_said();
+    let (output, _) = wait_for_a_shell("sleep 0.6; echo answered", Duration::from_millis(50), &say);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "answered\n");
+    assert_eq!(
+        said.borrow().len(),
+        1,
+        "one line however long the wait lasts: {:?}",
+        said.borrow()
+    );
+}
+
+/// The output of a program that prints more than a pipe holds is read while it runs,
+/// which is what the wait's own reading thread is for:
+/// a child blocked on a full pipe would otherwise never end, and no wait would end with it.
+#[test]
+fn a_programs_whole_output_is_read_even_when_it_is_larger_than_a_pipe() {
+    let (said, say) = the_lines_said();
+    let (output, _) = wait_for_a_shell(
+        "i=0; while [ $i -lt 4000 ]; do echo 0123456789012345678901234567890123456789; i=$((i+1)); done",
+        Duration::from_secs(30),
+        &say,
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).lines().count(),
+        4000,
+        "every line the program printed is in the answer"
+    );
+    assert!(
+        said.borrow().is_empty(),
+        "reading a large answer needs no line about waiting: {:?}",
+        said.borrow()
+    );
+}
+
+/// What:
+/// The shipped bound is the one the measurement supports,
+/// and the wait for an ordinary answer is shorter than it.
+/// Why:
+/// The line is meant for a wait that has outlasted an ordinary call,
+/// so the constant has to sit far above what an ordinary answer costs;
+/// the measurement in `runner.rs` puts an ordinary `rustup` question at a median of 12.85 ms
+/// and its slowest of 26.58 ms,
+/// and this control holds the shipped bound above both by a wide margin.
+#[test]
+fn the_shipped_bound_is_far_above_an_ordinary_answer() {
+    // What: the slowest of the forty ordinary `which` and `component list` answers this release measured,
+    //  26.58 ms, rounded up to the next whole millisecond.
+    // Why: the bound exists for a wait that has outlasted an ordinary answer, so the margin to that answer is the
+    //  property under test; the figure is the round's measurement, not a value this test chose.
+    let the_slowest_ordinary_answer_measured: Duration = Duration::from_millis(27);
+    assert!(
+        super::runner::A_WAIT_LONGER_THAN_ORDINARY >= the_slowest_ordinary_answer_measured * 20,
+        "the bound is at least twenty times the slowest ordinary question measured: {:?}",
+        super::runner::A_WAIT_LONGER_THAN_ORDINARY
     );
 }
