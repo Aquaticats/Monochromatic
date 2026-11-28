@@ -527,6 +527,16 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     // A worktree a person removed by a route this program does not see keeps its pool of finished shadows, and the pool is
     //  named after that worktree's own Git directory: the command is what collects it, once and for good.
     sweep_shadow_pools_of_gone_worktrees(checks);
+    // What: The repository's folder of unanswered requests is read once, here, before the child Git starts.
+    // Why:  The design puts this check on the forwarded path at the point the shadow sweep runs, after configuration and
+    //       before the commit path, so the trigger for a lost event is the command a person already runs
+    //       (`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`, "Which commands, and where"). A repository
+    //       whose request was answered holds no folder, and the one `stat` that finds none is all this costs. Everything
+    //       the check does with a folder that stands is silent and changes no status, and the nudge inside it stays behind
+    //       its compiled switch, so a release without that switch only reads and removes an answered entry.
+    crate::worktree_clone_mount_protocol::unanswered_requests_before_a_command::check_before_a_command(
+        checks.facts.known_common_dir().as_deref(),
+    );
     // A held commit that no reference of the repository can hold stops the command before Git removes the only
     //  references that name it (`worktree_removal_held_commits.rs`).
     if let Some(stderr) = snapshot_before_worktree_removal(stripped, checks) {

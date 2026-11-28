@@ -1,0 +1,15 @@
+package/ide/app	0
+package/jsonc-edit/core-rust	0
+package/linter/monochromatic-lint-closure	0
+package/linter/monochromatic-lint	31
+package/mpm-shadow/cli	72
+package/music-player/android-app/rust	0
+package/music-player/desktop-app	0
+package/music-player/truepeak-core	0
+package/nested-wayland-session/cli	0
+package/pnpm-shadow/cli	0
+package/search-shadow/cli	0
+package/terminal/app	0
+package/wg/cli-quicker-exempt	6
+package/xml-edit/core-rust	0
+package/zfs/request-to-openzfs-kernel-device	44

@@ -1,0 +1,32 @@
+   Compiling git2 v0.21.0
+   Compiling dylint_linting v6.4.0
+error[E0463]: can't find crate for `rustc_driver`
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:215:1
+    = help: maybe you need to install the missing components with: `rustup component add rust-src rustc-dev llvm-tools-preview`
+
+error[E0463]: can't find crate for `rustc_data_structures`
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:217:1
+    = help: maybe you need to install the missing components with: `rustup component add rust-src rustc-dev llvm-tools-preview`
+
+error[E0463]: can't find crate for `rustc_session`
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:218:1
+    = help: maybe you need to install the missing components with: `rustup component add rust-src rustc-dev llvm-tools-preview`
+
+error[E0463]: can't find crate for `rustc_span`
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:219:1
+    = help: maybe you need to install the missing components with: `rustup component add rust-src rustc-dev llvm-tools-preview`
+
+error[E0463]: can't find crate for `rustc_lint_defs`
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:222:1
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:222:1
+    |
+222 | extern crate rustc_lint_defs;
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ can't find crate
+    = help: maybe you need to install the missing components with: `rustup component add rust-src rustc-dev llvm-tools-preview`
+
+error[E0463]: can't find crate for `rustc_errors`
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dylint_linting-6.4.0/src/lib.rs:768:1
+    = help: maybe you need to install the missing components with: `rustup component add rust-src rustc-dev llvm-tools-preview`
+
+For more information about this error, try `rustc --explain E0463`.
+error: could not compile `dylint_linting` (lib) due to 6 previous errors

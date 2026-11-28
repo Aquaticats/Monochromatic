@@ -843,6 +843,7 @@ which is the one set of guest-step helpers since issue 6612
 `-command-line.ts`,
 `-arm-log.ts`,
 `-step-command.ts`,
+`-live-steps.ts`,
 `-recipe-step.ts`,
 `-host-command.ts`,
 `-script.ts`,
@@ -1159,10 +1160,25 @@ their options and the log each writes are what the step always sent,
 and only how the command is started and how its end is read changed.
 The guest's name check is in the launcher,
 so a command that reached another machine's guest refuses before the step file
-starts:
-a check inside the step file is one the step file runs on and then works anyway
-(measured with `sh` on both shapes of
-`bin/mvm-guest-command-line.ts`).
+starts,
+and that refusal is this host's at once:
+the launcher's own status is read,
+and a status other than zero is reported with the launcher's command,
+its status and the guest's name
+(`bin/mvm-guest-detached-script.ts`).
+A check inside the step file refuses itself too,
+and writes the status line the host waits for before it exits,
+so a wrong guest is reported at the host's next look instead of at the end of
+the script's bound;
+that is the shape the step 22 driver sends
+(`bin/mvm-guest-command-line.ts`).
+`removal-lineage-proof-guest.ts`,
+`settling-command-guest.ts` and
+`cancel-and-settle-commands-guest.ts`
+carry no name check in their scripts at all,
+because the host names the guest in `mvm exec`,
+and their launcher's status is read the same way,
+so a guest `mvm` cannot ask is refused for them as well.
 A build that ends nonzero is reported with its own status and the tail of its own
 log.
 In issue 6639's own guest,
@@ -1171,9 +1187,23 @@ the whole `green` step took 7m 11s
 (`2026-11-27T20:20:58-05:00` to `2026-11-27T20:28:09-05:00`),
 and the step's result was the `DONE=0` line of the log the wait pulled:
 the `mvm exec` that started the launcher returns before the build starts,
-so none of its status is read.
+and what it answers is only whether the launcher was accepted.
 
 ## Guest work that runs longer than the agent's safe length
+
+A guest command of a driver's step runs in a process group of its own,
+which is what lets the step's bound stop everything the command started
+(`bin/mvm-guest-step-command.ts`).
+The same separation is why the interrupt key does not reach a step:
+the kernel sends it to the driver's own group and to nothing else,
+so a driver that is interrupted or terminated stops every step it still has
+running,
+says in one line which command in which process group it stopped,
+and then ends the way the signal ends a program
+(`bin/mvm-guest-live-steps.ts`).
+A guest the interrupted run had made is left as it was,
+because taking a guest away is a step of the run's own,
+so the guest's name and `mvm destroy` are what a person needs next.
 
 A long command in a guest can lose its result:
 the kernel ends a process in the guest agent's unit,
@@ -1196,13 +1226,24 @@ the step 22 driver has the same file
 (`e2e/step-22-arms/detached-step.ts`),
 and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
-So `mount-git-worktree-clone-datasets-guest.ts`,
-`removal-lineage-proof-guest.ts`,
+So `removal-lineage-proof-guest.ts`,
 `settling-command-guest.ts`,
 `cancel-and-settle-commands-guest.ts` and
-`zfs-step-22-measurements-guest.ts` hold no plain long command at all.
+`zfs-step-22-measurements-guest.ts` hold no plain `guest()` command at all,
+and the three plain commands
+`mount-git-worktree-clone-datasets-guest.ts` still holds
+are `e2e/adoption-guest-arms/store-dataset-and-fsync.ts:115`,
+`e2e/adoption-guest-arms/delegation-arm.ts:155` and
+`e2e/adoption-guest-arms/snapdir-arm.ts:73`,
+each bounded at 900 s and none timed on its own.
+The rule that a guest command bounded above five minutes runs detached
+covers those three as written:
+each is bounded above the five minutes,
+and nothing has timed one,
+so a round that keeps them plain owes either a measurement under five minutes
+or a detached script.
 
-Every other plain `guest()` command in this package is listed here,
+Every plain `guest()` command in this package is listed here,
 with the bound it carries and the duration recorded for it.
 None of them is changed by issue 6639.
 The durations are the round of issue 6612's own guest run of 2026-11-27,
@@ -1265,7 +1306,7 @@ where a step's duration is its whole step:
 - `e2e/adoption-guest-arms/delegation-arm.ts:155` is the delegation arm,
   with a bound of 900 s.
   It is not timed on its own.
-- `e2e/adoption-guest-arms/snapdir-arm.ts:149` is the `snapdir` matrix,
+- `e2e/adoption-guest-arms/snapdir-arm.ts:73` is the `snapdir` matrix,
   with a bound of 900 s.
   It is not timed on its own.
 - `e2e/start-probe-arms/fixture-arms.ts:85` is the `red` arm,

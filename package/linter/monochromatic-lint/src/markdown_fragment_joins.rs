@@ -20,15 +20,29 @@ use crate::markdown_block_start::starts_block_construct;
 use crate::markdown_break_points::ends_at_break_point;
 /// Import the paragraph line-ending lookup every fragment starts from.
 use crate::markdown_prose_context::line_ending;
+/// Import the ordered set that keeps one join per line ending.
+use std::collections::BTreeSet;
 
 /// What:
 ///  The most characters a joined line may hold,
-///  counted after the indent the line is written with.
+///  counted as the host file writes that line:
+///  the characters the host puts before the line's text,
+///  the indent the fix writes,
+///  and the joined text itself.
 /// Why:
 ///  `AGENTS.md` rule MD1 asks for lines under this length;
 ///  the rule itself holds no limit,
-///  so this bounds what one join may add and nothing else.
-const JOINED_LINE_LIMIT: usize = 120;
+///  so this bounds what one join may add and nothing else,
+///  and it has to be the length a reader of the host file counts,
+///  marker and host indent included,
+///  or the rule would write the line it means to keep short.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const JOINED_LINE_LIMIT = 120;
+/// ```
+/// The host-width control of the built invocation reads it, so it is `pub(crate)`.
+pub(crate) const JOINED_LINE_LIMIT: usize = 120;
 
 /// The most words a fragment may hold and still be one the old hard wrap cut.
 const FRAGMENT_WORDS: usize = 2;
@@ -85,26 +99,55 @@ fn holds_own_break(
 ///  A fragment alone on its line is the shape the old hard wrap left behind;
 ///  the answer holds `None` wherever the rule's own line break has to stay,
 ///  so a caller applies exactly one answer per break.
+///  Two breaks on one line leave two fragments that end at the same line ending,
+///  and one line ending can take one join,
+///  so the later of those answers holds `None`:
+///  the grouped editor refuses a whole fix that starts where an accepted one starts,
+///  and a second join would wait for the next pass instead of settling with this one.
 ///  Answers arrive in the fragments' own order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function fragmentJoins(source, paragraphEnd, fragments, indentWidth): (FragmentJoin | undefined)[];
+/// function fragmentJoins(source, paragraphEnd, fragments, indentWidth, hostPrefixChars): (FragmentJoin | undefined)[] {
+///   const answers = [];
+///   const given = new Set();
+///   for (const fragment of fragments) {
+///     const join = fragmentJoin(source, paragraphEnd, fragment, indentWidth, hostPrefixChars);
+///     if (join === undefined || given.has(`${join.start}:${join.end}`)) { answers.push(undefined); continue; }
+///     given.add(`${join.start}:${join.end}`);
+///     answers.push(join);
+///   }
+///   return answers;
+/// }
 /// ```
 pub(crate) fn fragment_joins(
     source: &str,
     paragraph_end: usize,
     fragments: &[usize],
     indent_width: usize,
+    host_prefix_chars: usize,
 ) -> Vec<Option<FragmentJoin>> {
     let mut answers: Vec<Option<FragmentJoin>> = Vec::<Option<FragmentJoin>>::new();
+    // One half-open byte range per answer given, so two fragments cannot claim the same line ending.
+    let mut given: BTreeSet<(usize, usize)> = BTreeSet::<(usize, usize)>::new();
     for fragment in fragments {
-        answers.push(fragment_join(
+        let answer: Option<FragmentJoin> = fragment_join(
             source,
             paragraph_end,
             *fragment,
             indent_width,
-        ));
+            host_prefix_chars,
+        );
+        // A declined answer, or a range another fragment already claimed, gives this break no join.
+        let Some(join) = answer else {
+            answers.push(None);
+            continue;
+        };
+        if !given.insert((join.start, join.end)) {
+            answers.push(None);
+            continue;
+        }
+        answers.push(Some(join));
     }
     return answers;
 }
@@ -116,17 +159,19 @@ pub(crate) fn fragment_joins(
 ///  not a preference:
 ///  a fragment the rule would break again,
 ///  a line ending the author marked,
-///  and a following line that opens a block.
+///  a following line that opens a block,
+///  and a joined line the host file would show over the limit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function fragmentJoin(source, paragraphEnd, fragment, indentWidth): FragmentJoin | undefined;
+/// function fragmentJoin(source, paragraphEnd, fragment, indentWidth, hostPrefixChars): FragmentJoin | undefined;
 /// ```
 fn fragment_join(
     source: &str,
     paragraph_end: usize,
     fragment: usize,
     indent_width: usize,
+    host_prefix_chars: usize,
 ) -> Option<FragmentJoin> {
     if fragment >= paragraph_end {
         return None;
@@ -138,12 +183,13 @@ fn fragment_join(
     // The fragment's last visible byte is where the join starts removing bytes.
     let written: &str = source[fragment..ending].trim_end_matches([' ', '\t']);
     let start: usize = fragment + written.len();
-    let written: &str = written.trim_start_matches([' ', '\t']);
-    if written.split_whitespace().count() > FRAGMENT_WORDS {
+    // The same fragment without its own leading spacing, which is the text the rule reads.
+    let text: &str = written.trim_start_matches([' ', '\t']);
+    if text.split_whitespace().count() > FRAGMENT_WORDS {
         return None;
     }
     // A fragment ending at a break point is where the rule puts a line break, so joining it would break it again.
-    if ends_at_break_point(written) {
+    if ends_at_break_point(text) {
         return None;
     }
     let next: usize = ending + ending_length;
@@ -166,7 +212,9 @@ fn fragment_join(
         None => paragraph_end,
     };
     let following: &str = source[text_start..following_end].trim_end_matches([' ', '\t']);
-    let width: usize = indent_width + written.chars().count() + 1 + following.chars().count();
+    // The host counts the characters it writes before this line's text, so a Rust doc comment's marker and indent are part of the width.
+    let width: usize =
+        host_prefix_chars + indent_width + text.chars().count() + 1 + following.chars().count();
     if width >= JOINED_LINE_LIMIT {
         return None;
     }
