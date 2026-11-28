@@ -1468,6 +1468,20 @@ because `complete_the_bound_clones_removal` opens this machine's ZFS device,
 which the pass's M2 says,
 and the guest arm is where that half of the claim belongs.
 
+### The one other path a plan's tail runs on
+
+`worktree_clone_removal_finish_pass::finish_one_plan` runs before every
+forwarded command for a plan whose head is `gone`.
+It was read for the same defect and does not have it:
+it takes the slot's claim,
+proves the clone's absence,
+settles the registration,
+ends the binding's files and removes the plan,
+and it destroys nothing and sends no origin cleanup,
+so a person's lock met at its settle costs the claim file and no other record,
+and nothing a person would lose goes before it.
+No control or change was made there.
+
 ### What this round did not do
 
 - The pass's M2 (no guest arm plants a person's lock for a removal),
