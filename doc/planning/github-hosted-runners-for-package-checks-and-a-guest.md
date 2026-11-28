@@ -722,12 +722,13 @@ and this file no longer pretends it is:
   of which the suite was 889 s and 1,259 s (the placement record,
   "For scale",
   reading `doc/planning/git-policy-cli-cachyos-test-containers.md`);
-- the eleven gate logs of 2026-11-27 and 2026-11-28 under `~/temp/agent/gate/` span,
+- the twelve gate logs of 2026-11-27 and 2026-11-28 under `~/temp/agent/gate/` span,
   from file creation to last write,
   20.4,
   21.8,
   22.1,
   22.1,
+  23.0,
   25.4,
   26.1,
   30.9,
@@ -736,7 +737,9 @@ and this file no longer pretends it is:
   38.6 and 41.8 minutes (median 26.1),
   which is an upper bound on each unit's length because a log carries no timestamps;
   the method matches the two recorded start-to-stop figures within 12 s and 4 s,
-  on the two gates it can be compared with;
+  on the two gates it can be compared with,
+  and the count was eleven when this file first counted it,
+  the twelfth being a gate whose log name begins `20261128T080143`;
 - the same placement record says a gate costs "20 minutes to 50 minutes of wall time plus its queue".
 
 That spread is this host's,
