@@ -200,8 +200,10 @@ pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
 /// Every clause is a fact of the recovery next to this file:
 /// a copy whose marker vouches for the lock's row is published while the version's name holds no finished copy,
 /// and removed as a second one once it does;
-/// a name from another boot is an installer that reboot ended, so a run after a reboot acts on it;
-/// a name from another process namespace is never judged, so the copy waits for a person;
+/// a name from another boot is an installer that reboot ended,
+/// so a run after a reboot acts on it;
+/// a name from another process namespace is never judged,
+/// so the copy waits for a person;
 /// and an older version beside a newer installed one is never kept.
 ///
 /// In TS you'd write (pseudocode):

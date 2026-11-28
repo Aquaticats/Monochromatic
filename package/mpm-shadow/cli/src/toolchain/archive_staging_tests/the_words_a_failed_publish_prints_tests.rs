@@ -7,7 +7,8 @@
 //! recovery becomes;
 //! an ordinary install has no install after it in the same run,
 //! so its failure is the only place a person learns where the version comes back from.
-//! Each control here builds one arm an ordinary install reaches, fails that one call,
+//! Each control here builds one arm an ordinary install reaches,
+//! fails that one call,
 //! reads the line a person sees,
 //! and then runs the install that follows:
 //! it publishes the copy the words named,
@@ -25,7 +26,8 @@
 //! test('a failed put-back of the copy that was there claims nothing about a finished copy');
 //! ```
 
-/// Imports `fs` from `std`, for the fixture's own modes and names.
+/// Imports `fs` from `std`,
+/// for the fixture's own modes and names.
 use std::fs;
 /// Imports the owned path type this file's fixtures are built from (not `&Path`).
 use std::path::PathBuf;
@@ -57,7 +59,8 @@ use super::super::sync::{
 };
 /// Imports the text `install` prints for a report.
 use super::super::sync_report_text::format_sync_report;
-/// Imports the fixture: the rig,
+/// Imports the fixture:
+/// the rig,
 /// its one tool and program,
 /// the lock of one version,
 /// the archive that is there without its marker,
@@ -194,12 +197,7 @@ fn the_failure_says_what_a_later_install_does(
     assert!(
         is_finished(std::path::Path::new(copy), BIN),
         "the finished copy the message names is on disk: {:?}",
-        names_of(
-            &version_dir
-                .parent()
-                .expect("the tool's directory")
-                .to_path_buf()
-        )
+        names_of(version_dir.parent().expect("the tool's directory"))
     );
     let downloads_before: usize = rig.http.requests().len();
     as_after_this_process_ended(std::path::Path::new(copy), version_dir, STAGING_PURPOSE);

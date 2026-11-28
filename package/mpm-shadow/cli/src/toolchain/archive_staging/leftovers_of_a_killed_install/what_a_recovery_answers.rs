@@ -81,7 +81,8 @@ pub(crate) enum WhatTheFailureNamed {
     /// which is the tool directory's listing that could not be read.
     Nothing,
     /// The failure named a finished copy:
-    /// the one the publish kept, or the one a dead install left and the claim could not take.
+    /// the one the publish kept,
+    /// or the one a dead install left and the claim could not take.
     AFinishedCopy,
     /// The failure named the copy that was moved aside,
     /// which the put-back could not return to the version's name.
@@ -156,7 +157,8 @@ impl ARecoveryThatFailed {
     /// A recovery whose put-back of the copy that was moved aside failed,
     /// whose message names that copy and says nothing was put back at the version's name.
     /// Why:
-    /// That copy is the one that was there, not a finished copy,
+    /// That copy is the one that was there,
+    /// not a finished copy,
     /// so the sentence about a finished copy would be false of it,
     /// and the warning says what this run then did and nothing about that copy.
     ///

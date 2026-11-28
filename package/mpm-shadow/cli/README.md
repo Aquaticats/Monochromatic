@@ -1414,7 +1414,9 @@ because a name from another boot belongs to an installer that reboot certainly e
 An install in another process namespace does not judge such a name at all:
 it publishes nothing from that copy and removes nothing,
 and `prune --toolchain` prints the name on standard error with what deleting it costs.
-A newer version of a tool this repository publishes, installed by then, leaves the hidden copy where it is,
+A newer version of a tool this repository publishes,
+installed by then,
+leaves the hidden copy where it is,
 because an older repository tool is never kept.
 
 The sentence every failed publish ends with is that rule,
@@ -1442,7 +1444,8 @@ one for each way its publish can go wrong:
 - `cannot move the finished install to <version's name>: <error>; the copy that was there could not be put back from <aside name>: <error>`:
   both of those renames failed.
 
-Each of them ends with `the finished copy this run holds is still at <hidden name>`, following the words above,
+Each of them ends with `the finished copy this run holds is still at <hidden name>`,
+following the words above,
 and that copy is the one the next install publishes:
 
 ```text
@@ -1451,7 +1454,8 @@ toolchain install: mpm-shadow failed: cannot move the finished install to <toolc
 
 A recovery's own failure carries the same words and no sentence of its own,
 because the install that follows it in the same run changes what is at the version's name;
-that report's warning ends with the sentence instead, and its own words say what this run then did.
+that report's warning ends with the sentence instead,
+and its own words say what this run then did.
 
 The finished copy is what a later install publishes rather than the copy that was there,
 because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
