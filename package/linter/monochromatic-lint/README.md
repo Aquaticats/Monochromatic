@@ -2434,7 +2434,7 @@ or how `package/git-policy/cli` uses this library.
   and no one of them names U+2800,
   so the quote keeps it and no sentence calls it unseen.
 - A folder name that holds two arrow shapes needs a rename for each,
-  and it keeps that:
+  and it stays so:
   each sentence such a name gets is true,
   and such names are rare.
 - A longer dead list takes longer to read than it did,

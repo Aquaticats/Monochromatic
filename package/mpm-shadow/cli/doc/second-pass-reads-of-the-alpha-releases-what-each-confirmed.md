@@ -37,8 +37,8 @@ This machine ran `0.2.7-alpha.14` until `0.2.7-alpha.15` was installed at
 `findmnt /proc` showed no `hidepid` here,
 so the reading a live installer the reader cannot see gets was never met on
 this host,
-and the race that leaves an install's leftovers behind two installs at once is
-the one that was.
+and the race a Medium finding needs is the one that needs a killed install's
+leftovers and two installs at once.
 
 ## The alpha.15 read: what the released binaries showed
 

@@ -911,17 +911,18 @@ so
 `pub(self) mod x;`
 and a `mod` line with text after its `;` are errors.
 
-The reading was widened on 2026-11-27 to the shapes above,
-because 154 of 155 published names it could not see had no line in the list:
+The reading was widened on 2026-11-27 to the shapes above:
+154 of 155 published names it could not see had no line in the list,
 a function with `async` before `fn`,
 a name another listed item already has,
 a field,
 a method,
 and a `pub use` written over several lines.
 
-A merge of two branches that each narrow an item or change an excuse can break
-the build with no textual conflict,
-so `native:check` runs on the merged tree before the next merge.
+After each of two structure branches merges,
+`native:check` runs on the merged tree before the next merge:
+a narrowed item or a changed excuse can break the build through a merge with no
+textual conflict.
 
 Two facts of the reading are decisions a reader has to see in the list:
 a name behind a feature gate counts as published,

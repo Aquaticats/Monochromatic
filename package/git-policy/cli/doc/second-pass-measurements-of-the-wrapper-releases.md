@@ -19,8 +19,8 @@ Of 61 commands run through `0.6.1-alpha.48`,
 The four that differed are the merge pass's intended change.
 The pass read the two merges that claim to change no behaviour
 (`02d0a6e8e6` and `97d9afb21c`),
-and that control is what makes its reading of them a measurement of the built
-binary rather than of the source.
+and what it argued about them it argued from the source text and not from a
+build.
 
 ## The release binary's size between alpha.48 and alpha.49
 
