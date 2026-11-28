@@ -47,11 +47,6 @@ const GUEST_VARIABLE = 'CLI_GIT_ZFS_FORCED_ACT_GUEST';
 export const ARM_LOG = '/root/forced-act-arm.log';
 
 /**
- The swap file a guest adds, in gibibytes, so one `rustc` of this crate's tests does not exhaust the guest's 8 GiB.
- */
-const SWAP_GIBIBYTES = '6G';
-
-/**
  The guest's own script: unpack the pushed archive and build this crate's library and its tests.
 
  The dependency build outlives one run, so it is moved out of the tree this run replaces and back again: a second run
@@ -79,7 +74,11 @@ export function buildScript(): string {
     `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    // A swap file traded the guest's memory for the build's speed and lost: with 6 GiB of swap the crate's own compile
+    // ran past the 90-minute bound on 2026-11-28T03:36 while the guest thrashed, and the three builds that finished in
+    // 29m54s each on 2026-11-27 ran without one. So any swap an earlier run left is turned off here.
+    'swapoff /swapfile 2>/dev/null || true',
+    'rm --force /swapfile 2>/dev/null || true',
     // One job, for the same reason the deferred-origin driver runs one: this build is the library's test binary, and
     // one `rustc` of it takes the guest's whole memory. Measured 2026-11-27 in the guest of issue 6612's round at two
     // jobs, the build's own samples read `AnonPages` 7,249,568 kB of the guest's 8,131,780 kB with one `rustc` at
