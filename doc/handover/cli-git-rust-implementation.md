@@ -2832,33 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-What the linter's alpha.19 pass found:
-no High and no Medium finding,
-and both of alpha.18's Medium findings fixed
-(the near-miss search is linear again,
-0.93 to 1.07 times alpha.17 where alpha.18 was 69 times).
-Every printed key reads back with the same binary,
-and the layout gate on `package/git-policy/cli` and on the ZFS binding reports nothing,
-with a control that removes the allow keys reporting 558 and 16 findings.
-Its six Low findings had one round,
-merged as `2fcfbfc9f8` and released in `0.5.2-alpha.20`
-(release commit `d4a9bb5544`).
-Of 220 spellings of one `uses` line,
-alpha.19 refused 163 and stopped the whole rule,
-with a message that named no whitespace;
-alpha.20 refuses none:
-31 read as the use and 189 are reported as a dead line that spells the whitespace it read,
-since a second whitespace character beside a name belongs to the name,
-which is the rule the README states.
-alpha.16 read all 220 as the use,
-so a list aligned with more than one character in a gap is reported where alpha.16 took it.
-A mistyped `file-uses` line is told what is wrong with it,
-the two wording gaps and the README mapping gap are closed
-(the README gains "How a list written before alpha.20 maps"),
-and the edits no test would catch have tests.
-The constructed walk shape that costs 1.64 times alpha.16 is left:
-no package of this repository has it.
-
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
 `cargo:monochromatic-cargo-shadow`,
