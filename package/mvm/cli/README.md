@@ -395,6 +395,52 @@ The ways weighed,
 their costs and the measurements:
 [`doc/what-the-mvm-command-runs.md`](doc/what-the-mvm-command-runs.md).
 
+### Running `mvm` while this package builds
+
+The build never deletes the launcher in order to write it again.
+It writes the whole output into `dist/final/.node.building` and renames each file into
+`dist/final/node`,
+the launcher and the other entry chunks last
+(`@monochromatic-dev/config-rolldown`,
+`atomic-output-dir.ts`).
+So at every instant of a build the path a shim names holds one whole file:
+what the previous build left,
+or what this build just put there.
+
+What a person running `mvm` in a checkout can rely on,
+while `mise run //package/mvm/cli:build` or `:test:unit` runs beside them:
+
+- A command that starts keeps running:
+  the launcher imports `src/cli.ts`,
+  so it reads the source the same way `mise run //package/mvm/cli:run` does,
+  and a build of the output folder does not touch that source.
+- A command that starts just as the launch file is replaced runs the previous build's
+  launcher or this build's,
+  never a missing or half-written file.
+  The two are the same bytes unless the launcher's own text changed.
+- A build that fails before it renames anything leaves the previous build's output in place.
+  Its staged files stay in `dist/final/.node.building`
+  until the next build of this package clears them;
+  `dist/` is not tracked,
+  so nothing of that reaches a commit.
+
+The window this closed,
+its measurement and what is still open:
+[`doc/troubleshooting/mvm-cli-a-build-never-leaves-its-command-file-absent.md`](../../../doc/troubleshooting/mvm-cli-a-build-never-leaves-its-command-file-absent.md).
+
+### Refreshing an older checkout's shim
+
+A shim written before this package's `bin` named the source still names
+`dist/final/node/cli.mjs`.
+`pnpm install` in that checkout rewrites it,
+and rewrites every shim under the workspace's `node_modules/.bin`,
+re-links each package's dependency folder,
+and reconciles the install state with the lockfile.
+After that,
+`node_modules/.bin/mvm` runs `src/cli.ts` directly and the launcher is not needed
+for that shim;
+it stays because a worktree's build writes it and because another checkout may still name it.
+
 ## Host tools
 
 The libvirt backend runs two host commands,

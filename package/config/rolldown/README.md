@@ -61,6 +61,29 @@ AP5:
 - Targets come from Browserslist through `browserslistTargets`,
   formatted as rolldown engine strings
   (rolldown rejects raw Browserslist queries).
+- A Node flavor build never deletes a file of its output directory before it has the file to
+  put there.
+  `nodeConfig` hands the bundler a staging directory beside the output directory
+  (`<parent>/.<name>.building`) and `atomicOutputDirectoryPlugin` renames one staged file into
+  place per emitted name,
+  shared chunks and assets first and entry chunks last,
+  in the ordered `post` group of `writeBundle`.
+  So every path under the output directory resolves to one whole file at every instant of a
+  build:
+  the previous build's,
+  or this one's.
+  A build that dies before its write phase leaves the output directory untouched and its
+  staging directory behind for the next build of the same package to clear.
+  Files this build did not emit are removed once the new ones are in place,
+  which is the end state `output.cleanDir` produced;
+  a consumer that sets `cleanDir: false` keeps that removal off,
+  which is how a second config writing into a shared output directory leaves its sibling's
+  files alone.
 - Raw rolldown's `output.cleanDir` is per-config and not watch-safe;
   per-entry configs sharing an out dir keep it off
-  and rely on the owning mise task's pre-clean step.
+  and rely on the owning mise task's pre-clean step,
+  and their files are still written in place,
+  so a reader can see one of those bundles half written while its build runs.
+- The client and neutral flavors' default configs still set `output.cleanDir: true` and write
+  their files in place;
+  no command the repository installs runs from `dist/client` or `dist/final/neutral`.
