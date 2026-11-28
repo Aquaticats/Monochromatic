@@ -957,9 +957,8 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         later.recovered,
         vec![format!(
             "removed 1 hidden directory left behind by an install of {ID} that has ended, \
-             1 of which held a second finished copy of {THE_VERSION_A_KILL_LEFT_FINISHED}; \
-             {THE_VERSION_A_KILL_LEFT_FINISHED} holds its completion marker and its program at its name, \
-             so that copy was a second one"
+             1 of which held a second finished copy of {THE_VERSION_A_KILL_LEFT_FINISHED}, \
+             because {THE_VERSION_A_KILL_LEFT_FINISHED} holds its completion marker and its program at its name"
         )],
         "a later run publishes nothing from that copy and removes it, and the version is still installed: {later:?}"
     );

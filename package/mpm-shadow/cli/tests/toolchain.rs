@@ -748,6 +748,11 @@ fn the_prune_says_whether_the_version_stands_finished_beside_a_name_it_cannot_ju
     let version_directory = tool_directory.join("1.0.0");
     write_program(&version_directory.join("release-folder").join("fixtool"));
     fs::write(
+        version_directory.join("release-folder").join("fixtool"),
+        "#!/bin/sh\nec",
+    )
+    .expect("cut the program at the version's name short");
+    fs::write(
         version_directory.join(COMPLETE_MARKER),
         "fixtool 1.0.0 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
     )
@@ -771,14 +776,25 @@ fn the_prune_says_whether_the_version_stands_finished_beside_a_name_it_cannot_ju
     ]);
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
     let stderr = text(&output.stderr);
+    // The version's own name reads as finished by the same test the hidden one is read by: a completion marker and a
+    // program found, no size and no digest, so a program cut short under its marker still reads as finished.
     assert!(
         stderr.contains(&format!(
             "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
-             it holds a second finished copy of fixtool 1.0.0, because 1.0.0 is finished at its name, \
-             and deleting it by hand loses only that second copy",
+             it holds a second finished copy of fixtool 1.0.0, \
+             because 1.0.0 holds its completion marker and its program at its name, \
+             and deleting it by hand loses that second copy",
             second.display()
         )),
-        "the line says which copy the version would lose: {stderr}"
+        "the line says what it read at the version's name and what deleting it costs: {stderr}"
+    );
+    assert!(
+        !stderr.contains("loses only that second copy"),
+        "the line draws no conclusion about the copy the version keeps: {stderr}"
+    );
+    assert!(
+        !stderr.contains("is finished at its name"),
+        "the line names the read, not a finished version: {stderr}"
     );
     assert!(second.is_dir(), "a dry run removes nothing: {stderr}");
 }
