@@ -34,8 +34,12 @@ use std::path::{
     Path,
     PathBuf,
 };
-/// Starts the fixture and waits for it.
-use std::process::Command;
+/// Starts the fixture and waits for it,
+/// and holds a child that a control wants to leave as one that has exited and waits to be reaped.
+use std::process::{
+    Child,
+    Command,
+};
 /// The bound of the contained run,
 /// the time the stop is given to show the scope empty,
 /// and how long reading its members may take.
@@ -53,8 +57,10 @@ use crate::bounded_run::{
     output_within,
 };
 /// The proof that this host can give the tests a delegated scope,
-/// and the reads of the scope a test looks at afterwards.
+/// the reads of the scope a test looks at afterwards,
+/// and how long a clean-up waits for a group to empty.
 use crate::cgroup_test_support::{
+    STATE_WAIT,
     assert_scope_record,
     scope_directory_of,
     this_test_needs_a_delegated_scope,
@@ -398,6 +404,221 @@ fn clean_up(scope: &Path) {
     retire(scope);
 }
 
+/// What:
+/// `fn empty_the_nested_group(scope: &Path, nested: &Path, bound: Duration)` writes `cgroup.kill` on the scope,
+/// waits up to `bound` for the group below it to list no process,
+/// and fails with what that write answered and the state of every process the group still lists.
+/// Why:
+/// The write is the one step of the clean-up that can fail without a word,
+/// and a member still listed after it is told from one the kill never reached by its own state:
+/// a member that has exited or gone was slow to leave,
+/// and one alive in any other state is a kill that did not take it (issue 6650).
+/// The failure used to say only that the group's end did not happen in time,
+/// which told the two apart for nobody.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function emptyTheNestedGroup(scope: string, nested: string, bound: number): void  // throws with the write's answer and each member
+/// ```
+fn empty_the_nested_group(
+    scope: &Path,
+    nested: &Path,
+    bound: Duration,
+) {
+    // What:     `killed` is what the kernel answered the write that kills the scope's members.
+    // Why:      A write the kernel refused and a write it took leave the same group behind, and only this record tells them apart.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let killed: Error | undefined
+    // try { writeFileSync(path.join(scope, 'cgroup.kill'), '1') } catch (error) { killed = error }
+    // ```
+    let killed: std::io::Result<()> = fs::write(scope.join("cgroup.kill"), "1");
+    // What:     `emptied` says whether the group listed no process before the bound passed.
+    // Why:      A wait that answers instead of asserting is what lets the failure be built from what is still there.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const emptied = waitUpTo(bound, () => readFileSync(path.join(nested, 'cgroup.procs'), 'utf8').trim() === '')
+    // ```
+    let emptied: bool = wait_up_to(bound, &|| {
+        return fs::read_to_string(nested.join("cgroup.procs")).is_ok_and(|text| {
+            return text.trim().is_empty();
+        });
+    });
+    assert!(
+        emptied,
+        "{}",
+        a_nested_group_that_did_not_empty(scope, nested, bound, &killed)
+    );
+}
+
+/// What:
+/// `fn a_nested_group_that_did_not_empty(scope: &Path, nested: &Path, bound: Duration, killed: &std::io::Result<()>) -> String` is
+/// the sentence a clean-up fails with when the group below the scope still lists a process at its bound:
+/// what the `cgroup.kill` write answered,
+/// every process the group lists with its state,
+/// and how to read the two cases apart.
+/// Why:
+/// The control of issue 6650 failed at its twenty-second bound in four of the ten whole-suite runs on record,
+/// and its message named neither the write's answer nor the members left,
+/// so a reader could not tell a kill that never arrived from a member that was slow to leave
+/// (a same-vendor second read of `0.1.5-alpha.18`,
+/// 2026-11-28).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aNestedGroupThatDidNotEmpty(scope: string, nested: string, bound: number, killed: unknown): string
+/// ```
+fn a_nested_group_that_did_not_empty(
+    scope: &Path,
+    nested: &Path,
+    bound: Duration,
+    killed: &std::io::Result<()>,
+) -> String {
+    // What:     `written` says whether the kernel took the kill or refused it, with the refusal's own words.
+    // Why:      A refused write is the first case a reader has to be able to rule out.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const written = killed === undefined ? 'the kernel took it' : `it was refused (${killed})`
+    // ```
+    let written: String = match killed {
+        Ok(()) => format!(
+            "the kernel took the write of {}/cgroup.kill",
+            scope.display()
+        ),
+        Err(error) => format!(
+            "the write of {}/cgroup.kill was refused ({error})",
+            scope.display()
+        ),
+    };
+    // What:     `listed` is every process the group below the scope still lists, each with its state, or the words that say why none
+    //           could be read.
+    // Why:      The state is the whole difference between a member that was leaving and one the kill never reached.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const listed = whatAGroupStillLists(nested)
+    // ```
+    let listed: String = what_a_group_still_lists(nested);
+    return format!(
+        "the nested group {} still listed a process at the bound of {bound:?}: {written}, and every process it lists: {listed}. A member that has exited or is no longer there was slow to leave; one alive in any other state is a member the kill did not take",
+        nested.display()
+    );
+}
+
+/// What:
+/// `fn what_a_group_still_lists(group: &Path) -> String` reads a group's `cgroup.procs` and names every process it lists with the state
+/// of that process.
+/// Why:
+/// A count would not say whether the members were leaving or were never killed,
+/// and the ids alone would send a reader to `/proc` by hand while the state is one read away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatAGroupStillLists(group: string): string
+/// ```
+fn what_a_group_still_lists(group: &Path) -> String {
+    // What:     `listed` is the group's cgroup.procs as text, one process id per line.
+    // Why:      That file is the kernel's own list of the processes the group holds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let listed: string
+    // try { listed = readFileSync(path.join(group, 'cgroup.procs'), 'utf8') } catch (error) { return `nothing could be read (${error})` }
+    // ```
+    let listed: String = match fs::read_to_string(group.join("cgroup.procs")) {
+        Ok(text) => text,
+        Err(error) => {
+            return format!(
+                "nothing, because its cgroup.procs could not be read ({error})"
+            );
+        }
+    };
+    // Every process the message names, one entry each.
+    let mut named: Vec<String> = Vec::new();
+    for pid in listed.split_whitespace() {
+        named.push(what_a_process_shows(pid));
+    }
+    if named.is_empty() {
+        return "no process at all, so the bound passed on a group that was already empty".to_string();
+    }
+    return named.join("; ");
+}
+
+/// What:
+/// `fn what_a_process_shows(pid: &str) -> String` is one process the group listed,
+/// read from `/proc/<pid>/stat`:
+/// whether it is alive,
+/// has exited and waits to be reaped,
+/// or is no longer there at all.
+/// Why:
+/// Those three are what tell a kill that never arrived from a member that was slow to leave,
+/// and the state letter of the stat file is the kernel's own word for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatAProcessShows(pid: string): string
+/// ```
+fn what_a_process_shows(pid: &str) -> String {
+    // What:     `stat` is that process's stat file, whose second field is its command name in brackets and whose third is its state
+    //           letter.
+    // Why:      A read that fails is the kernel saying no process has that id any more, which is the slow-to-leave case.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let stat: string
+    // try { stat = readFileSync(`/proc/${pid}/stat`, 'utf8') } catch (error) { return `${pid} is no longer there (${error})` }
+    // ```
+    let stat: String = match fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(text) => text.trim().to_string(),
+        Err(error) => {
+            return format!(
+                "{pid} has no process any more (/proc/{pid}/stat could not be read: {error}), so the group's listing has not caught up with a member that left"
+            );
+        }
+    };
+    // What:     `after_name` is that file from its closing bracket on, whose first word is the state letter.
+    // Why:      A command name may hold a bracket and spaces (`(a) b`), so the split is taken at the last closing bracket.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const afterName = stat.slice(stat.lastIndexOf(')') + 1)
+    // ```
+    let after_name: &str = match stat.rsplit_once(')') {
+        Some((_, rest)) => rest,
+        None => {
+            return format!(
+                "{pid} is listed and its stat file has no command name: {stat:?}"
+            );
+        }
+    };
+    // What:     `state` is the letter the kernel gives that process: `R` running, `S` sleeping, `D` in an uninterruptible sleep, `T`
+    //           stopped, `Z` exited and waiting to be reaped, `I` idle.
+    // Why:      The message reads the state, so the letter is the fact it is built from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const state = afterName.trim().split(/\s+/)[0]
+    // ```
+    let state: &str = after_name.split_whitespace().next().unwrap_or("");
+    // What:     `reading` is what that letter means for a reader of the failure.
+    // Why:      A zombie can write nothing and is only waiting for its parent, where any other state is a process still able to write.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reading = state === 'Z' ? 'has exited and waits to be reaped, so it can write nothing' : 'is alive, so the kill did not take it'
+    // ```
+    let reading: &str = match state {
+        "Z" => "has exited and waits to be reaped, so it can write nothing",
+        "X" => "is dead",
+        "R" | "S" | "D" | "I" | "T" | "t" => "is alive, so the kill did not take it",
+        _ => "is in a state this test does not know",
+    };
+    return format!("{pid} {reading} (state {state:?} of /proc/{pid}/stat: {stat})");
+}
+
 /// Stops a scope a test left behind whose `nested` group this test made,
 /// removes that group,
 /// stops the scope's unit,
@@ -412,12 +633,7 @@ fn clean_up_a_nested_scope(
     scope: &Path,
     nested: &Path,
 ) {
-    let _ = fs::write(scope.join("cgroup.kill"), "1");
-    wait_until("the nested group's end", &|| {
-        return fs::read_to_string(nested.join("cgroup.procs")).is_ok_and(|text| {
-            return text.trim().is_empty();
-        });
-    });
+    empty_the_nested_group(scope, nested, STATE_WAIT);
     // The group is empty now, so the directory below the scope can be removed; a removal that is still refused is retried.
     let removed: bool = wait_up_to(Duration::from_secs(20), &|| {
         return !nested.exists() || fs::remove_dir(nested).is_ok();
@@ -1111,4 +1327,165 @@ fn a_scope_proved_absent_is_worded_as_gone_and_not_as_the_kernel_speaking() {
         "the sentence claims a word or a wait the kernel never gave: {said}"
     );
     assert!(report.empty(), "a report of an absent scope is not empty");
+}
+
+/// The control of the sentence a clean-up fails with when a group below the scope did not empty (issue 6650):
+/// it names what the `cgroup.kill` write answered,
+/// and the state of every process the group still lists,
+/// so "the kill never arrived" and "the member was slow to leave" are told apart.
+/// Why it is a control and not a comment:
+/// the control of issue 6650 failed at its twenty-second bound in four of the ten whole-suite runs on record,
+/// and its message named neither the write's answer nor the members left
+/// (a same-vendor second read of `0.1.5-alpha.18`,
+/// 2026-11-28).
+/// The group here is a plain directory holding a `cgroup.procs` file,
+/// because the read under control is a read of that file and of `/proc`,
+/// and the bound is fifty milliseconds because the subject is the message and not the wait.
+/// The group holds a directory where the kernel's `cgroup.kill` file would be,
+/// so the write is refused and the refusal's own words are part of the message.
+/// The three members are the three kinds a reader has to tell apart:
+/// this test's own process,
+/// which is alive;
+/// a child that has exited and is not reaped,
+/// so it is a zombie;
+/// and an id no process of this machine can have,
+/// since the kernel hands out no such id.
+#[test]
+fn a_nested_group_that_did_not_empty_names_the_kill_s_answer_and_each_member_left() {
+    // The fixture directory of this control.
+    let directory = scratch();
+    // What:     `group` is the directory that stands for the group below a scope: it holds a `cgroup.procs` file and no `cgroup.kill`.
+    // Why:      A plain directory is what makes the kill's write fail, and the failure's own words are part of the message.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const group = path.join(dir, 'a-group-that-did-not-empty')
+    // ```
+    let group: PathBuf = directory.path().join("a-group-that-did-not-empty");
+    fs::create_dir(&group).expect("make the group");
+    // What:     `directory` at `cgroup.kill`'s own name is what makes the write a kernel would take here be refused.
+    // Why:      A refusal is the first case the message has to name, and its own words are what a reader needs.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // mkdirSync(path.join(group, 'cgroup.kill'))
+    // ```
+    fs::create_dir(group.join("cgroup.kill")).expect("make a directory where the kernel's kill file would be");
+    // What:     `live` is a member that is alive: this test's own process, whose state the message must read as able to write.
+    // Why:      A kill that did not take a member is the case the message exists for.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const live = process.pid
+    // ```
+    let live: u32 = std::process::id();
+    // What:     `exited` is a child that ends at once and is not reaped until this control has read the message, so it is a zombie
+    //           of this test while the message is built, and nothing is left behind afterwards.
+    // Why:      A member that has exited and waits to be reaped is the "slow to leave" case the old message could not name,
+    //           and only a parent that has not waited yet can show it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const exited = spawn('true')   // and only wait for it at the end
+    // ```
+    let mut exited: Child = Command::new("true")
+        .spawn()
+        .expect("start a member that exits at once");
+    // The id the kernel gave that child.
+    let exited_id: u32 = exited.id();
+    // What:     `gone` is an id no process of this machine can have, because the kernel hands out no id that wide.
+    // Why:      A group's listing can lag behind a member that has left, and the message must say so rather than print an id alone.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const gone = 0xFFFFFFFF
+    // ```
+    let gone: u32 = u32::MAX;
+    // What:     `format!` is the listing the kernel would write: one process id per line.
+    // Why:      The read under control takes the file as the kernel's own list, so the fixture writes exactly that shape.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(path.join(group, 'cgroup.procs'), `${live}\n${exitedId}\n${gone}\n`)
+    // ```
+    let listing: String = format!("{live}\n{exited_id}\n{gone}\n");
+    fs::write(group.join("cgroup.procs"), listing).expect("write the group's listing");
+    // What:     `showed` says whether the child has really become a zombie before the message is built.
+    // Why:      A child that is still running would be read as alive, and the control would then say nothing about a zombie.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const showed = waitUpTo(10_000, () => readFileSync(`/proc/${exitedId}/stat`, 'utf8').includes(') Z '))
+    // ```
+    let showed: bool = wait_up_to(Duration::from_secs(10), &|| {
+        return fs::read_to_string(format!("/proc/{exited_id}/stat"))
+            .is_ok_and(|stat| return stat.contains(") Z "));
+    });
+    assert!(
+        showed,
+        "the member that exited never showed as a zombie, so this control would say nothing about one"
+    );
+    // What:     `outcome` is the clean-up's failure, caught so the message it leaves can be read.
+    // Why:      The message is the subject, and a test that failed on it would not print it to a reader.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let outcome: unknown
+    // try { emptyTheNestedGroup(group, group, 50) } catch (error) { outcome = error }
+    // ```
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        empty_the_nested_group(&group, &group, Duration::from_millis(50));
+    }));
+    // What:     `failed` is that panic's payload, which a group that still lists a live process must leave.
+    // Why:      A clean-up that returned here would have waited out a listing it could read, which the fixture never writes.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const failed = outcome ?? panic('the clean-up did not fail on a group that lists a live process')
+    // ```
+    let failed = outcome.expect_err("the clean-up did not fail on a group that lists a live process");
+    // What:     `said` is the message that payload carries.
+    // Why:      Every assertion below is about the words a reader of a failing run would see.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const said = String(failed)
+    // ```
+    let said: String = match failed.downcast_ref::<String>() {
+        Some(text) => text.to_string(),
+        None => panic!("the failure is not a message this control can read"),
+    };
+    assert!(
+        said.contains("was refused"),
+        "the message does not say what the write of cgroup.kill answered: {said}"
+    );
+    assert!(
+        said.contains("cgroup.kill"),
+        "the message does not name the write that was refused: {said}"
+    );
+    assert!(
+        said.contains(&format!("{live} is alive, so the kill did not take it")),
+        "the message does not name the live member as one the kill did not take: {said}"
+    );
+    assert!(
+        said.contains(&format!("{exited_id} has exited and waits to be reaped")),
+        "the message does not name the member that exited as one that was leaving: {said}"
+    );
+    assert!(
+        said.contains(&format!("{gone} has no process any more")),
+        "the message does not say that an id the group still lists has no process behind it: {said}"
+    );
+    assert!(
+        said.contains(&group.display().to_string()),
+        "the message does not name the group that did not empty: {said}"
+    );
+    println!("the clean-up failed with: {said}");
+    // What:     `wait()` reaps the member that had exited, so the zombie this control read is gone when it ends.
+    // Why:      A zombie is the state under control, not something a test may leave behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // await exited.wait()
+    // ```
+    exited.wait().expect("reap the member that had exited");
 }
