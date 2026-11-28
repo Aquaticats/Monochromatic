@@ -2,5 +2,5 @@ monochromatic-lint: debug: discovered 1 supported file(s)
 monochromatic-lint: debug: pkg/src/lib.rs: selected for linting
 monochromatic-lint: debug: linting 1 file(s) with a concurrency limit of 3
 monochromatic-lint: debug: rewrote 0 file(s); loaded 0 Cargo workspace(s)
-monochromatic-lint: debug: the Dylint driver check for the library lib did not run: the scratch crate in /home/user/temp/agent/monochromatic-lint-a-package-the-closure-rule-did-not-check-never-ends-as-clean-scratch/keep/stub-arms/after-fix-checked/cache/monochromatic-lint/driver-probe-878976/dylint-driver-probe cannot be written (Permission denied (os error 13))
+monochromatic-lint: debug: the Dylint driver check for the library lib did not run: the scratch crate in /home/user/temp/agent/monochromatic-lint-a-package-the-closure-rule-did-not-check-never-ends-as-clean-scratch/keep/stub-arms/after-fix-final-checked/cache/monochromatic-lint/driver-probe-969849/dylint-driver-probe cannot be written (Permission denied (os error 13))
 monochromatic-lint: debug: rust/avoidable-closure checked pkg: 0 report(s) from the compiler

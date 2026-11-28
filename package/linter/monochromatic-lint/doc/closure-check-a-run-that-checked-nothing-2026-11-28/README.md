@@ -128,7 +128,7 @@ The two binaries these captures name:
   sha256 `34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a`.
 - the build of this round:
   a debug build of the branch,
-  sha256 `1f40dcd7a19449007f0ae094274faeeadebf5dfac08ba1666999a639bc89c9cc`.
+  sha256 `f26769c5891edee27af0e54d1747ac30cb1dfdd2accf4ecc48006a669d1c8f63`.
 
 The image built here was `localhost/monochromatic-lint-closure-issue-6667-20261128`,
 `8a6a24e8b45bf2b3eb8d0dd921e410e74cecdd098744266bbedb9c9b6d1f141e`,

@@ -1,6 +1,6 @@
 == arm arm-no-driver-dir
-== clock 2026-11-28T14:07:15+00:00
-== linter 1f40dcd7a19449007f0ae094274faeeadebf5dfac08ba1666999a639bc89c9cc monochromatic-lint 0.5.2-alpha.25
+== clock 2026-11-28T14:14:13+00:00
+== linter f26769c5891edee27af0e54d1747ac30cb1dfdd2accf4ecc48006a669d1c8f63 monochromatic-lint 0.5.2-alpha.25
 == toolchain nightly-x86_64-unknown-linux-gnu (default)
 == HOME is unset and this uid has no passwd entry: unset
 == cargo dylint status 1
@@ -17,12 +17,12 @@ help: consider importing this enum instead
 
 For more information about this error, try `rustc --explain E0603`.
 error: could not compile `dylint_linting` (lib) due to 1 previous error
-Error: Error: `cargo` command failed; the full command can be found in `/work/tmp/.tmp60IMIg`
+Error: Error: `cargo` command failed; the full command can be found in `/work/tmp/.tmpC21012`
 == linter linter status 2, record 1006 bytes, stderr 0 bytes
-{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputType, OutputTypes, ResolveDocLinks};\n    |                     ^^^^^^^^^^^^^^^\nhelp: consider importing this enum instead\n    |\n794 -         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());\n794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());\n    |\n\nFor more information about this error, try `rustc --explain E0603`.\nerror: could not compile `dylint_linting` (lib) due to 1 previous error\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmpDxyJFY`","code":"core/processing-failure","severity":"error","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputType, OutputTypes, ResolveDocLinks};\n    |                     ^^^^^^^^^^^^^^^\nhelp: consider importing this enum instead\n    |\n794 -         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());\n794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());\n    |\n\nFor more information about this error, try `rustc --explain E0603`.\nerror: could not compile `dylint_linting` (lib) due to 1 previous error\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmpwURMh9`","code":"core/processing-failure","severity":"error","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
 --- linter linter stderr
 == linter linter-debug status 2, record 1006 bytes, stderr 1194 bytes
-{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputType, OutputTypes, ResolveDocLinks};\n    |                     ^^^^^^^^^^^^^^^\nhelp: consider importing this enum instead\n    |\n794 -         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());\n794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());\n    |\n\nFor more information about this error, try `rustc --explain E0603`.\nerror: could not compile `dylint_linting` (lib) due to 1 previous error\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmpnm8gEo`","code":"core/processing-failure","severity":"error","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputType, OutputTypes, ResolveDocLinks};\n    |                     ^^^^^^^^^^^^^^^\nhelp: consider importing this enum instead\n    |\n794 -         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());\n794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());\n    |\n\nFor more information about this error, try `rustc --explain E0603`.\nerror: could not compile `dylint_linting` (lib) due to 1 previous error\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmp6klR6y`","code":"core/processing-failure","severity":"error","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
 --- linter linter-debug stderr
 monochromatic-lint: debug: discovered 5 supported file(s)
 monochromatic-lint: debug: pkg/src/lib.rs: selected for linting
@@ -36,4 +36,4 @@ monochromatic-lint: debug: the Dylint driver check for the library lint-closure 
 monochromatic-lint: debug: rust/avoidable-closure checked pkg: 0 report(s) from the compiler
 monochromatic-lint: debug: the Dylint driver check for the library lint-closure did not run: no driver directory is known (no DYLINT_DRIVER_PATH and no home directory)
 monochromatic-lint: debug: rust/avoidable-closure checked pkg: 0 report(s) from the compiler
-== done 2026-11-28T14:07:47+00:00
+== done 2026-11-28T14:14:43+00:00

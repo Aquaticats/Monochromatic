@@ -1,6 +1,6 @@
 == arm arm-a
-== clock 2026-11-28T14:06:53+00:00
-== linter 1f40dcd7a19449007f0ae094274faeeadebf5dfac08ba1666999a639bc89c9cc monochromatic-lint 0.5.2-alpha.25
+== clock 2026-11-28T14:13:47+00:00
+== linter f26769c5891edee27af0e54d1747ac30cb1dfdd2accf4ecc48006a669d1c8f63 monochromatic-lint 0.5.2-alpha.25
 == toolchain nightly-x86_64-unknown-linux-gnu (default)
 == rustup show active-toolchain status 1 in lint-closure
 error: override toolchain 'nightly-2026-11-21-x86_64-unknown-linux-gnu' is not installed: the toolchain file at '/work/repo/lint-closure/rust-toolchain.toml' specifies an uninstalled toolchain
@@ -22,4 +22,4 @@ monochromatic-lint: debug: pkg/src/lib.rs: selected for linting
 monochromatic-lint: debug: linting 1 file(s) with a concurrency limit of 4
 monochromatic-lint: debug: rewrote 0 file(s); loaded 0 Cargo workspace(s)
 --- the --debug notes about the driver and the check
-== done 2026-11-28T14:06:54+00:00
+== done 2026-11-28T14:13:48+00:00
