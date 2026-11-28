@@ -2865,12 +2865,6 @@ and nine files of `invocation/`.
   where a new sibling file needs a `group-file` line,
   and `worktree/mod.rs` (339 lines of module declarations).
 
-A split is not always a pure move.
-The landing split's last commit (`3b9ada357b`) boxed the commit inside the service's answers
-and made the commit command pass its own copy of its client configuration,
-both for Clippy after the move;
-the wrapper's next release pass reads it as a change.
-
 A brief names a file over the budget only from the linter's listing of `main` taken when the brief is written:
 the round for `command/rule_linked_worktree.rs` was briefed from an earlier count,
 found the loop break had already brought the file to 298 lines,
