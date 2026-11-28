@@ -3,28 +3,17 @@
 Status:
 this page is unapproved and non-final.
 It was written 2026-11-27 by the round that fixed issue 6642,
-and revised 2026-11-28T08:09:21-05:00 by the round that answered the fourth gate read.
+revised 2026-11-28T08:09:21-05:00 by the round that answered the fourth gate read,
+and revised 2026-11-28T08:53:28-05:00 by the round that answered the fifth.
 Nothing here is built,
 the rule reports exactly what it reported before,
 and the owner declares completion.
 
-It has had four same-vendor gate reads,
-none of them an independent review:
-the first found 16 findings (5 High,
-8 Medium,
-3 Low),
-the second 22 (2 High,
-13 Medium,
-7 Low),
-the third 21 (3 High,
-8 Medium,
-10 Low),
-and the fourth 25 (4 High,
-11 Medium,
-10 Low).
-The fourth read's findings and what answered each are in that round's report,
-not here,
-because a page the owner reads is for the decisions and not for the history of its own drafts.
+It has had five same-vendor gate reads,
+none of them an independent review.
+What each read found and what answered it are under "The reads this page has had",
+after the decisions:
+a page the owner reads is for the decisions and not for the history of its own drafts.
 
 ## What is asked
 
@@ -32,8 +21,67 @@ Fourteen decisions,
 not one.
 Five of them are about the kinds,
 so they are numbered 2a to 2e.
-Each decision can be answered on its own,
-in this order:
+They are listed in the order this page takes them,
+and each needs only answers that come before it,
+except that decision 4 and decision 5 are one answer in two parts and are asked together.
+
+Which to answer first:
+decision 1,
+then 2a to 2e,
+then 4 with 5.
+What follows from those under the recommendation below:
+decision 3,
+decision 6,
+decision 9 and decision 10.
+Decision 3 is adopted already,
+so only a veto of it needs work.
+What can wait without holding anything:
+decision 7 and decision 8,
+which gate the first repair round and not the class's first report.
+
+What the words mean,
+one clause each before it is used.
+
+The class is a line break inside a paragraph that falls where
+`markdown/semantic-line-breaks` finds no break-point character before it.
+The rule reports nothing for one today.
+The survey counts `210,207` of them.
+
+A join is the linter's operation that puts two lines on one.
+The released `--fix` joins only a break its own earlier pass cut,
+so a line that was already alone stays alone.
+
+The host line is the line as the file holds it,
+comment marker and indent included.
+The line the rule sees is the prose alone.
+
+A predicate is one candidate answer to what the class reports.
+There are five here:
+`A`,
+`B`,
+`D`,
+`F1` and `F2`,
+each described in decision 4.
+
+A removal fix joins the two lines of a break an old wrap left alone.
+It does not exist.
+The survey models it with the shipped join's guards.
+
+The route is the repair `96c930201f` ran:
+take pre-sweep copies of the files a round changes,
+and run the installed fix over them,
+so a break a new wrap cut is joined in the same pass.
+
+A repair fix is whichever mechanism decision 5 picks for the breaks already in the tree.
+
+The format task is `mise run format`,
+which runs `monochromatic-lint --fix` over the whole tree.
+
+The first round is the first round that runs the repair fix over some set of files,
+which decision 8 sets.
+
+A kind is a group of these breaks by what the next line opens with,
+and decisions 2a to 2e ask about one kind each.
 
 - Decision 1,
   the hold:
@@ -44,14 +92,20 @@ in this order:
   may a break whose next line opens a code span,
   an emphasis span,
   a link or an image go unreported.
+  `25,355` breaks of the class are of this kind.
 - Decision 2b:
   may a break whose next line opens a parenthesis go unreported.
+  `37,033` breaks of the class are of this kind.
 - Decision 2c:
   may a break whose next line opens one of 31 listed conjunctions or subordinators go unreported.
+  `19,749` breaks of the class are of this kind.
 - Decision 2d:
   may a break whose line before it ends in a dash go unreported.
+  `20` breaks of the class are of this kind.
 - Decision 2e:
   may a break whose line ends in a closing bracket or quote go unreported.
+  `9,603` breaks of the class are of this kind,
+  and their split among the five predicates is not counted.
 - Decision 3,
   the bound a join uses:
   the host line's,
@@ -73,6 +127,17 @@ in this order:
 - Decision 10,
   at which severity the class first reports.
 
+The three marks,
+each part of a label naming one,
+alone or combined:
+
+- `[measured]` is a row of the survey's `output.txt`,
+  or a figure whose command and its whole output are kept beside it.
+- `[read]` is a sentence of a record or a rule,
+  quoted with its path.
+- `[inferred]` is a claim no measurement here settles,
+  including a step from a measured premise to the recommendation.
+
 The recommendation,
 as the set it is,
 with what each item rests on:
@@ -80,7 +145,7 @@ with what each item rests on:
 - Decision 1:
   the hold governs today's findings only,
   and not a new class.
-  `[read]`
+  `[read; inferred: that the hold's words leave a new class out]`
 - Decision 2a:
   a no;
   the break before a span stays reported.
@@ -88,11 +153,11 @@ with what each item rests on:
 - Decision 2b:
   a yes;
   a break before a parenthetical goes unreported.
-  `[measured counts, walker]`
+  `[measured counts; inferred: the step from the rule file's own wrapping]`
 - Decision 2c:
   a yes;
   a break before a listed conjunction goes unreported.
-  `[measured counts, walker]`
+  `[measured counts; inferred: the step from the rule file's own wrapping]`
 - Decision 2d:
   a no;
   a break after a dash stays reported.
@@ -100,7 +165,7 @@ with what each item rests on:
 - Decision 2e:
   a no;
   a closer-ended break stays reported.
-  `[measured, and one figure not counted]`
+  `[measured counts; inferred: the share a yes removes]`
 - Decision 3:
   keep the host line's bound,
   and no veto.
@@ -108,7 +173,7 @@ with what each item rests on:
 - Decision 4:
   the joinable break,
   `B`.
-  `[measured]`
+  `[measured counts, inferred: the fix model]`
 - Decision 5:
   a removal fix built on the shipped join's guards.
   `[inferred: the fix is a model]`
@@ -119,30 +184,30 @@ with what each item rests on:
 - Decision 7:
   no;
   keep the fix out of the format task.
-  `[read task text]`
+  `[read]`
 - Decision 8:
   the whole tree,
   in one round.
-  `[measured, in the unit of decision 4's predicate]`
+  `[measured counts at "no" to all five kinds]`
 - Decision 9:
   a rule id of its own.
-  `[read configuration, one severity per id]`
+  `[read configuration]`
 - Decision 10:
   `warn` first.
-  `[measured exit statuses]`
-
-The three marks:
-`[measured]` is a row of the survey's `output.txt` or a figure whose command and output are kept beside it,
-`[read]` is a sentence of a record or a rule quoted with its path,
-and `[inferred]` is a claim no measurement here settles.
+  `[measured exit statuses; inferred: `warn` first]`
 
 What a yes to the whole set would do,
 in one sentence:
-the rule would gain a second code at `warn`,
-which reports the `124,259` breaks a join's guards allow in `8,185` files
-and reports nothing for the `29,166` breaks those guards refuse,
-a removal fix would be built for it outside the format task,
-and the first round would run that fix over `package/git-policy/cli`.
+the rule would gain a second code at `warn`.
+It would report at most the `124,259` breaks a join's guards allow,
+because the printed count is the virtual line's bound's,
+and the host line's bound the recommendation keeps gives lower ones.
+It would report them in at most `8,185` files,
+which is the file count under "no" to all five kinds,
+and the count under the recommended set is not counted.
+It would report nothing for at least the `29,166` breaks those guards refuse.
+A removal fix would be built for it outside the format task,
+and the first round would run that fix over the whole tree in one round.
 
 The one fact that frames all fourteen is that the rule reports nothing for any of these
 breaks today.
@@ -164,7 +229,7 @@ a change released in `0.5.2-alpha.25` (decision 3).
 
 ## What the numbers are
 
-Every figure below is one of three things,
+Every figure below is one of four things,
 and the sentence that uses it says which:
 
 - a row of the survey's `output.txt`,
@@ -173,7 +238,15 @@ and the sentence that uses it says which:
   whose command and its whole output are kept in
   `package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/figures-the-proposal-derives/`;
 - another record's own measurement,
-  named as that record's and not rerun here.
+  named as that record's and not rerun here;
+- a difference or a ratio of two of those,
+  which is this page's own arithmetic on them and is in no kept output unless the page says it is.
+  The `47,500`,
+  the `10,893`,
+  the `2,945`,
+  the `29,166`,
+  the `162,236`,
+  the Rust doc shares from `14.80` to `22.52` percent and the `92.5` percent are that kind.
 
 The counts are the survey commit's,
 `bc5b4ca2ba`,
@@ -338,7 +411,9 @@ is `block-marker`.
 It is not a statement that the shipped join refuses the break:
 of the `65`,
 the join removes `38`.
-The example quoted under "The kinds" is one of the `27` it does not remove.## The measurement,
+The example quoted under "The kinds" is one of the `27` it does not remove.
+
+## The measurement,
 and what it counts
 
 The survey ran at commit `bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c`
@@ -734,7 +809,9 @@ so `output.txt` prints its total without a split among the classes,
 and what a yes to decision 2e would remove from each predicate is not counted.
 It is offered as a decision anyway,
 because every predicate reports it and leaving it out of the questions
-was the fourth read's `L7`.## What each predicate would report
+was the fourth read's `L7`.
+
+## What each predicate would report
 
 Five predicates report,
 and a sixth answer reports nothing.
@@ -751,7 +828,7 @@ So each predicate has two counts below,
 under "no" to all five kinds and under the recommended set
 (2b and 2c answered yes,
 the other three no),
-and the per-kind table in decision 4 gives every other set.
+and the per-kind table in decision 2 gives every other set.
 
 The examples are real files at the survey commit,
 one from `doc/` and one from a Rust doc comment for each predicate that reports,
@@ -1080,7 +1157,9 @@ and it does not clear every finding:
   How many of the `14,694` and `5,613` such clauses there are in the whole tree
   is not counted:
   the per-clause widths are not in `output.txt`,
-  and this proposal does not rerun the survey.## What the records say,
+  and this proposal does not rerun the survey.
+
+## What the records say,
   and what still stands
 
 `doc/planning/repository-linter-stays-at-zero.md` records,
@@ -1115,22 +1194,51 @@ as the old handover says where it holds them
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`,
 "Owner words the dropped state subsections held").
 
-The sweeps of this rule's fix that the records hold,
-with the commit's own date:
+The commits the records name for this rule's fix,
+with each one's own date:
 
 - 2026-11-07T12:26:57-05:00 `e3174c31b0`,
-  the linter's whitespace fixes for the documentation families outside `doc/decision`.
+  the linter's whitespace fixes for the documentation families outside `doc/decision`,
+  `495` files against its first parent.
 - 2026-11-07T12:33:53-05:00 `09d670555d`,
   the linter's semantic line breaks in four rules of `AGENTS.md`,
-  whitespace only.
+  whitespace only,
+  `2` files.
 - 2026-11-07T12:33:59-05:00 `fce04655a0`,
   those fixes for every package outside the open branches,
   `AGENTS.md`,
-  `README.md` and the skills.
+  `README.md` and the skills,
+  `109` files.
 - 2026-11-07T14:16:16-05:00 `aa559080b7`,
-  the fixes for Markdown and rustdoc in every package outside the open branches.
+  the fixes for Markdown and rustdoc in every package outside the open branches,
+  `430` files.
 - 2026-11-07T14:30:00-05:00 `46a85668cb` and 2026-11-07T14:38:23-05:00 `cc34dc6faf`,
-  two later merges of the same branch.
+  two later merges of the same branch:
+  the first a wording move that brings two packages under the file-size limit (`12` files),
+  the second the line breaks that arrived from `main` while the branch was open (`3` files).
+- 2026-11-07T16:20:29-05:00 `4365ac97bc`,
+  the whitespace-only line breaks the fixer wrote in `package/git-policy/cli`,
+  `1,097` files.
+- 2026-11-07T22:39:44-05:00 `e0b808e244`,
+  the decision records reflowed with the whitespace-only fixer,
+  `32` files.
+- 2026-11-07T23:00:42-05:00 `89803fbcf0`,
+  line breaks in the alpha.3 release record from the fixer,
+  `1` file.
+- 2026-11-08T00:31:54-05:00 `63642e0999`,
+  whitespace-only line breaks in the tokio plan with no word changed,
+  `1` file.
+- 2026-11-08T03:39:43-05:00 `19e759079c`,
+  lines re-broken in two handovers so this rule passes with the word stream unchanged,
+  `2` files.
+- 2026-11-08T17:10:55-05:00 `f8017786bc`,
+  17:57:43 `92065f29b2`,
+  18:35:40 `f0ad0b689a` and 19:05:01 `f7ec38cbc9`,
+  the whitespace-only reflow a format run left in the main checkout,
+  one file each.
+- 2026-11-13T16:57:48-05:00 `b68463d293`,
+  a research record's correction note broken at the comma the rule asks for,
+  `1` file.
 - 2026-11-23T21:43:12-05:00 `23cb42e24a`,
   the whitespace-only sweep of 2026-11-23,
   with its own note at 2026-11-23T21:45:28-05:00 `c2701d58a5`.
@@ -1151,16 +1259,35 @@ with the commit's own date:
   which repaired `771` doc paragraphs in `367` files
   by running the installed fix over the pre-sweep copies,
   netting `90` fewer doc lines.
+- 2026-11-28T03:24:34-05:00 `58ed1e6c18`,
+  a troubleshooting record broken at semantic line breaks,
+  `1` file.
 
 Those five merges of 2026-11-07 are two days after the hold was spoken,
-and they are the largest,
-because they are repository-wide.
-The list is the sweeps the records name,
+and two of them are repository-wide:
+`e3174c31b0` at `495` files and `aa559080b7` at `430`.
+They are not the largest here:
+`4365ac97bc` at `16:20:29` the same day changed `1,097` files,
+and three of the five changed `109`,
+`12` and `3`.
+The list is what the records name,
 not every commit that changed a wrap:
 a subject search with the regex in `figures-the-proposal-derives/the-sweeps-and-the-hold-in-the-records.txt`
 finds `325` commits since 2026-11-05 whose subject names line breaks,
 which is a search and not a count of sweeps,
 so whether each of those was a sweep the hold covers is the owner's to say.
+The search also returns commits whose subject names a line break for another reason,
+and those are not in the list:
+`b75b3755ea` (a package passing its own gates),
+`c30516bb5c` (closures replaced and shadow line breaks),
+`b89d24990d` (a record and its line breaks),
+`0336e37603` (trailing whitespace),
+and two that commit a reflow a file already held:
+`f6b7e12678` and `fd195ddb78`.
+Every date here is the commit's own,
+and each file count is `git diff --shortstat` against the commit's first parent,
+whose command and whole output for the entries added in this revision are in
+`figures-the-proposal-derives/the-sweeps-added-to-the-list-with-dates-and-diff-sizes.txt`.
 
 At line 186 the same record says the fixer
 "changed rendered text in 58 of the 498 files it changed in the documentation families",
@@ -1301,7 +1428,9 @@ What it does not support:
 a claim that those are the only kinds the owner permits,
 or a claim about how many breaks of each kind a repository-wide answer should permit.
 The kinds' counts in the tree are the class table's,
-and they are not proportionate to this file's `21`.## The decisions,
+and they are not proportionate to this file's `21`.
+
+## The decisions,
 in the order they can be answered
 
 Each decision says what earlier answers fixed for it,
@@ -1347,24 +1476,47 @@ and makes decisions 2a to 10 a plan for later.
 The rule's own findings keep the hold,
 and a class that decision 4 picks may ship and report its own population.
 What it changes for good:
-a second code would report the class,
-so the hold's words still hold for the findings they were spoken about.
+the hold's words still hold for the findings they were spoken about,
+and those findings keep the rule id and the severity they have.
 What it gives up:
 two codes to keep in step,
 and today's findings keep the queue the hold left them in.
+This answer presupposes a rule id of its own for the class (decision 9).
+With the existing id,
+a class finding carries the code the hold was spoken about,
+and nothing in the configuration tells a held finding from a shipped one.
 A yes here leaves undecided whether the sweeps of 2026-11-07 and later were within the hold
 (the records do not say),
 and what the class's first report meets in the files those sweeps touched.
 
 #### It is lifted
-Today's findings and any new class report at whatever severity decision 10 answers.
+Today's findings become work again at `error`,
+the severity the configuration gives the rule,
+and any new class reports at whatever severity decision 10 answers.
 What it changes for good:
 the rule's own findings become work again,
 and whatever number stands today is the queue.
 What it gives up:
-a queue of that size with no fix in the tree,
+a queue of that last recorded size,
+`171,262` at `136a40fe69`,
 against the owner's recorded principle that lint issues are taken care of asap.
-A yes here leaves undecided what clears them (decision 5),
+A command does clear these findings:
+the installed `--fix` applies this rule's whitespace-class fix,
+and a run of it over copies of the `222` files that hold reported paragraphs
+left `221` of them with no finding and one holding `64`.
+That fixer has recorded defects.
+The record this page read does not say they are fixed:
+it breaks `///` doc comments inside fenced Rust listings,
+it wraps a URL that sits inside a code span,
+and it converts a pipe table to an HTML table,
+and an earlier run of it changed rendered text in `58` of the `498` files it changed in the documentation families.
+So this queue is cleared by a command whose output is checked file by file,
+not by a command that settles it.
+The class's breaks are a different population,
+and no command clears one of those:
+they sit in paragraphs the rule reports nothing for,
+and no fix joins a line that was already alone.
+A yes here leaves undecided how many findings stand today (no run of the whole repository is recorded),
 and whether the sweeps count as having pre-empted the hold.
 
 Ranking:
@@ -1375,7 +1527,8 @@ because:
   the second lets decisions 2a to 10 take effect,
   and the first delivers nothing the tree does not already have.
 - The first over the third:
-  the third reopens a queue of findings no command in the tree clears,
+  the third reopens a queue of findings a command clears only with recorded defects,
+  so clearing it means checking each changed file's rendered text,
   and the first keeps that queue where the owner put it.
 
 ### 2. Which kinds does MD1 permit
@@ -1413,6 +1566,10 @@ TOTAL of the six 210,207    162,707    144,863     73,414     39,485
 
 Each column adds to that predicate's own row in `output.txt`,
 so an owner may choose any set of the six and read each predicate's count by subtraction.
+For `D` that subtraction is exact only for a clause of one break:
+`output.txt` files a clause by the class of its first break,
+so a clause with a permitted kind later in it is subtracted as if it were not there,
+by at most the `3,340` clauses that the `148,203` breaks `D` covers have over its `144,863`.
 The `ordinary` row is not offered:
 it is the class the other five are defined against.
 The `block-marker` row is not offered as a sixth decision:
@@ -1681,9 +1838,27 @@ nothing,
 it is what the tree does,
 and what `0.5.2-alpha.25` releases.
 What it gives up:
-a join is refused when the virtual line is under `120` but the host line is not.
-A yes here leaves undecided nothing;
-it is the state of the tree.
+a join is refused when the virtual line is under `120` but the host line is not,
+and every removable count this page prints is the virtual line's,
+so under this answer each is an upper bound:
+`B`'s `162,707`,
+`F1`'s `62,521`,
+`F2`'s `36,540`,
+and the `124,259` decision 4's table reads from them.
+The `47,500` the guards refuse is then a lower bound,
+because a break whose joined host line is over the bound is refused as well.
+The survey ran on `0.5.2-alpha.24`,
+and its own `command.txt` says a run at the tip gives lower ones
+"where a Rust doc comment's host line is over the bound".
+By how much is not counted;
+the bound on that fall is each predicate's Rust doc share:
+`A` `19.18` percent,
+`B` `21.23`,
+`D` `22.52`,
+`F1` `18.26`,
+`F2` `14.80`.
+A yes here changes nothing in the tree,
+and leaves undecided the exact count each predicate would report under it.
 
 #### Veto it and return to the virtual line's bound
 Mechanism:
@@ -1697,23 +1872,11 @@ because `0.5.2-alpha.25` already carries the host bound:
 a veto reverts released behaviour.
 What it changes for good:
 a join is measured by the line the rule sees,
-as `0.5.2-alpha.24` measures it.
+as `0.5.2-alpha.24` measures it,
+so every removable count this page prints becomes the count the tree gives.
 What it gives up:
 the rule writes lines over the `120` it enforces,
-by up to `11` characters at an indent of 8,
-and the removal counts move:
-`B`'s `162,707`,
-the `47,500` the guards refuse,
-`F1`'s `62,521` and `F2`'s `36,540` removable are the virtual bound's counts,
-and the survey's own `command.txt` says a run at the tip gives lower ones
-"where a Rust doc comment's host line is over the bound".
-By how much is not counted;
-the bound on that move is each predicate's Rust doc share:
-`A` `19.18` percent,
-`B` `21.23`,
-`D` `22.52`,
-`F1` `18.26`,
-`F2` `14.80`.
+by up to `11` characters at an indent of 8.
 A yes here leaves undecided which of those three tests survive in what form.
 
 #### Veto it and set no bound at all
@@ -1738,23 +1901,28 @@ because:
   the second keeps a bound of `120` on the line the rule sees,
   and the third keeps none.
 
-The forced counts and both clause predicates are the line the rule sees under every answer,
-so they do not move:
-the survey's widths never included the host prefix.
-A host-line bound moves some Rust doc clauses into the forced set,
-bounded above by each predicate's Rust doc share,
-which is the list above.
+Which clause widths the survey measured does not move with this decision's answer:
+the widths are the line the rule sees and never included the host prefix.
+What the answer moves is which breaks a join can act on:
+under the kept host bound,
+a Rust doc break whose joined host line would reach over `120` stays,
+and it is a durable finding like a forced clause's,
+bounded above by each predicate's Rust doc share that decision 3 lists.
 
 ### 4. Which predicate reports
 
 What earlier answers fixed:
 decision 2's five answers take their rows out of every predicate,
 so the counts below are printed under two sets and the per-kind table gives every other.
-Decision 3's answer moves the removable counts and so the figure this decision ranks on,
-and this round did not measure the order under it:
-each predicate's removable count falls by up to its Rust doc share,
-between `14.80` and `22.52` percent,
-so an owner who vetoes reads the table as a bound on each row and not as a new order.
+Decision 3's answer changes the removable counts this decision ranks on,
+and this round did not measure their exact size under either answer:
+the printed counts are the virtual line's (`0.5.2-alpha.24`),
+so the recommended keep reads each as an upper bound that falls by up to its Rust doc share
+(between `14.80` and `22.52` percent),
+and a veto to the virtual line reads them as printed.
+That moves rows and not the order.
+First place is `B`'s by its definition (below),
+and the share that bounds each row's fall is smaller than the gap between any two rows below first place.
 
 The five predicates and "nothing" are in "What each predicate would report",
 each with its counts,
@@ -1774,7 +1942,7 @@ how much a fix would cost to build,
 which files it touches,
 and how many findings a review would have to read.
 
-Two things about that criterion,
+Four things about that criterion,
 said here rather than in a note:
 
 - The fix it counts is a model,
@@ -1782,6 +1950,16 @@ said here rather than in a note:
   it is `markdown_fragment_joins::fragment_join` with `FRAGMENT_WORDS` lifted,
   and the survey says so.
   "The removal count" below is what it measures.
+- Whether that fix is built at all is decision 5.
+  That decision is asked after this one,
+  and the ranking below assumes its first answer,
+  or its option that runs the removal fix and then the route.
+  What the ranking is under decision 5's other answers is stated under it below.
+- First place is `B`'s by its definition and not by a figure:
+  `B` is every `A` break whose two lines the shipped join's guards allow,
+  so the set the modeled join clears is `B`'s whole population and only part of `A`'s,
+  under every answer to decision 2 and to decision 3,
+  and `B` reports none of the findings that join refuses.
 - No reader judged any break,
   and no figure here says a finding is a defect a reader would agree with.
   The one measured proxy for that is the `ordinary` class,
@@ -1812,6 +1990,10 @@ nothing                           0        0                   0         0
 less the joins the permitted kinds' own rows remove,
 which is the best bound the rows give;
 the exact split of a shape predicate's joinable findings among the classes is not printed.
+So those two cells are this proposal's own subtraction:
+`62,521 - 21,076` and `36,540 - 5,602`.
+They appear in no kept output:
+the kept script prints `62,521` and `36,540` at "no" to all five kinds only.
 
 Ranking:
 `B` > `A` > `F1` > `F2` > `D` > nothing,
@@ -1845,6 +2027,23 @@ because:
   and nothing reports none,
   so the last pair compares a finding class with the absence of one.
 
+That order is the one under decision 5's first answer.
+It is also the order under its option that runs the removal fix and then the route.
+Under decision 5's "nothing",
+and equally under its route,
+nothing clears a finding of the class:
+the route joins only a break a new wrap cut.
+The class's breaks were already there.
+The first key is then `0` for every predicate and the second key governs,
+fewest findings no join's guards allow first,
+which ranks
+`B` (`0`) > `F2` (`2,945`) > `F1` (`10,893`) > `A` (`47,500`) > `D` (`144,863`)
+at "no" to all five kinds,
+and `B` (`0`) > `F2` (`2,945`) > `F1` (`10,893`) > `A` (`29,166`) > `D` (`111,457`)
+under the recommended set.
+So first place does not move under any set of kinds or any answer to decision 5,
+and the places below it are decision 5's to fix.
+
 #### Recommendation
 The recommendation is `B`,
 with what it leaves undecided:
@@ -1855,8 +2054,11 @@ and that the issue's own class is `92.5` percent inside it:
 
 The per-kind table above also answers "which kinds",
 so an owner who answers 2b and 2c yes
-can read every predicate's count by subtraction and see this order does not move:
-what moves is how many findings each predicate has,
+can read every predicate's count by subtraction.
+First place does not move under any set of the four counted kinds;
+the order of `F1` over `F2` is not shown by these rows when both the inline-span and the parenthesis kinds are permitted,
+because their joinable ranges then overlap.
+What moves is how many findings each predicate has,
 and `D` moves from `66.71` to `86.70` percent ordinary against `B`'s `65.57` to `85.86`,
 a difference inside the shift the tip's emphasis change can make (`D` has no durable row,
 and `B`'s ordinary share at the tip is at most `66.80` percent at permit none).
@@ -1870,7 +2072,9 @@ What earlier answers fixed:
 decision 4 picks the predicate,
 and a clause predicate needs a fix that joins a whole clause,
 which does not exist and is not designed.
-Decision 3 moves the removable counts this decision's ranking reads.
+Decision 3 decides whether the removable counts this decision's ranking reads
+are the printed ones (under a veto to the virtual line)
+or upper bounds (under the keep the recommendation gives).
 
 The tree holds `210,207` quiet breaks at no boundary,
 of which `162,707` are joinable by the shipped join's guards.
@@ -2183,7 +2387,9 @@ by comparing it with its old text once whitespace and comment markers are taken 
 ### 9. Whether the class has a rule id of its own
 
 What earlier answers fixed:
-nothing.
+decision 1's second option presupposes this decision's first answer,
+because a class that shares the existing id cannot be told from the findings the hold was spoken about,
+and decision 4 decides what a second code would report.
 This decision and decision 10 fix each other in one direction:
 a shared id fixes the severity.
 
@@ -2294,6 +2500,45 @@ because:
   so `error` turns that clearing into a rule the tree holds,
   and `warn` leaves the same findings unread.
 
+## The reads this page has had
+
+Five same-vendor gate reads,
+none of them an independent review:
+each was written by a round reading a page that other rounds wrote,
+so none of them is a review by another model vendor or by the owner.
+
+- The first found 16 findings:
+  5 High,
+  8 Medium and 3 Low.
+- The second found 22:
+  2 High,
+  13 Medium and 7 Low.
+- The third found 21:
+  3 High,
+  8 Medium and 10 Low.
+- The fourth found 25:
+  4 High,
+  11 Medium and 10 Low.
+  Its four High findings are closed in substance,
+  and its Medium and Low findings were answered by the revision after it.
+- The fifth found 11:
+  2 High,
+  7 Medium and 2 Low.
+
+What answered the fourth read is in that round's report,
+not here.
+What answers the fifth is what this revision changes:
+its two High findings were decision 1's ranking reason and the one-sentence summary on the first screen,
+and its Medium and Low findings were the order the decisions are asked in,
+the direction of decision 3's counts,
+the list of commits after the hold,
+the labels and the first screen's terms,
+and three sentences.
+Each is answered where it applies,
+and the round's report says for each one what was checked and what changed.
+This is the revision the questions are put after:
+the coordinating session plans no further whole read.
+
 ## What cannot be built, what needs an approval, and what needs an edit
 
 Three lists,
@@ -2343,9 +2588,12 @@ which this set of decisions reaches and the earlier version did not:
 
 - The hold governing today's findings only,
   with the existing rule id.
-  Reachable now:
+  Only as a reading and not as a configuration:
   the class shares `error`,
-  and decision 9's ranking says what that costs.
+  so nothing separates a held finding from a shipped one but each agent's reading of which shape it is,
+  and the hold then covers the queue the record counted (`171,262` at `136a40fe69`)
+  and the class's findings arrive unheld.
+  Decision 9's ranking says what the shared id costs.
 - A clause predicate with any answer to decision 2.
   Reachable now:
   `D`'s counts are the per-kind table's `D` column subtracted from `144,863`.
@@ -2355,8 +2603,9 @@ which this set of decisions reaches and the earlier version did not:
   because the five are separate decisions and not a chain.
 - Decision 3's veto with a removal fix.
   Reachable now:
-  the fix's counts move by the Rust doc share decision 3 prints,
-  and decision 4's ranking is then read as a bound rather than as an order.
+  the printed removable counts are the veto's own,
+  and under the keep they are read as upper bounds,
+  as decision 3 and decision 4 say.
 
 "Both,
 in this order" is reachable at decision 5,
@@ -2465,7 +2714,10 @@ the repair's and the fence's commit records are in
   `repository-linter-stays-at-zero-the-repository-wide-run-and-the-58-of-498.txt` and
   `repository-linter-stays-at-zero-the-hold.txt`.
 - The sweeps' commits and dates are read from `git log` with the commands in
-  `figures-the-proposal-derives/the-sweeps-and-the-hold-in-the-records.txt`.
+  `figures-the-proposal-derives/the-sweeps-and-the-hold-in-the-records.txt`,
+  and the commits added to that list in this revision,
+  with the file count each has against its first parent,
+  from `figures-the-proposal-derives/the-sweeps-added-to-the-list-with-dates-and-diff-sizes.txt`.
 
 ## What the removal count is
 

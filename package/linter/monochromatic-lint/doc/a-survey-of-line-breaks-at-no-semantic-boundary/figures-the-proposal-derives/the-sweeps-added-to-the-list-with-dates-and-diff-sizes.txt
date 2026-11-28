@@ -1,0 +1,76 @@
+# Commits the kept record names for this rule's fix, which the proposal's list did not have
+
+Read-only. Run from the repository root on 2026-11-28,
+in a `systemd-run --user --scope --slice=agent-work.slice` scope
+(`MemoryMax=1G`, `CPUQuota=100%`, `TasksMax=64`, `IOWeight=1`, `RuntimeMaxSec=300`).
+
+Why these commits.
+Each is a first-parent commit that the search in
+`the-sweeps-and-the-hold-in-the-records.txt` returns,
+and whose own subject says the linter's fixer, or this rule's fix, changed the wrapping of text.
+The proposal's list of sweeps held eighteen commits and not these.
+The search also returns commits whose subject names a line break for another reason:
+`b75b3755ea` (a package passing its own gates),
+`c30516bb5c` (closures replaced, shadow line breaks),
+`b89d24990d` (a record and its line breaks),
+`0336e37603` (trailing whitespace),
+and two that commit a reflow a file already held
+(`f6b7e12678`, `fd195ddb78`).
+Neither kind is in the list.
+
+The command:
+
+```sh
+for c in 4365ac97bc e0b808e244 89803fbcf0 63642e0999 19e759079c \
+         f8017786bc 92065f29b2 f0ad0b689a f7ec38cbc9 b68463d293 58ed1e6c18; do
+  printf "%s\n" "$c"
+  git show --no-patch --format="  %cI  %s" "$c"
+  printf "  files against first parent: "
+  git diff --shortstat "$c^1" "$c"
+done
+```
+
+The whole output:
+
+```text
+4365ac97bc
+  2026-11-07T16:20:29-05:00  merge(git-policy-cli): the package lint runs the repository linter at --max-warnings 0 and passes it: whitespace-only line breaks from the fixer, three files split under the code-line limit, 47 closures named (fix/git-policy-cli-passes-the-repository-linter, gate 5199 of 5199)
+  files against first parent:  1097 files changed, 57928 insertions(+), 22565 deletions(-)
+e0b808e244
+  2026-11-07T22:39:44-05:00  style(decision): reflow decision records with the whitespace-only fixer
+  files against first parent:  32 files changed, 2953 insertions(+), 1168 deletions(-)
+89803fbcf0
+  2026-11-07T23:00:42-05:00  docs(planning): line breaks and the note length in the alpha.3 release record, from the fixer
+  files against first parent:  1 file changed, 11 insertions(+), 6 deletions(-)
+63642e0999
+  2026-11-08T00:31:54-05:00  docs(planning): whitespace-only line breaks in the tokio plan (fixer output left uncommitted by a run without paths; no word changed)
+  files against first parent:  1 file changed, 4 insertions(+), 2 deletions(-)
+19e759079c
+  2026-11-08T03:39:43-05:00  docs(handover): re-break lines in the lean build folders and Rust implementation handovers so semantic-line-breaks passes (word stream unchanged)
+  files against first parent:  2 files changed, 59 insertions(+), 23 deletions(-)
+f8017786bc
+  2026-11-08T17:10:55-05:00  style(*): commit the whitespace-only reflow a format run left in the main checkout
+  files against first parent:  1 file changed, 22 insertions(+), 11 deletions(-)
+92065f29b2
+  2026-11-08T17:57:43-05:00  style(*): commit the whitespace-only reflow a format run left in the main checkout
+  files against first parent:  1 file changed, 64 insertions(+), 27 deletions(-)
+f0ad0b689a
+  2026-11-08T18:35:40-05:00  style(*): commit the whitespace-only reflow a format run left in the main checkout
+  files against first parent:  1 file changed, 119 insertions(+), 47 deletions(-)
+f7ec38cbc9
+  2026-11-08T19:05:01-05:00  style(*): commit the whitespace-only reflow a format run left in the main checkout
+  files against first parent:  1 file changed, 2 insertions(+), 1 deletion(-)
+b68463d293
+  2026-11-13T16:57:48-05:00  docs(research): the Kitesurf screening record breaks its correction note at the comma the semantic-line-breaks lint asks for
+  files against first parent:  1 file changed, 3 insertions(+), 2 deletions(-)
+58ed1e6c18
+  2026-11-28T03:24:34-05:00  docs(troubleshooting): break the shell -c rm prompt record at semantic line breaks
+  files against first parent:  1 file changed, 72 insertions(+), 31 deletions(-)
+```
+
+The counts beside the five merges of 2026-11-07 in the proposal
+(`495`, `109`, `430`, `12` and `3` files) are the same command's answer for
+`e3174c31b0`, `fce04655a0`, `aa559080b7`, `46a85668cb` and `cc34dc6faf`,
+run the same way in the same session.
+
+Unapproved and non-final: this file is a record of a read, and the owner declares completion.

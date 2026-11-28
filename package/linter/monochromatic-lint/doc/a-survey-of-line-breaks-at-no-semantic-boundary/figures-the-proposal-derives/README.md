@@ -51,6 +51,12 @@ and writes nothing.
   their dates and which of them are ancestors of the survey commit,
   the hold's line in `doc/planning/repository-linter-stays-at-zero.md`,
   and the date the records give for the words.
+- `the-sweeps-added-to-the-list-with-dates-and-diff-sizes.txt`:
+  the commits the read above names for this rule's fix
+  and the proposal's list of sweeps did not have,
+  each with its own date,
+  its subject and its file count against its first parent,
+  with the commits the same search returns that are not sweeps.
 
 ## The copies a reader needs
 
