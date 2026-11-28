@@ -71,16 +71,28 @@ and the help of `install` and `update`,
 which now prints the long layout for every option,
 a change no record names.
 
-## The alpha.18 read: a stop that outlasted the discovery's bound, and a path the manager reports
+## The alpha.18 read: a stop that outlasted the discovery's bound, a path the manager reports, and controls that could not fail
 
 The read was a same-vendor second pass over `0.1.5-alpha.18`
 (sha256 `2cccd94c`),
-and this section is written by the round that answered its two Medium points,
+so a second pass and not an independent review.
+It raised no High finding,
+two Medium ones and six Low ones.
+This section is written by the rounds that answered it,
 so it holds what the read found and what each answer changed,
 not only what the released binary showed.
-The round that wrote it is named by its branch in
-`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`,
-which also holds the measurements and the controls.
+The two Medium findings were answered by the round on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-a-stop-past-the-bound-is-refused-and-a-reported-path-is-checked`,
+whose change is in `src/control_group_route_discovery.rs`,
+`src/control_group_route_one_ask.rs` and the refusal those two carry;
+the six Low findings by the round on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-controls-that-can-fail-and-sentences-that-say-what-runs`,
+which changed no release code of the discovery.
+The two branches are joined on
+`fix/cargo-shadow-cli-the-two-alpha-18-fix-branches-joined-with-both-rounds-controls-green`,
+and the measurements,
+the controls and the open items of both are in
+`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
 
 ### Medium 1: a stop that outlasts the bound was taken as a route, not refused
 
@@ -155,40 +167,6 @@ and in the same container,
 through a stand-in answering `ControlGroup=/system.slice`,
 the released binary exited 0 in 146 ms on the delegated route
 where the branch took the weaker path in 32 ms and named the path and the reason.
-
-### What this round left
-
-- The read's six Low findings.
-  They are answered by the round named in
-  `cargo-shadow-alpha-18-read-controls-that-can-fail-and-sentences-that-say-what-runs`,
-  not here.
-- Which account's slice a reported path belongs to.
-  The check compares the unit's name and not the `user-<number>.slice` above it,
-  because the manager's slice is spelled differently on different hosts.
-  It is in the package document's Open list.
-- Whether a refused route should instead be the weaker path plus the notice.
-  The record's own sentence says the bound refuses it,
-  the round read that as the call stopping,
-  and the way not taken is in the same Open list with its cost.
-
-## The alpha.18 read: controls that could not fail, and sentences that said more than their evidence
-
-Written 2026-11-28T07:11:50-05:00 by the round on branch
-`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-controls-that-can-fail-and-sentences-that-say-what-runs`.
-**Unapproved and non-final**:
-the owner declares completion.
-
-The read was a second pass by another agent of the same vendor over `0.1.5-alpha.18`,
-so a second pass and not an independent review.
-It raised no High finding,
-two Medium ones and six Low ones.
-The two Medium findings are answered in `src/control_group_route_discovery.rs` by the branch
-`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-a-stop-past-the-bound-is-refused-and-a-reported-path-is-checked`,
-whose release code this round changed nothing in.
-The six Low findings are this round's,
-and this section holds what each one was,
-what changed for it,
-and what was left.
 
 ### Low 1: six edits, each now held by a control that goes red under it
 
@@ -455,15 +433,42 @@ The discovery's `start` uses `replace` mode,
 so it cancels the person's queued stop.
 The README now says so where the queued stop is described.
 
-### Where this round's controls meet the Medium round's change
+### What the two rounds left
 
-Two of the controls added here read `ask_once`,
-which the Medium round changes:
+- Which account's slice a reported path belongs to.
+  The check compares the unit's name and not the `user-<number>.slice` above it,
+  because the manager's slice is spelled differently on different hosts.
+  It is in the package document's Open list.
+- Whether a refused route should instead be the weaker path plus the notice.
+  The record's own sentence says the bound refuses it,
+  the round read that as the call stopping,
+  and the way not taken is in the same Open list with its cost.
+- Low 2,
+  Low 3 and Low 4's questions,
+  each with the figures the read measured:
+  whether fifteen asks are worth refusing a person's broken unit configuration at once,
+  whether any of the early ends should be tried again,
+  and whether a call's start should cancel a person's stop of the slice.
+  All three are in the same Open list.
 
-- `asking_again_tests::a_start_that_spent_its_bound_is_not_put_again` requires three asks for one attempt and a refusal that names the bound the start spent;
-- `...::a_path_beside_a_job_after_a_successful_start_is_taken_as_the_route` requires that the path an answer carries is the route even when the same answer carries a queued job.
+The two controls the Low round added that read `ask_once` pass beside the Medium round's change,
+in one run on the joined tree of 2026-11-28
+(`mise exec -- cargo nextest run --release --no-fail-fast`
+with the four controls the two rounds added to `asking_again_tests` as its filter:
+`4 tests run: 4 passed, 1018 skipped`),
+so the join rewrote neither of them:
 
-A change that refuses a path beside a job,
+- `asking_again_tests::a_start_that_spent_its_bound_is_not_put_again`
+  requires three asks for one attempt and a refusal that names the bound the start spent,
+  which is what the joined code does:
+  the Medium round's refusal is asked about the path a spent start's last ask reports,
+  and a spent start whose last ask reports nothing ends the asking as it did before;
+- `...::a_path_beside_a_job_after_a_successful_start_is_taken_as_the_route`
+  requires that the path an answer carries is the route where the start ended inside its bound,
+  which the Medium round's change leaves as it was:
+  that refusal is asked only where the start spent the bound and the job is still queued.
+
+A round that refuses a path beside a job after a start that ended inside its bound,
 or that asks again after a start that spent its bound,
 reddens them,
 which is what they are for.

@@ -822,12 +822,16 @@ fn a_start_that_spent_its_bound_is_not_put_again() {
 /// answers the start,
 /// and answers the ask after it with the slice's path and a job queued on it.
 /// The path is the route,
-/// which is what the code does today:
+/// which is what the code does where the start ended inside its bound:
 /// a scope made in the slice while that job stands is refused as destructive,
 /// so the call that takes the path fails later,
 /// and whether that should be a refusal here instead is open
 /// (`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`,
 /// the Open list).
+/// The refusal that stands beside it
+/// (`a_start_that_spent_its_bound_leaves_no_route_beside_the_job_it_left_queued`)
+/// is asked only where the start spent the bound,
+/// so the two controls hold the two sides of that question.
 /// Why it is a control and not a comment:
 /// the only control of that final ask before 2026-11-28 got its answer from the real manager with no job,
 /// so an edit that refused a path beside a job there stayed green

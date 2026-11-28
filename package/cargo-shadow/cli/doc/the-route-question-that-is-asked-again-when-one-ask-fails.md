@@ -211,7 +211,10 @@ and what that ask answers decides the asking (`the_manager_answered_a_start`,
 
 - a path is the route and is used,
   whatever the start's words said,
-  because a start whose reply was lost leaves a slice that really was started;
+  because a start whose reply was lost leaves a slice that really was started
+  (what a job beside that path means is a separate question,
+  and after a start that spent its bound the path is refused:
+  "A start that spent the bound leaves no route" below);
 - an empty answer ends the asking where the start's own words are the manager's answer about the slice:
   they name the slice after `Failed to start <slice>: ` and carry none of the words a transport that went away prints.
   A masked slice's refusal does not change with a wait:
@@ -274,21 +277,24 @@ a path the ask after a failed start reports is the route,
 a start that never reached the manager is put again,
 a start that failed and the ask after it failing too is put again,
 and a stop job queued on the slice is asked through before the route is taken,
-and,
-since 2026-11-28,
-two more:
-a start that spent the bound the ask gave it is not put again,
-and a path beside a job that a successful start's last ask reports is the route.
-The reading of a failed start's words and the shape of the question are held by their own controls since 2026-11-28
-(`control_group_route_one_ask::one_ask_tests::the_manager_answered_a_start_tells_its_refusal_from_a_moment_and_from_other_words`,
-`...::the_question_asks_for_the_slice_s_control_group_and_the_job_queued_on_it`).
-Since 2026-11-28 the same file holds two more:
+and four more came with the second read of `0.1.5-alpha.18`,
+two from each of the two rounds that answered it (2026-11-28):
 a start that spent its bound leaves no route beside the job it left queued,
 and an answer about a group that is not the slice is no route
 (both under "What a start that met a moment does" below,
-with what each showed on the code before it).
-The last two are not made red by the change being taken out:
-the bound rule is a rule about one program,
+with what each showed on the code before it),
+a start that spent the bound the ask gave it is not put again,
+and a path beside a job that a successful start's last ask reports is the route.
+Those four tell the two states a start can leave:
+where the start spent its bound,
+the path beside the job it left queued is no route and the asking does not go on;
+where the start ended inside its bound,
+the same path beside a job is still the route.
+The reading of a failed start's words and the shape of the question are held by their own controls since 2026-11-28
+(`control_group_route_one_ask::one_ask_tests::the_manager_answered_a_start_tells_its_refusal_from_a_moment_and_from_other_words`,
+`...::the_question_asks_for_the_slice_s_control_group_and_the_job_queued_on_it`).
+The rounds that added those four recorded that taking that asking again out does not redden them:
+the bound rules are rules about one program,
 and the manager that answers nothing is asked once either way.
 The question that fails at once and the question that keeps failing are:
 with `ASKING_AGAIN_ATTEMPTS` at one they both fail,
@@ -1581,7 +1587,9 @@ and the figure above is the run as it was measured then.
 
   What is open is whether any of them should be tried again,
   and what a path beside a queued job should mean after a successful start,
-  which no control staged before 2026-11-28.
+  which no control staged before 2026-11-28,
+  and which `asking_again_tests::a_path_beside_a_job_after_a_successful_start_is_taken_as_the_route`
+  now holds as it is.
 - Low 4 of the `0.1.5-alpha.18` read,
   2026-11-28:
   a call's start replaces a person's stop of `app.slice`.
