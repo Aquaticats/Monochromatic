@@ -513,6 +513,42 @@ and three boots whose import,
 key and checkout mount did not happen,
 where nothing attached and no mountpoint folder appeared in the home underlay.
 
+What the boot arms showed,
+and what they still owe:
+
+- The plan's files written where systemd reads them,
+  the gate enabled and the
+  guest rebooted,
+  the manager starts the gate,
+  its `ExecStartPre` runs the start probe,
+  and a probe that cannot prove the route refuses the whole reconciliation:
+  the gate ends `failed` with `Result=exit-code`,
+  no readiness record is published for that boot,
+  the nested dataset's unit stays `inactive`,
+  no nested dataset is mounted,
+  and no mountpoint folder appears under the checkout path in the home
+  underlay.
+  That is the plan's "fail a prerequisite,
+  assert no nested dataset attaches or creates mountpoint folders in the home
+  underlay" arm,
+  run against a real manager (the step 19 guest of 2026-11-27,
+  `STEP19-BOOT read expect=failed gate=failed ... nested-mounted=false
+  underlay-folder=false`).
+- The same boot also ran `ExecStopPost`'s `shutdown-unmount`,
+  which refuses in words that name plan step 19,
+  so the journal of one boot carries both an undone start and an undone stop.
+- The arm that expects an idle clone attached again after a reboot did not
+  run:
+  the guest of the Ubuntu recipe boots with its own packaged ZFS module
+  (2.2.2),
+  because `modprobe` searches `kernel/` before the `extra/` folder the
+  recipe installs the release it built into,
+  so the route's compatibility gate refuses that boot and nothing is attached.
+  What it waits for is a guest that boots the module the route's releases are
+  built against:
+  plan step 23's template carries one,
+  and this page's own boot arm needs it.
+
 Still owed:
 
 - `zfs-root shutdown-unmount` still refuses in this build,
