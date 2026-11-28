@@ -265,15 +265,18 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
             continue;
         }
         // What:
-        // what the name says about the install that wrote it, when the name is a temporary link's.
+        // what the name says about the install that holds it, when the name is a temporary link's.
         // Why:
         // A second install rebuilding the farm at this instant must not take a link an install that still runs is
-        // about to rename, and a name nothing can be concluded about may belong to such an install.
+        // about to rename,
+        // and a name nothing can be concluded about may belong to such an install,
+        // so only a name the run can show an ended install had held is removed.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const installer = livenessOfTheInstaller(name);
-        // if (installer === 'running' || installer === 'unknown') continue;
+        // if (installer === 'running') continue;
+        // if (installer === 'unknown') { left.push(name); continue; }
         // ```
         let installer: Option<Liveness> = liveness_of_the_installer(&name);
         if installer == Some(Liveness::Running) {
