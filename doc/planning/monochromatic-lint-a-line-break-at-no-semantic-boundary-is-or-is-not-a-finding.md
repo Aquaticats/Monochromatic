@@ -759,7 +759,8 @@ with the class,
 the clause width and the forced flag named
 so that a reader can see which other predicate leaves the same break.
 Each file's paragraph was checked to carry no finding of the shipped rule,
-by a run of the installed binary recorded for this round.
+by a run of `0.5.2-alpha.25` over copies of those files at the survey commit,
+whose report is `figures-the-proposal-derives/the-example-paragraphs-carry-no-finding.txt`.
 
 ### Report every break at no boundary (`A`)
 
@@ -2435,6 +2436,8 @@ or in `figures-the-proposal-derives/` beside it:
 - A finding as the installed binary prints it,
   with the fixed text:
   `figures-the-proposal-derives/a-finding-as-an-author-meets-it.txt`.
+- That no quoted paragraph carries a finding:
+  `figures-the-proposal-derives/the-example-paragraphs-carry-no-finding.txt`.
 - The `26` findings in `20` files on `package/git-policy/cli`
   are in `repository-configuration-on-package-git-policy-cli.jsonl`
   beside that folder.
