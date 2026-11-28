@@ -1227,7 +1227,7 @@ and the three plain commands
 `mount-git-worktree-clone-datasets-guest.ts` still holds
 are `e2e/adoption-guest-arms/store-dataset-and-fsync.ts:115`,
 `e2e/adoption-guest-arms/delegation-arm.ts:155` and
-`e2e/adoption-guest-arms/snapdir-arm.ts:149`,
+`e2e/adoption-guest-arms/snapdir-arm.ts:73`,
 each bounded at 900 s and none timed on its own.
 The rule that a guest command bounded above five minutes runs detached
 covers those three as written:
@@ -1299,7 +1299,7 @@ where a step's duration is its whole step:
 - `e2e/adoption-guest-arms/delegation-arm.ts:155` is the delegation arm,
   with a bound of 900 s.
   It is not timed on its own.
-- `e2e/adoption-guest-arms/snapdir-arm.ts:149` is the `snapdir` matrix,
+- `e2e/adoption-guest-arms/snapdir-arm.ts:73` is the `snapdir` matrix,
   with a bound of 900 s.
   It is not timed on its own.
 - `e2e/start-probe-arms/fixture-arms.ts:85` is the `red` arm,
