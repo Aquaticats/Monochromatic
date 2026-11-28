@@ -132,6 +132,21 @@ export const CANADA_COUNTRY_CODE = 'ca';
 export const REGION_STATUS_UP = 'UP';
 
 /**
+ Name of the service a region must offer to create an instance, as the
+ `services` of the schema's `cloud.Region` carry it. The schema types the name
+ as a bare string, so this value is from a live project's answer of 2026-11-28:
+ every region that listed it answered the flavor list, and every region that
+ did not answered 404 to it.
+ */
+export const REGION_INSTANCE_SERVICE = 'instance';
+
+/**
+ The one service status a create may rely on, from the schema's
+ `cloud.ServiceStatusEnum`.
+ */
+export const SERVICE_STATUS_UP = 'UP';
+
+/**
  Advice shown when an OpenSSH executable the ovh backend runs does not exist.
  */
 export const OPENSSH_REMEDY =

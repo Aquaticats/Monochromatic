@@ -730,8 +730,9 @@ mise run //package/mvm/cli:run -- --backend ovh update
 ### Differences from the Hetzner backend
 
 - **The regions are the project's own**:
-   by default every region whose `countryCode` field is `ca` and whose status
-  is `UP`,
+   by default every region whose `countryCode` field is `ca`,
+   whose status is `UP`,
+   and whose `services` hold an `instance` service that is `UP`,
    in name order,
    so no region name is baked into mvm.
    `--location` or `MVM_OVH_REGIONS` replaces that list,
