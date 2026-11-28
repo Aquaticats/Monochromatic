@@ -1944,14 +1944,36 @@ with `MemoryMax`,
   12 passed;
 - `native_binary`'s `final_newline_hint_steps`,
   6 passed;
+- `worktree_clone_forced_removal::holder_endings::tests`,
+  4 passed;
 - the merge's own notice control,
   1 passed,
-  and red without the policy's function.
-- `cargo fmt --check`,
-  `cargo check --locked --offline --all-targets`,
-  Clippy with and without `test-only-switches`,
-  the whole `source_guard` module,
-  and the repository's linter over this package.
+  and red without the policy's function;
+- the whole `source_guard` module,
+  237 passed;
+- `cargo fmt --check` printing nothing,
+  and `cargo check --locked --offline --all-targets` finishing with no warning;
+- Clippy with and without `test-only-switches`,
+  each `--all-targets -- -D warnings`,
+  and each finishing with no finding;
+- the repository's linter from the worktree's root,
+  `/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint package/git-policy/cli`:
+  no `markdown/semantic-line-breaks` finding,
+  no `rust/file-order-in-folder` finding,
+  no `rust/max-lines` finding on a file this round created,
+  thirteen `rust/max-lines` findings in files of `foundation/`,
+  `health/`,
+  `invocation/` and `worktree/`,
+  twelve `rust/folder-uses-links` findings,
+  and one `rust/avoidable-closure` line saying the rule was skipped on this host for want of its Dylint driver.
+  The main checkout printed the same twelve and the same thirteen on the same day,
+  so no folder-uses-links finding is this round's,
+  and none of them is on a line it wrote.
+  The twelve stand under the amendment of 2026-11-28 to
+  `doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`.
+- `origin/main` was merged again before the last run of these checks,
+  and every check above was run again after that merge:
+  it moved no file this round changed.
 
 ### What could not be run, and why
 
