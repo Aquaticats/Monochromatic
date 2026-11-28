@@ -1792,3 +1792,44 @@ fn the_help_of_a_dead_line_names_a_tab_and_a_no_break_space_its_gap_kept() {
         );
     }
 }
+
+/// A six-word `file-uses` line whose gap is ten thousand whitespace characters is read with one pass over the line,
+///  because the names that gap could have left beside the folder are offered one at a time
+///  and a name whose first folder is longer than every name the package folder holds is offered to no one:
+///  a reader that built one name per character of the gap asked the file system about each of them,
+///  which cost the square of the gap in time and in memory
+///  (0.25 s and 166 MiB at 16,000 characters, 3.3 s and 2,171 MiB at 64,000, measured on 2026-11-27).
+#[test]
+fn a_six_word_file_use_line_with_a_long_gap_asks_about_few_names() {
+    // What: the length of the gap the read measured, whose square the old reader paid.
+    // Why: one line of four mebibytes is a list file the reader accepts, so the gap is bounded by nothing but that.
+    const THE_GAP: usize = 10_000;
+    let fixture: Fixture = Fixture::new();
+    std::fs::create_dir_all(fixture.path.join("src/c d"))
+        .expect("create the folder the line is written for");
+    // What: the longest name the package folder holds, which is the most the first folder of such a name can be.
+    // Why: a first folder longer than every name there is no folder of the package, so no answer needs that name asked about.
+    let longest: usize = std::fs::read_dir(&fixture.path)
+        .expect("the package folder is readable")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().len())
+        .max()
+        .expect("the package folder holds entries");
+    let line: String = format!(
+        "file-uses{}src/c d one.rs -> two.rs\n",
+        " ".repeat(THE_GAP)
+    );
+    crate::layout_allow_entries::counted_work::reset();
+    let error: String = parse_allow_list(
+        line.as_str(),
+        Path::new("allow-list.txt"),
+        fixture.path.as_path(),
+    )
+    .expect_err("no line can carry a folder name that holds whitespace");
+    assert!(error.contains("the folder `src/c d`"), "{error}");
+    let asked: usize = crate::layout_allow_entries::counted_work::candidate_names();
+    assert!(
+        asked <= longest + 1,
+        "a gap of {THE_GAP} characters asks about {asked} names, and the package folder's longest name is {longest} long"
+    );
+}
