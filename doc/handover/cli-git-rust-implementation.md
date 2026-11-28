@@ -115,17 +115,17 @@ and each stays in force until the owner changes it.
   and a step waits only for an input it names or for a failure on record
   ("How work is run side by side").
 
-## The state at 2026-11-27T20:55:03-05:00
+## The state at 2026-11-27T21:27:22-05:00
 
-`main` was `570402952b`.
+`main` was `de1bd36d08`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 305 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 309 more by this time.
 
 ### Rounds running
 
-At 2026-11-27T20:55:03-05:00 these 13 rounds are live,
+At 2026-11-27T21:27:22-05:00 these 20 rounds are live,
 counted from the process list.
 Each runs on Pi's virtual writer,
 with its brief at `~/temp/agent/pi-runs/<round>-prompt.md`,
@@ -134,68 +134,33 @@ its worktree `.claude/worktrees/pi-<round>`
 and its report at `~/temp/agent/<round>-scratch/keep/report.md`.
 The time after each name is that of its first feed line.
 
-Guest rounds,
-from the list of 20:00;
-each holds one guest of 8 GiB at a time and ends with `mvm --backend libvirt list` showing none of its own:
+A guest round,
+from the list of 20:00:
 
 - `issue-6615-the-adoption-drivers-holder-scan-arm-runs-twice-in-one-guest-and-its-snapdir-pattern-means-a-dot`,
   2026-11-27T20:00:25-05:00;
-- `issue-6638-the-zfs-guest-recipes-prepare-step-ends-well-in-a-guest-already-prepared`,
-  2026-11-27T20:01:03-05:00:
-  a `prepare` that fails with `Module zfs is in use` in a guest already prepared;
 
 For what the reads of the wrapper's `0.6.1-alpha.51` found
-("What the wrapper's alpha.51 reads found"),
-from the list `batch-of-2026-11-27-the-eight-rounds-after-the-alpha-51-and-alpha-23-reads`:
+("What the wrapper's alpha.51 reads found"):
 
 - `issue-6641-a-command-behind-a-git-alias-is-judged-for-every-place-git-acts-in`,
   2026-11-27T20:32:58-05:00:
   the two High points;
-- `wrapper-alpha-51-release-pass-the-final-newline-hint-names-the-step-that-works-where-it-prints`,
-  2026-11-27T20:33:14-05:00:
-  the behaviour read's Low 3 and Low 4;
-- `wrapper-alpha-51-release-pass-two-failures-keep-the-policy-lines-under-test-and-three-records-say-what-the-code-does`,
-  2026-11-27T20:33:34-05:00:
-  its Low 1,
-  Low 5 and Low 6,
-  with no release code;
-- `wrapper-alpha-51-release-pass-the-surface-control-and-three-guards-say-what-they-cannot-read`,
-  2026-11-27T20:33:53-05:00:
-  the no-change read's Low 1,
-  Low 3,
-  Low 5 and Low 6;
 
-For the linter,
-from the same list:
+For the linter:
 
-- `monochromatic-lint-alpha-23-release-pass-a-long-gap-costs-linear-time-and-each-sentence-is-true-for-the-edit-it-names`,
-  2026-11-27T20:34:32-05:00:
-  the Medium and the eight Low points of its read
-  ("What the linter's alpha.23 read found");
-- `issue-6642-the-line-break-fix-joins-what-the-old-wrap-cut-and-leaves-no-lone-word`,
-  2026-11-27T20:34:53-05:00:
-  the fix that leaves a lone word,
-  with a proposal,
-  not built,
-  on whether the rule reports a break at no boundary;
+- `issue-6643-proposal-who-provides-the-dylint-driver-and-what-a-skipped-rule-returns`,
+  2026-11-27T20:54:34-05:00:
+  a proposal with nothing built,
+  for the closure rule the linter skips on this host;
 
-For the scanner's workflow,
-from the same list:
+For the scanner's workflow:
 
 - `issue-6640-the-forbidden-strings-workflow-scans-a-file-links-target-text-and-its-whole-tree-arm-inspects-links`,
   2026-11-27T20:35:11-05:00;
 
-For the closure rule the linter skips on this host (issue 6643),
-from a list of its own,
-a proposal with nothing built:
-
-- `issue-6643-proposal-who-provides-the-dylint-driver-and-what-a-skipped-rule-returns`,
-  2026-11-27T20:54:34-05:00;
-
 For what the read of `mpm-shadow`'s `0.2.7-alpha.18` found
-("What `mpm-shadow`'s alpha.18 read found"),
-from the list `batch-of-2026-11-27-the-three-rounds-after-the-mpm-shadow-alpha-18-read`,
-by area so that they run side by side:
+("What `mpm-shadow`'s alpha.18 read found"):
 
 - `mpm-shadow-alpha-18-release-pass-the-exposure-removal-spares-a-live-installs-link-and-the-installed-shadows-own`,
   2026-11-27T20:39:22-05:00:
@@ -206,31 +171,88 @@ by area so that they run side by side:
   2026-11-27T20:40:04-05:00:
   L-1,
   L-7 and the second control of L-6;
-- `mpm-shadow-alpha-18-release-pass-a-failed-installs-message-says-what-the-next-run-does-in-each-state`,
-  2026-11-27T20:40:10-05:00:
-  L-3,
-  L-4,
-  L-5 and the third control of L-6;
 
-Six Claude Sonnet agents of the coordinating session run beside them,
-each a same-vendor pass and none independent:
-the second pass of `cargo-shadow` `0.1.5-alpha.17`
-(brief `~/temp/agent/briefs-for-release-reads-written-2026-11-27/cargo-shadow-alpha-17-read.md`,
-review to `~/temp/agent/cargo-shadow-alpha-17-release-review-2026-11-27/keep/review.md`),
-and a read-only digest of what is left of the ZFS route
-(`~/temp/agent/zfs-route-remaining-pieces-digest-2026-11-27/keep/digest.md`).
-The other four are sorters of this file,
+For the ZFS route
+("The ZFS worktree route"),
+from the list `batch-of-2026-11-27-the-fourteen-zfs-route-rounds`,
+briefed from a digest of what is left with every quoted record line checked against its file:
+
+- `zfs-removal-command-path-runs-the-whole-removal-with-force-still-refused`,
+  2026-11-27T21:12:04-05:00:
+  the switch itself:
+  `git worktree remove` of a bound clone runs the whole removal,
+  the cut test goes,
+  and the request budget gets its constant;
+- `zfs-management-grammar-admits-the-cancel-and-settle-commands`,
+  2026-11-27T21:12:07-05:00:
+  merged before the switch,
+  whose sentences name the cancel word;
+- `zfs-doctor-gathers-the-machines-route-facts-from-the-live-system`,
+  2026-11-27T21:13:06-05:00;
+- `zfs-doctor-gathers-each-managed-clones-facts-from-the-live-system`,
+  2026-11-27T21:13:15-05:00;
+- `zfs-doctor-checks-that-steps-19-and-20-owe-and-the-cancel-commands-line`,
+  2026-11-27T21:13:20-05:00;
+- `zfs-private-propagation-step-built-ahead-unwired`,
+  2026-11-27T21:13:38-05:00:
+  the step and its guest arm,
+  with no call from a root mode;
+- `zfs-shutdown-unmount-body-built-ahead-unwired`,
+  2026-11-27T21:13:44-05:00:
+  the body and its guest arm,
+  with the mode still refusing;
+- `zfs-lost-event-triggers-wrapper-side-built-with-the-nudge-off`,
+  2026-11-27T21:14:03-05:00;
+- `zfs-lost-event-triggers-handler-side-built-ahead-unwired`,
+  2026-11-27T21:14:23-05:00:
+  the event filter and the merge device,
+  with no call from the sweep;
+- `zfs-forced-arm-ends-a-holder-in-a-taskless-mount-namespace`,
+  2026-11-27T21:14:41-05:00:
+  in a guest made from plan step 23's template,
+  whose kernel has `listns`;
+  steered once,
+  at 2026-11-27T21:20:23-05:00,
+  to read which module that guest runs after its prepare;
+- `zfs-forced-arm-stops-a-locked-holders-own-user-unit`,
+  2026-11-27T21:15:02-05:00;
+- `zfs-step-19-written-guest-arms-and-the-reboot-arms-run`,
+  2026-11-27T21:15:26-05:00;
+- `zfs-step-21-guest-arms-for-dependency-repair-and-watches`,
+  2026-11-27T21:15:44-05:00;
+- `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`,
+  2026-11-27T21:16:02-05:00;
+
+Two branches of ended rounds are being checked on the tree that holds `main`,
+each in a detached worktree of the coordinating session's own under `.claude/worktrees/`,
+with logs in `~/temp/agent/integration-checks-of-2026-11-27-night/keep/`:
+the linter's for issue 6642 (the package's `lint`,
+`lint:rustfmt` and `test` tasks),
+and the wrapper's on the two failures
+(format,
+check,
+clippy and the three modules its report names).
+One that passes is pushed to its branch and merged by hand.
+
+Of the Claude Sonnet agents the coordinating session started,
+each a same-vendor pass and none independent,
+the second pass of `cargo-shadow` `0.1.5-alpha.17` has returned
+("What `cargo-shadow`'s alpha.16 round did,
+and its alpha.17").
+Four sorters of this file were started,
 read-only:
 each classes one part of the landed sections as open,
 landed with every fact homed,
 or landed with a fact that has no home,
 and writes a ledger under `~/temp/agent/handover-prune-ledgers-2026-11-27/keep/`.
+The ledgers of parts A,
+B and C are written and not yet read by the coordinator;
+the sorter of part D runs.
 From the ledgers the coordinator moves what has no home,
 deletes what is homed,
 and keeps every quotation of the owner.
-From that digest,
-once every record line it quotes is checked by `rg`,
-the ZFS rounds that need only work on `main` are briefed and started in one list.
+The ledgers are scratch and expire a day after their last change,
+so they are applied or re-made before then.
 
 When a round ends:
 its report is read whole,
@@ -248,6 +270,12 @@ with the wrapper gated on the tip that holds them,
 because the wrapper names the linter by path.
 After `mpm-shadow`'s three:
 `0.2.7-alpha.19`.
+The ZFS rounds all add lines to `src/native/lib.rs`,
+the list of published names,
+`SPEC.md`,
+the README and the reach control,
+so each is checked on the tree that holds the ones merged before it,
+and the management grammar's round merges before the removal's switch.
 
 ### How work is run side by side
 
@@ -501,7 +529,31 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   "Guest work that runs longer than the agent's safe length")
   and changed none.
   Its four open points wait in `doc/handover/questions-for-the-owner.md`.
-  The rounds of issues 6615 and 6638 are live ("Rounds running");
+  Issue 6638's is merged (`1471bdf6ad`) and the issue is closed.
+  Measured in the recipe's own guest before any edit,
+  a second `prepare` alone exits 0;
+  what fails is a `prepare` while a dataset is mounted,
+  because a mounted dataset is what holds the module
+  (`/sys/module/zfs/refcnt` at 1,
+  where a pool imported with nothing mounted leaves it at 0 and the removal succeeds).
+  One step,
+  `e2e/load-the-built-module-step.ts`,
+  now stands at the four places that removed and inserted modules:
+  it reads which module is loaded against the version the installed file states,
+  leaves a guest that already runs the built module alone,
+  and refuses in words when a module of another version is held.
+  A `prepare` with a pool imported and a dataset mounted exited 0 and left the pool,
+  the version and the count as they were,
+  and one driver's whole `all` step passed in a fresh guest.
+  A host check,
+  `test:tooling`,
+  runs the step's shell against stand-in trees.
+  Left as it was:
+  the template's own prepare,
+  `prepareFromTemplate`,
+  which still loads with `modprobe --quiet zfs 2>/dev/null || true`
+  and has no round yet.
+  The round of issue 6615 is live ("Rounds running");
 - the linter,
   whose round on what the read of `0.5.2-alpha.22` found
   ("What the linter's alpha.22 read found"),
@@ -2435,6 +2487,27 @@ both older than the merge that brought the two High points.
   The round found that `src/native/policy/policy_forbidden_strings.rs` opens a doc fence at line 23 that no line closes,
   which no rule of the linter reports;
   it is noted on issue 6642 for the round that puts the wrapper's doc comments right.
+- The `final-newline` round is merged (`dce0e58a56`).
+  At an add,
+  at `warn` and at `error` alike,
+  the hint leads with `fix -- <path>` and then `git add -- <path>`,
+  and says a commit corrects the file only when it takes the whole file;
+  a landed commit and a manual push say to edit the file and commit the correction;
+  the direct check's hint is unchanged.
+  Its controls were shown red by two plants,
+  and the read-only one derives its answer from `decide_selection`.
+  Its open points wait in `doc/handover/questions-for-the-owner.md`.
+- The round on the two failures and three records ended 2026-11-27T21:09:10-05:00 with its report read whole.
+  Its branch took `main` in before the `final-newline` merge changed the package,
+  so it is checked on the merged tree before it merges ("Rounds running").
+  It changes no release code.
+  Two controls hold the two failures the policy stage's lines lead,
+  each handing `forward_action` the text a real stage rendered,
+  because no state reaches either branch through `plan_invocation` with a finding printed;
+  a third reaches the margin of the copies bound,
+  red when the bound reads the smaller count.
+  The README states the copies bound for one region and not for the file,
+  and `SPEC.md` says a plain `git worktree prune` behind an unplaced alias is not refused.
 
 #### What the linter's alpha.23 read found
 
@@ -2465,6 +2538,51 @@ with a comparison first shown able to see a move.
   stays:
   the read,
   fix and release loop of this package ends at the first read that finds no High and no Medium.
+- That round is merged (`de1bd36d08`).
+  Each point was reproduced on the released binary first.
+  The names a gap could have left are offered to the file system one at a time and none is kept,
+  and no name is offered whose first folder is longer than the package folder's longest name.
+  On a line of 64,033 characters the branch took 1.10 times alpha.22's wall time (range 0.73 to 1.21)
+  and 0.97 times its peak memory,
+  where alpha.23 took 981 times and 180 times,
+  over three rounds of three arms in rotating order.
+  Every sentence a dead line or a refusal prints is true for the edit it names,
+  and the three controls the read named were each shown red.
+  Over 16,081 lists and 48,243 runs no list moved between read and refused against alpha.23;
+  2,370 differ in message text alone.
+  U+2800 stays as written and the README says why:
+  the set a message spells is Unicode's `Cf`,
+  `Cc` and `Default_Ignorable_Code_Point`,
+  and none of them names it.
+  The README dates that measurement 2026-11-28,
+  the day in UTC of evidence written at 2026-11-27T21:03:10-05:00;
+  the check of issue 6642's branch carries the correction ("Rounds running").
+  The round's first release build ran outside a capped scope,
+  by its own report.
+- Issue 6642's round ended 2026-11-27T21:16:28-05:00 with its report read whole,
+  and its branch is checked on the tree that holds the other round before it merges.
+  The released fix replaced one space with a break and touched nothing else,
+  so a word that ended the old line became a line of its own,
+  written at the paragraph's opening depth.
+  Now a fragment of one or two words that this pass's own break cut,
+  and that ends at no break-point character,
+  joins the line that continues its clause while the joined line stays under 120 characters;
+  a line the fix writes takes the indent of the paragraph's first continuation line;
+  and no line the author wrote is rewritten.
+  Over the wrapper's source as it stood before the merge that brought the lone words,
+  the released fix wrote 834 doc lines of one or two words and the branch 732,
+  every one of which ends where the rule wants a line to end.
+  The words of all 4,141 files are unchanged,
+  by a comparison first shown to see one changed word.
+  Six controls were each shown red.
+  The wrapper's own doc comments are not repaired:
+  that is a round of the wrapper's once a linter holding the fix is released.
+  Its proposal,
+  `doc/planning/monochromatic-lint-a-line-break-at-no-semantic-boundary-is-or-is-not-a-finding.md`,
+  measured 199,796 breaks at no boundary in paragraphs the rule reports nothing for,
+  in 8,623 files,
+  and ranks first the reporting of the 158,514 a removal fix can join;
+  its three questions wait in `doc/handover/questions-for-the-owner.md`.
 - `rust/avoidable-closure` runs on no host run here:
   its Dylint driver is absent and the linter does not download one,
   so every count of findings taken on this machine leaves that rule out.
@@ -2512,6 +2630,28 @@ directories and hard links.
   and `list` starts `rustup` three times with no bound on the wait.
 - Three rounds take them,
   by area ("Rounds running").
+- The round on the failed install's message is merged (`27b745b6dd`).
+  All six messages of an ordinary install's failed publish,
+  where the read counted five,
+  end with one sentence:
+  a later install of that version publishes the kept copy without downloading while the version's name holds no finished copy,
+  and removes it as a second copy once the name holds one;
+  an install in another process namespace leaves it;
+  and `prune --toolchain` prints its name.
+  Each message was built on alpha.17,
+  on alpha.18 and on the branch,
+  with the install that follows.
+  The other namespace was a real one,
+  a rootless container sharing one scratch folder:
+  the install inside printed nothing and left the copy,
+  `prune --toolchain` inside printed its `left` line,
+  and an install outside then removed it.
+  The recovery's flag that no test read is now a value of three kinds,
+  held by controls for the two kinds a fixture can build.
+  No control holds the message that needs two failed renames in one publish,
+  nor either recovery arm inside a run's warning.
+  The package's task passed 934 of 934 after the merge of `main`.
+  What the round chose waits in `doc/handover/questions-for-the-owner.md`.
 
 #### What `cargo-shadow`'s alpha.16 round did, and its alpha.17
 
@@ -2542,7 +2682,64 @@ and installed here,
 where `.cache/toolchain-bin/cargo-shadow --version` says `0.1.5-alpha.17`;
 the install named no unresolved bin and no removed link,
 and the session's `git` link was put back at 2026-11-27T20:35:23-05:00.
-Its second pass runs ("Rounds running").
+Its second pass,
+a Claude Sonnet read,
+same vendor and not independent
+(`~/temp/agent/cargo-shadow-alpha-17-release-review-2026-11-27/keep/review.md`,
+scratch),
+was read whole.
+It ran the two released binaries and a byte-identical copy of alpha.17 in containers whose own manager it could reexec,
+mask and stop,
+and found no High,
+two Medium and three Low points.
+
+- Medium 1:
+  after a failed start,
+  any answer to the next ask ends the asking,
+  a path among them,
+  which is then thrown away
+  (`control_group_route_discovery.rs`,
+  the arm that answers `may_be_put_again: false` for an answered confirm ask).
+  A unit load that fails once,
+  a start whose reply is lost and a start refused once each took the weaker path in every call of alpha.17,
+  where alpha.16 delegated in every call,
+  each state built with a stand-in in the ask path.
+  With a real reexec aligned to the start,
+  2 of 24 calls of the alpha.17 binaries took the weaker path and none of alpha.16's 12;
+  with the reexec fired from outside,
+  none of 12.
+  The round's own calls in real reexecs never sent a start from the branch binary,
+  because the recipe's layout keeps `app.slice` active,
+  so they did not exercise this arm.
+- Medium 2:
+  with a stop job queued on `app.slice`,
+  the first ask answers the path,
+  no start waits behind the stop,
+  and the scope's own start is refused as destructive:
+  10 of 10 calls of the alpha.17 binaries failed (exit 1,
+  or 101 in shadow mode),
+  where alpha.16 waited about 3.7 s and ran in 7 of 7.
+- Low:
+  three edits no control would catch
+  (the arm after a failed confirm ask and the path it discards,
+  the sleep at the call site,
+  an address beside a runtime directory);
+  five record sentences that are wrong or imprecise;
+  and a reexec that begins after the discovery fails the whole call in both releases,
+  which no record says.
+- Borne out:
+  one `systemctl` program a call where alpha.16 started two;
+  three asks where a masked slice took five and an answer that is no path took ten;
+  the span spent in the eleven named states;
+  and of 240 compared files 21 differ,
+  each by the version or by the missing `start` row.
+- `0.1.5-alpha.17` is the copy installed on this machine,
+  so a build begun here while `app.slice` has a stop job queued fails until the next release.
+- Weighed by the coordinator:
+  every point earns a fix,
+  in two rounds by area that are not started at this state's time,
+  one on the discovery's two arms with the control that holds them,
+  one on the records and the two other controls.
 What the round chose that its brief did not decide waits in `doc/handover/questions-for-the-owner.md`.
 
 ### Releases of 2026-11-27
@@ -3686,10 +3883,19 @@ by the plan's 23 steps.
 Steps 1 to 16 are on `main`,
 with 12 to 16 wired;
 and the removal command path is still cut:
-steps 15 and 16 name commands and `doctor` lines that steps 17 and 18 now have,
-and the switch still needs step 22's request budget,
-so nothing calls `enter_the_removal` yet and `source_guard`'s
+`SPEC.md` gives the switch two conditions,
+the cancel command,
+which step 17 built and no grammar admits,
+and a release whose printed sentences name only commands,
+records and states it has;
+and the snapshot batch's request budget has no value in release code.
+So nothing calls `enter_the_removal` yet and `source_guard`'s
 `removal_command_path_writes_nothing_tests.rs` holds the cut.
+`doctor` still answers the cancel command's check as unknown
+(`health/doctor_zfs_route/later_step_checks.rs` says step 17 builds it).
+Nothing merged between that time and 2026-11-27T21:11-05:00 did any part of that wiring,
+by a read-only digest of the route against `git log`;
+the rounds that do started then ("Rounds running").
 
 - Step 9's unmount,
   staging and reattach is done (`5d93d9cfd7`),
@@ -3713,14 +3919,24 @@ so nothing calls `enter_the_removal` yet and `source_guard`'s
   "What still gates shipping").
 - Step 18's `doctor` checks merged unwired (`838b7f5e71` and `d463965dcd`),
   as did the store and `snapdir` delegation check (`2bf72fb230`).
-- Step 19's migration entry and units are built ahead (`72a0be07ef`),
-  and the migration has not run on this host.
+  No release code gathers the facts those checks read;
+  the add route calls the delegation check itself
+  (`worktree_clone_add_route/add_grants.rs`),
+  so that one is reached.
+- Step 19's unit texts and its immutable entry's verdict are built ahead (`72a0be07ef`).
+  The migration is no program:
+  it is `doc/runbook/zfs-checkout-migration-and-boot-setup.md`,
+  marked not run,
+  not approved and not final,
+  and it has not run on this host.
   The owner answered every choice
   (`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`),
   and the chosen design merged as `1ef4afefa8`.
 - Step 20 merged unwired (`a7502138a4`);
   writing `sanoid.conf` is the owner's act.
-  Step 21 merged.
+  Step 21's watch comparison merged and nothing calls it
+  (`worktree_clone_watch_rebinding/`);
+  the skip of the separate ignored-file copy after a clone fill is not built.
 - Step 22's guest half is measured (`2ddf2853ad`);
   its storage half is the agent's act,
   logged,
@@ -3760,19 +3976,103 @@ the owner chooses the moment of the migration and of any reboot,
 which the agent prepares.
 
 Next:
-the wiring of steps 17 and 18 with step 22's request budget,
-which lifts the removal path's cut.
-The split rounds it was sequenced behind have merged
-(that sequencing was the coordinator's,
-not an owner decision),
-so it is ready,
-and it stood without a round until 2026-11-27,
-between 20:21 and 20:26 -05:00,
-when a read-only digest of what is left of the route was started
-("Rounds running").
-Its rounds,
-and every other piece the digest shows to need only work on `main`,
-start from that digest in one list.
+the rounds of the list of 2026-11-27T21:11-05:00 ("Rounds running"),
+each read and merged as it ends.
+They were briefed from a read-only digest of what is left of the route,
+scratch,
+`~/temp/agent/zfs-route-remaining-pieces-digest-2026-11-27/keep/digest.md`;
+what of it must last is written here.
+
+The switch itself is one of those rounds,
+`zfs-removal-command-path-runs-the-whole-removal-with-force-still-refused`.
+It merges after the management grammar's round,
+and after the request budget's value is settled:
+its brief takes 65,536 bytes of packed request input from the measurement in
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`,
+an agent's draft which says of its own proposals
+"Each proposed value carries its citation.
+None is set,
+and the constant in code stays as it is until the owner accepts one."
+So the value is a question for the owner (`doc/handover/questions-for-the-owner.md`),
+asked in a dialog when the round's report is read,
+and that record's sentence is corrected at the merge.
+`--force` stays refused in that round:
+the forced arm's waits are unset,
+and the owner's decision is that it does not ship before they are measured.
+The rounds on the private propagation step,
+on the body of `shutdown-unmount` and on the lost-event merge device each build the piece with its guest arm and add no call from a root mode,
+because those calls are step 19's wiring,
+where the step's "Depends on" still holds
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
+
+Held,
+each with what it waits for.
+The orders are the coordinator's own unless a record is named:
+
+- printing the ZFS report from `doctor`:
+  the three `doctor` rounds,
+  whose gatherers and checks it composes;
+- the origin cleanup look's calls from `git worktree add`,
+  `list`,
+  `prune` and `repair`:
+  the removal's switch,
+  because a blocked-cleanup record exists only after a removal,
+  and to keep that round's files apart;
+- offering `--force`:
+  the switch,
+  the two forced-arm rounds,
+  and the waits' values,
+  by the owner's decision on step 17;
+- step 21's wiring,
+  the watch comparison after a fill and the skip of the separate ignored-file copy:
+  step 19,
+  which step 21 depends on;
+- the values of step 22 in code,
+  the mount and unmount deadlines and the forced waits:
+  the owner's acceptance,
+  by the step 22 record's own sentence;
+- the lost-event numbers and the nudge's switch:
+  both lost-event rounds and a guest run of the design's measurements,
+  by the lost-event decision's choice 17;
+- Sanoid 2.3.0's coverage arm in a guest:
+  a way to put Sanoid 2.3.0 into a guest,
+  which plan step 23's template does not hold.
+
+The host's own acts wait for more than the switch.
+The checkout migration waits for removal to exist
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+"After removal exists (Recommended)"),
+which the coordinator reads as the switch and the grammar released and installed;
+the units,
+the immutable entry,
+`snapdir=disabled` and the zedlet wait for step 19's wiring and its guest proof;
+`sanoid.conf` waits for step 20's wiring and the Sanoid arm;
+and step 22's storage half runs after the migration.
+
+Outside steps 17 to 23,
+by `SPEC.md`'s list under "What this release does not yet do" for the add route,
+and needed by none of the rounds:
+the `.gitattributes` fence's own write;
+the check after a restore;
+finishing an add with Git's own checkout when its proof or its restore fails;
+and the warning above the measured count of changed paths.
+That list's last two entries are run together on one line of `SPEC.md`,
+``(rule `LQM`).- A record that says``,
+which no round has been given.
+
+Lines of other records that `main` has passed,
+found by the digest and confirmed by reading each,
+with no round yet:
+`doc/decision/cli-git-zfs-worktree-design.md` says the forced arm's kernel calls are not built,
+and `3ebc78c3dc` built and proved them;
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md` and
+`doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md` call the storage half and the Sanoid page the owner's act,
+which the answers of 2026-11-26 made the agent's;
+`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`,
+"What is left",
+lists the gate arm's pin,
+which the digest says `bd180d7de9` settled and the coordinator has not checked;
+and the plan's opening status is that of 2026-11-19.
 
 Rounds keep their files under `~/temp/agent/<round name>-<date>/`,
 which expires a day after its last change ("Scratch expires after a day");
@@ -3783,15 +4083,29 @@ a round's durable findings land in its branch's records.
 - Private propagation after a replacement mount,
   for step 19:
   `doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`.
-- The triggers a lost last event waits for,
-  for steps 19 and 22:
+- The triggers a lost last event waits for:
   `doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`.
-  The wrapper left that design's worktree in place at the merge;
-  look whether it is gone before removing it by hand.
-- The forced removal's V10 answer for a locked holder,
-  and its taskless arm,
-  both waiting for step 17's guest result and both put to the owner:
+  The design and its decision give parts to plan steps 10,
+  14,
+  18,
+  19 and 22
+  (`doc/decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`,
+  choice 17),
+  where the plan's own text names steps 7 and 22;
+  none of the parts given to steps 10 and 14 was built with those steps.
+  Two rounds build the wrapper's side and the handler's side ("Rounds running").
+  That design's own worktree is gone,
+  by `git worktree list` at 2026-11-27T21:25-05:00.
+- The forced removal's two kept refusals,
+  of a locked holder and of a taskless namespace:
   `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`.
+  The owner answered "Keep the refusal (Recommended)" to each on 2026-11-26T00:05-05:00
+  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`,
+  "The two refusals the built arm keeps"),
+  so each waits for a guest arm and not for the owner.
+  Two rounds measure them ("Rounds running"):
+  the stop of a locked holder's own user unit,
+  and the walk that finds a taskless namespace on a kernel that has `listns`.
 
 Each one's acceptance is the section "The design is accepted" of its decision record.
 
@@ -3800,15 +4114,24 @@ Each one's acceptance is the section "The design is accepted" of its decision re
 Pieces that need only work on `main` are merged as code no person's command reaches,
 so their steps wait only for their wiring.
 What is still built ahead:
+step 17's cancel command (`df15f27a7a`) and forced arm (`64a71a4c9b`,
+`3ebc78c3dc`),
+the settling command,
+the removal's finish pass,
+the origin cleanup look and the snapshot batch's callers,
+each reached by no command;
 step 18's `doctor` lines (`838b7f5e71`,
 `d463965dcd`,
-`2bf72fb230`),
-step 19's migration entry and units (`72a0be07ef`),
-and step 20's `sanoid.conf` writing (`a7502138a4`).
+`2bf72fb230`);
+step 19's unit texts and immutable entry (`72a0be07ef`);
+step 20's `sanoid.conf` writing (`a7502138a4`);
+and step 21's watch comparison.
 Step 16's deferred-destroy checks,
 step 15's deferred-origin check and step 13's managed lock are wired,
 though no command reaches them while the cut stands.
-Step 12's move refusal and unmounted report are wired and in use (`3ea4fa16c3`).
+Step 12's move refusal and unmounted report are wired and in use
+(`7cf926dc56`;
+`3ea4fa16c3` is the merge that built them ahead).
 
 ### The crate split, and the layout rules that land before it
 

@@ -4386,3 +4386,152 @@ and each can be undone.
   measured;
   and that a launcher which refuses for the wrong guest leaves the host polling until the finish bound,
   43 minutes for this build.
+
+## Question: the value of the removal batch's request budget (recorded 2026-11-27T21:27:22-05:00)
+
+This one is on the ZFS route's path,
+so it is asked in a dialog when its round's report is read;
+it is written here first because a dialog would stop the merges of the rounds that run.
+
+`git worktree remove` of a ZFS clone cannot be switched on without a value for `RequestBudget::of_input_bytes`,
+the bound on one batched request that destroys a clone's snapshots,
+and release code holds none:
+`worktree_clone_snapshot_batch/request_budget.rs` says
+"the value is measured rather than picked:
+the plan's request budget is step 22's measurement".
+The measurement's record,
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`,
+is an agent's draft.
+It says
+"The proposal is `RequestBudget::of_input_bytes(65_536)`,
+that is 64 KiB.
+The largest request the VM accepted was 114,756 bytes,
+and the 64 KiB budget is 2.3 times the 512-name request and under the largest accepted one."
+and also
+"Each proposed value carries its citation.
+None is set,
+and the constant in code stays as it is until the owner accepts one."
+Every figure in it is a guest's,
+on a file-backed pool.
+
+The round `zfs-removal-command-path-runs-the-whole-removal-with-force-still-refused` was briefed with the first option,
+labelled as the coordinating session's pick,
+so that it could run.
+Its branch is not merged with that value until this is answered,
+and its brief asks for the constant to be written so that changing it is one line.
+
+- 65,536 bytes,
+  as the record proposes (recommended).
+  For:
+  it is under the largest request the guest accepted and far over what a removal here asks
+  ("64 names were 3,652 bytes");
+  and the switch,
+  with every piece behind it,
+  stops waiting.
+  Against:
+  the figure comes from a guest's file-backed pool,
+  and this machine's pool has not been asked.
+- A smaller value,
+  the size of the 512-name request the record measured.
+  For:
+  it lies further inside what was measured.
+  Against:
+  a removal of a clone with more snapshots splits into more requests,
+  each one more place a kill can land;
+  and it rests on the same guest-only evidence.
+- No value until step 22's storage half measures this machine's pool.
+  For:
+  the bound would cite the workload it limits.
+  Against:
+  the plan says of the storage half "the agent runs it after the migration",
+  and the migration waits for removal to exist
+  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+  "After removal exists (Recommended)"),
+  so this option waits on itself unless one of those two changes.
+
+Ranking:
+the first over the second,
+because both rest on the same guest measurement and the first splits fewer removals;
+the second over the third,
+because the third cannot be reached without undoing an earlier answer.
+
+## Veto open: what was picked or left on 2026-11-27 after 21:00 (recorded 2026-11-27T21:27:22-05:00)
+
+Each is the coordinating session's own or a round's,
+done or briefed without asking,
+and each can be undone.
+
+- The fourteen ZFS route rounds were briefed with these picks,
+  each labelled in its brief as the coordinating session's own:
+  `--force` stays refused in every spelling when the removal is switched on,
+  and no printed sentence offers it;
+  the private propagation step,
+  the body of `shutdown-unmount` and the lost-event merge device are built with their guest arms and get no call from a root mode,
+  because those calls are plan step 19's wiring;
+  the lost-event check before a command is measured against the same wrapper without it,
+  where the design claims it costs next to nothing;
+  the two forced-arm rounds build the stop of a locked holder's unit,
+  and the ending of a taskless holder,
+  only as far as their measurement supports,
+  and say plainly where a refusal the owner kept has changed and on what evidence;
+  and new code goes into child folders,
+  where the layout rules print no finding.
+  Not taken for the three step 19 pieces:
+  calling each from its root mode now,
+  which the built-ahead decision reserves for the step's own wiring.
+- The round on the wrapper's `final-newline` hint left five points.
+  A landed commit shares the manual push's sentence.
+  The direct check's sentence is unchanged,
+  on the round's own argument.
+  `fix-summary` prints no hint,
+  so nothing tells a person to stage again after `fix`.
+  `CandidateRequest::Staged` is built by no release code.
+  And the enum `CommitCorrection` kept its name while four of its variants were renamed,
+  which changes the library's published names;
+  the README and `SPEC.md` passages were not rendered.
+- The round on the two failures left two.
+  Every fact failure prints the program's name twice
+  (`monochromatic-git-policy-cli: monochromatic-git-policy-cli could not start ...`),
+  older than this release and the same wherever a fact cannot be read.
+  And `invocation/entry_forward_action_planning.rs` holds 316 code lines,
+  three of them the round's,
+  over the budget before it.
+- The `mpm-shadow` round on a failed install's message chose:
+  one sentence for all six failures,
+  naming both the publish and the removal,
+  where two tailored sentences would each be true of one state;
+  nothing about a later install where a put-back of the copy that was moved aside fails,
+  because that copy is no finished one;
+  and the case of a newer repository tool,
+  which leaves the kept copy hidden,
+  inside the sentence.
+- The round of issue 6638 chose the version string alone as what tells a built module from another,
+  so a rebuild of the same source reads as already there;
+  a plain `node` check in place of a harness unit test,
+  because the package has no `package.json`;
+  and left the template's own prepare,
+  `prepareFromTemplate`,
+  loading with `modprobe --quiet zfs 2>/dev/null || true`.
+- The linter's round on the alpha.23 read chose:
+  the bound on a gap's names from the package folder's longest name,
+  which changes no answer;
+  U+2800 left as written,
+  with the reason in the README;
+  a `uses` line in the file rule's list still read and reported as tolerating nothing,
+  where refusing it would refuse lists written before;
+  and the remedy for a spaced folder chosen by whether the folder holds a `.rs` file.
+- The proposal of issue 6642's round,
+  `doc/planning/monochromatic-lint-a-line-break-at-no-semantic-boundary-is-or-is-not-a-finding.md`,
+  asks three things:
+  whether a break at no semantic boundary becomes a finding at all;
+  whether its removal fix ships in the same release;
+  and whether the bound a join uses is the rule's own or the repository's 120 characters.
+  It ranks first the reporting of only those breaks a removal fix can join.
+  The round itself chose that a fragment is one or two words,
+  that a join happens only where this pass's own break cut it,
+  and that no line the author wrote is rewritten.
+- The second pass of `cargo-shadow` `0.1.5-alpha.17` leaves two choices its fix rounds will meet:
+  whether a path the confirming ask reports after a failed start is the route,
+  and whether a stop job queued on `app.slice` is a state the discovery waits out,
+  as alpha.16's start did,
+  or one it names.

@@ -46,8 +46,6 @@ use super::launcher_source::{
     program_name,
     running_program,
 };
-/// Imports `find_tool_bin` from `super::layout`.
-use super::layout::find_tool_bin;
 /// Imports what this module uses from `super::model`.
 use super::model::{
     LockedTool,
@@ -158,6 +156,12 @@ pub fn rebuild_exposure(
             .bin_aliases
             .clone()
             .unwrap_or_default();
+        // What:
+        // the toolchain `rustup` says this row's channel is, asked once for the whole row.
+        // Why:
+        // Every program of a `rustup-toolchain` row is read from that one directory,
+        // so one question per row is enough, and it is `None` for every other route.
+        let channel_bin: Option<PathBuf> = ctx.the_toolchains_bin_dir(tool);
         for name in &tool.declaration.bins {
             let mut primary: String = name.clone();
             for (alias, primary_name) in &aliases {
@@ -166,7 +170,7 @@ pub fn rebuild_exposure(
                     break;
                 }
             }
-            match find_tool_bin(tool, &primary, ctx.scope, ctx.env, &extra_dirs(ctx)) {
+            match ctx.find_bin_of_in(tool, &primary, &extra_dirs(ctx), channel_bin.as_deref()) {
                 Some(found) => {
                     let target: PathBuf = exposed_target(ctx.scope, tool, name, &found)?;
                     atomic_symlink(&ctx.scope.exposure_dir.join(name), &target)?;
@@ -312,8 +316,9 @@ pub fn make_postinstall_links(
         let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
             continue;
         };
+        let answer: Option<PathBuf> = ctx.the_toolchains_bin_dir(tool);
         let Some(found) =
-            find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
+            ctx.find_bin_of_in(tool, &link.source_bin, &extra_dirs(ctx), answer.as_deref())
         else {
             continue;
         };
@@ -451,8 +456,9 @@ pub fn run_postinstall_commands(
         let Some(Postinstall::Run(step)) = &tool.declaration.options.postinstall else {
             continue;
         };
+        let answer: Option<PathBuf> = ctx.the_toolchains_bin_dir(tool);
         let Some(target) =
-            find_tool_bin(tool, &step.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
+            ctx.find_bin_of_in(tool, &step.source_bin, &extra_dirs(ctx), answer.as_deref())
         else {
             continue;
         };
