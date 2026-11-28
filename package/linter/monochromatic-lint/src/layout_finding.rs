@@ -118,19 +118,19 @@ pub(crate) fn spelled_unreadable(name: &str) -> String {
 ///  A reader told only that a character cannot be seen has nothing to search for,
 ///  and a character with no common name is still found by its code point in the line.
 ///  The two spellings differ, so the phrase keeps the name where one exists and never invents one.
+///  A character with no name is called `a character` and nothing more,
+///  because every sentence that prints the phrase goes on to say that a reader cannot see it:
+///  a phrase that said so itself printed the same words twice in one sentence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const phrase = (letter) =>
-///   unseenCharacterName(letter) ?? `a character a reader cannot see (\`\\u{${letter.codePointAt(0)!.toString(16)}}\`)`
+///   unseenCharacterName(letter) ?? `a character (\`\\u{${letter.codePointAt(0)!.toString(16)}}\`)`
 /// ```
 pub(crate) fn unseen_character_phrase(letter: char) -> String {
     return match unseen_character_name(letter) {
         Some(name) => String::from(name),
-        None => format!(
-            "a character a reader cannot see (`\\u{{{:x}}}`)",
-            letter as u32
-        ),
+        None => format!("a character (`\\u{{{:x}}}`)", letter as u32),
     };
 }
 
@@ -222,6 +222,85 @@ pub(crate) fn first_unseen_character(text: &str) -> Option<(char, usize)> {
         }
     }
     return None;
+}
+
+/// What:
+///  How many characters of a text a reader cannot see.
+/// Why:
+///  Every sentence that names one such character says how many the line holds,
+///  because a person told of one and left to find the second on the next run learns nothing from the sentence,
+///  and one count answers for the sentences of the reader,
+///  the refusal it makes and the dead line it reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unseenCount = (text) => [...text].filter((one) => printsAsNothing(one)).length;
+/// ```
+pub(crate) fn unseen_character_count(text: &str) -> usize {
+    return text
+        .chars()
+        .filter(|letter| return prints_as_nothing(*letter))
+        .count();
+}
+
+/// What:
+///  The clause that says how many characters a line holds beside the one a sentence names,
+///  or nothing when it holds none beside it.
+/// Why:
+///  A sentence says how many characters its edit changes and where the first of them stands,
+///  so the count is what tells its reader that the edit touches more than the character it placed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const besideTheFirst = (count) =>
+///   count < 2 ? '' : `, and ${count - 1} more character${count === 2 ? '' : 's'} a reader cannot see`;
+/// ```
+pub(crate) fn characters_beside_the_first(count: usize) -> String {
+    return match count {
+        0 | 1 => String::new(),
+        2 => String::from(", and 1 more character a reader cannot see"),
+        more => format!(", and {} more characters a reader cannot see", more - 1),
+    };
+}
+
+/// What:
+///  The characters a sentence names as the ones its edit changes: one, both of two, or every one of more.
+/// Why:
+///  A sentence that said "that character" about two of them sent its reader after the first and left the other,
+///  and the next run named the other again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = (count) => (count === 1 ? 'that character' : count === 2 ? 'both such characters' : 'every such character');
+/// ```
+pub(crate) fn the_characters_named(count: usize) -> &'static str {
+    return match count {
+        1 => "that character",
+        2 => "both such characters",
+        _ => "every such character",
+    };
+}
+
+/// What:
+///  The phrase that writes a whitespace character where each character a reader cannot see stands.
+/// Why:
+///  A character where a separator belongs is replaced and never removed,
+///  and two of them need one replacement each.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asSpaces = (count) => count === 1
+///   ? 'a whitespace character where that character stands'
+///   : count === 2
+///     ? 'a whitespace character where each of the two such characters stands'
+///     : 'a whitespace character where each such character stands';
+/// ```
+pub(crate) fn the_characters_as_spaces(count: usize) -> &'static str {
+    return match count {
+        1 => "a whitespace character where that character stands",
+        2 => "a whitespace character where each of the two such characters stands",
+        _ => "a whitespace character where each such character stands",
+    };
 }
 
 /// What:

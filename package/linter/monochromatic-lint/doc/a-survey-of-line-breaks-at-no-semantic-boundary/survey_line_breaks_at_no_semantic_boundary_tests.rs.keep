@@ -568,6 +568,7 @@ fn survey_source(
                 end,
                 absolute,
                 indent_width,
+                context.host_prefix_chars,
             )
             .is_some();
             if removable {
@@ -829,7 +830,10 @@ fn survey_breaks_at_no_semantic_boundary() {
                 Selection::Runs => {}
             }
             let body: String = String::from(virtual_source.source());
-            if let Ok(context) = MarkdownSource::new(name, body, false) {
+            // The host's own marker and indent are part of every line a join writes, so the join is asked with them.
+            if let Ok(context) = MarkdownSource::new(name, body, false)
+                .map(|parsed: MarkdownSource| parsed.with_host_prefix_chars(virtual_source.host_prefix_chars()))
+            {
                 surveyed.insert(String::from(*relative));
                 survey_source(&context, relative, false, &mut tally);
             } else {
