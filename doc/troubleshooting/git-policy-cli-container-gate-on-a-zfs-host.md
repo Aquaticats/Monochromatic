@@ -1014,6 +1014,24 @@ and only a denial the read maps to a failing test is a finding.
   with a load of 101.
   Issue 6656 asks what the wrapper adds over native Git under that shortage and whether each bound is one a starved process misses with nothing wrong.
   No release was made on this gate.
+- `d4faaf0807`,
+  unit `gpc-gate-wrapper-next-alpha-on-d4faaf0807-20261128T053953-0500`,
+  started 2026-11-28T05:39:53-05:00,
+  its verdict read at 06:18:41,
+  on the merge that makes the forced arm stop a locked holder's own user unit,
+  which also holds the removal's read of a person's lock before its first write and plan step 19's guest arms:
+  `12517 tests run: 12517 passed (6 slow), 51 skipped`.
+  It ran through memory trouble of two kinds.
+  Until 05:45:26 the guests' unit swapped against its own cap,
+  and `/proc/pressure/memory` read `full avg10` as high as 84.40 (at 05:45:06).
+  After that cap was raised the same reading stayed under 5,
+  and the host's `MemAvailable` moved between 694,028 kB (at 06:02:40) and 11,104,792 kB (at 06:06:41)
+  over 38 readings a minute apart.
+  The four controls that met their bounds on `05cf4c8820` passed here,
+  which tells issue 6656 that they hold under this much shortage and failed under more.
+  The wrapper's `0.6.1-alpha.53` was released after it,
+  from a tip that held two more merges under the package (`74f34f6af9` and `a2ff2180e9`),
+  each checked by its own round and neither by this gate.
 
 ## Verification
 
