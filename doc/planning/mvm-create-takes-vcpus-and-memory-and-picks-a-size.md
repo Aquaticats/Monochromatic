@@ -3,7 +3,7 @@
 Status:
 a proposal for the owner,
 unapproved and non-final,
-revised on 2026-11-28T06:19:05-05:00 against one gate read.
+revised on 2026-11-28T06:48:09-05:00 against one gate read.
 The gate read was a same-vendor second pass
 (Claude Sonnet reading a draft written by a Claude session),
 not an independent review:
