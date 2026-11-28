@@ -154,8 +154,11 @@ async function build(chosen: GuestFacts,): Promise<void> {
     chosen,
     script,
     log: 'guest-crate-build.log',
-    timeoutMilliseconds: crateBuildTimeoutMilliseconds * 2,
-    finishTimeoutMilliseconds: (crateBuildTimeoutMilliseconds * 2) + buildFinishMarginMilliseconds,
+    // Three times the bound the package's other drivers give a build: measured in this round, a fresh extract changes
+    // every path-dependency's timestamp, so cargo recompiles the workspace crates too, and one build took 40m21s in a
+    // guest on a host running ten guests.
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds * 3,
+    finishTimeoutMilliseconds: (crateBuildTimeoutMilliseconds * 3) + buildFinishMarginMilliseconds,
   },);
 }
 
