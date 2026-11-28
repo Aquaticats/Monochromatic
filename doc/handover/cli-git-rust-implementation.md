@@ -2940,13 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- The slot-state guest arm runs to its end again (`3823f2101a`,
-  issue 6595):
-  it plants its plan through the removal's own writer,
-  and in two guest runs every marker after `SLOT-STATE pending-add` printed and no later assertion failed,
-  so the release code was not at fault.
-  A host control now fails when a planted plan is one the add's reader refuses,
-  and the package guide says a control plants a plan through the writer.
 - The four shadow crates' copies of their shared rule agree again (`7e215a38c2`,
   issue 6609),
   and each package's own test task runs the comparison,
