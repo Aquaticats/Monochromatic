@@ -220,7 +220,7 @@ with `incremental` as Cargo resolved it):
 
 Every variant printed `codegen_units=null`,
 so no manifest line and no Cargo default in these forms passes `-C codegen-units`,
-and the compiler's own default follows the flag (see "The default that moves").
+and the compiler's own default follows the flag (see "The default that moves with the flag").
 
 So:
 the arms measured the everywhere form,
@@ -692,14 +692,15 @@ so both commands and every path dependency are compiled with incremental data,
 and every affected unit's `codegen-units` default moves from 16 to 256.
 
 What lands where:
-the implementation's `debug/incremental/<crate>-<hash>/s-<session>/` below the keyed tree,
-a first library tree is 1,551 MiB,
+the implementation's `debug/incremental/<crate>-<hash>/s-<session>/` below the keyed tree.
+A first library tree is 1,551 MiB,
 of which 808 MiB is incremental data;
 a first test tree is 2,705 MiB,
-of which 1,824 MiB is data ( of which 1,616 MiB is this crate's own data,
+of which 1,824 MiB is data,
+1,616 MiB of it this crate's own,
 161 MiB the path dependencies',
-and 47 MiB unaccounted);
-after a rebuild the test tree reads 2,658 MiB with 1,777 MiB of data.
+and 47 MiB unaccounted.
+After a rebuild the test tree reads 2,658 MiB with 1,777 MiB of data.
 A round's one tree is about 3.5 GiB by the model and above that in reality.
 
 What it gives:
