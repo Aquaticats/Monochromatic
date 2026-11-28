@@ -4628,37 +4628,58 @@ and each can be undone.
 
 ## For the owner, and veto open: what the night of 2026-11-27 left after 22:15 (recorded 2026-11-27T23:01:36-05:00)
 
-### A question that waits: do rounds that compile the wrapper get a bound of their own?
+### A question that waits: what bounds the guests and the builds that run at once?
 
-The machine ran out of memory twice on 2026-11-27,
-the second time for about twenty minutes
+The machine ran out of memory three times on the night of 2026-11-27,
+the second and third time for about twenty minutes each
 (`doc/handover/cli-git-rust-implementation.md`,
 "Memory";
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
-Fourteen rounds that each compile the wrapper had been started within five minutes of each other,
+Fourteen rounds on the ZFS route had been started within five minutes of each other,
 on the direction to parallelize better and with no start waiting on memory,
 as the owner said on 2026-11-26.
+An earlier text of this entry named the builds as the load.
+A reading of 2026-11-27T23:20:27-05:00 corrects it:
+the unit that holds the guests held 29.9 GB of memory and 50.7 GB of swap with ten guests alive,
+each at the 8,192 MiB the owner kept until the crate split,
+and all the rounds' builds together held 15.8 GB and 1.4 GB.
+The guests fill the swap,
+and the builds are what the machine then kills.
 What it cost,
 measured:
-eleven build scopes ended `oom-kill` in fourteen minutes,
+23 build scopes ended `oom-kill` between 22:34 and 23:20,
 the wrapper gate lost its build after 41 minutes and ran no test,
-and one round's start was refused.
+one round's start was refused,
+and for a third to a half of the worst fourteen minutes no task ran.
 No round and no guest was lost.
-The options,
-each for the rounds that compile the wrapper and for no other round:
+By the owner's criteria of 2026-11-13 the stall fails no level of agents at once;
+those criteria say nothing of a killed build.
+The options:
 
-- A bound of its own on how many such rounds run at once,
-  found the way the owner had the disk's ceiling found
-  (`doc/handover/agents-at-once-on-this-machine.md`):
-  a level,
-  halved when it fails,
-  with tonight's fourteen as a level that failed.
+- A bound on guests alive at once,
+  found the way the disk's ceiling is found
+  (`doc/handover/agents-at-once-on-this-machine.md`),
+  with ten as a level that failed.
   For:
-  it removes the killed builds where they start,
-  and every other round stays bounded by 64 alone.
+  it aims at the largest holder measured,
+  and rounds that need no guest stay bounded by 64 alone.
   Against:
   it is a rule on starts,
-  and the search for the level costs runs.
+  rounds that need a guest queue,
+  and the search costs runs.
+- Smaller guests for rounds that build nothing in the guest.
+  For:
+  ten guests would hold half as much at 4 GiB.
+  Against:
+  the owner shelved the guest memory proposal until the crate split on 2026-11-26,
+  because its figures measure guests building today's one crate,
+  so this reopens a decision.
+- A bound on rounds that compile the wrapper at once.
+  For:
+  it removes the builds the machine kills.
+  Against:
+  the builds are the smaller holder by the reading,
+  so it frees less than its cost in waiting rounds.
 - No bound,
   and a killed build made cheap:
   every brief says that a kill by the machine is run again and says nothing about the change.
@@ -4669,18 +4690,20 @@ each for the rounds that compile the wrapper and for no other round:
   and tonight the kills came faster than the builds finished.
 - The crate split,
   which waits for the owner's answer on its fourth round:
-  it lowers the compiler's peak,
-  seen at 28.8 GiB resident for the test build.
-  It goes with either of the other two and replaces neither tonight.
+  it lowers the compiler's peak and lets the guest question be measured again.
+  It goes with any of the others and replaces none tonight.
 
 Ranking:
-the bound over no bound,
-because the bound removes work that the other only repeats;
-the split beside whichever is taken,
-because it is the one that removes the cause.
+the bound on guests over smaller guests,
+because it needs no shelved decision reopened;
+smaller guests over the bound on builds,
+because the guests hold five times what the builds hold;
+the bound on builds over no bound,
+because it removes work that the other only repeats;
+the split beside whichever is taken.
 Until this is answered the coordinating session starts no second batch of that size:
-it starts the next rounds that compile the wrapper as running ones end.
-That is its own measure after a level that failed,
+it starts the next round that makes a guest or compiles the wrapper as a running one ends.
+That is its own measure,
 with the veto open.
 
 ### Veto open
@@ -4750,3 +4773,35 @@ and each can be undone.
   the logger's file sink verification reporting an internal error after 5000 ms on a loaded host,
   and 6648,
   a slow `git worktree remove` that removes the worktree and then fails.
+- Part D of the handover's history,
+  merged as `00740b0320`,
+  cut 73 of its ledger's 91 entries and kept fifteen open ones.
+  It read two duties as discharged,
+  "the wrapper's next release pass reads it as a change",
+  because the passes of `0.6.1-alpha.48` were the next ones,
+  where no tracked file says a pass read each item;
+  it let five verification figures go as counts of a merged branch's check;
+  it could not name the private helper that removes directories among the seven a split made public,
+  and kept the pass's own words;
+  and it added a two-line comment to `package/git-policy/cli/bin/native-check-commit-line.ts`,
+  a file of code.
+  Its conflict with `main`,
+  in the linter's README,
+  kept both sides.
+- The `cargo-shadow` round on the Low points of the read of `0.1.5-alpha.17` leaves the owner one choice and built neither way:
+  a manager reexec that begins after the route is discovered fails the whole call,
+  and a scope's creation that meets one is either tried again or left.
+  Tried again:
+  a call that overlaps a reexec finishes,
+  which is what a person upgrading packages needs;
+  but `systemd-run --user --scope` gives no idempotence,
+  so a retry can make a second scope beside one that was made and whose reply was lost,
+  and each attempt spends another discovery bound.
+  Left:
+  no new branch and a loud failure with the manager's own words;
+  but a build that overlaps a reexec fails whole,
+  and the read measured 11 of 24 such calls exiting 1.
+  The round also corrected four line ranges the brief did not list,
+  wrote records for its two controls,
+  and measures the pause from a stand-in's own start and end lines,
+  which showed the planted edit in one gap of four on the loaded host.

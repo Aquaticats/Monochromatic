@@ -115,17 +115,17 @@ and each stays in force until the owner changes it.
   and a step waits only for an input it names or for a failure on record
   ("How work is run side by side").
 
-## The state at 2026-11-27T23:01:36-05:00
+## The state at 2026-11-27T23:23:34-05:00
 
-`main` was `c8545f91b8`.
+`main` was `00740b0320`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 323 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 325 more by this time.
 
 ### Rounds running
 
-At 2026-11-27T23:01:36-05:00 these 19 rounds are live,
+At 2026-11-27T23:23:34-05:00 these 18 rounds are live,
 counted from the process list.
 Each runs on Pi's virtual writer,
 with its brief at `~/temp/agent/pi-runs/<round>-prompt.md`,
@@ -155,9 +155,6 @@ issue 6645):
 - `cargo-shadow-alpha-17-release-pass-a-start-that-heals-and-a-queued-stop-keep-the-delegated-route`,
   2026-11-27T21:37:37-05:00:
   the two Medium points and the control that holds them;
-- `cargo-shadow-alpha-17-release-pass-five-record-sentences-say-what-is-so-and-two-controls-can-fail`,
-  2026-11-27T21:36:31-05:00:
-  the Low points;
 
 For the linter's two proposals,
 each revised against its gate review before it is put to the owner
@@ -229,22 +226,25 @@ The note is `~/temp/agent/memory-exhausted-on-the-night-of-2026-11-27/keep/note-
 scratch that expires a day after its last change.
 A report that says a build was killed is read against the host's log for that minute.
 
-Three of the four rounds on this file's history are merged:
+All four rounds on this file's history are merged:
 part B alone (`4d2fae7e63`),
-and parts A and C joined in one tree (`c8545f91b8`),
-because both added to the linter's README,
-the wrapper's guide and the merge planning record.
-The file went from 4,465 lines to 2,948.
-Part D's round works from its ledger,
-`~/temp/agent/handover-prune-ledgers-2026-11-27/keep/ledger-part-d.md`,
-scratch that expires a day after its last change;
-the coordinator read no ledger whole.
-Its report is read against the cut before its branch merges,
-and `main`'s text stands wherever the two differ outside its part.
-Left by the merged parts for one read of this file once part D is in:
+parts A and C joined in one tree (`c8545f91b8`),
+and part D joined with `main` (`00740b0320`),
+each join because the parts added to the same package records
+(the linter's README in both).
+Each conflict kept both sides,
+after the figures were read in this file as it stood before the cuts (`4bbd9168dc`).
+The file went from 4,465 lines to 2,561,
+the coordinating session's own additions of the night included.
+The coordinator read no ledger whole.
+Left by the merged parts for one read of this file:
 the paragraph on issue 6638's round inside "Rounds that ended,
 and what each left" is landed work no ledger named,
 and passages elsewhere still point at that section for events the cuts removed.
+Part D's run ended with the driver's reason `pi-not-stopped`,
+"Pi was still running 5000 ms after SIGKILL",
+after the round had settled with its work pushed;
+no process of it was left.
 
 A branch that took `main` in before another merge changed its package is checked on the tree that holds both,
 in a detached worktree of the coordinating session's own under `.claude/worktrees/`,
@@ -269,7 +269,7 @@ and what its merge frees is started.
 The wrapper's gate has to run again ("What the wrapper's alpha.51 reads found");
 after a green one come the install proof over alpha.51,
 `0.6.1-alpha.52` and its two second passes.
-After `cargo-shadow`'s two:
+After `cargo-shadow`'s second round:
 `0.1.5-alpha.18`.
 The ZFS rounds all add lines to `src/native/lib.rs`,
 the list of published names,
@@ -1503,6 +1503,22 @@ two Medium and three Low points.
   Issue 6645 states the two Medium points.
 What the round chose that its brief did not decide waits in `doc/handover/questions-for-the-owner.md`.
 
+Of the two rounds on the read of `0.1.5-alpha.17`,
+the one on its Low points is merged (`bf4457e7bf`):
+two new controls,
+each shown red by the edit the read names,
+five record sentences corrected against their sources,
+and the package's task at 980 of 980 on its merged tree once the machine had memory again
+(two runs inside the out-of-memory stretch failed one and two controls it does not touch,
+and each passed alone).
+It wrote the read's third Low point into the README and built nothing:
+a reexec of the manager that begins after the route is discovered fails the whole call,
+and whether a scope's creation is then tried again is the owner's choice
+(`doc/handover/questions-for-the-owner.md`).
+The round on the two Medium points runs ("Rounds running");
+its branch is joined with `main` in one tree,
+because both rounds change the same two records.
+
 ### Releases of 2026-11-27
 
 Alphas of the wrapper and of the tools on its path are published unasked
@@ -2081,11 +2097,30 @@ with eleven `rustc` processes and nineteen rounds;
 at 22:57:32 they read 7,961,472 kB and 15,256,480 kB.
 Whether the kernel's own killer or a unit's limit ended each build was not read:
 the kernel's log gave this account nothing.
-Fourteen rounds that each compile the wrapper,
-started within five minutes of each other,
-are the load;
-each round's commands are capped at 24 GiB,
-which fourteen such rounds overcommit several times.
+What held the memory was read at 23:20:27,
+in a third such stretch:
+the unit that holds the guests,
+`mvm-libvirt-session.service`,
+held 29,937,127,424 bytes of memory and 50,694,000,640 of swap with ten guests running,
+and the whole of `agent-work.slice`,
+where the rounds' builds run,
+held 15,762,833,408 and 1,350,725,632.
+So the guests are the largest holder,
+each at `mvm`'s default of 8,192 MiB,
+which the owner kept until the crate split (`doc/planning/mvm-guest-memory-held-for-a-rounds-life.md`),
+and the builds are what the machine then kills,
+because no swap is left for them.
+The coordinating session first wrote here that the fourteen rounds compiling the wrapper were the load;
+that was read off the process list,
+and this reading corrects it.
+Between 23:15:47 and 23:19:55 twelve more scopes ended `oom-kill`,
+and at 23:19:36 `SwapFree` read 55,744 kB of 64,667,644 with `MemAvailable` at 0.
+From 23:06 to 23:20 the stall's `full avg300` stood between 30 and 54:
+every task that could run was stalled on memory for a third to a half of that time.
+By the owner's criteria for a level of agents at once the stall fails no level
+(`doc/handover/agents-at-once-on-this-machine.md`,
+"What counts as the ceiling"),
+and those criteria do not speak of a killed build.
 What the coordinating session did:
 it started nothing that compiles the wrapper,
 wrote the live rounds one note ("Rounds running"),

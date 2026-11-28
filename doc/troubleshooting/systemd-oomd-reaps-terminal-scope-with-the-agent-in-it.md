@@ -306,6 +306,25 @@ In the same minutes a compiler inside a container of the wrapper's test gate end
 At 22:51:42 `MemAvailable` read 0 kB and `SwapFree` 2,267,792 of 64,667,644 kB;
 at 22:57:32 they read 7,961,472 kB and 15,256,480 kB.
 
+A third stretch followed.
+Between 23:15:47 and 23:19:55 twelve more scopes ended `oom-kill`,
+and at 23:19:36 `SwapFree` read 55,744 kB of 64,667,644 with `MemAvailable` at 0.
+`systemd-oomd` wrote 2,913 lines that mark or kill a unit between 23:00 and 23:20,
+and ten guests were running at 23:20:27.
+What held the memory was read then:
+`mvm-libvirt-session.service` held 29,937,127,424 bytes of memory and 50,694,000,640 of swap,
+and `agent-work.slice`,
+where the rounds' builds run,
+held 15,762,833,408 and 1,350,725,632,
+with no memory limit set on the slice.
+So the guests,
+at 8,192 MiB each,
+fill the swap,
+and the scopes that are killed are the builds that then find none.
+The first paragraph's account of the load,
+written before that reading,
+names the builds alone.
+
 Not read:
 the kernel's log,
 which gave the agent's account nothing,
