@@ -43,57 +43,18 @@ import {
   jsonAnswer,
   matching,
   regionAnswer,
+  routedAnswers as routed,
   sshCalls,
   sshKeyAnswer,
-  type RecordedCall,
 } from './fixture.ovh-api-stand-in.ts';
 
-//region Routes
+//region Stand-in answers
 
 /**
- Stand-in routes: the answer each `METHOD path` gets, in order, with a refusal
- for anything the test did not plan.
+ Answers a test plans, keyed by `METHOD path`, each path holding its answers in
+ the order they are handed out.
  */
 type Routes = Readonly<Record<string, readonly Response[]>>;
-
-/**
- Answers requests from a table of planned answers, one queue per method and path.
- 
- @param routes - queued answers keyed by `METHOD path`
- 
- @returns a handler that fails loudly on an unplanned request
- 
- @example
- ```ts
- installStandIn(routed({ 'GET /v1/cloud/project/x/instance': [jsonAnswer([])] }));
- ```
- */
-function routed(routes: Routes,): (call: RecordedCall,) => Response {
-  /**
-   Answers not yet handed out, per method and path.
-   */
-  const queues = new Map<string, Response[]>();
-  for (const [key, answers,] of Object.entries(routes,)) {
-    queues.set(
-      key,
-      [...answers,],
-    );
-  }
-  return function answer(call,) {
-    /**
-     Answers still queued for this request.
-     */
-    const queue = queues.get(`${call.method} ${call.path}`,);
-    /**
-     Next planned answer, if the test planned one.
-     */
-    const next = queue?.shift();
-    return next ?? failureAnswer({
-      message: `the stand-in planned no answer for ${call.method} ${call.path}`,
-      status: 500,
-    },);
-  };
-}
 
 /**
  The answers a successful create needs, from the key upload to the instance
