@@ -478,7 +478,10 @@ fn a_commit_that_corrects_the_file_says_so_at_either_severity() {
     let scene: Scene = a_scene("final-newline-hint-commit");
     stage_the_file(&scene);
     let writable: bool = !a_read_only_selection(&[]);
-    assert!(writable, "a commit with no selection leaves the policies writable");
+    assert!(
+        writable,
+        "a commit with no selection leaves the policies writable"
+    );
     for severity in [Severity::Warn, Severity::Error] {
         let rendered: String = rendered_finding(
             &scene,
