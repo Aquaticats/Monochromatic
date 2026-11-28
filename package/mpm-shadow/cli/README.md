@@ -240,18 +240,29 @@ or a Java major line such as `21`).
   and `android-sdk`.
   The route is how a tool installs;
   the request is where its versions come from.
-- A `rustup-toolchain` row's `bins` are the programs the installed toolchain holds:
-  the toolchain's own `bin` directory under `~/.rustup/toolchains`,
-  and rustup's own proxies in the cargo bin directory where rustup itself was installed there.
+- A `rustup-toolchain` row's `bins` are the programs the toolchain the row's channel names holds:
+  that toolchain's own `bin` directory under `~/.rustup/toolchains`,
+  and never another installed toolchain's,
+  whatever the directory names sort like
+  (a second toolchain beside the pin answered for the farm's `rustc`,
+  `cargo` and `rustfmt` before issue 6634);
+  and rustup's own proxies in the cargo bin directory where `rustup` itself was installed there.
   `rustup` is never one of them:
   it is the manager,
-  which the bootstrap installs before the first `mpm-shadow` run and `mpm-shadow` never does
-  (see "Bootstrap"),
-  so the farm links no `rustup`,
-  and a row that declared it would name an unresolved bin on every install.
+  which `rustup-init` or the distribution's package installs before the first `mpm-shadow` run,
+  and `mpm-shadow` never does (see "Bootstrap"),
+  so the farm links `rustup` only where a `rustup` proxy of that name already sits in the cargo bin
+  directory,
+  and a row that declared it names an unresolved bin wherever none does.
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  `list` reads the same declarations:
+  it asks `rustup component list --installed` and `rustup target list --installed` about the row's
+  toolchain,
+  and a component or target it does not list is drift,
+  named in the `drift` line,
+  which is what the next `install` would add.
   Every program a row lists that no component it declares and no profile installs is not in
   the toolchain at all,
   so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
@@ -692,7 +703,7 @@ llama-cpu-cli \
   then installs every locked tool that is not at its locked version,
   makes the postinstall links and removes the ones an earlier run made that the lock no longer declares
   (see "Postinstall links the lock no longer declares"),
-  rebuilds the exposure directory,
+  rebuilds the exposure directory (see "What the exposure folder holds"),
   writes the tool environment for mise (see "Tool environment"),
   runs the postinstall commands
   and then retires the old copies of this repository's tools
@@ -1755,6 +1766,30 @@ every `install` removes the older managed copies of this repository's tools:
   its launchers keep working through the forward,
   and a link that names a version directory itself dangles until that tree's next `install`.
 
+### What the exposure folder holds
+
+The scope's exposure folder is the directory its `PATH` puts first,
+and it holds one link per declared bin
+(`.cache/toolchain-bin` in a checkout, `<data home>/monochromatic-dev/toolchain-global/exposure` for the machine-global scope).
+
+- A link is named after the bin its row declares,
+  and points at the program that row's route finds.
+  A repository-published tool's link points at this tree's launcher instead,
+  so a run through it can warn about the lock (see "The launcher").
+- Every link an install makes is replaced atomically,
+  so a run killed while the folder is rebuilt leaves no half-written name.
+- Every rebuild also removes what the lock no longer declares:
+  a symbolic link whose name no row of the lock declares is removed,
+  and the install's report names each one and where it pointed
+  (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
+  A regular file,
+  a directory,
+  or anything else at such a name belongs to a person and stays.
+  The `rustup` link this repository's `rust` row left behind when it stopped declaring it
+  (issue 6626) is the case the rule comes from:
+  it dangled once the proxies went,
+  and `list` said the toolchain was in sync (issue 6634).
+
 ### The farm also carries the running `mpm-shadow`
 
 Every sentence `mpm-shadow` prints tells a person to run `mpm-shadow` or `mpm`,
@@ -2300,6 +2335,13 @@ A changed file refuses the publish and names the file.
 
 A fresh machine needs one prebuilt `mpm-shadow` archive whose SHA-256 is in the lock,
 or `cargo install monochromatic-mpm-shadow` after a verified `rustup` install.
+The archive route installs no `rustup`,
+and neither does `mpm-shadow` on any route:
+both need a `rustup` the machine already has,
+from `rustup-init` or from the distribution's package,
+because the `rust` row asks it for the toolchain, its components and its targets.
+The `cargo install` route is the other way a machine gets `mpm-shadow`,
+and the `cargo` it runs is the one a verified `rustup` install provides.
 `mpm-shadow verify-archive` checks a downloaded archive against the lock before it is run.
 Containers and CI can use the same `jq`,
 `curl`
