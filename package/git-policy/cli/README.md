@@ -1961,9 +1961,8 @@ no argument at all is the clone-mount sweep ZED's own start runs,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and,
-when it is run,
-names the unit that runs it,
+whose pass is built and whose mode refuses,
+naming the unit that runs it,
 and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
 of its own,
 which reads and changes nothing.
@@ -2507,9 +2506,11 @@ and none of them reads a pool:
 Git's own removal would otherwise delete the registration and the underlay folder
 while a clone's files may stand behind the mount.
 A phase that disagrees with its mount and a destruction plan nobody could read are
-still left to Git,
+still left to Git when no plan naming the clone stands,
 because the answer names these three and no more,
-and the slot's report says which reading it met.
+and a destruction plan that reads names the clone before the phase and the mount
+are compared,
+so the slot's report says which reading it met.
 A `git worktree remove` or `git worktree move` behind a global option this build does not know
 (a spelling a newer Git may add) is refused while the repository holds slot records,
 because the option leaves the worktree's path unread and Git would then delete a bound
@@ -2553,9 +2554,12 @@ step by step:
   and a newly created own snapshot added to the plan,
   and the kept plan a killed,
   refused or cancelled run left,
-  which a resume proves again before any request for a name the plan does not record as destroyed,
-  and which no command of this release reaches,
-  because a slot a destruction plan names is one `git worktree remove` leaves to Git;
+  which the same command resumes:
+  the plan is adopted under the run's own nonce,
+  every name it records is proved again by its recorded GUID,
+  no request names a snapshot the plan records as destroyed,
+  the loss it records is carried into the report,
+  and the removal's own records end it;
 - the origin cleanup record,
   published before the first destroy,
   and the attempt that destroys the checkout's origin snapshot under the account's own
@@ -2625,6 +2629,17 @@ Every ending is gated by the evidence the probe rounds recorded and by waits tha
 so a kind of holder the evidence does not show is identified and refused,
 never ended.
 No sentence of this release offers `--force`.
+A locked holder,
+a copy inside a mount namespace owned by a user namespace of its own,
+is stopped through the account's own user manager when it is a service unit of that manager,
+and refuses `holder-locked` when it is not.
+The stop is built and was measured in a guest on 2026-11-27
+(`src/native/process/a_service_unit_stopped_through_the_accounts_manager.rs`,
+`e2e/forced-act-guest.ts`),
+but nothing stops anything yet:
+the wait a stop is given ships with no value,
+so a locked holder still refuses.
+
 
 Before a `git worktree prune` the wrapper compares each managed clone's pointer with the bytes the add recorded,
 which is the underlay's copy while the clone is unmounted and the clone's own while it is mounted.
@@ -2713,6 +2728,12 @@ naming the step whose boot unit runs it.
 The migration,
 the property changes and the install are your own act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+The texts themselves are read by a real manager in a throwaway guest only:
+`e2e/zfs-step-19-guest.ts` writes the plan where systemd reads it,
+has the guest's `systemd-analyze verify` parse each unit file,
+reads each drop-in back from the guest's manager,
+and reboots the guest to read what the boot made of it,
+which is the one place a boot and a shutdown can be measured.
 
 #### The event filter and the merge device, built and reached by no command
 
@@ -2774,13 +2795,38 @@ The check every forwarded command makes in that folder,
 one `stat` when no folder stands,
 is built in
 `src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`
-and has no call site yet:
-a use of that folder by `invocation/` is a new use inside a loop the layout
-allow list tolerates,
-and no line of that list may be added,
-so the round that built the check left the call out.
-Such a wiring use may now merge with its layout finding unrecorded,
-and the forwarded path's one line is owed together with the measurement of its cost.
+and called from the forwarded command's lifecycle in
+`src/native/invocation/wrapped_command.rs`,
+after configuration and the shadow sweep,
+before the commit path and before the child Git starts.
+The use that call adds,
+this crate's folder of unanswered requests used by `invocation/`,
+is one `rust/folder-uses-links` finding no line of the layout allow list may
+record,
+and the record's amendment of 2026-11-28 lets such a wiring merge with its
+finding unrecorded
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+
+The cost of that check was measured before it shipped,
+by building the wrapper twice from one commit,
+with the call and without it,
+and timing a forwarded command that does no other work in a fixture repository
+with no folder of unanswered requests.
+Five arms ran interleaved in each round:
+the control twice,
+the wired wrapper,
+a thousand `stat`s of the absent folder planted on the same path,
+and a thousand calls of the check planted at the wiring.
+Measured 2026-11-28 on this machine,
+where `git rev-parse --is-inside-work-tree` cost 6.61 ms per invocation:
+the control against itself answered 0.979 (0.935 to 1.061) and the wired
+wrapper 0.975 (0.920 to 1.068),
+which is inside the control's own spread;
+one `stat` of the absent folder is 914 ns and one call of the check 1.40 µs,
+0.014% and 0.022% of that command;
+and the plants moved the same arm by 1.141 (1.078 to 1.236) and 1.216
+(1.156 to 1.351),
+so the harness sees a thousand checks and not one.
 
 The nudge on Git commands is off.
 It stands behind the compiled switch `zfs-lost-event-nudge`,
@@ -2794,6 +2840,55 @@ a ZED delivery or start,
 a start of the checkout provider,
 the boot unit's reconcile,
 or a lever you fire.
+
+#### The shutdown pass, built and reached by no command
+
+The pass the gate's `ExecStopPost` runs is built in `src/native/worktree_clone_shutdown_unmount_pass/`,
+and no command reaches it in this build:
+`zfs-root shutdown-unmount` still refuses,
+naming the step whose boot unit runs it,
+and the round that wires the mode calls the pass from there.
+What it does,
+in the order the design gives
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit"):
+
+- it withdraws this boot's readiness record,
+  the one `boot-reconcile` publishes,
+  so no attach is admitted after it;
+- it reads the same root-owned configuration the gate's own `ExecStart` read,
+  so the mounts it looks at are the ones that pass made;
+- it takes,
+  from this process's mount table,
+  every standing mount of an immediate child of the configured clone container
+  that stands at a slot of the configured checkout;
+- it proves each one before any kernel call:
+  the folder the slot hangs in is the `.claude/worktrees` folder the route
+  recorded,
+  a fresh walk reaches the same mount the descriptor is on,
+  the device and inode are the walk's own,
+  the path the kernel reports is the slot's,
+  and the row's source,
+  filesystem,
+  root,
+  mount point and parent are the clone's own mount at that slot;
+- it takes the slot's per-slot claim before it acts,
+  and leaves a slot another handler holds to that handler;
+- it unmounts from the held descriptor,
+  without force and without lazy detach;
+- a mount the kernel answers `EBUSY` for stays exactly as it was,
+  and the all-namespace holder scan names what holds it;
+- it files no receipt and changes no clone's durable intent,
+  because it answered no request.
+
+The proof is one guest arm
+(`src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`,
+driven by `e2e/shutdown-unmount-guest.ts`):
+an idle clone's mount is unmounted,
+a busy one's is kept and named,
+this boot's readiness is withdrawn before either,
+no attach is admitted afterwards,
+and both clones' durable intent is exactly what it was.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
@@ -2836,9 +2931,12 @@ A lock holding a person's words is never overwritten:
 the add refuses,
 says what stands,
 and names `git worktree unlock <slot>` as the way out.
+A `git worktree remove` of that slot refuses for the same lock before its first
+write,
+and its sentence names the same command,
+so nothing of the clone is unmounted or destroyed while a person's lock stands.
 The lock is released only by the removal's registration-cleanup step,
-after the clone's destruction is proven,
-and this release does not release it.
+after the clone's destruction is proven.
 
 ### Converting the checkout to a btrfs subvolume
 
@@ -3477,24 +3575,27 @@ The rejections that already carry their own alternatives (`require-root`,
 `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
 The `final-newline` finding says what corrects the file where the finding is made:
-an `add` names `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
+an `add` and a direct check name `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
  which are the steps that work where the add is refused at `error` severity,
- and which also correct an index that already holds the bytes,
- and it names a commit's own correction only for a commit that takes the whole file,
- because a commit whose selection is read-only records the staged bytes as they are;
-`git monochromatic-git-policy-cli check` names the commit that takes the file,
- which corrects the ending while the settings keep `final-newline` on,
- and the fix for correcting the file now;
-a commit that may correct the bytes,
-and `git monochromatic-git-policy-cli fix`,
-say the correction is that command's own;
-a commit whose selection is read-only (`-p`,
+ and which also correct an index that already holds the bytes;
+the same two places name a commit's own correction for a commit that names the file,
+ as in `git commit -- <path>`,
+ because a commit whose selection is read-only (`-p`,
  `-i`,
- `--include`) says to edit the file and stage it again;
+ `--include`) records the bytes it takes as they are;
+a commit whose selection is read-only says to edit the file and stage it again;
 and a landed commit and a pushed commit say to edit the file and commit the correction,
 because nothing corrects bytes that are already recorded.
+A commit that goes on to land reports the bytes it holds,
+not the index the pass read before it:
+the staged-lifecycle sentence is dropped once the commit lands,
+and the landed sentence follows from the post-commit gate,
+so the person reads one sentence about the file and it is still true.
 `src/native/policy/event_hints.rs` holds the texts,
 and its tests fail when a finding code or an engine failure code has no hint.
+The hint never says that a commit which may correct the bytes corrects them,
+because a lifecycle that corrects applies its correction in a pass of its own and reports no finding at all:
+the run prints a `fix-summary` instead.
 
 ### Discarding commands
 
@@ -3629,7 +3730,17 @@ which Git runs before it looks any alias up.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
-so the `git` inside it is real Git rather than this wrapper.
+so the `git` inside it is whichever `git` that directory holds:
+on this machine `/usr/lib/git-core/git`,
+a link to the real Git,
+which runs the command with no guard.
+A system whose `git-core` holds no `git` leaves the rest of `PATH` to answer,
+and an installed wrapper is then that shell's Git:
+it judges the nested command as the direct command it is,
+from the directory Git ran the shell in and with the `GIT_DIR` Git gave that shell,
+so the same words are refused there where the direct spelling is.
+Which of the two answers is nothing this wrapper decides;
+its own `PATH` and Git's exec path do.
 One plain form of it is read,
 only so the guard can decide:
 a value whose bytes are letters,
@@ -3654,11 +3765,17 @@ with the Git directory Git gives that shell,
 then your own options and then your words.
 Git gives the shell a `GIT_DIR` whenever you named a repository or a work tree
 (`--git-dir`,
-`--work-tree` or `GIT_DIR`),
+`--work-tree`,
+`GIT_DIR` or `GIT_WORK_TREE`),
+its own configuration sets `core.worktree`
+(also when `extensions.worktreeConfig` is on and `config.worktree` sets it),
 the repository is bare,
 the shell's directory is inside a Git directory,
 or the working tree's `.git` is a file that points elsewhere;
-from a plain main checkout it gives none.
+from a plain main checkout that does none of these it gives none.
+A `core.worktree` the repository's own configuration sets is why a main checkout can give one from a
+subdirectory as an absolute path,
+which a nested `-C` does not move.
 So from a linked worktree `git g -C <another worktree> reset --hard` writes that other worktree's files
 with your index and `HEAD`,
 and the guard refuses it as that state,

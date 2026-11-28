@@ -24,6 +24,11 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -50,6 +55,11 @@ import {
 import {
   captureHostCommand,
 } from '../bin/mvm-guest-step-command.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -98,6 +108,30 @@ const REMOVAL_PREFIX = '/opt/openzfs-2.4.4';
  */
 const REMOVAL_ROOT = '/home/zfs-doctor-removal-fixture';
 /**
+ The variable the gatherer's arm reads for its guest.
+ */
+const CLONE_FACTS_GUEST_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_GUEST';
+/**
+ The variable the gatherer's arm reads for its pool.
+ */
+const CLONE_FACTS_POOL_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_POOL';
+/**
+ The variable the gatherer's arm reads for its OpenZFS prefix.
+ */
+const CLONE_FACTS_PREFIX_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_PREFIX';
+/**
+ The variable the gatherer's arm reads for its fixture root.
+ */
+const CLONE_FACTS_ROOT_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_ROOT';
+/**
+ The pool the gatherer's six clones are built in.
+ */
+const CLONE_FACTS_POOL = 'zfsclonefacts';
+/**
+ The folder the gatherer's arm lives under.
+ */
+const CLONE_FACTS_ROOT = '/home/zfs-clone-facts-fixture';
+/**
  Milliseconds the guest's crate build may take.
  */
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
@@ -134,6 +168,13 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST-REMOVAL origin-mark-is-a-finding',
   'DOCTOR-GUEST-REMOVAL pruned-registration-is-a-finding',
   'DOCTOR-GUEST-REMOVAL retention-names-its-fields',
+  'CLONE-FACTS-GUEST mounted-clone-passes',
+  'CLONE-FACTS-GUEST unmounted-clone-passes',
+  'CLONE-FACTS-GUEST staged-clone-is-a-staging-finding',
+  'CLONE-FACTS-GUEST stopped-removal-stands-with-its-plan',
+  'CLONE-FACTS-GUEST marked-origin-is-a-finding',
+  'CLONE-FACTS-GUEST held-clone-names-its-namespace-and-task',
+  'CLONE-FACTS-GUEST gather-writes-nothing',
 ];
 
 //endregion Constants
@@ -236,12 +277,11 @@ async function build(chosen: GuestDriverOptions,): Promise<void> {
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -294,12 +334,19 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
     `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
     `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
+    `export ${CLONE_FACTS_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${CLONE_FACTS_POOL_VARIABLE}=${CLONE_FACTS_POOL}`,
+    `export ${CLONE_FACTS_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
+    `export ${CLONE_FACTS_ROOT_VARIABLE}=${CLONE_FACTS_ROOT}`,
     'if /root/.cargo/bin/cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all --filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/doctor-route-arm.log',
     'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_removal_lines_guest > /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
     'cat /root/doctor-removal-arm.log',
+    'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_clone_facts_guest > /root/doctor-clone-facts-arm.log 2>&1; then clonefacts=0; else clonefacts=$?; fi',
+    'cat /root/doctor-clone-facts-arm.log',
     'if test $status -ne 0; then exit $status; fi',
-    'exit $removal',
+    'if test $removal -ne 0; then exit $removal; fi',
+    'exit $clonefacts',
   ]
     .join('\n',);
   /**
@@ -433,6 +480,14 @@ const step = steps[chosen.step];
 
 if (step === undefined)
   throw new Error(`unknown step ${chosen.step}; give create, prepare, build, arm, destroy or all`,);
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await step(chosen,);
 
 //endregion The run

@@ -121,12 +121,16 @@ fn a_standing_plan_names_every_field() {
         );
     }
     assert!(
-        detail.contains("is Git's own removal"),
-        "a slot whose plan stands is warned off Git's removal: {detail}"
+        detail.contains("a `git worktree remove` of this slot runs it"),
+        "a slot whose plan stands names the removal that resumes it: {detail}"
     );
     assert!(
-        !detail.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
-        "and names no removal this release runs there: {detail}"
+        detail.contains("ends the plan with the removal's own records"),
+        "and says the plan's own records end it: {detail}"
+    );
+    assert!(
+        !detail.contains("is Git's own removal"),
+        "and leaves nothing to Git's own removal: {detail}"
     );
 }
 

@@ -36,6 +36,7 @@ import {
   type OvhInstanceState,
   type OvhQuotas,
   type OvhRegion,
+  type OvhRegionService,
   type OvhRegionStatus,
   type OvhSshKey,
 } from '../../../dist/final/node/index.mjs';
@@ -795,16 +796,24 @@ export function instanceAnswer({
  */
 export function imageAnswer({
   creationDate = '2026-01-01T00:00:00Z',
+  flavorType,
   id = 'image-ubuntu',
+  minDisk = 10,
+  minRam = 1_024,
   name = 'Ubuntu 24.04',
   status = 'active',
+  tags,
   user = 'ubuntu',
   visibility = 'public',
 }: {
   readonly creationDate?: string;
+  readonly flavorType?: string;
   readonly id?: string;
+  readonly minDisk?: number;
+  readonly minRam?: number;
   readonly name?: string;
   readonly status?: string;
+  readonly tags?: readonly string[];
   readonly user?: string;
   readonly visibility?: string;
 } = {},): OvhImage {
@@ -818,8 +827,10 @@ export function imageAnswer({
     user,
     creationDate,
     size: 2.5,
-    minDisk: 10,
-    minRam: 1_024,
+    minDisk,
+    minRam,
+    ...((flavorType === undefined) ? {} : { flavorType, }),
+    ...((tags === undefined) ? {} : { tags, }),
   };
 }
 
@@ -847,14 +858,18 @@ export function imageAnswer({
  */
 export function flavorAnswer({
   available = true,
+  disk = 20,
   id = 'flavor-small',
+  name = id,
   osType = 'linux',
   ram = 2,
   region = 'bhs5',
   vcpus = 1,
 }: {
   readonly available?: boolean;
+  readonly disk?: number;
   readonly id?: string;
+  readonly name?: string;
   readonly osType?: string;
   readonly ram?: number;
   readonly region?: string;
@@ -862,11 +877,11 @@ export function flavorAnswer({
 } = {},): OvhFlavor {
   return {
     id,
-    name: id,
+    name,
     region,
     vcpus,
     ram,
-    disk: 20,
+    disk,
     osType,
     type: 'general',
     available,
@@ -881,6 +896,8 @@ export function flavorAnswer({
  
  @param name - region name
  
+ @param services - services the region offers; the default is one that creates instances
+ 
  @param status - region status
  
  @returns the body, carrying only fields this backend reads
@@ -893,10 +910,18 @@ export function flavorAnswer({
 export function regionAnswer({
   countryCode = 'ca',
   name = 'bhs5',
+  services = [
+    {
+      endpoint: 'https://compute.stand-in.invalid/',
+      name: 'instance',
+      status: 'UP',
+    },
+  ],
   status = 'UP',
 }: {
   readonly countryCode?: string;
   readonly name?: string;
+  readonly services?: readonly OvhRegionService[];
   readonly status?: OvhRegionStatus;
 } = {},): OvhRegion {
   return {
@@ -907,6 +932,7 @@ export function regionAnswer({
     type: 'region',
     datacenterLocation: 'Beauharnois',
     availabilityZones: ['bhs5-a',],
+    services,
   };
 }
 

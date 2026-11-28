@@ -843,6 +843,7 @@ which is the one set of guest-step helpers since issue 6612
 `-command-line.ts`,
 `-arm-log.ts`,
 `-step-command.ts`,
+`-live-steps.ts`,
 `-recipe-step.ts`,
 `-host-command.ts`,
 `-script.ts`,
@@ -1083,6 +1084,68 @@ and the sweep ignores it
 step 8,
 "Where the checkout and the datasets are found").
 
+## The ZFS shutdown pass's arm
+
+`shutdown-unmount-guest.ts` runs plan step 19's shutdown pass end to end,
+which is the work the gate unit's `ExecStopPost` will do once the mode that
+refuses in this build is wired to it.
+The pass is `src/native/worktree_clone_shutdown_unmount_pass/`,
+the arm is `src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`
+under the `native_binary` target,
+and the two scripts it runs are `e2e/shutdown-unmount-guest-scripts.ts`:
+the build unpacks this worktree and compiles the crate's test targets,
+and the arm runs one `nextest` filterset.
+Both are started detached through `bin/mvm-guest-detached-script.ts`,
+because either can pass five minutes,
+and the driver reads the status each script wrote into its own log.
+
+The arm builds the design's layout on the guest's own file-backed pool:
+a checkout dataset mounted at the configured path with its private
+propagation,
+the sibling clone container,
+two clones of the checkout dataset's snapshot with a mount intent each,
+and both mounted at their slots with `mount -t zfs`,
+which is the row a legacy clone's mount leaves in the table.
+It then publishes this boot's readiness record,
+holds a file open inside the second clone so the kernel answers `EBUSY`,
+and calls `run_the_pass` itself as root with the live seams:
+the release mount table,
+the release slot walk,
+the release staging calls,
+the release fresh capture,
+the store opened under root control,
+one clone's GUID through the pool reader,
+and the all-namespace holder scan over this machine's `/proc`.
+
+Its claims,
+one `SHUTDOWN-UNMOUNT` marker each:
+
+- the idle clone's mount is unmounted,
+  and the row the pool reports for it is gone;
+- the busy clone's mount is still there,
+  and the pass's own line names it and what holds it,
+  with nothing forced and nothing detached;
+- this boot's readiness record is withdrawn,
+  so the wrapper's own add preflight finds no report standing for this boot
+  and admits no attach
+  (`src/native/worktree_clone_add_route/add_preflight.rs`,
+  `admit_the_handler`);
+- both clones' `org.mochromatic:git-worktree-clone-mount-desired-state`
+  property is exactly what it was;
+- a second pass,
+  run on the same machine after the withdrawal,
+  answers one line saying this boot published no readiness record,
+  reaches no mount and unmounts nothing.
+
+The driver fails a run whose pulled `shutdown-unmount-arm.log` lacks a marker
+or holds a `SKIPPED` line,
+so an arm that returned without running fails the run.
+
+```sh
+# package/git-policy/cli: one guest for the whole arm
+node e2e/shutdown-unmount-guest.ts all --name <guest> --log-dir <dir>
+```
+
 ## The ZFS start-probe arms
 
 `start-probe-guest.ts` runs the root probe's own arms in a guest of the same
@@ -1159,10 +1222,25 @@ their options and the log each writes are what the step always sent,
 and only how the command is started and how its end is read changed.
 The guest's name check is in the launcher,
 so a command that reached another machine's guest refuses before the step file
-starts:
-a check inside the step file is one the step file runs on and then works anyway
-(measured with `sh` on both shapes of
-`bin/mvm-guest-command-line.ts`).
+starts,
+and that refusal is this host's at once:
+the launcher's own status is read,
+and a status other than zero is reported with the launcher's command,
+its status and the guest's name
+(`bin/mvm-guest-detached-script.ts`).
+A check inside the step file refuses itself too,
+and writes the status line the host waits for before it exits,
+so a wrong guest is reported at the host's next look instead of at the end of
+the script's bound;
+that is the shape the step 22 driver sends
+(`bin/mvm-guest-command-line.ts`).
+`removal-lineage-proof-guest.ts`,
+`settling-command-guest.ts` and
+`cancel-and-settle-commands-guest.ts`
+carry no name check in their scripts at all,
+because the host names the guest in `mvm exec`,
+and their launcher's status is read the same way,
+so a guest `mvm` cannot ask is refused for them as well.
 A build that ends nonzero is reported with its own status and the tail of its own
 log.
 In issue 6639's own guest,
@@ -1171,9 +1249,98 @@ the whole `green` step took 7m 11s
 (`2026-11-27T20:20:58-05:00` to `2026-11-27T20:28:09-05:00`),
 and the step's result was the `DONE=0` line of the log the wait pulled:
 the `mvm exec` that started the launcher returns before the build starts,
-so none of its status is read.
+and what it answers is only whether the launcher was accepted.
+
+## The forced act's guest arms
+
+`forced-act-guest.ts` runs the forced removal's act in a throwaway guest,
+because every call it makes is a mount,
+an unmount,
+a move,
+a handle open,
+a `setns` or a pinned signal,
+and none of those may run on a person's machine
+(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+"Measurements owed").
+It borrows the ZFS binding's guest recipe for the parts that are not the wrapper's
+(`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`):
+`create` and `prepare` make an Ubuntu 24.04 guest with OpenZFS 2.4.4 and the Rust toolchain,
+`run` pushes a repository-shaped snapshot of the wrapper,
+builds this crate's library and its tests inside the guest,
+runs the arm,
+and pulls `forced-act-arm.log` back,
+and `destroy` takes the guest away.
+`all` runs the four in order.
+
+The arm's phases are one `FORCEDACT` line each,
+and the run passes only when the pulled log holds every line and no `SKIPPED` line:
+
+- a path holder in a session of its own,
+  asked out and then killed,
+  with the host's unmount and the head destroy after each;
+- way 8,
+  in place by the add's handle,
+  in the shape systemd leaves a unit's parent;
+- the peer shape,
+  where the closure names the host and the act falls to way 7;
+- way 7 in both shapes,
+  with the directory made and removed;
+- a locked holder made by hand,
+  refused with `holder-locked` before any signal;
+- a locked holder that is a service unit of the guest account's own user manager,
+  whose stop the manager makes:
+  the two ways answer `holder-locked` before it,
+  the unit,
+  its control group and its namespace go with it,
+  and the host's unmount and the head destroy follow.
+
+### The measurement that step the arms owed
+
+`user-manager` is the measurement the decision record asked for
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`,
+"A holder whose copy is locked (V10)"):
+it quotes the guest's own manual on lingering,
+gives the account a user manager with `loginctl enable-linger`,
+and reads the kernel's own answers around a stop of a unit that holds a copy of a
+slot mount.
+It makes that state twice,
+once with `PrivateMounts=yes` alone and once with `PrivateUsers=yes` as well,
+and the arm makes it a third time,
+because a guest's systemd may give the first shape a mount namespace the initial
+user namespace still owns.
+It prints one `MEASURE` line per fact and pulls `forced-act-measurement.log` back,
+and a run fails when the log lacks one of its markers.
+
+The stop is a system call answer and not a program's phrasing of one:
+`umount` prints `not mounted` for the `EINVAL` a locked mount gives,
+so the step calls `umount2` and `mount(MS_MOVE)` through `ctypes` and prints the
+errno each one answered.
+
+`arm` runs the arm alone behind a build that already ran in the same guest,
+which is what a second look at one phase costs instead of a whole build.
+
+```sh
+# package/git-policy/cli: one guest, the measurement, then the arm
+node e2e/forced-act-guest.ts all --name <guest> --log-dir <dir>
+# the arm alone, after a `run` that built it
+node e2e/forced-act-guest.ts arm --name <guest> --log-dir <dir>
+```
 
 ## Guest work that runs longer than the agent's safe length
+
+A guest command of a driver's step runs in a process group of its own,
+which is what lets the step's bound stop everything the command started
+(`bin/mvm-guest-step-command.ts`).
+The same separation is why the interrupt key does not reach a step:
+the kernel sends it to the driver's own group and to nothing else,
+so a driver that is interrupted or terminated stops every step it still has
+running,
+says in one line which command in which process group it stopped,
+and then ends the way the signal ends a program
+(`bin/mvm-guest-live-steps.ts`).
+A guest the interrupted run had made is left as it was,
+because taking a guest away is a step of the run's own,
+so the guest's name and `mvm destroy` are what a person needs next.
 
 A long command in a guest can lose its result:
 the kernel ends a process in the guest agent's unit,
@@ -1196,15 +1363,32 @@ the step 22 driver has the same file
 (`e2e/step-22-arms/detached-step.ts`),
 and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
-So `mount-git-worktree-clone-datasets-guest.ts`,
-`removal-lineage-proof-guest.ts`,
+So `removal-lineage-proof-guest.ts`,
 `settling-command-guest.ts`,
-`cancel-and-settle-commands-guest.ts` and
-`zfs-step-22-measurements-guest.ts` hold no plain long command at all,
-and `slot-state-and-move-refusal-guest.ts` holds one plain command only,
-its arm.
+`cancel-and-settle-commands-guest.ts`,
+`forced-act-guest.ts` and
+`zfs-step-22-measurements-guest.ts` hold no plain `guest()` command at all,
+and the three plain commands
+`mount-git-worktree-clone-datasets-guest.ts` still holds
+are `e2e/adoption-guest-arms/store-dataset-and-fsync.ts:115`,
+`e2e/adoption-guest-arms/delegation-arm.ts:155` and
+`e2e/adoption-guest-arms/snapdir-arm.ts:73`,
+each bounded at 900 s and none timed on its own.
+The rule that a guest command bounded above five minutes runs detached
+covers those three as written:
+each is bounded above the five minutes,
+and nothing has timed one,
+so a round that keeps them plain owes either a measurement under five minutes
+or a detached script.
+The forced act's driver started its build and its arm detached on 2026-11-28,
+after a plain `mvm exec` lost a build of 34 minutes to one unanswered status
+request while five other guests ran on this host.
+`slot-state-and-move-refusal-guest.ts` holds one plain `guest()` command only,
+its arm:
+its build runs detached through `e2e/slot-state-guest-build.ts`,
+since it took 6m 07s on 2026-11-27.
 
-Every other plain `guest()` command in this package is listed here,
+Every plain `guest()` command in this package is listed here,
 with the bound it carries and the duration recorded for it.
 None of them is changed by issue 6639.
 The durations are the round of issue 6612's own guest run of 2026-11-27,
@@ -1218,14 +1402,12 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   Its whole `run` took 568 s at two jobs and 843 s at one,
   of which the build is 561 s and 839 s.
-- `e2e/forced-act-guest.ts:224` is the crate's test build,
-  with a bound of 2,400 s.
-  It took 8m 30s at two jobs,
-  then 14m 35s at one job.
-- `e2e/forced-act-guest.ts:256` is that driver's arm,
-  with a bound of 900 s.
-  Its whole `run` took 546 s at two jobs and 911 s at one,
-  of which the build is 510 s and 875 s.
+- `e2e/forced-act-guest.ts` was two of these,
+  its crate test build and its arm,
+  and both started detached on 2026-11-28.
+  The build took 8m 30s at two jobs and 14m 35s at one job before that,
+  then 34m 55s and 39m 22s on 2026-11-27 and 2026-11-28 while five or more
+  other guests ran on this host.
 - `e2e/managed-git-lock-guest.ts:200` is the guest's pool,
   with a bound of 1,800 s.
   It is not timed on its own.
@@ -1250,6 +1432,27 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   It is not timed on its own;
   it printed its 25 claims and passed.
+- The same step runs the gatherer's arm,
+  `zfs_doctor_clone_facts_guest` in
+  `src/native/health/doctor_zfs_route/clone_facts_guest_arm_tests.rs`,
+  in the same bound and the same guest:
+  it builds six managed clones in one repository
+  (mounted,
+  unmounted,
+  staged under the cache,
+  one whose removal stopped after its first write,
+  one whose origin snapshot carries the deferred-destroy mark,
+  and one a task in another mount namespace holds),
+  gathers each with `LiveCloneFactsReads`,
+  and prints one `CLONE-FACTS-GUEST` claim per state plus one that the
+  gather wrote no record.
+  No task in this package's `mise.toml` runs the doctor driver,
+  so a round runs it by hand:
+
+  ```sh
+  # package/git-policy/cli: one throwaway guest for both arms
+  node e2e/doctor-zfs-route-guest.ts all --name zfs-r4-clone-facts --log-dir <dir>
+  ```
 - `e2e/sanoid-coverage-guest.ts:278` is the Sanoid install,
   with a bound of 600 s.
   It is part of a whole `all` of 575 s.
@@ -1267,7 +1470,7 @@ where a step's duration is its whole step:
 - `e2e/adoption-guest-arms/delegation-arm.ts:155` is the delegation arm,
   with a bound of 900 s.
   It is not timed on its own.
-- `e2e/adoption-guest-arms/snapdir-arm.ts:149` is the `snapdir` matrix,
+- `e2e/adoption-guest-arms/snapdir-arm.ts:73` is the `snapdir` matrix,
   with a bound of 900 s.
   It is not timed on its own.
 - `e2e/start-probe-arms/fixture-arms.ts:85` is the `red` arm,
@@ -1364,7 +1567,21 @@ Its build,
 its two pools,
 its measurement arm
 and the holder scan beside it are in `e2e/step-22-arms/`,
-and the numbers one run took are recorded in
+and two more arms live beside the measurement arm as files of the `native_binary` test target,
+which the same test calls in the order the record reads:
+`src/native/binary/binary_zfs_step_22_large_parent_guest_tests.rs`
+sweeps a parent at 16,
+64,
+128,
+256 and 512 clones after the run-to-run spread on unchanged input,
+and `binary_zfs_step_22_pinned_output_guest_tests.rs`
+writes incompressible bytes,
+pins them with an hourly snapshot,
+overwrites them,
+and reads what a clone's removal,
+the snapshot's expiry and the live copy's removal free,
+beside the same counts over one repeated byte as the probe's positive control.
+The numbers one run took are recorded in
 `doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`;
 no task runs the driver,
 so a round that needs the numbers again runs it by hand.

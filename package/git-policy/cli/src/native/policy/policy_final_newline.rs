@@ -232,11 +232,11 @@ fn finding(
 /// What:
 ///  What a commit does with the bytes `lifecycle` offered.
 /// Why:
-///   An `add` puts worktree bytes in the index,
-///  which a plain commit corrects and a commit whose selection is read-only (`-p`,
+///   An `add` stages worktree bytes and a direct check reads them,
+///  and a commit that takes those bytes corrects them while a commit whose selection is
+///  read-only (`-p`,
 ///  `-i`,
-///  `--include`) records as they are;
-///  a direct check reads worktree bytes a commit takes only by taking the file itself;
+///  `--include`) records them as they are;
 ///  a commit's own index is bytes nothing corrects yet;
 ///  and a landed commit and a pushed tree hold bytes a commit already recorded.
 ///  A lifecycle that offers no candidates makes no finding,
@@ -244,7 +244,7 @@ fn finding(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const commitCorrection = lifecycle.kind === 'add' ? 'corrects-unless-the-selection-is-read-only' : lifecycle.kind === 'direct' ? 'corrects' : lifecycle.kind === 'pushed' || lifecycle.kind === 'landed' ? 'nothing-corrects-what-a-commit-holds' : 'nothing-corrects-what-the-index-holds';
+/// const commitCorrection = lifecycle.kind === 'add' || lifecycle.kind === 'direct' ? 'corrects-unless-the-selection-is-read-only' : lifecycle.kind === 'pushed' || lifecycle.kind === 'landed' ? 'nothing-corrects-what-a-commit-holds' : 'nothing-corrects-what-the-index-holds';
 /// ```
 fn commit_correction(lifecycle: &LifecycleContent) -> CommitCorrection {
     // `let ... else` runs the fallback for a lifecycle that offers no candidates.
@@ -252,8 +252,12 @@ fn commit_correction(lifecycle: &LifecycleContent) -> CommitCorrection {
         return CommitCorrection::NothingCorrectsWhatTheIndexHolds;
     };
     return match request {
-        CandidateRequest::Add(_) => CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly,
-        CandidateRequest::Direct(_) => CommitCorrection::Corrects,
+        // What: an `add` and a direct check both report bytes a commit corrects only by taking them.
+        // Why:  neither lifecycle records them itself, and a commit whose selection is read-only
+        //       records what it takes as it is.
+        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => {
+            CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly
+        }
         CandidateRequest::Staged(_)
         | CandidateRequest::StagedAtBase {
             ..

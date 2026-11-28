@@ -1,8 +1,11 @@
 //! Controls for the table of kinds:
 //!  every kind has a row,
-//!  the two kinds whose ending no round shows are refused with the design's own words,
+//!  the one kind no round shows an ending for is refused with the design's own word,
+//!  a locked holder that is this account's own unit is stopped through its
+//!  manager,
+//!  the taskless namespace's ending is built and names the round that showed it,
 //!  every row names its evidence and its owed arm,
-//!  and a refusal ends no blocker.
+//!  and a refusal and a unit's stop end no blocker.
 
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::holder_endings::*;
@@ -34,21 +37,42 @@ fn every_kind_has_one_row() {
     assert_eq!(seen.len(), THE_KINDS.len());
 }
 
-/// A kind whose ending no round shows is refused,
-/// with the design's own word for it.
+/// A locked holder that is this account's own unit is stopped through that
+/// manager,
+/// and the taskless namespace's ending is the one the walk measured.
 #[test]
-fn the_two_unshown_kinds_are_refused() {
+fn the_kind_no_round_shows_is_refused_and_a_unit_of_ours_is_stopped() {
     let locked: KindEvidence = ending_of(HolderKind::LockedHolder).expect("the locked row");
-    assert_eq!(locked.ending, Ending::Refuse(RefusalWord::HolderLocked));
+    assert_eq!(locked.ending, Ending::StopTheAccountsOwnUnitThenGoOn);
+    // The row the owner's answer of 2026-11-26 refused now names the ending the walk measured, and the text that
+    // said why it was refused stays beside it as the record of what changed.
     let taskless: KindEvidence =
         ending_of(HolderKind::TasklessNamespace).expect("the taskless row");
-    assert_eq!(
-        taskless.ending,
-        Ending::Refuse(RefusalWord::HolderUnendable)
+    assert_eq!(taskless.ending, Ending::EnterAndTakeTheCopyOut);
+    assert_eq!(taskless.shown_by, TASKLESS_SHOWN_BY);
+    assert!(
+        taskless.shown_by.contains("7.3.5-1-cachyos"),
+        "{}",
+        taskless.shown_by
     );
-    // The refusal rows name the arm that would settle them.
-    assert!(locked.owed_arm.contains("V10"));
-    assert!(taskless.owed_arm.contains("6.19"));
+    assert!(
+        taskless.shown_by.contains("ENOSYS"),
+        "the control's guest is named on the same row: {}",
+        taskless.shown_by
+    );
+    assert!(
+        TASKLESS_NOT_BUILT.contains("was refused until this round"),
+        "the superseded reason says what it now is: {TASKLESS_NOT_BUILT}"
+    );
+    // The rows name the evidence they have and the arm that would settle what is still open.
+    assert!(locked.shown_by.contains("guest arm"), "{}", locked.shown_by);
+    assert!(
+        locked.owed_arm.contains("not a service unit"),
+        "{}",
+        locked.owed_arm
+    );
+    // The taskless row's owed arm is no longer the guest that measures the walk, because this round measured it.
+    assert!(!taskless.owed_arm.contains("6.19 or newer"));
 }
 
 /// The kinds whose ending a round shows say where,
@@ -72,12 +96,16 @@ fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
 }
 
 /// A refusal ends no blocker,
+/// a unit's stop ends none either,
+/// a taskless namespace's ending sends no signal either,
 /// and each ending that does answers true,
 /// which is what keeps a locked holder's jobs from being signalled.
 #[test]
 fn a_refusal_ends_no_blocker() {
     assert!(!ends_blockers(Ending::Refuse(RefusalWord::HolderLocked)));
     assert!(!ends_blockers(Ending::Refuse(RefusalWord::HolderUnendable)));
+    assert!(!ends_blockers(Ending::StopTheAccountsOwnUnitThenGoOn));
+    assert!(!ends_blockers(Ending::EnterAndTakeTheCopyOut));
     assert!(ends_blockers(Ending::EndBlockersThenUnmount));
     assert!(ends_blockers(Ending::UnmountInPlaceByHandle));
     assert!(ends_blockers(Ending::MakeTheParentASlaveThenMoveAndUnmount));

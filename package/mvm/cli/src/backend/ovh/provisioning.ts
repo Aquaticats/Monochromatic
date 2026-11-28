@@ -27,6 +27,7 @@ import {
 } from './flavors.ts';
 import { resolveImage, } from './images.ts';
 import {
+  assertNameIsNotDeleting,
   instanceImageUser,
   instanceLoginUser,
   publicIpv4,
@@ -113,11 +114,12 @@ async function provisionInRegion({
    Image to boot from in this region, matched against the region's own list.
    */
   const bootImage = await resolveImage({
+    flavor,
     region,
     shorthand: image ?? DEFAULT_IMAGE,
   },);
   rl.info(
-    `creating ${name} (${flavor.id}, image ${bootImage.name}) in ${region}`,
+    `creating ${name} (flavor ${flavor.name}, image ${bootImage.name}) in ${region}`,
   );
   return createInstance({
     flavorId: flavor.id,
@@ -168,6 +170,7 @@ export async function provisionInstance({
    Full instance name including the mvm- prefix.
    */
   const fullName = `${VM_PREFIX}${name}`;
+  await assertNameIsNotDeleting({ name, },);
   /**
    Key identifier injected into the instance so SSH can connect afterwards.
    */

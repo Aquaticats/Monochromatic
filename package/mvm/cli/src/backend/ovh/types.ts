@@ -168,6 +168,25 @@ export const IPV4_VERSION = 4;
 export const INSTANCE_RUNNING_STATUS: OvhInstanceState = 'ACTIVE';
 
 /**
+ The status under which the project still lists an instance it has deleted.
+ The listing of a live run on 2026-11-28 named a destroyed instance with this
+ status seconds after its delete call was accepted. Such an instance runs
+ nowhere, so it is none of mvm's machines any more and its name is free.
+ */
+export const INSTANCE_DELETED_STATUS: OvhInstanceState = 'DELETED';
+
+/**
+ The status under which the project lists an instance while it deletes it.
+
+ A live run on 2026-11-28 read this status from the project's listing 15.9s
+ after OVHcloud accepted its delete, and `DELETED` from another run's listing
+ 11.7s after its own delete was accepted. An instance under this status is
+ still billed, so it stays one of mvm's machines: only
+ {@link INSTANCE_DELETED_STATUS} and absence take it out of the listing.
+ */
+export const INSTANCE_DELETING_STATUS: OvhInstanceState = 'DELETING';
+
+/**
  Statuses from which an instance never becomes usable on its own, so a wait for
  it must stop and report the failure.
  */
@@ -340,6 +359,42 @@ export type OvhFlavor = {
 export type OvhRegionStatus = 'DOWN' | 'MAINTENANCE' | 'UP';
 
 /**
+ Status of one service of a region, exactly the values of the schema's
+ `cloud.ServiceStatusEnum`.
+ */
+export type OvhRegionServiceStatus = 'DOWN' | 'UP';
+
+/**
+ One service a region offers, from the schema's `cloud.Component`.
+
+ A project lists regions that offer storage only beside the regions that create
+ instances, under names that differ by a digit (`BHS` beside `BHS5`). The
+ service named `instance` tells them apart: read from a live project on
+ 2026-11-28, every region that listed it answered the flavor list, and every
+ region that did not answered 404. The schema types `name` as a bare string, so
+ that name is taken from the live answer and not from the schema.
+
+ @example
+ ```ts
+ const createsInstances = region.services.some(function isInstance(service) { return service.name === 'instance'; });
+ ```
+ */
+export type OvhRegionService = {
+  /**
+   Service name; `instance` is the service that creates machines.
+   */
+  readonly name: string;
+  /**
+   Service status.
+   */
+  readonly status: OvhRegionServiceStatus;
+  /**
+   Endpoint URL of the service.
+   */
+  readonly endpoint: string;
+};
+
+/**
  Region detail, from the schema's `cloud.Region`.
 
  `countryCode` is the field that decides which regions an operator's decision
@@ -382,6 +437,11 @@ export type OvhRegion = {
    Availability zones of the region.
    */
   readonly availabilityZones: readonly string[];
+  /**
+   Services the region offers; a region with no `instance` service that is `UP`
+   cannot take an instance.
+   */
+  readonly services: readonly OvhRegionService[];
 };
 
 //endregion Region

@@ -119,6 +119,27 @@ mise run //package/mvm/cli:run -- create --image fedora build-box
 mise run //package/mvm/cli:run -- create --image windows win-box
 ```
 
+## What the `mvm` command runs
+
+`mvm` runs this package's TypeScript source,
+`src/cli.ts`,
+and Node strips the types on the way in.
+No build output stands between the command and its code,
+so a change that lands in the source reaches the next run,
+and no worktree runs a build older than the source beside it (issue 6655).
+`mise run //package/mvm/cli:run` runs the same file.
+
+`dist/final/node/cli.mjs` is a launcher for that source,
+never a copy of the program:
+a `node_modules/.bin/mvm` shim written by an install older than this manifest names that path,
+so the build writes a file there that runs the source beside it.
+`pnpm install` in a checkout writes a shim naming the source directly,
+and `mise run //package/mvm/cli:build` refreshes the launcher in a worktree whose build is
+older than this change.
+The ways weighed,
+their costs and the measurements:
+[`doc/what-the-mvm-command-runs.md`](doc/what-the-mvm-command-runs.md).
+
 ## Host tools
 
 The libvirt backend runs two host commands,
@@ -216,13 +237,17 @@ so a variable set in a shell profile is not in its environment.
 The unit's settings,
 each with its basis:
 
-- `MemoryMax` is half of this machine's total memory,
+- `MemoryMax` is three quarters of this machine's total memory,
   read from `MemTotal` in `/proc/meminfo` when the unit starts,
-  which is 30.8 GiB on a machine with 61.7 GiB:
-  the project chose "half of total" for issue 6338 on 2026-11-21,
-  so every guest together may use half the machine and the other half stays with the session
+  which is 46.3 GiB on a machine with 61.7 GiB (`MemoryMax=47364M`):
+  the owner chose "Three quarters,
+  six guests" on 2026-11-28,
+  replacing the project's choice of "half of total" for issue 6338 on 2026-11-21,
+  so every guest together may use three quarters of the machine and everything outside the unit gets the rest
   (rule `LQM` in `AGENTS.md`,
-  cited beside the value in `package/mvm/cli/src/session-daemon-memory.ts`).
+  cited beside the value in `package/mvm/cli/src/session-daemon-memory.ts`,
+  and recorded in `doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "The unit's cap").
   Measured on 2026-11-21:
   the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
   one running guest's `virtiofsd` processes held 1.7 MiB and 15.4 MiB,
@@ -230,6 +255,13 @@ each with its basis:
   and a unit holding that guest and another session's 8 GiB guest charged 2.7 GB.
   A guest is charged what it touches,
   not the memory its domain asks for.
+  Read on 2026-11-28:
+  a guest that builds the wrapper's crate inside itself is charged several GiB,
+  where the measurement of 2026-11-21 put one guest's unit at 990 MB,
+  and eight guests that between them had touched 58.2 GiB swapped against a unit allowed half the machine
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+  "The guests' unit at its own memory cap,
+  2026-11-28").
   A host whose `/proc/meminfo` cannot be read fails the start with an error naming the file.
 - `OOMPolicy=continue`:
   when the guests' memory exceeds the cap,
@@ -278,12 +310,12 @@ and a cleanup that stops the units it started must leave this one alone.
 
 The cap belongs to the whole unit,
 not to each guest:
-four guests at mvm's default memory of 8 GiB each exceed it on a machine with 61.7 GiB,
+six guests at mvm's default memory of 8 GiB each exceed it on a machine with 61.7 GiB,
 and the kernel then kills the guest it picks rather than the daemon.
-Because the cap is half the machine's total,
-guests can never take more than half of it,
+Because the cap is three quarters of the machine's total,
+guests can never take more than three quarters of it,
 and everything outside the unit is handled by the machine as it was before.
-The other half is not reserved for the session:
+The last quarter is not reserved for the session:
 it is simply memory the unit may not have.
 
 `MVM_VIRTQEMUD_COMMAND` names the command that runs `virtqemud`,
@@ -705,7 +737,7 @@ as `MVM_VIRSH_COMMAND` does for libvirt.
 
 ```sh
 # Create an instance (defaults: the project's Canadian regions, the smallest
-# flavor in stock there, the newest Ubuntu image)
+# flavor in stock there, the newest plain Ubuntu image that flavor boots)
 mise run //package/mvm/cli:run -- --backend ovh create dev-01
 
 # Pick a flavor and a region series (the first region with stock wins)
@@ -727,11 +759,42 @@ mise run //package/mvm/cli:run -- --backend ovh destroy --all
 mise run //package/mvm/cli:run -- --backend ovh update
 ```
 
+`destroy` returns only once OVHcloud has stopped billing the machine.
+An accepted delete leaves the instance in the project's listing as `DELETING`
+first and as `DELETED` afterwards,
+and only then does it leave the listing;
+a read of one instance by its identifier answers `DELETED` even after the
+listing has dropped it.
+`destroy` reads the listing every three seconds and says each status once,
+`destroy --all` sends every delete before it waits for all of them,
+and the wait gives up after five minutes with an error that names the machine,
+its last status and the bill,
+and prints `mvm --backend ovh list` and `mvm --backend ovh destroy <name>`.
+
+`list`,
+`destroy --all` and every lookup by name leave out an instance the listing
+calls `DELETED`,
+because it runs nowhere and its name is free again.
+An instance the listing calls `DELETING` is still billed,
+so `list` shows it as `deleting` and it counts against any limit on how many
+machines run at once.
+`exec`,
+`push`,
+`pull` and `shell` match it and refuse at once,
+saying the machine is being deleted;
+`destroy` matches it,
+so repeating the command the timeout error prints finishes the delete.
+`create` and `clone` refuse a name the project is still deleting,
+because OVHcloud does not make instance names unique,
+and a second machine of that name would make every later lookup on it
+ambiguous.
+
 ### Differences from the Hetzner backend
 
 - **The regions are the project's own**:
-   by default every region whose `countryCode` field is `ca` and whose status
-  is `UP`,
+   by default every region whose `countryCode` field is `ca`,
+   whose status is `UP`,
+   and whose `services` hold an `instance` service that is `UP`,
    in name order,
    so no region name is baked into mvm.
    `--location` or `MVM_OVH_REGIONS` replaces that list,
@@ -767,6 +830,16 @@ mise run //package/mvm/cli:run -- --backend ovh update
 - **No image cache**:
    OVHcloud manages images server-side,
    so `update` reports what the project offers and builds nothing locally.
+- **A shorthand stands for a plain image**:
+   `--image ubuntu` takes the newest active Ubuntu image that carries no
+  preinstalled software and is no variant of another image,
+   so it never takes a GPU driver image such as
+  "Ubuntu 26.04 - NVIDIA - v595" or a "- UEFI" variant,
+   both of which OVHcloud's catalogue publishes after the plain release.
+   An image that states a larger disk,
+   more memory or another flavor family than the chosen flavor has is left out.
+   To boot one of those images,
+   pass its whole name to `--image`.
 
 A live,
  billed integration test lives at

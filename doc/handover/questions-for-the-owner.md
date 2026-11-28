@@ -18,6 +18,18 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
+
+The check before a command is wired with the nudge's switch off
+(`fcaea34f36`),
+so a forwarded command in a repository with no folder of unanswered requests pays one `stat`,
+measured at 1.40 µs.
+The design says the check is compiled out with the switch off
+(`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"Counts and numbers this design does not ship").
+The pick is to keep the check and amend that sentence,
+because the check is what removes an answered entry.
+
 ## Open: whether a deadline ends `mpm-shadow`'s wait for a program it started, with three picks beside it (recorded 2026-11-28T03:35:24-05:00)
 
 Two rounds answered the second pass over `mpm-shadow` `0.2.7-alpha.19` and merged on 2026-11-28
@@ -236,11 +248,23 @@ Taken on 2026-11-28 by the coordinating session's pick,
 with the owner's veto open:
 the third way,
 because it alone changes no signature and keeps the notice said when it is said today.
-A round builds it
-(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
-started at 2026-11-28T03:13:06-05:00),
-and it stops and reports if the third way turns out to change a signature,
-a behaviour or the moment the notice is said.
+It is built and on `main` since 2026-11-28T05:54:10-05:00
+(merge `74f34f6af9`).
+No signature changed,
+and the notice is said from the same place,
+on the same thread,
+once:
+the queue's own wait says it through a function its policy names,
+which is how the queue's file names no diagnostic file.
+A control written before the change holds the notice's words,
+its moment and that it is said once,
+and was shown red by a plant.
+The folder's three file-loop lines left the allow list,
+and `lines_written_by_a_thread.rs` is split in three.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
@@ -273,7 +297,6 @@ Ranking:
 3 > 1 > 2.
 3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
 1 beats 2 because a returned answer is more local than a flag another file has to take.
-`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
 ### What a landing writes for a path it has not read (issue 6566)
 
@@ -4940,3 +4963,101 @@ and each can be undone.
   wrote records for its two controls,
   and measures the pause from a stand-in's own start and end lines,
   which showed the planted edit in one gap of four on the loaded host.
+
+## For the owner, and veto open: what the morning of 2026-11-28 left between 06:14 and 07:17 (recorded 2026-11-28T07:17:43-05:00)
+
+The owner's stated priority this morning is guests on OVHcloud,
+so every question here waits until that work is moving,
+and none of them holds it.
+
+### Six proposals whose questions come after their gate reads
+
+Each was revised against its last gate read and merged on 2026-11-28,
+and each has a gate read by Claude Sonnet running;
+its questions are put through the question tool when that read is back:
+
+- the wrapper's development profile (`471d462ccf`),
+  six questions;
+- `mvm`'s sizes (`4217d02664`),
+  five still open of six;
+- the crate split's round 4 signatures (`39d9ec0b51`),
+  six questions;
+- GitHub's hosted runners (`60064b0024`),
+  six questions;
+- the linter's Dylint driver (`e63bf58c19`),
+  eight questions;
+- the linter's line breaks (`dc42566e69`),
+  nine questions.
+
+The paragraph of this file that begins with the linter's closure rule and issue 6643 describes the Dylint proposal's first draft.
+The proposal at `e63bf58c19` ranks differently:
+the floating channel with its components first for the toolchain,
+the lint task warming the driver first among local providers,
+and the pull-request surface as a question of its own.
+
+### `mvm` on OVHcloud: two picks with the veto open
+
+The owner chose the cheapest size that fits.
+The session's two other picks were shown beside that question and not answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families.
+Both are being built that way.
+
+### `mpm-shadow`: seven items the alpha.20 read left
+
+They are restated with their evidence,
+their options and a ranking in `package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`,
+"What stays open after the alpha.20 read":
+temporary links of an earlier shape named on every install for ever;
+a bin name that is long only together with its folder;
+the two-second line for installers that routinely run longer;
+an install by `0.2.7-alpha.19` beside one by `0.2.7-alpha.20`;
+two locks in one scope;
+a killed move of `current`;
+and the report on standard output,
+which still ends the command when its reader has left.
+
+### The ZFS route: three proposed values a measurement contradicts
+
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md` now shows that the mount-request deadline and step 9's unmount deadline,
+both proposed at 5,000 ms,
+hold only to a parent of about 256 clones,
+and that the heartbeat's four periods of 1,000 ms hold to about 205.
+The round's ways:
+bound a parent's clones;
+set the deadline from the clone count;
+chunk the sweep so a request is answered between chunks;
+or accept a missed window on a large parent.
+No constant was changed.
+
+### `mvm`: what a published copy runs
+
+Merge `9afd7194ab` makes the command run the TypeScript source beside it.
+A copy published to a registry cannot do that,
+because Node refuses TypeScript under `node_modules`,
+so it would need a built copy and a check of another kind.
+`mvm` is private today.
+Issue 6660 lists the twenty other commands and `mvm-mcp` that have the old shape.
+
+## Veto open: what the shutdown pass's round chose (recorded 2026-11-28T07:29:00-05:00)
+
+Merge `871e0be314` built the ZFS route's shutdown pass ahead of its wiring.
+Its round made these picks beyond its brief,
+each with the way not taken and its cost in the round's report,
+whose scratch expires a day after its last change:
+
+- the pass compares no live dataset GUID,
+  so a dataset destroyed and made again under the same name and mounted at the same slot is unmounted and not refused;
+  comparing one would make every check wait on `/dev/zfs` at shutdown;
+- a readiness record the route's reader refuses is removed all the same,
+  and a directory the route did not make is refused,
+  so a corrupt record is deleted and named in the pass's line and no mount is left standing over it;
+- the withdrawal removes the record and publishes no second one,
+  so nothing under `/run` says the boot is ending;
+- a busy mount's holder is named by mount namespace and never by process,
+  because naming the process would mean reading another account's descriptors;
+- the unmount is named by the descriptor opened without crossing the slot's mount,
+  after the clone's own descriptor is dropped,
+  which a guest run measured:
+  with the clone's descriptor held the kernel answered that the mount was busy.

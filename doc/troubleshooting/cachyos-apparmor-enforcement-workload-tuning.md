@@ -2910,7 +2910,14 @@ The main `systemd-analyze` profile does include `local/systemd-analyze`,
 on the line before its closing brace;
 a search capped at two lines first hid it.
 
-## Eighteenth batch: ssh-keygen may write only under ~/.ssh, 2026-11-28T03:18:50-05:00
+## Twentieth batch: ssh-keygen may write and ssh may read mvm's ovh key folder, 2026-11-28T04:38:04-05:00
+
+This section was written by the round that built the `ovh` backend,
+at 2026-11-28T03:18:50-05:00,
+under the heading "Eighteenth batch: ssh-keygen may write only under ~/.ssh".
+The cryptsetup batch of 01:50:04 already holds that number,
+so the coordinating session renumbered this one when it applied the rules,
+and added "What was applied" at its end.
 
 The ovh backend's round asked the host's `ssh-keygen` to make a keypair in its
 own scratch folder and again in the test harness's scratch folder,
@@ -2963,3 +2970,44 @@ The one line that would make both backends work on this host:
 # /etc/apparmor.d/local/ssh-keygen
 owner @{HOME}/.local/share/mvm/** rw,
 ```
+
+### What was applied
+
+Recorded by the coordinating session,
+which applied it under the owner's rule "Always widen apparmor."
+Unapproved and non-final.
+
+The rule for `ssh-keygen` is narrower than the line proposed:
+the `ovh` backend's folder only,
+because the owner approved that widening by name before the billed test,
+and no run of the `hetzner` backend has met the denial on this host.
+Reloaded at 2026-11-28T04:18:43-05:00;
+the test's first run then made its keypair.
+
+```text
+# /etc/apparmor.d/local/ssh-keygen, twentieth batch
+owner @{HOME}/.local/share/mvm/ovh/ rw,
+owner @{HOME}/.local/share/mvm/ovh/* rw,
+```
+
+A second profile would have refused the next step.
+`mvm` passes `ssh` the backend's key with `-i`,
+and `scp` starts `ssh`;
+`/etc/apparmor.d/ssh` lets `ssh` read keys only in the account's `.ssh` folder
+(`owner @{user_ssh_dirs}/{,*} r,`).
+That was read from the profile before any denial,
+because the denial would have come after a billed machine existed.
+Reloaded at 2026-11-28T04:38:04-05:00.
+
+```text
+# /etc/apparmor.d/local/ssh, twentieth batch
+owner @{HOME}/.local/share/mvm/ovh/{,*} r,
+```
+
+The second run logged no AppArmor denial,
+and it never reached `ssh`:
+its machine did not become `ACTIVE`,
+so the `ssh` rule is not yet exercised.
+The `hetzner` backend's folder,
+`~/.local/share/mvm/hetzner/`,
+is covered by neither rule.

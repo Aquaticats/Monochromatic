@@ -155,14 +155,21 @@ export {
  @internal
  */
 export {
+  assertNameIsNotDeleting,
+  assertNotDeleting,
+  destructionTimeoutMessage,
   findMvmInstance,
   instanceImageUser,
   instanceLoginUser,
   listMvmInstances,
   mvmInstances,
   publicIpv4,
+  runningTimeoutMessage,
   waitForSnapshotReady,
+  waitUntilDeleted,
   waitUntilRunning,
+  type DeletedInstance,
+  type StillDeleting,
 } from './backend/ovh/instances.ts';
 /**
  OVHcloud lifecycle operations, exposed for built-artifact verification.
@@ -176,6 +183,12 @@ export {
   ovhDestroyAll,
   ovhList,
 } from './backend/ovh/lifecycle.ts';
+/**
+ OVHcloud exec and file transfer, exposed for built-artifact verification.
+
+ @internal
+ */
+export { ovhExec, } from './backend/ovh/exec.ts';
 /**
  OVHcloud region selection, exposed for built-artifact verification.
 
@@ -192,6 +205,7 @@ export {
 
  @internal
  */
+export { INSTANCE_DELETING_STATUS, } from './backend/ovh/types.ts';
 export type {
   OvhFailureBody,
   OvhFlavor,
@@ -202,6 +216,8 @@ export type {
   OvhInstanceState,
   OvhQuotas,
   OvhRegion,
+  OvhRegionService,
+  OvhRegionServiceStatus,
   OvhRegionStatus,
   OvhSshKey,
   OvhSshKeyDetail,

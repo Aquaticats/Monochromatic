@@ -2,9 +2,14 @@
 
 Status:
 written by plan step 19's build-ahead round on 2026-11-25,
-not run,
+run in a throwaway guest on 2026-11-27 by that step's own round
+(`package/git-policy/cli/e2e/zfs-step-19-guest.ts`,
+`migration`),
+corrected where that run showed a step that could not work as written,
 not approved,
 not final.
+The five corrections are marked **Corrected 2026-11-27** beside the step they change,
+and each names what the guest did rather than what the page assumed.
 Nothing in this page has been applied to this machine,
 and no round applies it:
 the migration,
@@ -103,9 +108,16 @@ Every Claude Code and Pi session works inside the checkout this page moves.
 4.  Take a recoverable backup and prove it:
 
     ```bash
-    sudo zfs snapshot zpcachyos/ROOT/cos/home@before-checkout-migration-2026-11-25
-    sudo zfs list -H -o name,used,refer zpcachyos/ROOT/cos/home@before-checkout-migration-2026-11-25
+    sudo zfs snapshot "zpcachyos/ROOT/cos/home@before-checkout-migration-$(date --iso-8601=date)"
+    sudo zfs list -H -o name,used,refer -t snapshot -r zpcachyos/ROOT/cos/home
     ```
+
+    **Corrected 2026-11-27:**
+    the name carried the day the page was written,
+    so a second run on another day failed on an existing snapshot or named one a
+    reader could not tell from the first.
+    The name is the day the operator runs the step,
+    and the second command lists the snapshots the parent holds.
 
     Keep the snapshot until the checkout,
     every linked worktree and every nested mount pass the checks below.
@@ -129,12 +141,25 @@ The container is unmounted,
 and every clone inherits `mountpoint=legacy` from it.
 
 ```bash
-sudo zfs create -o mountpoint=/home/user/Monochromatic \
+sudo zfs create -o mountpoint=/mnt/checkout-migration \
   -o snapdir=disabled zpcachyos/ROOT/cos/home/monochromatic-git-checkout
 sudo zfs create -o mountpoint=legacy -o canmount=off \
   -o setuid=off -o devices=off \
   -o snapdir=disabled zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets
 ```
+
+**Corrected 2026-11-27:**
+the checkout dataset was made with
+`-o mountpoint=<the checkout path>`,
+which mounts it over the very tree the next section has to read,
+and "Copy the checkout" then created the same dataset a second time at a
+temporary mount point,
+which answers `cannot create ...: dataset already exists` and stops the page.
+The dataset is made once,
+at the staging mount point the copy and verify steps use,
+and the mountpoint moves in "Switch the mounts at the same path".
+A person whose `/mnt/checkout-migration` is already a mount picks another
+temporary folder there and uses that name throughout.
 
 `snapdir=disabled` is the project's answer of 2026-11-23
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
@@ -172,11 +197,14 @@ and switched to the checkout path only after the checks pass.
 The temporary mount point is the operator's choice and the only value this page leaves to them:
 
 ```bash
-sudo zfs create -o mountpoint=/mnt/checkout-migration -o snapdir=disabled \
-  zpcachyos/ROOT/cos/home/monochromatic-git-checkout
 sudo rsync --archive --hard-links --acls --xattrs --numeric-ids --one-file-system --sparse \
   /home/user/Monochromatic/ /mnt/checkout-migration/
 ```
+
+**Corrected 2026-11-27:**
+the `zfs create` at the head of this block made the
+dataset a second time,
+and the previous section now makes it once.
 
 `--one-file-system` keeps the nested dataset's contents out of the copy,
 which is what the design asks.
@@ -210,10 +238,21 @@ because the path stays the same:
 no consumer rewrite and no Git repair is needed solely for the move.
 
 ```bash
-sudo umount /home/user/Monochromatic
 sudo zfs set mountpoint=/home/user/Monochromatic zpcachyos/ROOT/cos/home/monochromatic-git-checkout
 sudo zfs mount zpcachyos/ROOT/cos/home/monochromatic-git-checkout
+sudo mount --make-rprivate /home/user/Monochromatic
 ```
+
+**Corrected 2026-11-27:**
+the `sudo umount /home/user/Monochromatic` this block
+began with answers `not mounted` and stops a run under `set -e`:
+the tree being replaced is a folder of the home dataset,
+and only the dataset the two `zfs` lines mount is a mount of its own.
+Its folders stay where they are and the new dataset hides them,
+which is what the covered entry below is set on.
+The `mount --make-rprivate` line is here because a mount made by hand comes up
+shared:
+until the boot units exist nothing else makes the checkout private.
 
 The checkout's own mount is `shared` on this host's home dataset until the boot unit makes it private,
 and a mount made by hand comes up shared again.
@@ -230,11 +269,23 @@ The rollback is the reverse of the switch,
 and the snapshot from "Before anything" is the fallback:
 
 ```bash
-sudo umount /home/user/Monochromatic
+sudo zfs unmount /home/user/Monochromatic
 sudo zfs set mountpoint=/mnt/checkout-migration zpcachyos/ROOT/cos/home/monochromatic-git-checkout
 sudo zfs destroy zpcachyos/ROOT/cos/home/monochromatic-git-checkout
-sudo zfs mount zpcachyos/ROOT/cos/home
+sudo chattr -i /home/user/Monochromatic
 ```
+
+**Corrected 2026-11-27:**
+three things in this block could not do what they say.
+The `umount` named a path that is not a mount,
+the `zfs mount` of the home dataset answers `filesystem already mounted`
+because that dataset was never unmounted,
+and the covered entry keeps the immutable flag the section below sets,
+so a person who rolled back found the folder they had to fill again was
+unchanged only because it was still flagged.
+`zfs unmount` names the dataset rather than the path,
+and the `chattr -i` is the flag's own removal,
+which a person runs before the path may be used as a folder again.
 
 A rollback of the home dataset itself to the pre-migration snapshot is the last resort.
 It removes the immutable flag the next section sets,
@@ -268,6 +319,41 @@ and the flag read there is the dataset's,
 not the underlay's.
 The wrapper's `checkout_underlay_entry` verdict does this read in code and names the difference;
 `doctor` reports it once plan step 18's wiring adds the line.
+
+## The key provider the boot needs
+
+**Added 2026-11-27:**
+the checkout dataset is encrypted,
+and `zfs mount -a` does not load a key from a file `keylocation`.
+Measured in the guest of 2026-11-27:
+with the key unloaded,
+`zfs mount -a` exits zero and mounts nothing,
+and the checkout's `keystatus` stays `unavailable`,
+so a boot with no key provider comes up with no checkout,
+and the gate then refuses for the checkout's own state rather than for its
+ordering.
+
+Name the unit the machine loads keys with,
+because the gate's key lines exist for it and the boot needs it before
+`zfs-mount.service`:
+
+```bash
+systemctl list-unit-files 'zfs-load-key*'
+systemctl list-units --all 'zfs-load-key*' 'zfs-load-key@*'
+```
+
+A packaged OpenZFS on Debian and Ubuntu ships `zfs-load-key.service` and its
+per-dataset `zfs-load-key@.service`;
+the upstream tree this route's guests are built from ships neither,
+and Ubuntu 24.04's image masks `zfs-load-key.service` in
+`/usr/lib/systemd/system`.
+Where the machine has one,
+`zfs-root record-checkout`'s own line and the gate's two key lines name it and
+this page's setup writes it into the record;
+where it has none,
+the checkout is unencrypted or the key is loaded by the person before the
+gate runs,
+and the setup says which.
 
 ## Write the route's root-owned files
 
@@ -409,16 +495,91 @@ so a shutdown reports the unmount refusal and still ends.
 
 ## What is still owed before this page is final
 
-- The unit texts,
-  their drop-ins and the propagation pair have not been parsed by a real manager in a
-  guest from this build:
-  the arm is written
-  (`checkout_boot_units/boot_unit_guest_tests.rs`) and has not run.
-- The immutable entry's verdict has not been read against a real immutable folder in a guest.
-- The `snapdir=disabled` set and the clone's inheritance have not been repeated through this page.
+Run in a throwaway guest on 2026-11-27 by plan step 19's own round
+(`package/git-policy/cli/e2e/zfs-step-19-guest.ts`):
+the migration and its rollback on a disposable layout,
+each step's command and
+output kept in that run's logs;
+the install plan written at the paths systemd reads,
+each unit file parsed by the guest's own `systemd-analyze verify`,
+and every drop-in read back from the guest's manager;
+the immutable entry's verdict against a real folder carrying the kernel's flag
+on a real dataset,
+with the account's own refused rename and removal beside it;
+the `snapdir=disabled` set on both datasets and the clone that inherits it;
+and a reboot of the guest with the plan installed,
+an idle managed clone attached again by the gate,
+and three boots whose import,
+key and checkout mount did not happen,
+where nothing attached and no mountpoint folder appeared in the home underlay.
+
+What the boot arms showed,
+and what they still owe:
+
+- The plan's files written where systemd reads them,
+  the gate enabled and the
+  guest rebooted,
+  the manager starts the gate,
+  its `ExecStartPre` runs the start probe,
+  and a probe that cannot prove the route refuses the whole reconciliation:
+  the gate ends `failed` with `Result=exit-code`,
+  no readiness record is published for that boot,
+  the nested dataset's unit stays `inactive`,
+  no nested dataset is mounted,
+  and no mountpoint folder appears under the checkout path in the home
+  underlay.
+  That is the plan's "fail a prerequisite,
+  assert no nested dataset attaches or creates mountpoint folders in the home
+  underlay" arm,
+  run against a real manager (the step 19 guest of 2026-11-27,
+  `STEP19-BOOT read expect=failed gate=failed ... nested-mounted=false
+  underlay-folder=false`).
+- The same boot also ran `ExecStopPost`'s `shutdown-unmount`,
+  which refuses in words that name plan step 19,
+  so the journal of one boot carries both an undone start and an undone stop.
+- The arm that expects an idle clone attached again after a reboot did not
+  run:
+  the guest of the Ubuntu recipe boots with its own packaged ZFS module
+  (2.2.2),
+  because `modprobe` searches `kernel/` before the `extra/` folder the
+  recipe installs the release it built into,
+  so the route's compatibility gate refuses that boot and nothing is attached.
+  What it waits for is a guest that boots the module the route's releases are
+  built against:
+  plan step 23's template carries one,
+  and this page's own boot arm needs it.
+
+Still owed:
+
+- `zfs-root shutdown-unmount` still refuses in this build,
+  so no shutdown pass is measured,
+  and the plan's "reboot and shutdown with idle and busy legacy clones" arm is
+  half run:
+  the boot half passed,
+  the shutdown half waits for that mode's body (plan step 19's own wiring,
+  `doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`
+  being the only record it has).
+- The propagation step (`checkout_propagation`) and its call at the head of
+  `boot-reconcile` and the default sweep are designed and accepted,
+  and are not built:
+  the pair's drop-in and `Upholds=` are read back from the manager,
+  but the trigger is never fired,
+  so whether a hand-typed replacement mount is missed is unmeasured.
 - `doctor` does not yet report the migration,
   the boot findings or the immutable entry,
   which plan step 19's `### Doctor` passage and the owner's V7 answer require.
-- The propagation step (`checkout_propagation`) and its call at the head of `boot-reconcile` and the
-  default sweep are designed and accepted,
-  and are not built.
+- The ZED half of this page:
+  the zedlet's install,
+  its AppArmor rules in `/etc/apparmor.d/local/zed`,
+  and the ordering arms of a live ZED (replay,
+  dropped events,
+  concurrent zedlets,
+  stale receipts and a pending unmount across a restart) belong to the
+  lost-event rounds and run nowhere yet.
+- This page has not been run on the owner's machine:
+  the migration,
+  the property changes,
+  the flag and the units are the owner's
+  acts,
+  on the owner's authorisation,
+  at a moment the owner chooses.

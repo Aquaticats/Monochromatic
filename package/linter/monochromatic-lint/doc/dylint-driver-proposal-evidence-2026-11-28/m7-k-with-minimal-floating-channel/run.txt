@@ -1,0 +1,90 @@
+== host clock 2026-11-28T06:44:07-05:00
+== image localhost/dylint-probe-base:2026-11-28b
+bbcb1f177bf2802d2c75c8f5de048a04268716ceba37b93966d7f4eeba23c9e8
+== run status 0
+== clock 2026-11-28T11:44:08+00:00
+== cargo /usr/bin/cargo -> /usr/bin/rustup
+== rustc /usr/bin/rustc -> /usr/bin/rustup
+info: This is the version for the rustup toolchain manager, not the rustc compiler.
+info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+rustup 1.29.3 (2026-11-11)
+== floating components before anything (must be minimal)
+cargo-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+== dated components
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== rustc versions
+rustc 1.102.0-nightly (c82ce1563 2026-11-27)
+rustc 1.102.0-nightly (5f4effd57 2026-11-13)
+== what the linter's rustc-dev probe reads, from the linter's own working directory
+/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu
+== the toolchain name Dylint computes, in the library directory
+nightly-2026-11-16-x86_64-unknown-linux-gnu (overridden by '/work/repo/lint-closure-k/rust-toolchain.toml')
+nightly-2026-11-16-x86_64-unknown-linux-gnu (overridden by environment variable RUSTUP_TOOLCHAIN)
+== no driver before the first two arms
+find: '/root/.dylint_drivers': No such file or directory
+== arm A: the linter, RUSTUP_TOOLCHAIN unset, no driver
+arm A status 0
+{"message":"rust/avoidable-closure skipped pkg: the active compiler lacks the rustc-dev component; add it with `rustup component add rustc-dev` or mise install. Nothing in this package was checked by this rule, so a run without findings says nothing about its closures.","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+
+== arm B: the linter, RUSTUP_TOOLCHAIN set, no driver
+arm B status 0
+{"message":"rust/avoidable-closure skipped pkg: the Dylint driver for toolchain `nightly-2026-11-16-x86_64-unknown-linux-gnu` at /root/.dylint_drivers/nightly-2026-11-16-x86_64-unknown-linux-gnu/dylint-driver is absent (cargo-dylint is 6.4.0), and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache, so `cargo dylint` would have to download it, which this linter does not do; run `env --unset=CARGO_NET_OFFLINE cargo dylint --path lint-closure-k --manifest-path pkg/Cargo.toml -- --locked` once with network access (it writes the cargo registry and the Dylint driver directory, and
+== arm C: the warm run that builds the driver for the dated name
+arm C status 0 after 123s
+122:    Finished `release` profile [optimized] target(s) in 47.13s
+123:Building driver for toolchain `nightly-2026-11-16-x86_64-unknown-linux-gnu`
+217:    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 13s
+275:    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.27s
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: `wg-quicker-exempt` (bin "wg-quicker-exempt") generated 6 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.27s
+--- git executions in arm C
+3
+0
+--- rustc executions in arm C
+    241 execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc"
+      4 execve("/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc"
+--- driver tree
+/root/.dylint_drivers
+/root/.dylint_drivers/README.txt
+/root/.dylint_drivers/nightly-2026-11-16-x86_64-unknown-linux-gnu
+/root/.dylint_drivers/nightly-2026-11-16-x86_64-unknown-linux-gnu/dylint-driver
+--- driver version
+nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0
+--- driver dynamic section
+ 0x000000000000001d (RUNPATH)            Library runpath: [/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib]
+ 0x0000000000000001 (NEEDED)             Shared library: [librustc_driver-5adf19dcd2f7d879.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+--- findings in the warm run
+0
+== arm D: the linter, RUSTUP_TOOLCHAIN set, driver present
+arm D status 0
+{"message":"this closure captures `directory`, `application`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_targets.rs","labels":[{"span":{"offset":7146,"length":146,"line":202,"column":33}}],"related":[],"help":"replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = \"monochromatic_lint_closure\", expect(avoidable_closure, reason = \"...\"))] to the closure argument or to an enclosing item"}
+{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_watch_mark_reconciliation.rs","labels":[{"span":{"offset":1649,"length":43,"line":40,"column":14}}],"related":[],"help":"move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call"}
+{"message":"this closure captures `decision`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_watch_mark_reconciliation.rs","labels":[{"span":{"offset":1962,"length":60,"line":47,"column":17}}],"related":[],"help":"replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = \"monochromatic_lint_closure\", expect(avoidable_closure, reason = \"...\"))] to the closure argument or to an enclosing item"}
+{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_watch_mark_reconciliation.rs","labels":[{"span":{"offset":2526,"length":43,"line":62,"column":14}}],"related":[],"help":"move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call"}
+{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/keeper_process_identity.rs","labels":[{"span":{"offset":4978,"length":40,"line":142,"column":19}}],"related":[],"help":"move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call"}
+{"message":"this closure captures `full`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/update_routing_engine_construction_and_marks.rs","labels":[{"span":{"offset":2292,"length":36,"line":72,"column":39}}],"related":[],"help":"replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = \"monochromatic_lint_closure\", expect(avoidable_closure, reason = \"...\"))] to the closure argument or to an enclosing item"}
+--- stderr
+== arm E: the linter, RUSTUP_TOOLCHAIN unset, driver present
+arm E status 0
+{"message":"rust/avoidable-closure skipped pkg: the active compiler lacks the rustc-dev component; add it with `rustup component add rustc-dev` or mise install. Nothing in this package was checked by this rule, so a run without findings says nothing about its closures.","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+--- stderr
+== done 2026-11-28T11:46:14+00:00
+== container run finished with 0
+time="2026-11-28T06:46:24-05:00" level=warning msg="StopSignal SIGTERM failed to stop container dylint-m7-2026-11-28b in 10 seconds, resorting to SIGKILL"
+dylint-m7-2026-11-28b
+== container removed
+== linter binary: 34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  -
+== host clock 2026-11-28T06:46:25-05:00

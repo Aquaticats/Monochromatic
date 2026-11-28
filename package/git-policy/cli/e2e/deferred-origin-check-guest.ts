@@ -33,6 +33,11 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -55,6 +60,11 @@ import {
 import {
   shellQuote,
 } from '../bin/mvm-guest-command-line.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  Where the wrapper's tree is unpacked and built inside the guest, which every account may traverse.
@@ -182,12 +192,11 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -260,11 +269,10 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      '/mnt/shared/deferred-origin-arm.log',
+      `${backend.guestSharedFolder}/deferred-origin-arm.log`,
       pulledPath,
     ],
     log: 'host-pull-arm.log',
@@ -354,4 +362,12 @@ await mkdir(
     mode: FOLDER_MODE,
   },
 );
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await step(chosen,);

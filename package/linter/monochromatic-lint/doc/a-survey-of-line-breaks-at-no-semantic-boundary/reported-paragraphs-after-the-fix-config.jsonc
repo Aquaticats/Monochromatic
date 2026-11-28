@@ -1,0 +1,11 @@
+[
+  {
+    "name": "survey-reported-paragraphs-after-the-fix",
+    "files": ["**/*.md", "**/*.mdx", "**/*.rs/*.md"],
+    "rules": {
+      "markdown/semantic-line-breaks": {
+        "severity": "error"
+      }
+    }
+  },
+]

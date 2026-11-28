@@ -216,9 +216,10 @@ pub const SETTLING_COMMAND_WORDS: &str =
 ///  "Removal of a ZFS worktree clone").
 ///  A caller prints it only for a slot the removal's command path takes,
 ///  which is a slot proved to hold a whole clone,
-///  and says for itself which state it found:
-///  a slot whose destruction plan stands is Git's own removal
-///  and not this one
+///  a clone mounted at its slot,
+///  one unmounted from it,
+///  or a slot a destruction plan names,
+///  and says for itself which state it found
 ///  (`worktree_clone_slot_state`,
 /// `health/doctor_zfs_route` and this folder all read it).
 ///  It was named `NO_REMOVAL_WORDS` while it said no removal existed;
@@ -374,8 +375,8 @@ impl NextCommand {
             NextCommand::GitWorktreeRemove => format!(
                 "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"
             ),
-            NextCommand::TheRemoval => String::from(
-                "the removal this slot's destruction plan belongs to is the one that resumes from the plan and ends it, and no command of this release runs that removal while such a plan stands: a `git worktree remove` of this slot is Git's own removal, which drops the registration and the slot folder while the clone stands, so do not run it. Read the plan's own file before you act.",
+            NextCommand::TheRemoval => format!(
+                "run `git worktree remove {slot}`: the removal this slot's destruction plan belongs to resumes from the plan and ends it, and every spelling takes that path, `-f -f` among them. Read the plan's own file first for the names it records as destroyed: the removal proves every name the plan records again, sends no request for a name the plan records as destroyed, and carries the loss forward into its report."
             ),
             NextCommand::TheFinishPass => String::from(
                 "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",

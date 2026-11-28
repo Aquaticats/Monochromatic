@@ -24,6 +24,16 @@
 //          zfs-add-boot-after|zfs-add-power-before|zfs-add-power-after|
 //          zfs-add-teardown|zfs-add-record|zfs-add>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
+//          [--backend <libvirt|ovh>] [--guest-image <name>] [--image <template>]
+//          [--kernel-release <release>]
+// The backend comes from one place (e2e/guest-backend.ts): `--backend`, then the
+// `MVM_BACKEND` environment variable `mvm` itself reads, then `libvirt`. A step whose
+// subject is a reboot or a power cut refuses by name on a backend that cannot
+// power-cycle its guest, before anything is created.
+// `--guest-image` names an image in a cloud backend's own catalogue, which `prepare`
+// still installs and builds against; `--image` names an `mvm` template, which
+// `prepare` only asserts. `--kernel-release` defaults to the release `libvirt`'s baked
+// image boots, and to the release a cloud guest answers with, printed before the build.
 // `create` refuses a name `mvm list` already reports, and `all` destroys only a
 // guest its own `create` returned, so no run removes another run's guest.
 // Every step writes one log per command under the log directory and prints it.
@@ -32,6 +42,11 @@ import { spawnSync, } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, writeFileSync, } from 'node:fs';
 import { join, } from 'node:path';
 
+import {
+  type GuestBackend,
+  refuseAStepThatNeedsAPowerCycle,
+  resolveGuestBackend,
+} from './guest-backend.ts';
 import { loadTheBuiltModuleStep, } from './load-the-built-module-step.ts';
 import { loadTheTemplateModuleStep, } from './load-the-template-module-step.ts';
 
@@ -214,8 +229,19 @@ interface Options {
    or `undefined` for the Ubuntu 24.04 image the recipe prepares itself.
    */
   readonly image: string | undefined;
-  /** The kernel release the prepared guest must boot. */
-  readonly kernelRelease: string;
+  /**
+   The image word a cloud backend's own catalogue is asked for,
+   or `undefined` for the backend's default.
+   A cloud image is a catalogue name, not a template, so `prepare` still installs and builds.
+   */
+  readonly guestImage: string | undefined;
+  /**
+   The kernel release the prepared guest must boot,
+   or `undefined` to take the release the guest answers with.
+   */
+  readonly kernelRelease: string | undefined;
+  /** The backend every guest command and every `mvm` of this run is made for. */
+  readonly backend: GuestBackend;
 }
 
 /** The step, the guest name, the log directory, the crate source directory and whether `all` keeps the guest. */
@@ -234,7 +260,10 @@ function options(): Options {
     wrapperCrate: value('--wrapper-repository') ?? join(import.meta.dirname, '../../../..'),
     keepGuest: rest.includes('--keep-guest'),
     image: value('--image'),
-    kernelRelease: value('--kernel-release') ?? EXPECTED_KERNEL_RELEASE,
+    guestImage: value('--guest-image'),
+    kernelRelease: value('--kernel-release'),
+    // The one place this run takes its machine from: the run's own word, then `MVM_BACKEND`, then `libvirt`.
+    backend: resolveGuestBackend({ raw: value('--backend'), env: process.env, }),
   };
 }
 
@@ -301,15 +330,31 @@ interface GuestScript {
   readonly timeout: number;
 }
 
+/**
+ The shell prefix that runs one guest command as root, trailing space included, or empty text.
+ A libvirt guest's command already runs as root through the guest agent, so its prefix is nothing.
+ */
+function rootPrefixOf(options: Options): string {
+  return (options.backend.rootWords.length === 0) ? '' : `${options.backend.rootWords.join(' ')} `;
+}
+
+/** The command line one guest script is run by, its name checked first and its bound inside. */
+function guestCommandOf({ options, script, timeout }: {
+  readonly options: Options;
+  readonly script: string;
+  readonly timeout: number;
+}): string {
+  return `test "$(hostname)" = ${options.backend.hostnameOf(options.name)} && ${rootPrefixOf(options)}timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
+}
+
 /** Run one guest script through the guest agent, its output in its own log. */
 function guest({ options, script, log, timeout }: GuestScript): void {
   const output = openSync(join(options.logDir, log), 'w', 0o600);
-  const command =
-    `test "$(hostname)" = ${options.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
+  const command = guestCommandOf({ options, script, timeout, });
   try {
     const result = spawnSync(
       'mvm',
-      ['--backend', 'libvirt', 'exec', options.name, '--', command],
+      [...options.backend.mvmArgumentWords, 'exec', options.name, '--', command],
       { stdio: ['ignore', output, output], timeout, },
     );
     if (result.error || result.status !== 0)
@@ -317,6 +362,25 @@ function guest({ options, script, log, timeout }: GuestScript): void {
   } finally {
     closeSync(output);
   }
+}
+
+/** Run one guest script and return what it printed, its output kept in its own log. */
+function guestCapture({ options, script, log, timeout }: GuestScript): string {
+  const result = spawnSync(
+    'mvm',
+    [
+      ...options.backend.mvmArgumentWords,
+      'exec',
+      options.name,
+      '--',
+      `test "$(hostname)" = ${options.backend.hostnameOf(options.name)} && ${script}`,
+    ],
+    { encoding: 'utf8', timeout, },
+  );
+  writeFileSync(join(options.logDir, log), `${result.stdout}${result.stderr}`, { mode: 0o600, });
+  if (result.error || result.status !== 0)
+    throw result.error ?? new Error(`mvm exec exited ${result.status}; see ${log}`);
+  return result.stdout;
 }
 
 /** The environment every live suite reads, as shell assignments. */
@@ -339,7 +403,7 @@ function guestNames(options: Options): readonly string[] {
   const listing: string = hostCapture({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'list'],
+    args: [...options.backend.mvmArgumentWords, 'list'],
     log: 'mvm-list-before-create.log',
   });
   const names: string[] = [];
@@ -360,14 +424,19 @@ function create(options: Options): void {
     throw new Error(
       `guest '${options.name}' already exists; pass another --name so this run destroys only the guest it creates`,
     );
+  /**
+   The image word the backend's own catalogue is asked for.
+   A libvirt guest's `--image` names a custom template, which `prepare` then only asserts; a cloud backend's names a
+   catalogue image, which `prepare` still installs and builds against, so the two are separate options.
+   */
+  const imageWord = (options.image === undefined) ? options.guestImage : options.image;
   host({
     options,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...options.backend.mvmArgumentWords,
       'create',
-      ...(options.image === undefined ? [] : ['--image', options.image,]),
+      ...(imageWord === undefined ? [] : ['--image', imageWord,]),
       options.name,
     ],
     log: 'mvm-create.log',
@@ -409,7 +478,7 @@ function prepareFromTemplate(options: Options): void {
     'set -eu',
     'echo "== the release this guest boots"',
     'uname --kernel-release',
-    `test "$(uname --kernel-release)" = ${options.kernelRelease}`,
+    `test "$(uname --kernel-release)" = ${options.kernelRelease ?? EXPECTED_KERNEL_RELEASE}`,
     'echo "== the module and userspace the design pins"',
     ...loadTheTemplateModuleStep({ label: 'prepare', release: OPENZFS_RELEASE, }),
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version`,
@@ -431,18 +500,49 @@ function prepareFromTemplate(options: Options): void {
   guest({ options, script: checks, log: 'guest-prepare-template.log', timeout: RECORD_TIMEOUT_MS });
 }
 
+/**
+ The kernel release this run prepares against and checks.
+
+ A libvirt guest comes from the image this package bakes, so a moved image is refused rather than measured under an
+ unrecorded release, and a run that says nothing gets {@link EXPECTED_KERNEL_RELEASE}. A cloud backend's guest comes
+ from the provider's own catalogue, whose image OVHcloud moves without asking, so there the release is the one the
+ guest answers with, read from the guest and printed before anything is built against it.
+
+ @param options - the run's options
+
+ @returns the release every prepared-guest check and build uses
+
+ @throws Error when the guest answers no release at all
+ */
+function kernelReleaseOf(options: Options): string {
+  if (options.kernelRelease !== undefined)
+    return options.kernelRelease;
+  if (options.backend.imageIsBaked)
+    return EXPECTED_KERNEL_RELEASE;
+  const answered = guestCapture({
+    options,
+    script: 'uname --kernel-release',
+    log: 'guest-kernel-release.log',
+    timeout: RECORD_TIMEOUT_MS,
+  }).trim();
+  if (answered.length === 0)
+    throw new Error(`guest '${options.name}' answered no kernel release`);
+  console.log(`the guest '${options.name}' boots kernel ${answered}, which this run prepares against`);
+  return answered;
+}
+
 /** Install the tools, build OpenZFS 2.4.4, and install Rust and nextest. */
 function prepare(options: Options): void {
   if (options.image !== undefined) {
     prepareFromTemplate(options);
   } else {
-    prepareUbuntu(options);
+    prepareUbuntu(options, kernelReleaseOf(options));
   }
   installToolchain(options);
 }
 
 /** Install the Debian packages and build OpenZFS 2.4.4 in the Ubuntu guest. */
-function prepareUbuntu(options: Options): void {
+function prepareUbuntu(options: Options, kernelRelease: string): void {
   const install = [
     'set -eu',
     'export DEBIAN_FRONTEND=noninteractive',
@@ -454,7 +554,7 @@ function prepareUbuntu(options: Options): void {
     'timeout 600 sh -c \'while fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1; do sleep 2; done\'',
     'apt-get --option Acquire::Retries=2 update > /root/zfs-prepare.log 2>&1',
     `apt-get --option Acquire::Retries=2 --yes install ${PACKAGES} "linux-headers-$(uname --kernel-release)" >> /root/zfs-prepare.log 2>&1`,
-    `test "$(uname --kernel-release)" = ${options.kernelRelease}`,
+    `test "$(uname --kernel-release)" = ${kernelRelease}`,
     `curl --fail --location --retry ${DOWNLOAD_RETRIES} --max-time ${DOWNLOAD_TIMEOUT_SECONDS} --output /root/zfs-2.4.4.tar.gz https://github.com/openzfs/zfs/releases/download/zfs-2.4.4/zfs-2.4.4.tar.gz >> /root/zfs-prepare.log 2>&1`,
     `printf '%s  %s\\n' ${OPENZFS_TARBALL_SHA256} /root/zfs-2.4.4.tar.gz | sha256sum --check --strict -`,
     'tar --extract --gzip --file /root/zfs-2.4.4.tar.gz --directory /root',
@@ -520,14 +620,14 @@ function run(options: Options): void {
   host({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/subject.tar.gz'],
+    args: [...options.backend.mvmArgumentWords, 'push', options.name, tarball, options.backend.pushDestinationOf('subject.tar.gz')],
     log: 'guest-push.log',
   });
   const build = [
     'set -eu',
-    // A virtiofs push lands under /mnt/shared and keeps only the file name; a
-    // guest-agent push honours the path. Both routes end with the tarball at /root.
-    'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
+    // A libvirt push lands in the guest's shared folder and keeps only the file name; a
+    // cloud push honours the path. Both routes end with the tarball at /root.
+    `if test -f ${options.backend.pushedFolder}/subject.tar.gz; then cp ${options.backend.pushedFolder}/subject.tar.gz /root/subject.tar.gz; fi`,
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
@@ -630,22 +730,22 @@ function record(options: Options): void {
   guest({ options, script: teardown, log: 'guest-teardown.log', timeout: RECORD_TIMEOUT_MS });
   const share = [
     'set -eu',
-    'test -d /mnt/shared',
-    `cp /root/zfs-root-suite.log /home/${ACCOUNT}/zfs-account-suite.log /root/zfs-versions.log /root/zfs-teardown.log /mnt/shared/`,
+    `test -d ${options.backend.pushedFolder}`,
+    `cp /root/zfs-root-suite.log /home/${ACCOUNT}/zfs-account-suite.log /root/zfs-versions.log /root/zfs-teardown.log ${options.backend.pushedFolder}/`,
   ].join('\n');
   guest({ options, script: share, log: 'guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (
     const [from, to] of [
-      ['/mnt/shared/zfs-root-suite.log', 'root-suite.log'],
-      ['/mnt/shared/zfs-account-suite.log', 'account-suite.log'],
-      ['/mnt/shared/zfs-versions.log', 'versions.log'],
-      ['/mnt/shared/zfs-teardown.log', 'teardown.log'],
+      [`${options.backend.pushedFolder}/zfs-root-suite.log`, 'root-suite.log'],
+      [`${options.backend.pushedFolder}/zfs-account-suite.log`, 'account-suite.log'],
+      [`${options.backend.pushedFolder}/zfs-versions.log`, 'versions.log'],
+      [`${options.backend.pushedFolder}/zfs-teardown.log`, 'teardown.log'],
     ] as const
   ) {
     host({
       options,
       command: 'mvm',
-      args: ['--backend', 'libvirt', 'pull', options.name, from, join(options.logDir, to)],
+      args: [...options.backend.mvmArgumentWords, 'pull', options.name, from, join(options.logDir, to)],
       log: `host-pull-${to}`,
     });
   }
@@ -727,12 +827,12 @@ function step3Arms(options: Options): void {
   host({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/wrapper.tar.gz'],
+    args: [...options.backend.mvmArgumentWords, 'push', options.name, tarball, options.backend.pushDestinationOf('wrapper.tar.gz')],
     log: 'step3-guest-push.log',
   });
   const build = [
     'set -eu',
-    'if test -f /mnt/shared/wrapper.tar.gz; then cp /mnt/shared/wrapper.tar.gz /root/wrapper.tar.gz; fi',
+    `if test -f ${options.backend.pushedFolder}/wrapper.tar.gz; then cp ${options.backend.pushedFolder}/wrapper.tar.gz /root/wrapper.tar.gz; fi`,
     // The tree is unpacked over the one the last run left, so the build directory it already holds is reused and a
     //  changed file is the only thing rebuilt; a file this revision dropped stays behind, and nothing reads it.
     `mkdir --parents ${STEP3_WRAPPER_ROOT}`,
@@ -969,8 +1069,8 @@ function step3Record(options: Options): void {
   //  this run's log directory, and the suite's own file holds the whole run rather than the tail the step prints.
   const share = [
     'set -eu',
-    'test -d /mnt/shared',
-    'for name in step3-suite step3-teardown step3-versions step3-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+    `test -d ${options.backend.pushedFolder}`,
+    `for name in step3-suite step3-teardown step3-versions step3-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log ${options.backend.pushedFolder}/; fi; done`,
   ].join('\n');
   guest({ options, script: share, log: 'step3-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (
@@ -984,7 +1084,7 @@ function step3Record(options: Options): void {
     host({
       options,
       command: 'mvm',
-      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      args: [...options.backend.mvmArgumentWords, 'pull', options.name, `${options.backend.pushedFolder}/${name}.log`, join(options.logDir, `${name}.log`)],
       log: `step3-host-pull-${name}.log`,
     });
   }
@@ -1023,8 +1123,8 @@ function step3(options: Options): void {
 
 /** Destroy the guest and keep the list of what is left. */
 function destroy(options: Options): void {
-  host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'destroy', options.name], log: 'mvm-destroy.log' });
-  host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'list'], log: 'mvm-list-after-destroy.log' });
+  host({ options, command: 'mvm', args: [...options.backend.mvmArgumentWords, 'destroy', options.name], log: 'mvm-destroy.log' });
+  host({ options, command: 'mvm', args: [...options.backend.mvmArgumentWords, 'list'], log: 'mvm-list-after-destroy.log' });
 }
 
 //endregion Steps
@@ -1135,12 +1235,12 @@ function step4Arms(options: Options): void {
   host({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step4-wrapper.tar.gz'],
+    args: [...options.backend.mvmArgumentWords, 'push', options.name, tarball, options.backend.pushDestinationOf('step4-wrapper.tar.gz')],
     log: 'step4-guest-push.log',
   });
   const build = [
     'set -eu',
-    'if test -f /mnt/shared/step4-wrapper.tar.gz; then cp /mnt/shared/step4-wrapper.tar.gz /root/step4-wrapper.tar.gz; fi',
+    `if test -f ${options.backend.pushedFolder}/step4-wrapper.tar.gz; then cp ${options.backend.pushedFolder}/step4-wrapper.tar.gz /root/step4-wrapper.tar.gz; fi`,
     `mkdir --parents ${STEP4_WRAPPER_ROOT}`,
     `tar --extract --gzip --file /root/step4-wrapper.tar.gz --directory ${STEP4_WRAPPER_ROOT}`,
     `cd ${STEP4_WRAPPER_DIR}`,
@@ -1214,8 +1314,8 @@ function step4Record(options: Options): void {
   guest({ options, script: versions, log: 'step4-versions.log', timeout: RECORD_TIMEOUT_MS });
   const share = [
     'set -eu',
-    'test -d /mnt/shared',
-    'for name in step4-suite step4-teardown step4-versions step4-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+    `test -d ${options.backend.pushedFolder}`,
+    `for name in step4-suite step4-teardown step4-versions step4-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log ${options.backend.pushedFolder}/; fi; done`,
   ].join('\n');
   guest({ options, script: share, log: 'step4-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (
@@ -1229,7 +1329,7 @@ function step4Record(options: Options): void {
     host({
       options,
       command: 'mvm',
-      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      args: [...options.backend.mvmArgumentWords, 'pull', options.name, `${options.backend.pushedFolder}/${name}.log`, join(options.logDir, `${name}.log`)],
       log: `step4-host-pull-${name}.log`,
     });
   }
@@ -1316,8 +1416,9 @@ function gateRed(options: Options, expectation: string, label: string, field: st
 
 /** Reboot the guest and wait until it answers again. */
 function rebootGuest(options: Options, log = 'gate-reboot.log'): void {
-  const command = `test "$(hostname)" = ${options.name} && (systemctl reboot || true)`;
-  const started = spawnSync('mvm', ['--backend', 'libvirt', 'exec', options.name, '--', command], {
+  const command =
+    `test "$(hostname)" = ${options.backend.hostnameOf(options.name)} && ${rootPrefixOf(options)}(systemctl reboot || true)`;
+  const started = spawnSync('mvm', [...options.backend.mvmArgumentWords, 'exec', options.name, '--', command], {
     encoding: 'utf8',
     timeout: HOST_COMMAND_TIMEOUT_MS,
   });
@@ -1326,7 +1427,7 @@ function rebootGuest(options: Options, log = 'gate-reboot.log'): void {
   for (;;) {
     const probe = spawnSync(
       'mvm',
-      ['--backend', 'libvirt', 'exec', options.name, '--', `test "$(hostname)" = ${options.name} && hostname`],
+      [...options.backend.mvmArgumentWords, 'exec', options.name, '--', `test "$(hostname)" = ${options.backend.hostnameOf(options.name)} && hostname`],
       { encoding: 'utf8', timeout: 60_000 },
     );
     if (probe.status === 0)
@@ -1574,14 +1675,14 @@ function step10Arms(options: Options): void {
   host({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step10-wrapper.tar.gz'],
+    args: [...options.backend.mvmArgumentWords, 'push', options.name, tarball, options.backend.pushDestinationOf('step10-wrapper.tar.gz')],
     log: 'step10-guest-push.log',
   });
   const build = [
     'set -eu',
     `export ${STEP10_OPENZFS}`,
     ...STEP10_LOAD_THE_MODULE,
-    'if test -f /mnt/shared/step10-wrapper.tar.gz; then cp /mnt/shared/step10-wrapper.tar.gz /root/step10-wrapper.tar.gz; fi',
+    `if test -f ${options.backend.pushedFolder}/step10-wrapper.tar.gz; then cp ${options.backend.pushedFolder}/step10-wrapper.tar.gz /root/step10-wrapper.tar.gz; fi`,
     `mkdir --parents ${STEP10_WRAPPER_ROOT}`,
     `tar --extract --gzip --file /root/step10-wrapper.tar.gz --directory ${STEP10_WRAPPER_ROOT}`,
     `cd ${STEP10_WRAPPER_DIR}`,
@@ -1722,10 +1823,9 @@ function step10BootAfter(options: Options): void {
  */
 function guestThroughTheCut({ options, script, log, timeout }: GuestScript): void {
   const output = openSync(join(options.logDir, log), 'w', 0o600);
-  const command =
-    `test "$(hostname)" = ${options.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
+  const command = guestCommandOf({ options, script, timeout, });
   try {
-    spawnSync('mvm', ['--backend', 'libvirt', 'exec', options.name, '--', command], { stdio: ['ignore', output, output], timeout, });
+    spawnSync('mvm', [...options.backend.mvmArgumentWords, 'exec', options.name, '--', command], { stdio: ['ignore', output, output], timeout, });
   } finally {
     closeSync(output);
   }
@@ -1737,7 +1837,7 @@ function step10WaitForTheGuest(options: Options, log: string): void {
   for (;;) {
     const probe = spawnSync(
       'mvm',
-      ['--backend', 'libvirt', 'exec', options.name, '--', `test "$(hostname)" = ${options.name} && cat /proc/sys/kernel/random/boot_id`],
+      [...options.backend.mvmArgumentWords, 'exec', options.name, '--', `test "$(hostname)" = ${options.backend.hostnameOf(options.name)} && cat /proc/sys/kernel/random/boot_id`],
       { encoding: 'utf8', timeout: 60_000, },
     );
     writeFileSync(join(options.logDir, log), `probe status ${probe.status} boot-id ${probe.stdout.trim()}\n${probe.stderr}`, { mode: 0o600, });
@@ -1834,15 +1934,15 @@ function step10Record(options: Options): void {
   guest({ options, script: versions, log: 'step10-versions.log', timeout: RECORD_TIMEOUT_MS });
   const share = [
     'set -eu',
-    'test -d /mnt/shared',
-    'for name in step10-suite step10-teardown step10-versions step10-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+    `test -d ${options.backend.pushedFolder}`,
+    `for name in step10-suite step10-teardown step10-versions step10-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log ${options.backend.pushedFolder}/; fi; done`,
   ].join('\n');
   guest({ options, script: share, log: 'step10-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (const name of ['step10-suite', 'step10-teardown', 'step10-versions', 'step10-wrapper-build',] as const) {
     host({
       options,
       command: 'mvm',
-      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      args: [...options.backend.mvmArgumentWords, 'pull', options.name, `${options.backend.pushedFolder}/${name}.log`, join(options.logDir, `${name}.log`)],
       log: `step10-host-pull-${name}.log`,
     });
   }
@@ -2031,12 +2131,12 @@ function step7Arms(options: Options): void {
   host({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step7-wrapper.tar.gz'],
+    args: [...options.backend.mvmArgumentWords, 'push', options.name, tarball, options.backend.pushDestinationOf('step7-wrapper.tar.gz')],
     log: 'step7-guest-push.log',
   });
   const build = [
     'set -eu',
-    'if test -f /mnt/shared/step7-wrapper.tar.gz; then cp /mnt/shared/step7-wrapper.tar.gz /root/step7-wrapper.tar.gz; fi',
+    `if test -f ${options.backend.pushedFolder}/step7-wrapper.tar.gz; then cp ${options.backend.pushedFolder}/step7-wrapper.tar.gz /root/step7-wrapper.tar.gz; fi`,
     `mkdir --parents ${STEP7_WRAPPER_ROOT}`,
     `tar --extract --gzip --file /root/step7-wrapper.tar.gz --directory ${STEP7_WRAPPER_ROOT}`,
     `cd ${STEP7_WRAPPER_DIR}`,
@@ -2100,8 +2200,8 @@ function step7Record(options: Options): void {
   guest({ options, script: versions, log: 'step7-versions.log', timeout: RECORD_TIMEOUT_MS });
   const share = [
     'set -eu',
-    'test -d /mnt/shared',
-    'for name in step7-suite step7-teardown step7-versions step7-wrapper-build step7-zedlet; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+    `test -d ${options.backend.pushedFolder}`,
+    `for name in step7-suite step7-teardown step7-versions step7-wrapper-build step7-zedlet; do if test -f /root/$name.log; then cp /root/$name.log ${options.backend.pushedFolder}/; fi; done`,
   ].join('\n');
   guest({ options, script: share, log: 'step7-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (
@@ -2116,7 +2216,7 @@ function step7Record(options: Options): void {
     host({
       options,
       command: 'mvm',
-      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      args: [...options.backend.mvmArgumentWords, 'pull', options.name, `${options.backend.pushedFolder}/${name}.log`, join(options.logDir, `${name}.log`)],
       log: `step7-host-pull-${name}.log`,
     });
   }
@@ -2201,12 +2301,12 @@ function step16Arms(options: Options): void {
   host({
     options,
     command: 'mvm',
-    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step16-wrapper.tar.gz'],
+    args: [...options.backend.mvmArgumentWords, 'push', options.name, tarball, options.backend.pushDestinationOf('step16-wrapper.tar.gz')],
     log: 'step16-guest-push.log',
   });
   const build = [
     'set -eu',
-    'if test -f /mnt/shared/step16-wrapper.tar.gz; then cp /mnt/shared/step16-wrapper.tar.gz /root/step16-wrapper.tar.gz; fi',
+    `if test -f ${options.backend.pushedFolder}/step16-wrapper.tar.gz; then cp ${options.backend.pushedFolder}/step16-wrapper.tar.gz /root/step16-wrapper.tar.gz; fi`,
     `mkdir --parents ${STEP16_WRAPPER_ROOT}`,
     `tar --extract --gzip --file /root/step16-wrapper.tar.gz --directory ${STEP16_WRAPPER_ROOT}`,
     `cd ${STEP16_WRAPPER_DIR}`,
@@ -2268,8 +2368,8 @@ function step16Record(options: Options): void {
   guest({ options, script: versions, log: 'step16-versions.log', timeout: RECORD_TIMEOUT_MS });
   const share = [
     'set -eu',
-    'test -d /mnt/shared',
-    'for name in step16-suite step16-teardown step16-versions step16-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+    `test -d ${options.backend.pushedFolder}`,
+    `for name in step16-suite step16-teardown step16-versions step16-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log ${options.backend.pushedFolder}/; fi; done`,
   ].join('\n');
   guest({ options, script: share, log: 'step16-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
   for (
@@ -2283,7 +2383,7 @@ function step16Record(options: Options): void {
     host({
       options,
       command: 'mvm',
-      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      args: [...options.backend.mvmArgumentWords, 'pull', options.name, `${options.backend.pushedFolder}/${name}.log`, join(options.logDir, `${name}.log`)],
       log: `step16-host-pull-${name}.log`,
     });
   }
@@ -2375,6 +2475,8 @@ if (step === undefined)
   throw new Error(
     `unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps), ...Object.keys(gateSteps), ...Object.keys(step7Steps), ...Object.keys(step16Steps)].join(', ')}`,
   );
+// Said before the step runs anything, so a step this backend cannot run never leaves a machine behind.
+refuseAStepThatNeedsAPowerCycle({ backend: chosen.backend, step: chosen.step, });
 step(chosen);
 console.log(`zfs step 2 fixture: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
 

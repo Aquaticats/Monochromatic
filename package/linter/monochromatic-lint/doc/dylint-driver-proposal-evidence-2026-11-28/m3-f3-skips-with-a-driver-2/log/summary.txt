@@ -1,0 +1,20 @@
+packages with a linter run: 15
+packages with closure-rule skip records: 3
+packages with a closure processing failure: 1
+packages with closure findings: 4
+packages run:
+  package/ide/app
+  package/jsonc-edit/core-rust
+  package/linter/monochromatic-lint
+  package/linter/monochromatic-lint-closure
+  package/mpm-shadow/cli
+  package/music-player/android-app/rust
+  package/music-player/desktop-app
+  package/music-player/truepeak-core
+  package/nested-wayland-session/cli
+  package/pnpm-shadow/cli
+  package/search-shadow/cli
+  package/terminal/app
+  package/wg/cli-quicker-exempt
+  package/xml-edit/core-rust
+  package/zfs/request-to-openzfs-kernel-device

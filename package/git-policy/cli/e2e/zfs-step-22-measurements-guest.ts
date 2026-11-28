@@ -11,7 +11,8 @@
  The arms are the ones the plan's step 22 asks for
  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 22"): the add against ordinary Git under the same
  workload with an interleaved control, the mount request's wait, the unmount's, the sweep's cost and the lost-event
- behaviour, what expiration and removal free, the forced arm's three waits, and the request budget.
+ behaviour, the sweep's cost past 64 clones, what expiration and removal free, what a snapshot pins of incompressible
+ output, the forced arm's three waits, and the request budget.
 
  Usage: node e2e/zfs-step-22-measurements-guest.ts <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
@@ -21,8 +22,16 @@
  run instead of reporting a green suite.
 
  The guest's own steps are in `e2e/step-22-arms/`: the build, the two pools, the measurement arm and the holder scan
- beside it.
+ beside it. The past-64 sweep and the pinned-output cases are arm files of the `native_binary` test target
+ (`src/native/binary/binary_zfs_step_22_large_parent_guest_tests.rs` and
+ `binary_zfs_step_22_pinned_output_guest_tests.rs`), called by the same test the filter names, so one detached run
+ performs every arm.
  */
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
@@ -367,4 +376,12 @@ const words: readonly string[] = process.argv
  The step and the values the command line gave it.
  */
 const chosen: Options = options({ argumentsRead: runArguments({ argv: words, },), },);
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await runTheStep(chosen,);

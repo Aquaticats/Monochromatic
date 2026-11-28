@@ -80,6 +80,10 @@ pub mod start_retry;
 /// The depth guard against a shadow starting itself.
 pub mod nesting;
 
+/// The one writer of the lines this program says about its own work,
+/// which a stream that refuses them cannot turn into a failure.
+pub mod notices;
+
 /// The text of the post-run cleanup.
 pub mod cleanup_report;
 

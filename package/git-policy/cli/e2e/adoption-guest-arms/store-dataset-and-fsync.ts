@@ -23,6 +23,7 @@ import {
   resolve,
 } from 'node:path';
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
@@ -39,9 +40,6 @@ import {
   readLog,
 } from '../../bin/mvm-guest-step-command.ts';
 
-
-
-
 import {
   armTimeoutMilliseconds,
   expectedFsyncMarkers,
@@ -57,6 +55,12 @@ import {
   storePoolImage,
 } from './adoption-fixture.ts';
 import { detachedStep, } from './detached-step.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
 
 /**
  The store's own dataset-creating step log.
@@ -77,7 +81,7 @@ const fsyncLog = 'store-fsync.log';
  The path of the probe inside the guest, which `mvm push` lands under its own
  name.
  */
-const probeInGuest = '/mnt/shared/probe-reaches-storage.py';
+const probeInGuest = `${backend.guestSharedFolder}/probe-reaches-storage.py`;
 
 /**
  Make the ZFS pool and the two datasets the store's arms write on.
@@ -156,12 +160,11 @@ export async function publicationFsync({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       probe,
-      '/root/probe-reaches-storage.py',
+      backend.pushDestinationOf('probe-reaches-storage.py'),
     ],
     log: 'guest-push-probe.log',
   },);
@@ -202,11 +205,10 @@ export async function publicationFsync({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      `/mnt/shared/${fsyncLog}`,
+      `${backend.guestSharedFolder}/${ fsyncLog }`,
       pulledPath,
     ],
     log: 'host-pull-store-fsync.log',
