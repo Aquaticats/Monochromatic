@@ -957,7 +957,7 @@ the two acceptance cases failing with
 ```text
 a forbidden string in a left-out folder link's own name must fail the step; got status 0
 stdout: Left out 1 of 2 changed entries the scanner cannot open as a file: folder links 1, submodule gitlinks 0. A link to a file, a broken link and an unreadable file stay in the scan.
-Scanning 1 changed file(s) from d4b4df63a80875ec4a9671749f83e2c46965aad7..25f0dacdd02ae8dd5597af28656866c4d0277080:
+Scanning 1 changed file(s) from 178a3642a71a488f9ca5c474aef684cb9cd141bd..820c570480fcd4be866c2bc7104acf043e1a76b1:
   consumer/main.txt
 ```
 
@@ -966,7 +966,7 @@ and
 ```text
 a forbidden string in a left-out folder link's stored target text must fail the step; got status 0
 stdout: Left out 1 of 2 changed entries the scanner cannot open as a file: folder links 1, submodule gitlinks 0. A link to a file, a broken link and an unreadable file stay in the scan.
-Scanning 1 changed file(s) from 2d1c4aa772519eb1c6f55fd13e5dd7b47c91d23e..eb757e8616dc64b4ed5b156cbc708553833b0847:
+Scanning 1 changed file(s) from fc596c9e361b62039d56e0a094a0c03dd4eca0fd..0f15e462d1c0aadf3e561648824f7e0e2b78064a:
   consumer/main.txt
 ```
 
