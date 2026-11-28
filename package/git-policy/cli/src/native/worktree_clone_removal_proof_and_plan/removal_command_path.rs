@@ -34,11 +34,13 @@
 //! process.exit(answer.code);
 //! ```
 
-use crate::foundation::iso_time::now_iso;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::TheLiveHolderScan;
-use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::{
+    RemovalClock,
+    TheLiveClock,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
@@ -150,8 +152,9 @@ pub fn complete_the_bound_clones_removal(
             ));
         }
     };
-    // The moment the records carry is read once, so one run's plan lines agree with each other.
-    let now: String = now_iso();
+    // The moment the records carry is read once, so one run's plan lines agree with each other, and it is
+    //  the stamp the origin cleanup record's `startedAt` field accepts: ISO 8601 seconds with an offset.
+    let now: String = TheLiveClock.started();
     let input: RemovalCompletion<'_> = RemovalCompletion {
         entry: &entry,
         reads: &reads,

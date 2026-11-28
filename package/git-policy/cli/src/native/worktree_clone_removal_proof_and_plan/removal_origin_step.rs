@@ -84,8 +84,8 @@ pub(crate) fn publish_the_origin_record(
     let folder: CleanupFolder =
         CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
             return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
-                path: refusal_field(&refusal),
-                said: refusal.said.clone(),
+                path: origin_cleanups_folder(input.entry.common_dir),
+                said: refusal_in_words(&refusal),
             };
         })?;
     let wanted: OriginCleanupRecord = OriginCleanupRecord::owed(
@@ -120,19 +120,34 @@ pub(crate) fn publish_the_origin_record(
     }
     folder.publish(&wanted).map_err(|refusal| {
         return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
-            path: refusal_field(&refusal),
-            said: refusal.said.clone(),
+            path: folder.path().join(own_name),
+            said: refusal_in_words(&refusal),
         };
     })?;
     return Ok(folder);
 }
 
-/// The path a record refusal names,
-/// which is the field the refusal already carries.
-fn refusal_field(
+/// What:
+///  One record refusal in the words a person reads.
+/// Why:
+///  A refusal names the rule, the key and the value,
+///  and the key is no path:
+///  printing it as one put `startedAt` where a file's name belongs,
+///  which is what the guest arm of 2026-11-28 read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = `${refusal.cause.name()} on \`${refusal.field}\`: ${refusal.said}`;
+/// ```
+fn refusal_in_words(
     refusal: &crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusal
-) -> PathBuf {
-    return PathBuf::from(refusal.field.clone());
+) -> String {
+    return format!(
+        "{} on `{}`: {}",
+        refusal.cause.name(),
+        refusal.field,
+        refusal.said
+    );
 }
 
 /// Whether a standing record names the same objects as the one this run wants.
@@ -200,8 +215,8 @@ pub(crate) fn attempt_the_origin_cleanup(
     let folder: CleanupFolder =
         CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
             return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
-                path: refusal_field(&refusal),
-                said: refusal.said.clone(),
+                path: origin_cleanups_folder(input.entry.common_dir),
+                said: refusal_in_words(&refusal),
             };
         })?;
     let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt {
@@ -217,7 +232,7 @@ pub(crate) fn attempt_the_origin_cleanup(
             folder.remove(own_name).map_err(|refusal| {
                 return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
                     path: folder.path().join(own_name),
-                    said: refusal.said,
+                    said: refusal_in_words(&refusal),
                 };
             })?;
             let line: Option<String> = destroyed
@@ -235,7 +250,7 @@ pub(crate) fn attempt_the_origin_cleanup(
             folder.publish(next.as_ref()).map_err(|refusal| {
                 return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
                     path: folder.path().join(own_name),
-                    said: refusal.said,
+                    said: refusal_in_words(&refusal),
                 };
             })?;
             let reason: BlockReason = next
