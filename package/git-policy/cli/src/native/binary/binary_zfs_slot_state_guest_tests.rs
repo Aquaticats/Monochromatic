@@ -1232,7 +1232,7 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
         "REMOVAL wrapper-through-a-shell-alias class=known-unmounted-clone status=removed clone=gone records=gone"
     );
 
-    // The fixture's own cleanup: the base dataset and the repository.
+    // The fixture's own cleanup: the base dataset, the account's cache the scene pinned, and the repository.
     let _unmounted = zfs(
         sbin.as_str(),
         "zfs",
@@ -1242,6 +1242,10 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     zfs_ignored(
         sbin.as_str(),
         &["destroy", "-r", "-f", format!("{pool}/step8").as_str()],
+    );
+    zfs_ignored(
+        sbin.as_str(),
+        &["destroy", "-r", "-f", format!("{pool}/cache").as_str()],
     );
     let _cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.as_path());
     println!("SLOT-STATE done");
