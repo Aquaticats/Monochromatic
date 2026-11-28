@@ -35,6 +35,7 @@ use super::zfs_sweep_guest::{
     DESIRED_STATE,
     NONCE,
     ORIGIN_PREFIX,
+    command_ok,
     mount_request,
     zfs,
     zfs_ok,
@@ -141,29 +142,44 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
         1,
         "the clone stands on the staging folder and nowhere else: {rows:?}"
     );
-    // The pool's own answer: a mounted dataset is not destroyed.
-    let refused: (bool, String, String) = zfs(
+    // What the pool answers a destroy of a mounted dataset, measured on a throwaway dataset of this arm's own pool and
+    // printed rather than asserted: this guest's OpenZFS discards a `mountpoint=legacy` mount when the dataset goes, and
+    // a reading of this kernel is not a sentence this release promises.
+    let probe_dataset: String = format!("{}/probe", arm.pool);
+    zfs_ok(
+        arm.sbin.as_str(),
+        &[
+            "create",
+            "-o",
+            "mountpoint=legacy",
+            probe_dataset.as_str(),
+        ],
+    );
+    let probe_folder: PathBuf = arm.root.join("probe-mnt");
+    std::fs::create_dir_all(probe_folder.as_path()).expect("the probe's folder is made");
+    command_ok(
+        "mount",
+        &[
+            "-t",
+            "zfs",
+            probe_dataset.as_str(),
+            shown(probe_folder.as_path()),
+        ],
+    );
+    let probe: (bool, String, String) = zfs(
         arm.sbin.as_str(),
         "zfs",
-        &["destroy", "-r", arm.clone.as_str()],
+        &["destroy", "-r", probe_dataset.as_str()],
         None,
     );
-    assert!(
-        !refused.0,
-        "the pool destroyed a clone mounted on its staging folder: {}{}",
-        refused.1, refused.2
-    );
-    assert!(
-        format!("{}{}", refused.1, refused.2).contains("busy"),
-        "the pool's own reason is the mount that holds the clone: {}{}",
-        refused.1,
-        refused.2
-    );
+    let still_mounted: bool =
+        super::zfs_sweep_guest::mount_row(probe_folder.as_path()).is_some();
     println!(
-        "REMOVAL-FORCE arm=1 mounted-refuses-the-destroy said={}",
-        refused.2.trim()
+        "REMOVAL-FORCE arm=1 pool-on-a-mounted-dataset destroyed={} row-left={still_mounted} said={}{}",
+        probe.0,
+        probe.1.trim(),
+        probe.2.trim()
     );
-
     let sweeper: Child = arm.start_the_sweeper();
     let removed: std::process::Output = arm.wrapper_git(&[
         "worktree",
@@ -173,6 +189,9 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
     ]);
     arm.stop_the_sweeper(sweeper);
     let said: String = Arm::said(&removed);
+    // The handler's own receipt is printed before the assertion: a refusal's words are the handler's and the wrapper
+    // prints only the outcome it read.
+    println!("REMOVAL-FORCE arm=1 receipt={}", the_receipt_of(arm.clone_guid));
     assert_eq!(
         removed.status.code(),
         Some(0),

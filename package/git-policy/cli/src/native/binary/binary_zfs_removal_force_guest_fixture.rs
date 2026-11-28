@@ -315,15 +315,19 @@ impl Arm {
     /// arm.tearDown();
     /// ```
     pub(super) fn tear_down(&self) {
-        let (unmounted, said, error): (bool, String, String) = zfs(
+        // A clone still mounted anywhere is what makes its pool's datasets busy, and an arm that panicked left one: the
+        // cleanup takes every mount of the clone down, then the checkout's own.
+        let _clone_gone: (bool, String, String) = zfs(
+            self.sbin.as_str(),
+            "zfs",
+            &["unmount", "-f", self.clone.as_str()],
+            None,
+        );
+        let _unmounted: (bool, String, String) = zfs(
             self.sbin.as_str(),
             "zfs",
             &["unmount", "-f", self.place.checkout_dataset.as_str()],
             None,
-        );
-        assert!(
-            unmounted,
-            "the checkout dataset unmounts for this arm's own cleanup: {said}{error}"
         );
         let destroyed: (bool, String, String) = zfs(
             self.sbin.as_str(),

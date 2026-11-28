@@ -125,11 +125,15 @@ impl Arm {
     /// ```
     pub(super) fn start_the_sweeper(&self) -> Child {
         let binary: PathBuf = super::support_installed_name::installed_name("sweep");
+        // The handler's own words are kept beside the arm's log, because a removal that waits for a receipt is a step
+        // whose answer only the handler can give.
+        let log: String = format!("/mnt/shared/sweeps-{}.log", self.pool);
         return Command::new("sh")
             .args([
                 "-c",
-                "while :; do \"$0\" >/dev/null 2>&1; sleep 1; done",
+                "while :; do \"$0\" >> \"$1\" 2>&1; sleep 1; done",
                 shown(binary.as_path()),
+                log.as_str(),
             ])
             .env("PATH", self.search_path())
             .stdin(Stdio::null())
