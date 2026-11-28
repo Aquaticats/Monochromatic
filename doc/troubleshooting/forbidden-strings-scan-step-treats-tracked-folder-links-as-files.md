@@ -1553,6 +1553,34 @@ Its `markdown/semantic-line-breaks` rule rewrote this round's new prose once
 (`--fix`),
 because every comma in a paragraph needs a line break after it.
 
+### Merged and re-checked
+
+`origin/main` was 28 commits ahead when this round finished,
+so it was merged in `5edf62d28d` (2026-11-27T21:20:18-05:00).
+Neither the workflow file nor any test file this round changes was touched by
+the merge,
+and the index still holds 139 links and 0 gitlinks.
+
+After the merge every check above ran again,
+in `package/forbidden-strings/cli`,
+and each printed the same result:
+`cargo fmt --check` exit 0,
+`cargo check --locked --offline --all-targets` exit 0,
+`cargo clippy --locked --offline --all-targets -- -D warnings` exit 0,
+`cargo nextest run --locked --offline --test ci_scan_scope`
+with `Summary [   1.350s] 33 tests run: 33 passed, 0 skipped`,
+and `mise run //package/forbidden-strings/cli:test`
+with `Summary [  24.001s] 392 tests run: 392 passed, 0 skipped`.
+`monochromatic-lint` again reported no finding on any changed file,
+and the workflow file's sha256 is still
+`5e85cacd3f0639d16256745f638e0b7324abaaa55d97fcd75cd67ccf65a32d62`.
+
+The coordinating session merges this branch,
+and issue #6640 closes on a green push run on `main` that prints the new
+steps' lines,
+which no run can show before that merge.
+No workflow was dispatched.
+
 ### What this round did not run, and open
 
 - No container task,
