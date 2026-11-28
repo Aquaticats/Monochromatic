@@ -433,12 +433,13 @@ bus and journal are not touched at all.
 (`src/control_group_route_discovery_reexec_tests.rs`)
 plants a `systemctl` that refuses every ask and writes down when each one began and ended,
 and requires the time from one ask's end to the next one's beginning to be at least `ASKING_AGAIN_PAUSE`.
-The two controls above hold the constants and the moment they outlast,
+`the_span_the_records_name_is_the_span_the_discovery_spends` and `a_moment_as_long_as_the_longest_measured_reexec_is_asked_through`
+hold the constants and the moment they outlast,
 and neither of them reads the sleep in `ask_where_the_slice_is`:
 with `std::thread::sleep(ASKING_AGAIN_PAUSE * 3 / 4)` there,
 the span becomes 0.6 s where these records name 0.800 s,
 its margin over the measured 0.588 s falls to about 2 percent,
-and the two controls above stay green
+and those two controls stay green
 (a same-vendor second read of this release named that edit on 2026-11-27).
 It runs wherever the suite runs and needs no container.
 The gap it measures holds the next stand-in's own start and the discovery's work between two programs as well as the sleep,
@@ -448,7 +449,7 @@ Measured 2026-11-27 on this host:
 with the sleep in place it passed in 0.908 s with pauses of 209.0 ms to 209.9 ms before the second to fifth ask,
 and with `std::thread::sleep(ASKING_AGAIN_PAUSE * 3 / 4)` there it failed in 2.06 s with
 `the shortest pause between two asks was 174.647195ms, shorter than the 200ms the call site sleeps, so the span is not the 800ms the records name`,
-while the two controls above stayed green in the same run
+while those two controls stayed green in the same run
 (`the discovery rode through a moment of 600ms in 869.207269ms, with 5 asks`,
 and the constants' control in 0.032 s).
 Its four gaps with the edit were 174.6 ms,
@@ -1189,7 +1190,7 @@ and the figure above is the run as it was measured then.
   and nothing here stages it.
 - A call whose scope creation meets a reexec.
   The span is the discovery's,
-  and no wait covers the scopes a call makes after it (above),
+  and no wait covers the scopes a call makes after it ("What the span does not cover"),
   so a reexec that begins after the discovery has answered fails the call in both releases.
   Either a scope's creation that meets a reexec is tried again,
   which needs a retry around `systemd-run` that can tell a transport that died from a scope that was made,

@@ -495,7 +495,7 @@ fn the_span_the_records_name_is_the_span_the_discovery_spends() {
 /// a stand-in refuses every ask and writes down when each one began and when it ended,
 /// and the time from one ask's end to the next one's beginning must be at least `ASKING_AGAIN_PAUSE`.
 /// Why it is a control and not a comment:
-/// the control above holds the two constants against the records,
+/// `the_span_the_records_name_is_the_span_the_discovery_spends` holds the two constants against the records,
 /// and neither it nor any other control reads the sleep at the call site
 /// (`std::thread::sleep` in `ask_where_the_slice_is`),
 /// so a wait of `ASKING_AGAIN_PAUSE * 3 / 4` there leaves that control green
