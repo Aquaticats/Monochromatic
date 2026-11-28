@@ -2946,18 +2946,6 @@ and the two `truepeak` files wait on their branch.
   (`doc/handover/questions-for-the-owner.md`).
 - No real gate has run on the gate's reader of a container's control group yet:
   the next whole gate is its first.
-- The managed-lock guest driver builds within its guest and its arm ran to its end (`239b91c5ee`,
-  issue 6611):
-  at four jobs the guest's kernel killed a `rustc` at 6.67 GiB of resident memory in an 8 GiB guest with no swap;
-  at one job with the 6 GiB swap file the sibling drivers add,
-  the build's peak was 7,019,956 kB of 8,131,780 kB,
-  with 7,216 kB of swap used,
-  in 22 minutes;
-  the arm printed its 15 markers and passed.
-  The driver and the Sanoid driver each have a `mise` task
-  (`e2e:managed-git-lock`,
-  `e2e:sanoid-coverage`),
-  and the readings are under `doc/planning/mvm-guest-memory-held-for-a-rounds-life-evidence/`.
 - Since 2026-11-27T12:49 a hook another session merged (`88632f16aa`,
   the owner's "Clamp + prefix (Recommended)") moves a main-session Bash command that runs past two seconds to the background,
   and its result arrives as a task notification;
