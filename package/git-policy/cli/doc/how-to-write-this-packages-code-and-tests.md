@@ -1158,7 +1158,9 @@ a split moves the guard into a sibling file,
 or `cargo fmt` reflows the expression onto other lines.
 `bin/native-planted-controls.unit.test.ts` is what reports that,
 so it names the control and the file whose text no longer occurs exactly once;
-seven controls were stale on 2026-11-27 and the source walk's crash hid every one of them.
+seven controls were stale on 2026-11-27 and the source walk's crash hid every one of them;
+four of the seven had moved with a split,
+and three were reflowed by `cargo fmt`.
 A control whose guard moved names the file that holds the guard now,
 and one whose text was reflowed carries the text as the file holds it,
 with a comment saying which commit moved what.
@@ -1238,6 +1240,18 @@ a test that reaches one of them opens the device.
 Such arms run in a guest of the round's own,
 on a file-backed pool,
 and the host run's `--skip guest --skip _arm_tests` keeps the named ones out.
+
+## A rewritten guest driver runs beside `main`'s version
+
+A rewritten guest driver is proved by running it in its guest against `main`'s version,
+and comparing the lines that say what an arm did:
+the two are the same wherever the rewrite changed nothing.
+That reading found the start probe's shared header broken since `dcf5877982`:
+an unquoted handler assignment ran the wrapper as a command,
+so every arm after `green` stopped at its fourth line,
+in `main`'s driver and the rewritten one alike.
+It is quoted now,
+and those arms run.
 
 ## A round runs no whole container gate
 
