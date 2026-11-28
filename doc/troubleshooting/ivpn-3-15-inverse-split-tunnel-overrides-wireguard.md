@@ -361,6 +361,77 @@ separate semantics.
    and roaming logic.
   Moving all automatic allowed routes to the existing marked policy design avoids persistent physical host routes.
 
+## Name lookups ride the tunnel for every program, and failed with it from 2026-11-28T06:21:08-05:00
+
+IVPN 3.15.15 was connected in inverse split tunnel mode,
+and `ivpn status` printed `Non-IVPN DNS        : Blocked`.
+From 2026-11-28T06:21:08-05:00 until the owner reconnected at 2026-11-28T06:36:00-05:00,
+no program on the machine could resolve a name,
+while packets to addresses kept flowing.
+This section records what was measured.
+Why the tunnel's resolver stopped answering is not established.
+
+### What failed
+
+- A Node.js `fetch` to an HTTPS API ended with
+  `ConnectTimeoutError: Connect Timeout Error (attempted address: <host>:443, timeout: 10000ms)`,
+  naming the host and no address.
+- `curl` to the same host ended with exit 28 after its whole time bound,
+  reporting `0.000000` for both `time_namelookup` and `time_connect`.
+- `git ls-remote` ended with `Could not resolve host: github.com`.
+- `getent ahosts` ended at its bound for each of three hosts.
+- `ping` to a public address lost no packet in the same minutes.
+
+### What the resolver showed
+
+`resolvectl status` showed the tunnel link with `DNS Domain: ~.`,
+which sends every name to that link's server.
+`resolvectl query --interface=<tunnel link> github.com` answered
+`resolve call failed: 'github.com' does not have any RR of the requested type`,
+while the same query with `--interface=<wireless link>` returned an address.
+
+### Ordinary traffic was outside the tunnel the whole time
+
+Measured after lookups came back,
+with the link's own counter `/sys/class/net/<tunnel link>/statistics/rx_bytes`:
+an ordinary `curl` download of 4,885,101 bytes moved 0 bytes over the tunnel link,
+and the same download with `curl --interface <tunnel link>` moved 5,288,396 bytes over it.
+So inverse mode kept the program's traffic off the tunnel,
+as "IVPN intentionally bypasses VPNs for ordinary applications" describes,
+and only its name lookups depended on the tunnel:
+the port `53` returns that precede the mark rule keep every program's DNS on the tunnel's path.
+
+During the failure an unmarked `ip route get` printed the tunnel link for the same destinations.
+"Patterns that fail" names that reading as no proof of where a program's packets leave,
+and it misled a session here again until the counter was read.
+
+### What was not the cause
+
+OpenSnitch's default action was `allow`,
+`curl` has an allow rule of its own and failed the same way,
+and Node.js under the repository's toolchain root is covered by `000-allow-monochromatic-toolchain-install-roots`.
+The kernel log held no `apparmor="DENIED"` line in those minutes.
+
+### What restored lookups
+
+The owner set IVPN's DNS to DNS over HTTPS and connected to another server.
+`ivpn status` then printed `Connected           : 2026-11-28 06:36:00 -0500 EST` and a `DoH` resolver,
+and lookups answered from 2026-11-28T06:37:44-05:00.
+Both changes were made together,
+so which of them restored lookups is not known.
+
+### What it stopped
+
+A billed OVHcloud test made no machine,
+the wrapper's release dispatch refused because it could not ask `origin` which commit it holds,
+and three agent rounds lost their model providers,
+were handed to the last one in their list,
+and ended there on its usage limit.
+Each was started again once names resolved.
+
+Nothing is filed upstream from here:
+the owner handles IVPN's side.
+
 ## Upstream filing decision
 
 No `.out-of-scope/` entry covers IVPN or this behavior.

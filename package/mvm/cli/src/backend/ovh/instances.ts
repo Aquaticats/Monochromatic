@@ -22,6 +22,7 @@ import {
   type OvhImage,
   type OvhInstance,
   IPV4_VERSION,
+  INSTANCE_DELETED_STATUS,
   INSTANCE_FAILED_STATUSES,
   INSTANCE_RUNNING_STATUS,
   PUBLIC_IP_TYPE,
@@ -69,13 +70,17 @@ const SNAPSHOT_TIMEOUT_MS = 120_000;
 //region Ownership
 
 /**
- Keeps the instances mvm owns: those whose name carries {@link VM_PREFIX}.
+ Keeps the instances mvm owns: those whose name carries {@link VM_PREFIX} and
+ that the project has not deleted.
  Everything else in the project belongs to someone else and is never listed,
  connected to, or deleted.
+ An instance the project lists as {@link INSTANCE_DELETED_STATUS} is gone:
+ counting it would report a machine that runs nowhere, and matching it would
+ make a name ambiguous as soon as a new machine takes it.
  
  @param instances - every instance of the project
  
- @returns the instances whose name starts with the prefix
+ @returns the instances whose name starts with the prefix and that still exist
  
  @example
  ```ts
@@ -87,9 +92,10 @@ export function mvmInstances({
 }: {
   readonly instances: readonly OvhInstance[];
 },): readonly OvhInstance[] {
-  return instances.filter(function owned(instance,) {
-    return instance.name
-      .startsWith(VM_PREFIX,);
+  return instances.filter(function ownedAndNotDeleted(instance,) {
+    return (instance.status !== INSTANCE_DELETED_STATUS)
+      && instance.name
+        .startsWith(VM_PREFIX,);
   },);
 }
 
