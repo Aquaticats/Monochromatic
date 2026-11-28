@@ -154,6 +154,9 @@
 //! - `add_route_run.rs`:
 //!   the entry point,
 //!   the claim and the phase machine.
+//! - `the_removals_cancelling.rs`:
+//!   the account's answer to a removal that a holder stopped,
+//!   handed to the forwarded removal path from the one folder it may name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -250,6 +253,9 @@ pub mod add_route_steps;
 /// The source shapes the fill's restore would refuse after the clone is made.
 pub mod add_source_the_restore_cannot_prove;
 
+/// The account's answer to a removal that a holder stopped.
+pub mod the_removals_cancelling;
+
 pub use add_capture::{
     Capture,
     CaptureInput,
@@ -312,3 +318,4 @@ pub use add_route_run::{
     FILLED_NOTE,
     run_a_zfs_add,
 };
+pub use the_removals_cancelling::the_removals_cancelling;

@@ -144,6 +144,15 @@
 //!   the steps a removal takes when its plan's head word is already `gone`.
 //! - `removal_completion.rs`:
 //!   the whole order from the plan to the report.
+//! - `the_self_cancelling_seam.rs`:
+//!   what a removal that a holder stops asks of the answer that puts the clone
+//!   back,
+//!   and which stop points this build reaches.
+//! - `removal_self_cancelling_step.rs`:
+//!   the one call each stop point makes,
+//!   turned into the stop a removal ends in.
+//! - `removal_command_path.rs`:
+//!   the whole removal over the live seams a person's command runs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -171,6 +180,7 @@ pub mod plan_record_bytes;
 pub mod plan_refusal;
 pub mod plan_words;
 pub mod removal_clock;
+pub mod removal_command_path;
 pub mod removal_completion;
 pub mod removal_completion_head_gone;
 pub mod removal_completion_head_present;
@@ -186,6 +196,7 @@ pub mod removal_reads;
 pub mod removal_records_end;
 pub mod removal_report;
 pub mod removal_resume;
+pub mod removal_self_cancelling_step;
 pub mod removal_settle;
 pub mod removal_settle_step;
 pub mod removal_slot_claim;
@@ -193,6 +204,7 @@ pub mod removal_snapshot_settlement;
 pub mod removal_stop;
 pub mod removal_stop_sentences;
 pub mod started_moment;
+pub mod the_self_cancelling_seam;
 pub mod unmount_request;
 
 pub use bookmark_rule::{
@@ -280,6 +292,11 @@ pub use removal_clock::{
     TheLiveClock,
 };
 pub use removal_completion::complete_the_removal;
+pub use removal_command_path::{
+    REMOVED_EXIT_CODE,
+    TheRemovalAnswer,
+    complete_the_bound_clones_removal,
+};
 pub use removal_completion_inputs::RemovalCompletion;
 pub use removal_destruction::{
     DestructionUnderway,
@@ -344,6 +361,15 @@ pub use removal_stop::{
     BookmarkRefusalReason,
     RefusedBookmark,
     RemovalStop,
+};
+pub use the_self_cancelling_seam::{
+    THE_ROLLBACK_STEPS,
+    TheCancellationFailed,
+    TheCancelledRemoval,
+    TheRemovalCancelling,
+    TheStopPoint,
+    TheStoppedRemoval,
+    is_the_handlers_rollback,
 };
 pub use started_moment::{
     is_seconds_with_offset,

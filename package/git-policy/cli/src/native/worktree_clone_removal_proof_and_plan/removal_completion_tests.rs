@@ -103,6 +103,7 @@ fn a_healthy_removal_destroys_the_snapshots_the_head_and_the_origin_and_frees_th
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect("a healthy removal finishes");
@@ -202,6 +203,7 @@ fn the_origin_record_is_published_before_the_first_snapshot_request() {
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect("the removal finishes");
@@ -240,6 +242,7 @@ fn a_holder_seen_before_the_first_request_stops_the_removal_and_sends_nothing() 
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect_err("a holder blocks destruction");
@@ -321,6 +324,7 @@ fn a_mark_set_after_the_batch_refuses_before_the_head() {
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect_err("a mark set after the batch stops the head destroy");
@@ -388,6 +392,7 @@ fn a_holder_seen_only_before_the_head_stops_after_the_batch() {
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect_err("a holder before the head stops the head destroy");
@@ -436,6 +441,7 @@ fn a_refused_head_keeps_the_clone_and_the_word_refused() {
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect_err("a clone that still answers blocks the settle");
@@ -484,6 +490,7 @@ fn a_refused_settle_keeps_the_plan_and_its_binding_and_the_next_run_finishes_wit
         head: &head,
         holders: &holders,
         settle: &refusing,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect_err("the settle refuses");
@@ -505,6 +512,7 @@ fn a_refused_settle_keeps_the_plan_and_its_binding_and_the_next_run_finishes_wit
         head: &head,
         holders: &holders,
         settle: &succeeding,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect("the second run finishes the removal");
@@ -544,6 +552,7 @@ fn an_incomplete_namespace_read_is_carried_into_the_report() {
         head: &head,
         holders: &holders,
         settle: &settle,
+        cancelling: None,
         budget: the_budget(),
     })
     .expect("an incomplete read does not refuse by itself");

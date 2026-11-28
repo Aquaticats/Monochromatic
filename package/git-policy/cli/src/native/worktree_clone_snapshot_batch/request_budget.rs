@@ -44,6 +44,26 @@
 use std::fmt;
 
 /// What:
+///  The bytes of packed request input one removal's snapshot-destroy request may carry.
+/// Why:
+///  The number is measured rather than picked,
+///  and it is the only place the removal's own limit is written,
+///  so a later measurement or the owner's decision changes one line.
+///  The measurement is step 22's guest half,
+///  `doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`,
+///  whose one `ZFS_IOC_DESTROY_SNAPS` request took 64 names as 3,652 bytes of encoded input,
+///  512 names as 28,740 bytes,
+///  and 2,048 names as 114,756 bytes,
+///  the largest the guest accepted,
+///  at about 56 bytes of encoded input per name.
+///  This budget is 2.3 times the 512-name request and under the largest accepted one,
+///  which is the proposal those measurements carry.
+///  It is not a number the owner has accepted:
+///  the record says so,
+///  and the value stands here as the removal's own with the owner's veto open.
+pub const THE_REMOVALS_REQUEST_BUDGET_BYTES: usize = 65_536;
+
+/// What:
 ///  The bytes of packed request input one `ZFS_IOC_DESTROY_SNAPS` request may
 ///  carry.
 /// Why:
@@ -87,6 +107,21 @@ impl fmt::Display for RequestBudget {
             self.input_bytes
         );
     }
+}
+
+/// What:
+///  The budget one removal's snapshot requests are split by.
+/// Why:
+///  The removal takes one budget and every reader of the number takes it here,
+///  so no caller writes a limit of its own and the constant above is the one line a
+///  measurement or the owner's decision changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const budget = theRemovalsRequestBudget();
+/// ```
+pub fn the_removals_request_budget() -> RequestBudget {
+    return RequestBudget::of_input_bytes(THE_REMOVALS_REQUEST_BUDGET_BYTES);
 }
 
 /// The controls of the budget.

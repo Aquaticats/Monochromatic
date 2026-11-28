@@ -1,10 +1,10 @@
 //! What:
-//!  The refusal of one `git worktree remove` of a slot a whole managed clone is
-//!  bound to,
-//!  mounted or not,
-//!  with the slot's state printed beside it,
-//!  and the removal's lineage proof,
-//!  inventory and bookmark rule run read-only inside the refusal.
+//!  What one `git worktree remove` of a slot a whole managed clone is bound to
+//!  does,
+//!  mounted or not:
+//!  the whole removal,
+//!  with the slot's state printed beside its report,
+//!  or the refusal that proves nothing and changes nothing.
 //! Why:
 //!  Git's own removal deletes the registration and the slot's underlay folder,
 //!  which is the pointer the add kept for `git worktree prune`,
@@ -14,7 +14,7 @@
 //!  "Unmounted,
 //! pruned or moved worktrees";
 //!  plan step 12).
-//!  Only the two states that prove a whole worktree refuse:
+//!  Only the two states that prove a whole worktree take that path:
 //!  a pending add's removal is the add's own way forward,
 //!  and a slot nothing proves stays Git's unless the reading is the mount no
 //!  record names,
@@ -25,38 +25,45 @@
 //!  as the move already refuses,
 //!  because nothing then proves the removal would not delete a managed clone's
 //!  slot.
-//!  Every spelling of `git worktree remove` that names such a slot is refused,
+//!  Every spelling of `git worktree remove` that names such a slot takes this
+//!  path,
 //!  whatever options stand before the operand:
 //!  `SPEC.md` exempts none,
 //!  and Git's own lock hint steers a person to the double force,
 //!  which would otherwise delete the registration and the underlay pointer
 //!  while the clone stands
 //!  (`worktree_remove_plan::parse_removal_target`).
-//!  A refusal of a whole clone also owes the person what a removal would have
-//!  done,
-//!  so the proof a removal makes runs here and its loss is printed
-//!  (`worktree_clone_removal_proof_and_plan::removal_reading`,
-//!  plan step 14).
-//!  This release has no snapshot batch,
-//!  head destroy,
-//!  origin cleanup or Git settle,
-//!  so nothing here writes a removal intent,
-//!  unmounts the clone or writes the destruction plan:
-//!  plan step 16's wiring switches those on,
-//!  and until then a clone's removal that got that far would leave an unmounted
-//!  clone and a plan no command of this release could finish or cancel.
-//!  The reading therefore writes nothing and prints what it proved.
+//!  The whole removal is the wrapper's own,
+//!  and this file only decides that the slot holds a whole clone and prints what
+//!  it proved about it:
+//!  the order,
+//!  the batch,
+//!  the head destroy,
+//!  the origin cleanup,
+//!  the settle and the records are
+//!  `worktree_clone_removal_proof_and_plan::removal_command_path`
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//!  step 16).
+//!  Nothing here ends a holder or forces a removal:
+//!  this release's removal refuses a holder and cancels itself,
+//!  and `--force` stays refused in every spelling,
+//!  `-f -f` among them
+//!  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
 //!  The clone's mount intent is read through the caller's reader,
 //!  as the pool is,
 //!  so a host control answers it without opening this machine's ZFS device.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const ending = refuseTheRemovalOfABoundClone(slotPath, commonDir); // undefined leaves the removal to Git
+//! const ending = theRemovalOfABoundClone(slotPath, commonDir); // undefined leaves the removal to Git
 //! ```
 
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::worktree_clone_binding_record::registration_home::home_folder;
+use crate::worktree_clone_removal_proof_and_plan::removal_command_path::{
+    TheRemovalAnswer,
+    complete_the_bound_clones_removal,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::{
@@ -106,24 +113,26 @@ pub enum RemovalReads<'a> {
 }
 
 /// What:
-///  What one refusal of a removal of a bound clone tells the person,
-///  and the status the command ends in.
+///  What one removal of a bound clone answers instead of running Git:
+///  the lines the person reads and the status the command ends in.
 /// Why:
-///  The refusal changes nothing and prints its own report,
-///  so it is no Git run and carries no signal:
-///  the command path turns it into the action the command ends in,
-///  and the settled run into the run it reports.
+///  A finished removal is no failure and no refusal,
+///  and the forwarded command path has one shape for "this step answered and
+///  Git does not run",
+///  so the status travels with the lines
+///  (`worktree_copying::worktree_copy_forward`,
+///  `ForwardedRun::Failed`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type BoundSlotRemovalRefusal = { stderr: string; code: number };
+/// type BoundSlotRemovalAnswer = { stderr: string; code: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BoundSlotRemovalRefusal {
-    /// The report the person reads.
+pub struct BoundSlotRemovalAnswer {
+    /// The lines the person reads.
     pub stderr: String,
-    /// The wrapper's refusal status,
-    /// which every command that changed nothing ends in.
+    /// The status the command ends in,
+    /// which is `0` for a removal that finished and `1` for one that did not.
     pub code: i32,
 }
 
@@ -186,27 +195,27 @@ fn unproved_slot_sentence(
 }
 
 /// What:
-///  The refusal of a removal of a slot a whole managed clone is bound to,
+///  What one `git worktree remove` of a slot a whole managed clone is bound to
+///  does,
 ///  over the pool and the slot sources the release reads.
 /// Why:
-///  A command that prints its own report and changes nothing is not a failure
-///  of a step,
-///  so it ends with the wrapper's refusal status,
+///  A command that answers instead of running Git carries its own lines and
+///  status,
 ///  and Git never runs against the slot.
-///  The target and the common directory are what the refusal needs and all it
+///  The target and the common directory are what the step needs and all it
 ///  needs,
 ///  so a command that stands in no worktree,
 ///  where the settled run never starts,
-///  refuses through the same call as one that does.
+///  answers through the same call as one that does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refusal = refuseTheRemovalOfABoundClone(slotPath, commonDir);
+/// const answer = theRemovalOfABoundClone(slotPath, commonDir);
 /// ```
-pub fn refuse_the_removal_of_a_bound_clone(
+pub fn the_removal_of_a_bound_clone(
     target: &Path,
     common_dir: &Path,
-) -> Option<BoundSlotRemovalRefusal> {
+) -> Option<BoundSlotRemovalAnswer> {
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
@@ -214,33 +223,37 @@ pub fn refuse_the_removal_of_a_bound_clone(
         mounts: &mounts,
         intents: &intents,
     };
-    return refuse_the_removal_with(target, common_dir, RemovalReads::Live, &sources);
+    return the_removal_with(target, common_dir, RemovalReads::Live, &sources);
 }
 
 /// What:
-///  The same refusal over the pool reads and the slot sources a control
-///  answers.
+///  The same step over the pool reads and the slot sources a control answers.
 /// Why:
 ///  A host control may not open the machine's ZFS device,
-///  and the intent is the second raw ZFS request this refusal makes,
-///  so every control of this refusal runs through this call and the printed
-///  report is the command's own.
+///  and the intent is the second raw ZFS request this step makes,
+///  so every control of it runs through this call and the printed report is the
+///  command's own.
 ///  The mount table is a source too,
-///  so a control can prove which read the refusal makes and which it does not.
+///  so a control can prove which read the step makes and which it does not.
 ///  The target is the directory the planner read from the command's own words,
 ///  in every spelling Git accepts,
-///  so the refusal and the reading that fills it cannot disagree.
+///  so the step and the reading that fills it cannot disagree.
+///  A control that scripts the pool,
+///  or one whose pool cannot be read,
+///  is answered with the proof's own lines rather than with a removal:
+///  a control may not open this machine's ZFS device,
+///  and the whole removal needs one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refusal = refuseTheRemovalWith(slotPath, commonDir, scriptedPool, scriptedSources);
+/// const answer = theRemovalWith(slotPath, commonDir, scriptedPool, scriptedSources);
 /// ```
-pub fn refuse_the_removal_with(
+pub fn the_removal_with(
     target: &Path,
     common_dir: &Path,
     reads: RemovalReads<'_>,
     sources: &SlotReadingSources<'_>,
-) -> Option<BoundSlotRemovalRefusal> {
+) -> Option<BoundSlotRemovalAnswer> {
     // A repository with no record folder holds no bound slot, so the answer is nothing and the mount table is never read:
     // this is every removal in a repository the route has never served.
     let home: PathBuf = home_folder(common_dir);
@@ -256,7 +269,7 @@ pub fn refuse_the_removal_with(
         reason,
     } = read_binding_reading(home.as_path(), slot.as_str())
     {
-        return Some(BoundSlotRemovalRefusal {
+        return Some(BoundSlotRemovalAnswer {
             stderr: format!(
                 "{}\n",
                 unreadable_record_sentence(slot.as_str(), reason.as_str())
@@ -277,7 +290,7 @@ pub fn refuse_the_removal_with(
     } = &at.state
         && stopped_by.refuses_a_removal()
     {
-        return Some(BoundSlotRemovalRefusal {
+        return Some(BoundSlotRemovalAnswer {
             stderr: format!(
                 "{}\n",
                 unproved_slot_sentence(slot.as_str(), reason.as_str(), *stopped_by)
@@ -292,24 +305,54 @@ pub fn refuse_the_removal_with(
     if !whole_clone {
         return None;
     }
-    let mut stderr: String = format!(
-        "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}. Nothing was removed, and Git did not run. Every spelling of `git worktree remove` is refused here, `-f -f` included: `git worktree unlock {slot}` releases the registration Git holds, and being rid of the clone after that is a person's own destroy, which takes its snapshots and bookmarks with it.\n",
-        target.display(),
-        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
-    );
+    // The slot holds a whole managed clone, so the wrapper removes it rather than Git. The slot's own report is printed
+    //  first either way, because it is what proves the step is about this clone; the removal's report or the control's
+    //  reading follows it.
+    let mut stderr: String = match reads {
+        RemovalReads::Live => format!(
+            "the removal of `{}` runs here: a whole managed clone is bound to this slot, and {}. Git does not run, and this release's removal ends no holder and forces nothing, so `-f -f` and every other spelling take this path.\n",
+            target.display(),
+            crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+        ),
+        _ => format!(
+            "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}. Nothing was removed, and Git did not run. Every spelling of `git worktree remove` is refused here, `-f -f` included: `git worktree unlock {slot}` releases the registration Git holds, and being rid of the clone after that is a person's own destroy, which takes its snapshots and bookmarks with it.\n",
+            target.display(),
+            crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+        ),
+    };
     for line in at.lines() {
         stderr.push_str(line.as_str());
         stderr.push('\n');
     }
-    stderr.push_str(the_removals_reading(common_dir, slot.as_str(), reads).as_str());
-    return Some(BoundSlotRemovalRefusal {
-        stderr,
-        code: REFUSED_EXIT_CODE,
-    });
+    return match reads {
+        RemovalReads::Live => {
+            let answer: TheRemovalAnswer = complete_the_bound_clones_removal(
+                    common_dir,
+                    slot.as_str(),
+                    crate::worktree_clone_add_route::the_removals_cancelling(),
+                );
+            stderr.push_str(answer.lines.as_str());
+            stderr.push('\n');
+            Some(BoundSlotRemovalAnswer {
+                stderr,
+                code: answer.code,
+            })
+        }
+        scripted => {
+            // A control answers the pool itself, and the whole removal needs this machine's device, so a control reads
+            //  what a removal would prove and lose rather than removing anything.
+            stderr.push_str(the_removals_reading(common_dir, slot.as_str(), scripted).as_str());
+            Some(BoundSlotRemovalAnswer {
+                stderr,
+                code: REFUSED_EXIT_CODE,
+            })
+        }
+    };
 }
 
 /// What:
-///  The lines one refusal prints about the removal that was not made:
+///  The lines a control's own pool answer prints about the removal that was not
+///  made:
 ///  what its proof matched and what it would lose,
 ///  or the check that stopped it,
 ///  or the pool that could not be read.
