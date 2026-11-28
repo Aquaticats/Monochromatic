@@ -135,9 +135,13 @@ async function build(chosen: GuestFacts,): Promise<void> {
   const script = [
     'set -eu',
     'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
+    // The dependency build is the guest's heaviest work and outlives one run, so it is kept out of the tree this run
+    // replaces: a second run then compiles this crate's own test binary alone.
+    `if test -d ${CRATE_DIR}/package/git-policy/cli/target; then rm --recursive --force /root/target-kept; mv ${CRATE_DIR}/package/git-policy/cli/target /root/target-kept; fi`,
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
+    `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     'if ! swapon --show | grep --quiet /swapfile; then fallocate --length 6G /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi',
