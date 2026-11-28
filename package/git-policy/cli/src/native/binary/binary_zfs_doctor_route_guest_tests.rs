@@ -1185,8 +1185,10 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
     assert_pass(&reports, "staging-folder");
     assert_pass(&reports, "staging-bind-propagation");
     println!("DOCTOR-GUEST group-three-passes");
+    // The cancel command's line is not in this list: its only facts are the build's own word and usage, which this arm
+    // reads, so the line answers a pass (`cancel_command_checks`, and `SPEC.md`'s "the cancel command's line answers
+    // from the command's own usage"). Only the facts a later step owns, and the backup coverage's own line, are unread.
     for name in [
-        "cancel-command",
         "boot-protection",
         "service-unit",
         "backup-coverage",
