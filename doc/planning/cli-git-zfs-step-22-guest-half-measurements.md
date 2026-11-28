@@ -334,8 +334,7 @@ in milliseconds:
 
 Each count's ratio to the 64-clone sweep of its own round (rule `TVC`),
 over the three rounds:
-16 was 0.29 to 0.81
-times,
+16 was 0.29 to 0.81 times,
 128 was 1.57 to 1.96,
 256 was 3.61 to 5.56,
 and 512 was 7.61 to 8.67 in the two warm rounds and 29.59 in the first.
