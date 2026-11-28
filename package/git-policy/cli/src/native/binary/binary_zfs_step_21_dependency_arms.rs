@@ -65,11 +65,33 @@ const MPM_START_LOG: &str = "/root/step21-mpm-start.log";
 const ELSEWHERE: &str = "/root/step21-elsewhere";
 
 /// The Node project the pnpm arm adds a worktree of.
-const PACKAGE: &str = "{\n  \"name\": \"step21-fixture\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"dependencies\": {\n    \"is-odd\": \"3.0.1\"\n  }\n}\n";
+/// Its one dependency is a tarball the fixture makes,
+/// because this guest has no package registry the arm may rely on and because pnpm 12 refuses a store it cannot
+/// hard link into a project on another file system, which the checkout's dataset and the clone's are.
+const PACKAGE: &str = "{\n  \"name\": \"step21-fixture\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"dependencies\": {\n    \"is-odd-local\": \"file:vendor/is-odd-local-1.0.0.tgz\"\n  }\n}\n";
+
+/// The manifest of the dependency the fixture packs into that tarball.
+const VENDOR_MANIFEST: &str =
+    "{\"name\":\"is-odd-local\",\"version\":\"1.0.0\",\"main\":\"index.js\"}\n";
+
+/// The one source file of that dependency.
+const VENDOR_SOURCE: &str =
+    "module.exports = function isOdd(n) {\n  return Math.abs(n % 2) === 1;\n};\n";
+
+/// The folder inside the project the tarball is packed from and recorded in.
+const VENDOR: &str = "vendor";
+
+/// The tarball's name inside that folder,
+/// which the lockfile names and both arms install from.
+const VENDOR_TARBALL: &str = "is-odd-local-1.0.0.tgz";
+
+/// Where the packing writes before the tarball is copied into the project,
+/// so the archive never sits inside the tree it reads.
+const VENDOR_PACKED: &str = "/root/step21-is-odd-local.tgz";
 
 /// The one dependency the pnpm arm resolves after its install,
 /// so a relink that never ran is a failure and not a silence.
-const RESOLVED: &str = "is-odd";
+const RESOLVED: &str = "is-odd-local";
 
 /// The workspace manifest the Cargo arm's fixture holds.
 const WORKSPACE_MANIFEST: &str =
@@ -304,6 +326,30 @@ pub(super) fn report(
 /// commit({ 'package.json': manifest }); pnpmInstall(); commit({ 'pnpm-lock.yaml': ... }); tar('node_modules');
 /// ```
 pub(super) fn the_node_project(fixture: &Fixture) {
+    let packaged: PathBuf = fixture.root().join(VENDOR).join("package");
+    std::fs::create_dir_all(packaged.as_path()).expect("the vendored package's folder");
+    std::fs::write(packaged.join("package.json"), VENDOR_MANIFEST.as_bytes())
+        .expect("the vendored package's manifest");
+    std::fs::write(packaged.join("index.js"), VENDOR_SOURCE.as_bytes())
+        .expect("the vendored package's source");
+    fixture.run(
+        Path::new("/usr/bin/tar"),
+        &[
+            "--create",
+            "--gzip",
+            "--file",
+            VENDOR_PACKED,
+            "--directory",
+            fixture.root().join(VENDOR).to_str().expect("a text path"),
+            "package",
+        ],
+        fixture.root(),
+    );
+    std::fs::copy(
+        Path::new(VENDOR_PACKED),
+        fixture.root().join(VENDOR).join(VENDOR_TARBALL),
+    )
+    .expect("the tarball the lockfile names");
     fixture.commit(
         &[
             ("package.json", PACKAGE),
@@ -323,7 +369,7 @@ pub(super) fn the_node_project(fixture: &Fixture) {
         "--quiet",
         "--no-verify",
         "-m",
-        "the lockfile",
+        "the lockfile and the tarball it names",
     ]);
     fixture.run(
         Path::new("/usr/bin/tar"),
@@ -432,6 +478,12 @@ fn pnpm_in_a_control_folder(
         std::fs::copy(fixture.root().join(name), control.join(name))
             .unwrap_or_else(|error| panic!("{name} could not be copied: {error}"));
     }
+    // The tarball the lockfile names lives in the project, so the control needs it as the clone does.
+    fixture.run(
+        Path::new("/usr/bin/cp"),
+        &["--archive", VENDOR, control.to_str().expect("a text path")],
+        fixture.root(),
+    );
     fixture.run(
         Path::new("/usr/bin/tar"),
         &[

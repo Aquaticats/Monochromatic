@@ -277,6 +277,12 @@ fn wait_until_settled(fixture: &Fixture) {
 /// theNodeProject(); theCargoWorkspace();
 /// ```
 fn the_queued_state(fixture: &Fixture) {
+    // The launcher arm's record and stand-in are no part of this pair, so the adds here run the two tools it is about.
+    fixture.forget(
+        &["toolchain.lock.json"],
+        "the toolchain lock goes, so these adds are about the two tools this pair measured",
+    );
+    fixture.remove_ignored(&[".cache"]);
     the_node_project(fixture);
     let _lock: String = the_cargo_workspace(fixture);
     fixture.assert_clean();
