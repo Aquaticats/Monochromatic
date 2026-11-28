@@ -488,6 +488,27 @@ pub fn complete(
     the: &TheCompletion<'_>
 ) -> Result<crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone, RemovalStop>
 {
+    return complete_with_the_moment(the, NOW);
+}
+
+/// What:
+///  The same call over the moment a control hands the records,
+///  which is the removal's command-path clock in the release.
+/// Why:
+///  The origin cleanup record's own reader decides which spellings of a moment it
+///  accepts,
+///  so a control that is about that record's words hands in the moment it is about
+///  rather than this file's healthy one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done = completeTheRemoval(theCompletion({...}), '2026-11-25T09:12:44-05:00');
+/// ```
+pub fn complete_with_the_moment(
+    the: &TheCompletion<'_>,
+    moment: &str,
+) -> Result<crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone, RemovalStop>
+{
     let recorded = the.fixture.recorded();
     let unmount: ADoneUnmount = ADoneUnmount {
         clone_guid: recorded.clone_guid,
@@ -509,7 +530,7 @@ pub fn complete(
         settle: the.settle,
         cancelling: the.cancelling,
         budget: the.budget,
-        now: NOW,
+        now: moment,
         force: crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce::none(),
     };
     return crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal(
