@@ -368,13 +368,62 @@ and the removal's own entries in the folder of unanswered requests.
   no call with the keys,
   and the five names unset in front of every check.
 
+#### Started and done between 02:51 and 03:16
+
+- The wrapper's two second-pass reads of `0.6.1-alpha.52` ended,
+  both by a same-vendor reader,
+  neither with a High finding.
+  The behaviour read found one Medium:
+  with `core.worktree` set in a plain main checkout,
+  a bare `!git` alias typed in a subdirectory with `-C <a clean worktree>` resets the main checkout,
+  and the wrapper judges the clean worktree and lets it run.
+  The release before does the same.
+  The read of the merges that claim no change of a release build found two Mediums in the guest drivers:
+  an interrupted driver leaves its recipe step running,
+  and a launcher that was refused is no longer refused at once.
+  Four rounds answer the two reads,
+  started at 02:55:24 and 03:13:06:
+  the reading of a `!` alias,
+  the `final-newline` hints,
+  the guest drivers' shared steps,
+  and the surface control with three source guards.
+  Two things stay the owner's:
+  whether an alias the wrapper cannot read is refused,
+  and the three refusals that issue 6641's closing comment records.
+- The round on GitHub's hosted runners ended at 03:06:55 and merged as `6b06c7149c`:
+  `doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md`.
+  It measured that `advisory-core`'s window counts skipped runs,
+  so it admitted none of its last 200,
+  and that a standard public runner opens `/dev/kvm` after one `setfacl` and boots a small guest in 44 seconds.
+  A gate read by a same-vendor reader runs,
+  and the owner is asked the proposal's five questions after it.
+- The round that closes the last file loop in `foundation/` started at 03:13:06,
+  on the third way the questions file records,
+  which is the session's pick with the owner's veto open.
+- `mise run //package/toml-edit/core:test:unit` and `mise run //package/logger/core:test:unit` exit 1 on `main`,
+  each against a built copy older than its sources
+  (issue 6637,
+  with a comment that holds the measurement).
+  Built first,
+  the first passes,
+  and the second keeps one failing control on a loaded host
+  (issue 6652).
+
 #### The line-break proposal
 
-Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00,
-and a second gate read by a same-vendor reader started after 02:31.
-Its review lands in
-`~/temp/agent/gate-review-of-the-line-break-proposal-second-read-2026-11-28/keep/review.md`.
-The owner is asked after it.
+Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
+The second gate read,
+by a same-vendor reader,
+found two High findings and says the proposal is not ready for the owner:
+two of the ranking's reasons count another population or unit than the option they judge,
+and the repair option rests on a route that reached 90 of 548 lines,
+on a tree `main` has since left.
+A round revises it,
+started at 03:06:29,
+and runs the survey again at its own commit
+(`docs/planning-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again`).
+A third gate read follows it,
+and the owner is asked after a read that finds it ready.
 
 #### The machine
 
@@ -393,8 +442,8 @@ The owner is asked after it.
 - The swap partition:
   a root unit,
   `old-nvme-btrfs-shrinks-by-128-gib-for-a-plain-swap-partition-2026-11-28`,
-  has been balancing the old NVMe's file system since 01:40:55,
-  before it shrinks device 1 by 128 GiB.
+  balanced the old NVMe's file system from 01:40:55 to 02:07:20,
+  and has been shrinking device 1 by 128 GiB since.
   Its log is `~/temp/agent/old-nvme-shrink-for-a-plain-swap-partition-2026-11-28/keep/shrink.log`.
   After it:
   the partition table,
