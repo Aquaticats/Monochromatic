@@ -2832,15 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-- The retire of a run's unit makes the release slower.
-  A trivial shadow call took 1.52 times alpha.11's time at the median
-  (range 0.89 to 2.17 over 18 interleaved rounds,
-  against 1.00 and 0.68 to 1.25 for a same-binary control),
-  about 15 to 27 ms more per scoped run:
-  in ten of ten logged retires the manager had already collected the unit,
-  so both questions to it bought nothing.
-  With a manager that does not answer,
-  each run's end waits two five-second bounds.
 - The retire's gate reads a missing scope directory as empty without the proof the stop itself requires,
   so it could stop a unit the same run refused as possibly still writing.
   Read from the source,
