@@ -131,8 +131,8 @@ never exact demands:
 Without either option every backend does exactly what it did before,
 so no existing command changes.
 
-A size named outright with `--server-type` (or `MVM_OVH_FLAVOR`, or
-`MVM_HCLOUD_SERVER_TYPE`) cannot be combined with either number:
+A size named outright with `--server-type` (or `MVM_OVH_FLAVOR`,
+or `MVM_HCLOUD_SERVER_TYPE`) cannot be combined with either number:
 the two can disagree,
 and the create refuses naming both and how to choose one.
 `mvm create --from` clones a machine and keeps the source's size,
@@ -181,12 +181,18 @@ from the fields Hetzner's own server type object carries:
   and is sold with **shared** virtual CPUs;
   a plan sold with `dedicated` cores is a different product and is never picked
   without being named
-  (Hetzner: "Every dedicated resources instance has its own dedicated CPU
-  resources", [server types][hetzner-server-types]);
-- of those, only types whose `cores` and `memory` are both at least what was
+  (Hetzner:
+  "Every dedicated resources instance has its own dedicated CPU
+  resources",
+  [server types][hetzner-server-types]);
+- of those,
+  only types whose `cores` and `memory` are both at least what was
   asked;
 - the smallest candidate wins:
-  cores, then memory, then disk, then the name.
+  cores,
+  then memory,
+  then disk,
+  then the name.
 
 ```sh
 # package/mvm/cli/README.md -- at least two vCPUs and 4 GB of memory, fsn1 then nbg1
@@ -194,11 +200,18 @@ mvm --backend hetzner create --vcpus 2 --memory 4 build-box
 ```
 
 Before it creates anything the command prints the type it picked with its
-numbers, for example `cx23 (2 cores, 4 GB of memory, 40 GB of disk)`.
-The types and their numbers come from the catalogue at call time:
-Hetzner publishes them per plan
-([deprecated plans][hetzner-deprecated-plans] carries the table's shape:
-`CX22` is 2 vCPUs, 4 GB of RAM and 40 GB of SSD).
+numbers,
+in the shape `cx23 (2 cores, 4 GB of memory, 40 GB of disk)`.
+Which type that is,
+and what its numbers are,
+comes from the catalogue at call time:
+Hetzner publishes a table per plan,
+and
+[deprecated plans][hetzner-deprecated-plans] carries the table's shape
+(`CX22` is 2 vCPUs,
+4 GB of RAM and 40 GB of SSD).
+A create never picks a deprecated plan,
+so the type it prints is not one from that table.
 
 ### On the ovh backend
 
@@ -212,16 +225,23 @@ The price comes from OVHcloud's public order catalogue,
 `GET /v1/order/catalog/public/cloud`,
 whose answer prices each flavor's hourly plan code
 (`c3-4.consumption`) in the currency its own `locale` names.
-A flavor record carries no price, so this is one extra read, made once per
+A flavor record carries no price,
+so this is one extra read,
+made once per
 create.
 
 A size the catalogue publishes no hourly price for is never picked,
 so a flavor that has no price is not a candidate even when it would fit.
-The same applies to every `-flex` twin: no flex name has a published hourly
+The same applies to every `-flex` twin:
+no flex name has a published hourly
 price.
 
-When the price read cannot be had, the order falls back to the numbers alone:
-vCPUs, then memory, then disk, then the plain size before its `-flex` twin,
+When the price read cannot be had,
+the order falls back to the numbers alone:
+vCPUs,
+then memory,
+then disk,
+then the plain size before its `-flex` twin,
 then the name.
 The command says which order it used:
 
@@ -236,19 +256,25 @@ That line is printed before anything is created.
 mvm --backend ovh create --vcpus 2 --memory 4 build-box
 ```
 
-Before it creates anything the command prints the size it picked, its numbers
-and its hourly price, for example
-`flavor d2-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk, 0.033 CAD per hour`.
-That is what a live `BHS5` catalogue gives for those floors: `d2-4` and `c3-4`
-both have 2 vCPUs and 4 GiB, and `d2-4` costs less.
+Before it creates anything the command prints the size it picked,
+its numbers and its hourly price,
+for example `flavor d2-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk, 0.033 CAD per hour`.
+That is what a live `BHS5` catalogue gives for those floors:
+`d2-4` and `c3-4`
+both have 2 vCPUs and 4 GiB,
+and `d2-4` costs less.
 
 Families kept,
 by the catalogue's own names:
 
-- `b2` and `b3`, general purpose;
-- `c2` and `c3`, compute optimized;
-- `r2` and `r3`, memory optimized;
-- `d2`, discovery,
+- `b2` and `b3`,
+  general purpose;
+- `c2` and `c3`,
+  compute optimized;
+- `r2` and `r3`,
+  memory optimized;
+- `d2`,
+  discovery,
   the entry-level shared-resource family.
 
 Families left out:
@@ -261,7 +287,8 @@ Families left out:
 - the storage-shaped `i1` family,
   which OVHcloud calls **Storage Optimized**
   and sells for NVMe input and output rather than for memory;
-- bare metal sizes, named `bm-*` and called **Metal Instances**;
+- bare metal sizes,
+  named `bm-*` and called **Metal Instances**;
 - anything whose flavor targets another operating system,
   which a `win-*` name and a `windows` `osType` mark;
 - any family this build does not know.
@@ -273,8 +300,9 @@ Families left out:
 The rule is a keep list and not a drop list on purpose:
 a name nobody has seen yet cannot be picked by accident.
 
-In the fallback order, a size equal to its `-flex` twin in vCPUs, memory and
-disk is ordered with the plain one first.
+In the fallback order,
+a size equal to its `-flex` twin in vCPUs,
+memory and disk is ordered with the plain one first.
 OVHcloud documents flex instances as the ones whose local disk stays at 50 GB so
 the size can be resized up and down
 ([resize an instance][ovh-flex]).
@@ -288,7 +316,8 @@ command.
 
 `mvm list` shows the vCPUs and memory of each instance,
 read from its own region's flavor list.
-One flavor list is read per region in play, never one per instance.
+One flavor list is read per region in play,
+never one per instance.
 
 [hetzner-deprecated-plans]: https://docs.hetzner.com/cloud/servers/deprecated-plans/
 [hetzner-server-types]: https://docs.hetzner.com/cloud/servers/overview#:~:text=Every%20dedicated%20resources%20instance%20has%20its%20own%20dedicated%20CPU%20resources
