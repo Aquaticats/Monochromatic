@@ -11,6 +11,10 @@
  */
 
 import {
+  caughtValueText,
+} from '@monochromatic-dev/caught-value-core/ts';
+
+import {
   holdsLineStartingWith,
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
@@ -126,6 +130,93 @@ async function pullTheStepLog({
 }
 
 /**
+ How many lines of a failed run's log the refusal quotes.
+ */
+const TAIL_LINES = 20;
+
+/**
+ What the arms step answered: the status line its script wrote, and the reason it refused when it did.
+
+ @example
+ ```ts
+ const settled: TheStepSettled = { ended: 'DONE=0', refusal: '' };
+ ```
+ */
+type TheStepSettled = {
+  /**
+   The script's own status line.
+   */
+  readonly ended: string;
+  /**
+   Why the step refused, or empty text when it did not.
+   */
+  readonly refusal: string;
+};
+
+/**
+ Run the arms step and read what it answered, or the reason it refused.
+
+ @param chosen - the run's guest and log folder
+
+ @returns the status line and the refusal, one of which is empty
+
+ @example
+ ```ts
+ await theStepSettled({ chosen });
+ ```
+ */
+async function theStepSettled({
+  chosen,
+}: {
+  readonly chosen: GuestFacts;
+},): Promise<TheStepSettled> {
+  try {
+    /**
+     The status line the script wrote before it ended.
+     */
+    const ended = await awaitDetachedGuestScript({
+      chosen,
+      log: armStepLog,
+      finishTimeoutMilliseconds: armTimeoutMilliseconds + finishMarginMilliseconds,
+      pull: pullTheStepLog,
+    },);
+    return {
+      ended,
+      refusal: '',
+    };
+  }
+  catch (caught) {
+    return {
+      ended: '',
+      refusal: caughtValueText(caught,),
+    };
+  }
+}
+
+/**
+ The last lines of a log, which say which arm stopped a run.
+
+ @param text - the log's whole text
+
+ @returns its last lines
+
+ @example
+ ```ts
+ theLogTail({ text: pulled });
+ ```
+ */
+function theLogTail({
+  text,
+}: {
+  readonly text: string;
+},): string {
+  return text
+    .split('\n',)
+    .slice(-TAIL_LINES,)
+    .join('\n',);
+}
+
+/**
  Run the arms in the guest's built test target and read the lines they performed out of the pulled log.
 
  @param chosen - the run's guest and log folder
@@ -171,21 +262,22 @@ export async function runTheArms({
     timeoutMilliseconds: armTimeoutMilliseconds,
     nameCheck: 'step',
   },);
-  await awaitDetachedGuestScript({
-    chosen,
-    log: armStepLog,
-    finishTimeoutMilliseconds: armTimeoutMilliseconds + finishMarginMilliseconds,
-    pull: pullTheStepLog,
-  },);
   /**
-   The arm's own log, which its script copied into the guest's shared folder and which this driver keeps as the run's
-   evidence.
+   What the step's own script answered, and why it refused when it did: the arm log is pulled either way, because a failed
+   run's account of itself is what a reader needs most.
+   */
+  const settled: TheStepSettled = await theStepSettled({ chosen, },);
+  /**
+   The arm's own log, pulled before the refusal so a failed run keeps its account of itself.
    */
   const pulled: string = await pullGuestLog({
     chosen,
     file: armLog,
     log: `host-pull-${armLog}`,
   },);
+  if (settled.refusal !== '') {
+    throw new Error(`${settled.refusal}; the arm log ends with:\n${theLogTail({ text: pulled, },)}`,);
+  }
   requireMarkers({
     text: pulled,
     markers: expectedMarkers,
