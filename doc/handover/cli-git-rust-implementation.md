@@ -2940,10 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- `gh issue view <number> --comments`,
-  piped,
-  prints the comments alone and nothing for an issue without any;
-  `doc/agent/issue-tracker.md` now gives the `--json` form.
 - Three more controls that failed only in wide or loaded runs are fixed by what each owns,
   none through a fault of release code:
   issue 6599 (`0a2b5b0176`,
