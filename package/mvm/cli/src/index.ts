@@ -160,6 +160,7 @@ export {
   instanceImageUser,
   instanceLoginUser,
   listMvmInstances,
+  mvmInstances,
   publicIpv4,
   waitForSnapshotReady,
   waitUntilRunning,
@@ -186,6 +187,26 @@ export {
   resolveRegions,
   selectDefaultRegions,
 } from './backend/ovh/regions.ts';
+/**
+ OVHcloud API models, copied from the provider's schema and exposed for
+ built-artifact verification.
+
+ @internal
+ */
+export type {
+  OvhFailureBody,
+  OvhFlavor,
+  OvhImage,
+  OvhInstance,
+  OvhInstanceQuota,
+  OvhIpAddress,
+  OvhInstanceState,
+  OvhQuotas,
+  OvhRegion,
+  OvhRegionStatus,
+  OvhSshKey,
+  OvhSshKeyDetail,
+} from './backend/ovh/types.ts';
 /**
  OVHcloud SSH and scp argument builders, exposed for built-artifact verification.
 

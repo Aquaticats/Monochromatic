@@ -23,6 +23,12 @@ mvm selects a backend per invocation with `--backend <kind>` (or the
   platform;
    provisions real,
    billed servers.
+- **ovh**:
+   OVHcloud Public Cloud instances provisioned over the HTTP API.
+   Runs on any platform;
+   provisions real,
+   billed instances,
+   metered by the second.
 
 There is no record of which backend a VM lives on,
  so pass the same `--backend`
@@ -60,6 +66,24 @@ to follow-up commands (`exec`,
    normally loaded by mise from the monorepo-root SOPS-encrypted `.env.local.json`
 - An OpenSSH client (`ssh`,
    `scp`) version 9.0 or newer on the host running mvm
+- Cross-platform:
+   no local hypervisor required
+
+### ovh backend
+
+- The five names from [Making the keys](#making-the-keys) set
+  (`OVH_ENDPOINT`,
+   `OVH_APPLICATION_KEY`,
+   `OVH_APPLICATION_SECRET`,
+   `OVH_CONSUMER_KEY`,
+   `MVM_OVH_PROJECT_ID`),
+   normally loaded by mise from the monorepo-root SOPS-encrypted `.env.local.json`
+- An OpenSSH client (`ssh`,
+   `scp` and `ssh-keygen`) version 9.0 or newer on the host running mvm,
+   with a data directory its `ssh-keygen` may write to:
+   see [Keypair storage](#keypair-storage)
+- A Public Cloud project used for nothing else,
+   recommended in [The project](#the-project)
 - Cross-platform:
    no local hypervisor required
 
@@ -547,6 +571,217 @@ A live,
 ```sh
 mise run //package/mvm/cli:test:hetzner
 ```
+
+## OVHcloud Public Cloud backend
+
+Select it per command with `--backend ovh` (or `export MVM_BACKEND=ovh`).
+It provisions real,
+ billed OVHcloud Public Cloud instances,
+ so the five names in [Making the keys](#making-the-keys) must be set.
+
+Every instance this backend makes is on the **hourly** price.
+OVHcloud meters that price by the second,
+ so its billing guide says "Every second of use is billed,
+ beyond an initial 1-minute minimum",
+ and the meter starts when the instance reaches the `ACTIVE` status
+ ([Information regarding Public Cloud billing options][billing]).
+The meter stops only when the instance is deleted:
+a machine that is merely stopped or paused still bills,
+and so does a snapshot left behind,
+which is billed per GB per month
+([the same guide][billing]).
+For that reason mvm only ever creates,
+ lists,
+ connects to,
+ and deletes;
+ it never stops,
+ pauses,
+ shelves or resumes an instance,
+ and it never asks for monthly billing,
+ which bills each commenced month even if the instance is deleted first
+([the same guide][billing]).
+The decision behind this backend is
+`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md` in the
+repository root.
+
+### Making the keys
+
+OVHcloud's own client names one page per API host for making keys
+(`README.rst` of [python-ovh][python-ovh],
+ "Create script credentials"):
+
+- Europe: <https://eu.api.ovh.com/createToken/>
+- North America, which this backend uses by default:
+  <https://ca.api.ovh.com/createToken/>
+- United States: <https://api.us.ovhcloud.com/createToken/>
+
+On that page,
+give the script four rights,
+one per HTTP method,
+each on `/cloud/project/<your project ID>/*`:
+
+- `GET`,
+   to list and read instances,
+   flavors,
+   images,
+   regions,
+   quotas and keys
+- `POST`,
+   to create an instance,
+   upload a key and snapshot an instance
+- `PUT`,
+   which none of the calls mvm makes today needs,
+   but which keeps one key usable when one is added,
+   and which OVHcloud's own form offers beside the others
+- `DELETE`,
+   to delete an instance,
+   a snapshot or a key
+
+The page answers with three keys:
+the application key (`AK`),
+the application secret (`AS`) and the consumer key (`CK`).
+
+### Storing the keys
+
+Store the five names with `mise run --raw secrets:edit`:
+
+- `OVH_ENDPOINT`:
+  the API host,
+  either `ovh-ca` (the default when unset),
+  `ovh-eu` or `ovh-us`,
+  or a complete `https://` API root
+- `OVH_APPLICATION_KEY`:
+  the `AK`
+- `OVH_APPLICATION_SECRET`:
+  the `AS`
+- `OVH_CONSUMER_KEY`:
+  the `CK`
+- `MVM_OVH_PROJECT_ID`:
+  the Public Cloud project's identifier,
+  the `serviceName` every API path carries
+
+Commands launched through the repository's mise tasks inherit the decrypted
+values.
+`mvm --backend ovh list` with any of them missing names the first missing one
+and exits non-zero.
+
+### The project
+
+Use a Public Cloud project for nothing else.
+OVHcloud's schema gives an instance no label,
+so the backend recognises its own machines by the `mvm-` name prefix inside the
+one project,
+and `destroy --all` deletes every instance and every snapshot carrying that
+prefix.
+A machine someone else made,
+and happened to name with the same prefix,
+would be swept with them;
+a project used for nothing else is what keeps that from being possible.
+
+The key itself can be limited to that project,
+and the quota of instances,
+cores and memory is per region:
+`mvm --backend ovh update` reports each Canadian region's smallest flavor in
+stock and how much of its instance quota is used.
+
+### Keypair storage
+
+mvm keeps one ed25519 keypair for this backend under
+`~/.local/share/mvm/ovh/`,
+and `MVM_OVH_DATA_DIR` moves it,
+so two OVHcloud accounts never share a private key.
+The keypair is generated with the host's `ssh-keygen`,
+which on a host whose AppArmor profile confines `ssh-keygen` to `~/.ssh`
+cannot write there:
+point `MVM_OVH_DATA_DIR` at a directory that program may write to,
+or widen the profile.
+
+`MVM_OVH_SSH_COMMAND` and `MVM_OVH_SCP_COMMAND` replace the `ssh` and `scp`
+executables with a JSON array naming the program and its leading arguments,
+as `MVM_VIRSH_COMMAND` does for libvirt.
+
+### Usage
+
+```sh
+# Create an instance (defaults: the project's Canadian regions, the smallest
+# flavor in stock there, the newest Ubuntu image)
+mise run //package/mvm/cli:run -- --backend ovh create dev-01
+
+# Pick a flavor and a region series (the first region with stock wins)
+mise run //package/mvm/cli:run -- --backend ovh create big \
+  --server-type b3-16 --location bhs5,gra9
+
+# Run a command (over SSH), copy files (over SCP), open a shell, then destroy
+mise run //package/mvm/cli:run -- --backend ovh exec dev-01 -- uname -a
+mise run //package/mvm/cli:run -- --backend ovh push dev-01 ./setup.sh /tmp/setup.sh
+mise run //package/mvm/cli:run -- --backend ovh shell dev-01
+mise run //package/mvm/cli:run -- --backend ovh destroy dev-01
+
+# List or destroy every mvm-owned instance and snapshot (scoped by the mvm-
+# name prefix inside the project)
+mise run //package/mvm/cli:run -- --backend ovh list
+mise run //package/mvm/cli:run -- --backend ovh destroy --all
+
+# Report each Canadian region's smallest flavor in stock and its instance quota
+mise run //package/mvm/cli:run -- --backend ovh update
+```
+
+### Differences from the Hetzner backend
+
+- **The regions are the project's own**:
+   by default every region whose `countryCode` field is `ca` and whose status
+  is `UP`,
+   in name order,
+   so no region name is baked into mvm.
+   `--location` or `MVM_OVH_REGIONS` replaces that list,
+   with the precedence `--location` and `MVM_HCLOUD_LOCATIONS` have.
+- **Flavors, not server types**:
+   `--server-type` takes an OVHcloud flavor name or identifier and
+  `MVM_OVH_FLAVOR` sets it for a run;
+   without one the smallest flavor in stock in the region is used,
+  by virtual CPUs and then memory.
+- **The login account is the image's own, never `root`**:
+   mvm reads the image's `user` field,
+   so an Ubuntu image logs in as `ubuntu` and a Debian image as `debian`.
+   A pushed path such as `/root/setup.sh` is not writable;
+   push to `/tmp` or to that account's home directory.
+- **`clone` snapshots the running source**,
+   boots a new instance from the snapshot in the source's region,
+  then deletes the snapshot on the way out,
+   including when the clone fails.
+   `destroy --all` sweeps snapshots carrying the prefix as a backstop.
+- **A create that cannot reach its instance deletes it** before reporting the
+  failure,
+   so a failed create leaves nothing billed;
+   when that delete also fails,
+   the error says the instance keeps being billed and prints the one command
+   that removes it,
+   `mvm --backend ovh destroy <name>`.
+- **No label and no backend record**:
+   the schema has no label to scope by and nothing records which backend a VM
+  lives on,
+   so pass the same `--backend ovh` to follow-up commands.
+- **No image cache**:
+   OVHcloud manages images server-side,
+   so `update` reports what the project offers and builds nothing locally.
+
+A live,
+ billed integration test lives at
+`src/backend/ovh/provision.expensive.unit.test.ts`.
+ It is excluded from
+`test:unit` (the `.expensive.` marker) and only runs when all five names are set.
+ It creates one instance in the smallest flavor the region offers,
+ runs one command,
+ pushes and pulls one file,
+ destroys the instance,
+ and fails if any mvm-owned machine is left:
+
+```sh
+mise run //package/mvm/cli:test:ovh
+```
+
+[billing]: https://docs.ovhcloud.com/en/guides/public-cloud/cross-functional/analyze-billing
+[python-ovh]: https://github.com/ovh/python-ovh
 
 ## Custom templates
 
