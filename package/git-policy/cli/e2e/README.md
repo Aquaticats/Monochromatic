@@ -1172,6 +1172,13 @@ so a wrong guest is reported at the host's next look instead of at the end of
 the script's bound;
 that is the shape the step 22 driver sends
 (`bin/mvm-guest-command-line.ts`).
+`removal-lineage-proof-guest.ts`,
+`settling-command-guest.ts` and
+`cancel-and-settle-commands-guest.ts`
+carry no name check in their scripts at all,
+because the host names the guest in `mvm exec`,
+and their launcher's status is read the same way,
+so a guest `mvm` cannot ask is refused for them as well.
 A build that ends nonzero is reported with its own status and the tail of its own
 log.
 In issue 6639's own guest,
