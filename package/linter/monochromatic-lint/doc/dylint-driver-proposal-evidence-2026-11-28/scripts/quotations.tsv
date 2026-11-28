@@ -51,5 +51,42 @@ package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28
 package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/m11-rustup-does-not-install-an-absent-toolchain/run.txt	auto-installation is deprecated for most `rustup` commands
 package/linter/monochromatic-lint-closure/README.md	The exact nightly is whatever `mise.lock` resolves for the `rust` entry
 package/linter/monochromatic-lint-closure/README.md	The library is coupled to one nightly
-doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md	`monochromatic-lint` and its Dylint driver installed the way `repo-tools-setup` installs the other tools
-doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md	the closure check, which need every package's dependencies and a Dylint driver per package
+doc/decision/rust-closure-lint-dylint.md	Changing the component list changes the locked options of the `rust` entry, so refreshing the lock also moved the floating nightly from `nightly-2026-10-17` to `nightly-2026-10-18`.
+doc/decision/rust-closure-lint-dylint.md	Still not approved: any other change to the root toolchain declaration, a pin of the nightly, an edit to the IDE package, a push, or a publish.
+doc/decision/rust-closure-lint-dylint.md	Adopted as defaults without asking, open to veto: the floating nightly stays (no pin)
+doc/decision/rust-closure-lint-dylint.md	Dylint builds the target with the toolchain that built the library.
+doc/planning/toolchain-always-latest.md	Recorded 2026-11-07, verbatim, in the order given
+doc/planning/toolchain-always-latest.md	Rust nightly should always be latest.
+doc/planning/toolchain-always-latest.md	Make the plan file always track latest and set up a systemd cronjob to update EVERYTHING (not just rust) daily.
+doc/planning/toolchain-always-latest.md	Everything also covers the pnpm and cargo dep locks, and the global toolchains too.
+doc/planning/toolchain-always-latest.md	failed then failed is already red and is never reported again
+doc/planning/toolchain-always-latest.md	`lint:clippy`, which compiles the crate and runs Clippy with warnings denied.
+doc/planning/rust-nightly-always-latest.md	the package stays red until then, and it was already red
+doc/planning/rust-nightly-always-latest.md	patch now > wait for Dylint > retire
+doc/planning/rust-nightly-always-latest.md	Wait for a Dylint release that fixes the macro
+doc/planning/monochromatic-lint-skip-warning-and-fence-marker.md	A consequence the owner has not been asked about: `--quiet` and `--silent` now hide a skip with the other warnings, where the message on standard error was kept by `--silent`.
+doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md	The owner authorized the recommended order ("I run sync + warm").
+doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md	A warm registry alone makes the offline run build the driver and pass.
+package/mpm-shadow/cli/src/toolchain/model.rs	A copy of the declaration with `{version}` replaced by `version` in `packageId` and in every `env` value.
+package/mpm-shadow/cli/src/toolchain/model.rs	the declaration's `packageId` when it has one,
+package/mpm-shadow/cli/src/toolchain/install_rust_android.rs	rustup toolchain install --no-self-update <package id, or the locked version>
+package/mpm-shadow/cli/src/toolchain/install_rust_android.rs	`rustup component add <name> --toolchain <version>` for each declared component
+toolchain.plan.jsonc	Floating nightly channel, resolved to the dated toolchain string;
+toolchain.plan.jsonc	rides in the MPM rustup package id because that adapter keeps only the id.
+package/cargo-shadow/cli/src/lean_rustup_toolchains.rs	installs a dated nightly per `toolchain:update` and rustup never removes one
+package/cargo-shadow/cli/src/lean_rustup_toolchains.rs	Stable releases and the channel names are never touched.
+package/linter/monochromatic-lint/src/closure_step_package.rs	the severity is fixed because the configured severity belongs to the closure reports
+package/linter/monochromatic-lint/src/closure_step_package.rs	Nothing in this package was checked by this rule, so a run without findings says nothing about its closures.
+package/linter/monochromatic-lint/src/closure_step_package.rs	{RULE} could not check this package: `cargo dylint` exited with {}. The result is incomplete, so the run cannot be trusted. {detail}
+package/linter/monochromatic-lint/src/run_output.rs	if options.silent || (options.quiet && finding.severity == Severity::Warn)
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/upstream/dylint-v6.4.0-excerpts.txt	If you run Dylint in CI, we recommend caching certain directories to avoid rebuilding libraries, rebuilding drivers, or redownloading toolchains.
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m12/log/a-linter.jsonl	rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m12/log/b-warm.err	error[E0603]: enum `ErrorOutputType` is private
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/b-show.txt	has been auto-installed
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/b-show.txt	auto-installation is deprecated for most `rustup` commands
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/a-linter-debug.err	0 report(s) from the compiler
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m15b/log/a-install.txt	has been installed
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m17/log/c-linter.jsonl	`cargo dylint --version` failed (exit status: 1) without saying that cargo-dylint is missing
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m17/log/c-linter.jsonl	Installed tools that lag toolchain.lock.json cause this; run `mise run toolchain:install` in this checkout.
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/probes/gh-dylint-releases-and-pull-request-2203.txt	keeps the driver and linting utility compatible with nightly toolchains that moved ErrorOutputType out of rustc_session::config
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/probes/todays-nightly-channel-manifest.txt	version = "1.102.0-nightly (c82ce1563 2026-11-27)"

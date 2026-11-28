@@ -1,0 +1,22 @@
+# The probe image for the third round of the Dylint driver proposal, 2026-11-28.
+# It holds today's floating `nightly` channel with the components Answer I installs,
+# the dated toolchain the lock records with the same components (Answer K1's toolchain),
+# one dated toolchain without components (for the rustup arms), and Dylint 6.4.0.
+FROM docker.io/cachyos/cachyos-v4:latest
+RUN pacman -Sy --noconfirm --needed rustup strace jq binutils git gcc pkgconf openssl ca-certificates \
+    && pacman -Scc --noconfirm
+ENV RUSTUP_HOME=/root/.rustup
+ENV CARGO_HOME=/root/.cargo
+# The state Answer I asks for: components on the floating channel.
+RUN rustup toolchain install nightly --profile minimal --no-self-update \
+    && rustup default nightly \
+    && rustup component add rustc-dev llvm-tools-preview rust-src --toolchain nightly
+# Answer K1's toolchain, the one the lock records.
+RUN rustup toolchain install nightly-2026-11-16 --profile minimal \
+    --component rustc-dev --component llvm-tools-preview --component rust-src --no-self-update
+# A dated toolchain that lacks the components, for the rustup arms.
+RUN rustup toolchain install nightly-2026-11-17 --profile minimal --no-self-update
+RUN curl -fsSL https://github.com/trailofbits/dylint/releases/download/v6.4.0/cargo-dylint-x86_64-unknown-linux-gnu-v6.4.0.tar.gz \
+    | tar -xz --strip-components=1 -C /usr/local/bin
+RUN curl -fsSL https://github.com/trailofbits/dylint/releases/download/v6.4.0/dylint-link-x86_64-unknown-linux-gnu-v6.4.0.tar.gz \
+    | tar -xz --strip-components=1 -C /usr/local/bin

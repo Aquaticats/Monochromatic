@@ -1,0 +1,8 @@
+info: syncing channel updates for nightly-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-28 for version 1.102.0-nightly (c82ce1563 2026-11-27)
+info: downloading 3 components
+
+  nightly-x86_64-unknown-linux-gnu installed - rustc 1.102.0-nightly (c82ce1563 2026-11-27)
+
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager

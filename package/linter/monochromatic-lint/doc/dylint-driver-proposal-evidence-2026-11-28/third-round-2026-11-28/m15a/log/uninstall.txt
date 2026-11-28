@@ -1,0 +1,4 @@
+warn: removing the active toolchain; a toolchain override will be required for running Rust tools
+warn: removing the default toolchain; proc-macros and build scripts might no longer build
+info: uninstalling toolchain nightly-x86_64-unknown-linux-gnu
+info: toolchain nightly-x86_64-unknown-linux-gnu uninstalled
