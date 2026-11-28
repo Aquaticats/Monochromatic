@@ -278,6 +278,42 @@ the restore finished in 16 seconds with a peak of 64 MB,
 and the capture loop was then started the same way with `MemoryMax=2G`,
 outside the shared cgroup.
 
+## Seen: swap filled while many rounds compiled one crate, and a marked unit lived
+
+On 2026-11-27 fourteen agent rounds that each compile the Git wrapper's crate,
+started between 21:11 and 21:16 -05:00,
+ran beside seven guests and five other rounds on 66 GB of memory and 66 GB of zram swap.
+Each round's commands were capped at 24 GiB,
+which that many rounds overcommit several times.
+
+Between 22:34:15 and 22:48:09 eleven `run-p*.scope` units ended with the result `oom-kill`.
+Between 22:47:44 and 22:48:10 `systemd-oomd` wrote at least fourteen lines of this shape,
+with memory used at 66,220,068,864 of 66,220,068,864 bytes and swap used up to 65,982,111,744 of 66,219,667,456:
+
+```text
+Marked /user.slice/user-1000.slice/user@1000.service/app.slice/mvm-libvirt-session.service for killing due to memory used (...) / total (...) and swap used (...) / total (...) being more than
+```
+
+That unit held 37.4 G of swap and every guest.
+It stayed active,
+started 20:03:51 with no restart,
+and its seven guests were running at 22:49:20.
+Why a unit `systemd-oomd` marked was still alive is not known:
+the daemon's source was not read,
+and no line saying it had killed the unit was found.
+In the same minutes a compiler inside a container of the wrapper's test gate ended by signal 9,
+41 minutes into the gate.
+At 22:51:42 `MemAvailable` read 0 kB and `SwapFree` 2,267,792 of 64,667,644 kB;
+at 22:57:32 they read 7,961,472 kB and 15,256,480 kB.
+
+Not read:
+the kernel's log,
+which gave the agent's account nothing,
+so whether the kernel's own killer or a unit's memory limit ended each scope is not shown.
+The one-reading-a-minute log of that night is scratch,
+`~/temp/agent/memory-exhausted-on-the-night-of-2026-11-27/keep/readings-once-a-minute.txt`,
+and expires a day after its last change.
+
 ## What does not work
 
 - Detaching a run from the shell with a new session (`setsid`,

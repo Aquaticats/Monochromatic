@@ -115,17 +115,17 @@ and each stays in force until the owner changes it.
   and a step waits only for an input it names or for a failure on record
   ("How work is run side by side").
 
-## The state at 2026-11-27T22:15:09-05:00
+## The state at 2026-11-27T23:01:36-05:00
 
-`main` was `79c2c4abc7`.
+`main` was `c8545f91b8`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 319 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 323 more by this time.
 
 ### Rounds running
 
-At 2026-11-27T22:15:09-05:00 these 21 rounds are live,
+At 2026-11-27T23:01:36-05:00 these 19 rounds are live,
 counted from the process list.
 Each runs on Pi's virtual writer,
 with its brief at `~/temp/agent/pi-runs/<round>-prompt.md`,
@@ -138,10 +138,14 @@ Guest rounds:
 
 - `issue-6615-the-adoption-drivers-holder-scan-arm-runs-twice-in-one-guest-and-its-snapdir-pattern-means-a-dot`,
   2026-11-27T20:00:25-05:00;
-- `issue-6644-the-template-guests-prepare-says-which-module-it-loaded`,
-  2026-11-27T21:38:04-05:00:
-  the one place issue 6638's round left,
-  in guests made from plan step 23's template;
+
+For the wrapper:
+
+- `issue-6642-the-wrappers-doc-comments-lose-the-lone-words-the-old-fix-left`,
+  2026-11-27T22:18:36-05:00:
+  issue 6642's last ask:
+  the lone words the old fix left in the wrapper's doc comments,
+  and one doc fence closed;
 
 For what the read of `cargo-shadow`'s `0.1.5-alpha.17` found
 ("What `cargo-shadow`'s alpha.16 round did,
@@ -155,20 +159,18 @@ issue 6645):
   2026-11-27T21:36:31-05:00:
   the Low points;
 
-For this file's own landed history,
-one round for each sorter's ledger,
-each on a part of its own:
+For the linter's two proposals,
+each revised against its gate review before it is put to the owner
+("What the gate reviews of the linter's two proposals found"):
 
-- `handover-landed-history-part-a-cut-to-open-work-by-its-ledger`,
-  2026-11-27T21:42:29-05:00;
-- `handover-landed-history-part-c-cut-to-open-work-by-its-ledger`,
-  2026-11-27T21:43:27-05:00;
-- `handover-landed-history-part-d-cut-to-open-work-by-its-ledger`,
-  2026-11-27T22:07:22-05:00;
+- `line-break-proposal-revised-against-its-gate-review-with-its-survey-kept`,
+  2026-11-27T23:00:54-05:00:
+  records and a survey that can be run again;
+  no rule and no fix;
 
 For the ZFS route
 ("The ZFS worktree route"),
-the first fourteen from the list `batch-of-2026-11-27-the-fourteen-zfs-route-rounds`,
+from the list `batch-of-2026-11-27-the-fourteen-zfs-route-rounds`,
 briefed from a digest of what is left with every quoted record line checked against its file:
 
 - `zfs-removal-command-path-runs-the-whole-removal-with-force-still-refused`,
@@ -217,18 +219,32 @@ briefed from a digest of what is left with every quoted record line checked agai
 - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`,
   2026-11-27T21:16:02-05:00;
 
-The four rounds on this file's history work from the ledgers four read-only Claude Sonnet sorters wrote
-(same vendor,
-none independent),
-`~/temp/agent/handover-prune-ledgers-2026-11-27/keep/ledger-part-<a|b|c|d>.md`,
+Every round live at 2026-11-27T22:54:05-05:00 got one note in its inbox:
+the machine had run out of memory ("Memory"),
+a build ended by signal 9 or in a scope whose result is `oom-kill` was ended by the machine and is run again,
+and,
+as the coordinating session's suggestion and no rule,
+one reading of `/proc/meminfo` before a build that compiles the wrapper.
+The note is `~/temp/agent/memory-exhausted-on-the-night-of-2026-11-27/keep/note-sent-to-the-live-rounds.md`,
 scratch that expires a day after its last change.
-The coordinator read part A's opening and none of them whole:
-each round opens every home a ledger names before it deletes an entry,
-writes a fact that has no home into a canonical doc first,
-and keeps every open entry and every quotation of the owner.
-Each edits this file on a branch,
-so its report is read against the cut before its branch merges,
-and `main`'s text stands wherever the two differ outside that round's part.
+A report that says a build was killed is read against the host's log for that minute.
+
+Three of the four rounds on this file's history are merged:
+part B alone (`4d2fae7e63`),
+and parts A and C joined in one tree (`c8545f91b8`),
+because both added to the linter's README,
+the wrapper's guide and the merge planning record.
+The file went from 4,465 lines to 2,948.
+Part D's round works from its ledger,
+`~/temp/agent/handover-prune-ledgers-2026-11-27/keep/ledger-part-d.md`,
+scratch that expires a day after its last change;
+the coordinator read no ledger whole.
+Its report is read against the cut before its branch merges,
+and `main`'s text stands wherever the two differ outside its part.
+Left by the merged parts for one read of this file once part D is in:
+the paragraph on issue 6638's round inside "Rounds that ended,
+and what each left" is landed work no ledger named,
+and passages elsewhere still point at that section for events the cuts removed.
 
 A branch that took `main` in before another merge changed its package is checked on the tree that holds both,
 in a detached worktree of the coordinating session's own under `.claude/worktrees/`,
@@ -238,21 +254,21 @@ which a check's own log shows and its summary line may not.
 A round's worktree is gone once its run ends,
 and the local branch it leaves stands at the round's tip,
 so a branch pushed again after such a check is merged from `origin`'s ref.
+Branches of one package that end together are joined in one such worktree and merged as one branch.
 
-Three Claude Sonnet agents of the coordinating session run beside the rounds,
+Two Claude Sonnet agents of the coordinating session run beside the rounds,
 each a same-vendor pass and none independent:
-the second pass of the linter's `0.5.2-alpha.24`,
-and a gate review of each of the linter's two proposals before either is put to the owner.
+the second pass of the linter's `0.5.2-alpha.24`
+and the second pass of `mpm-shadow`'s `0.2.7-alpha.19`.
 
 When a round ends:
 its report is read whole,
 its branch merged as "Next" says,
 its issue closed by hand,
 and what its merge frees is started.
-The wrapper's gate on `main` runs;
-after it come the install proof over alpha.51,
+The wrapper's gate has to run again ("What the wrapper's alpha.51 reads found");
+after a green one come the install proof over alpha.51,
 `0.6.1-alpha.52` and its two second passes.
-`mpm-shadow`'s `0.2.7-alpha.19` is being released.
 After `cargo-shadow`'s two:
 `0.1.5-alpha.18`.
 The ZFS rounds all add lines to `src/native/lib.rs`,
@@ -379,7 +395,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the template's own prepare,
   `prepareFromTemplate`,
   which still loads with `modprobe --quiet zfs 2>/dev/null || true`;
-  that is issue 6644 and has its round ("Rounds running").
+  that was issue 6644.
+  Its round merged as `be2557ad76` and the issue is closed:
+  that prepare now runs a step of its own,
+  which reads what is loaded and what the installed files state before it loads anything,
+  and keeps the words and the status of `modprobe`
+  (`package/zfs/request-to-openzfs-kernel-device/doc/prepare-in-a-prepared-guest-2026-11-27.md`).
   The round of issue 6615 is live ("Rounds running");
 - the linter,
   whose round on what the read of `0.5.2-alpha.22` found,
@@ -1018,9 +1039,31 @@ both older than the merge that brought the two High points.
   and the refusal does not say that files and index come from two places.
   Both wait in `doc/handover/questions-for-the-owner.md`.
 - All five rounds are merged.
-  One whole gate on `main` at `229d5310eb` was started at 2026-11-27T22:06:58-05:00;
-  after it come the install proof over alpha.51,
-  `0.6.1-alpha.52` and its two second passes.
+  The gate on `main` at `229d5310eb`,
+  started at 2026-11-27T22:06:58-05:00,
+  ran no test:
+  in its last step the compiler of the test build was ended by `(signal: 9, SIGKILL: kill)` while the machine was out of memory ("Memory"),
+  and the unit failed at 22:48:48 with no compile error printed.
+  That is a build the machine killed and no verdict on `main`.
+  The gate runs again from a command of the coordinating session that waits until `MemAvailable` plus `SwapFree` reads 40,000,000 kB on three readings a minute apart,
+  for six hours at most;
+  a Claude Code restart stops that command,
+  and the next session starts it again.
+  The measure is the coordinating session's own,
+  for this gate alone,
+  with the owner's veto open (`doc/handover/questions-for-the-owner.md`).
+  Nothing in a release's dispatch reads the container gate:
+  the registry's dispatch gate is the btrfs controls,
+  which an alpha skips.
+  So `0.6.1-alpha.52` is cut from the first green gate whose commit still matches `main` under the package's paths at dispatch,
+  and no merge waits for it.
+  Parts A and C of this file's history changed three files the wrapper's tests read
+  (three lines added to the README,
+  a module doc comment,
+  and the comment header of the list of published names)
+  and no wrapper test ran on them before their merge,
+  because the machine had no memory for the build:
+  the next gate is their first run.
 
 #### What the linter's alpha.23 read found
 
@@ -1134,9 +1177,119 @@ with a comparison first shown able to see a move.
   The install named no unresolved bin and no removed link,
   the exposure folder held 174 names before and after,
   and the session's `git` link was put back at 2026-11-27T22:03:21-05:00.
-  Its second pass runs,
-  and so do gate reviews of the two proposals ("Rounds running").
+  Its second pass runs ("Rounds running").
+  The gate reviews of the two proposals are back ("What the gate reviews of the linter's two proposals found").
   The wrapper's own doc comments are repaired by a round of the wrapper's ("Rounds running").
+
+#### What the gate reviews of the linter's two proposals found
+
+Two Claude Sonnet reads,
+same vendor and not independent,
+each of a proposal on `main` before it is put to the owner.
+Neither proposal is ready:
+each read breaks the ranking its question would carry.
+Each is revised by a round ("Rounds running"),
+read again,
+and only then asked.
+The reads are scratch that expires a day after its last change,
+`~/temp/agent/gate-review-of-the-line-break-proposal-2026-11-27/keep/review.md`
+and `~/temp/agent/gate-review-of-the-dylint-driver-proposal-2026-11-27/keep/review.md`,
+so what they found is written here.
+
+The line-break proposal
+(`doc/planning/monochromatic-lint-a-line-break-at-no-semantic-boundary-is-or-is-not-a-finding.md`,
+issue 6642):
+five High,
+eight Medium,
+three Low.
+
+- Its "no boundary" is a test on six punctuation characters.
+  `AGENTS.md` rule MD1 names no set,
+  rule MD8 permits a hard wrap between inline spans and is never cited,
+  and `AGENTS.md`'s own breaks before `and` and before a parenthesis would be findings.
+- The test does not climb emphasis delimiters,
+  so a sentence that ends inside bold counts as no boundary where the rule itself breaks after it:
+  the first option and the existing rule cannot both be satisfied.
+- The third option's stated gain is false:
+  the join only looks at what a break the same pass inserted cut off,
+  so the issue's own lone `the` stays.
+  The coordinating session saw both on the installed `0.5.2-alpha.24` at 2026-11-27T22:36:55-05:00:
+  a paragraph `Aaa bbb, ccc ddd eee` / `the` / `fff ggg hhh.` keeps its lone word,
+  and `worktree_clone_add_route/mod.rs` on `main` holds one with no finding.
+- "Returns to green" has no baseline:
+  `main` already fails on `rust/max-lines` findings no fix clears,
+  and the wrapper's commit policy runs one Markdown rule.
+  The options leave out a first release at warn severity,
+  a list that only shrinks,
+  and the rule's own history,
+  the owner's "Put the semantic line break findings on hold."
+  among it (`doc/planning/repository-linter-stays-at-zero.md`).
+- Part of the first option's 41,282 unfixable breaks are ones MD1's own limit of 120 forces,
+  and the option that reports a break only when its whole clause fits under 120 is missing.
+- The counts do not add up:
+  221,518 less 9,860 is 211,658,
+  not 199,796.
+  The removal model is not the shipped guards.
+  "One `--fix` pass clears them" is not shown.
+  The class the issue names,
+  a short line that itself ends at no boundary,
+  was never counted.
+  The examples are the first files in path order,
+  four of them cut short.
+  The harness,
+  its output and its file list live only in scratch.
+- Of the ranking's two pairs,
+  the first holds in direction and not in its stated reason,
+  and the second does not hold as written.
+- Three points are about shipped code and wait for the second pass of `0.5.2-alpha.24`,
+  to be routed with it:
+  the join's test has the same blind spot for a fragment that ends inside bold,
+  the README's "The fix never rewrites a line the author wrote."
+  is no longer true of a joined line,
+  and its sentence on "the deepest indent of a rustdoc run" looks reversed against `run_margin`.
+
+The Dylint driver proposal
+(`doc/planning/monochromatic-lint-who-provides-the-dylint-driver-and-what-a-skipped-rule-returns.md`,
+issue 6643):
+four High,
+six Medium,
+six Low.
+What a skipped rule returns holds against the source.
+
+- Three toolchain names are in play on this machine and no option says which directory a provider fills:
+  the floating default has no `rustc-dev` and no `llvm-tools`,
+  the dated one has both,
+  and Dylint drops `RUSTUP_TOOLCHAIN` and files the driver under what `rustup show active-toolchain` says.
+  Whether the nightly is pinned is the owner's question,
+  left open by `doc/decision/rust-closure-lint-dylint.md`.
+- "No rustup-proxy `cargo` on `PATH`" is false,
+  and one option's disqualification rests on it.
+  Read by the coordinating session on 2026-11-27 between 22:38:12 and 22:43:10 -05:00:
+  `type -a cargo` lists the repository's two and then `/usr/bin/cargo`,
+  a link to `/usr/bin/rustup`.
+  `doc/troubleshooting/dylint-driver-build-needs-a-rustup-proxy-cargo.md` said the same in two places and now carries a correction beside each.
+- An exit status for any skip would be red with a perfect driver:
+  of 39 lock directories nine are exempt by name,
+  and six of the thirty left carry prerequisite manifests.
+- CI cannot start the linter at all:
+  the last log of that step that could be fetched,
+  run 41274002049 of 2026-11-01,
+  ends `monochromatic-lint: command not found`,
+  and the workflow on `main` installs `file-enforcer mpm-shadow cargo-shadow` before it runs the lint task.
+  Open issue 6267 already records it,
+  so no issue was filed.
+  Every provider option delivers nothing to a pull request until that is fixed.
+- The clippy clone happens only for a dated toolchain name.
+  The installer's environment file is written per worktree and CI's steps do not read it.
+  A code of its own for a skip conflicts with the amendment of 2026-11-07 as much as an exit status does.
+  A published driver carries an absolute path into its builder's toolchain.
+  The record of 2026-10-30 already ranked an installer-owned warm below the linter-side probe.
+  Six options were not weighed,
+  the baseline among them:
+  the owner warms the driver by hand.
+- Of the ranking's six pairs two do not hold as reasoned,
+  and a disclosure of a skip is a complement to any provider,
+  not an alternative ranked below one.
 
 #### What `mpm-shadow`'s alpha.18 read found
 
@@ -1224,7 +1377,8 @@ directories and hard links.
   The joined tree's package task passed 949 of 949.
   No control drives a postinstall step on a `rustup-toolchain` row,
   so the two call sites the join took over rest on the compiler;
-  that gap is older than both rounds and has no round yet.
+  that gap is older than both rounds,
+  and the second pass of `0.2.7-alpha.19` is asked to drive it.
   Both races of M-1,
   M-2 and the unnamed removal reproduced with the released binary.
   On the branch a temporary link's name carries the install that holds it,
@@ -1239,6 +1393,25 @@ directories and hard links.
   six plants,
   and the package's task 945 of 945 on its own tree.
   Its three questions wait in `doc/handover/questions-for-the-owner.md`.
+
+`0.2.7-alpha.19` holds the three rounds.
+Its release commit is `1cd66ac8df`
+(run 46101889021,
+dispatched at 2026-11-27T22:14:33-05:00),
+made on a `main` that a records commit had moved eighteen seconds before;
+how the run sent its commit on a moved `main` is not yet read from its log.
+The lock is `ba118ea127`,
+merged as `68bac882d7`.
+`mise run toolchain:install` ran twice in the main checkout,
+ending at 22:30:36 and 22:30:41,
+each `0 installed, 67 unchanged, 0 failed` with no unresolved bin and no removed link,
+the exposure folder held 174 names before and after each,
+and the session's `git` link was put back at 22:30:41.
+Its second pass runs ("Rounds running").
+`git worktree remove` of the lock's worktree,
+slow under load,
+removed the worktree and then failed with "is not a working tree" (issue 6648);
+nothing was lost.
 
 #### What `cargo-shadow`'s alpha.16 round did, and its alpha.17
 
@@ -2484,6 +2657,38 @@ its limits are 90% of swap used and a memory stall of 60% for 30 s.
 One start was lost in those minutes:
 the driver's guard that asks which `git` a session would run waited 10 s for the wrapper's `--help` and refused the round,
 which started from a list of its own afterwards (issue 6646).
+
+The machine ran out of memory a second time that night,
+for longer.
+Eleven `run-p*.scope` units of the rounds ended with the result `oom-kill` between 22:34:15 and 22:48:09.
+`systemd-oomd` wrote "Marked ... `mvm-libvirt-session.service` for killing" at least fourteen times between 22:47:44 and 22:48:10,
+with memory used at 66,220,068,864 of 66,220,068,864 bytes and swap used up to 65,982,111,744 of 66,219,667,456;
+the unit stayed active,
+started 20:03:51 with no restart,
+and its seven guests were running at 22:49:20.
+Why a marked unit lived is not known.
+The wrapper gate's compiler was ended by signal 9 in those minutes.
+At 22:51:42 `MemAvailable` read 0 kB and `SwapFree` 2,267,792 of 64,667,644 kB,
+with eleven `rustc` processes and nineteen rounds;
+at 22:57:32 they read 7,961,472 kB and 15,256,480 kB.
+Whether the kernel's own killer or a unit's limit ended each build was not read:
+the kernel's log gave this account nothing.
+Fourteen rounds that each compile the wrapper,
+started within five minutes of each other,
+are the load;
+each round's commands are capped at 24 GiB,
+which fourteen such rounds overcommit several times.
+What the coordinating session did:
+it started nothing that compiles the wrapper,
+wrote the live rounds one note ("Rounds running"),
+put the gate's rerun behind a memory reading ("What the wrapper's alpha.51 reads found"),
+and started a unit that writes one reading a minute for six hours,
+`memory-readings-once-a-minute-on-the-night-of-2026-11-27`,
+to `~/temp/agent/memory-exhausted-on-the-night-of-2026-11-27/keep/readings-once-a-minute.txt`.
+It stopped and froze no round.
+Whether rounds that compile the wrapper get a bound of their own is the owner's question
+(`doc/handover/questions-for-the-owner.md`).
+The record is `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
 
 ## Initiatives
 
