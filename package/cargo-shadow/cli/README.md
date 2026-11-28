@@ -627,6 +627,9 @@ and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-w
 
 The vetting of the chosen program (`vet` in `src/real_binary.rs`) refuses a program that is a shadow while the file is open,
 and the program is started through that open file.
+The start's own check is this crate's and not the other shadow crates' shared refusal:
+it has two outcomes that refusal has no word for,
+so a refused start here keeps its own line.
 The real cargo that the install step starts inside its contained runner (`src/cargo_run.rs`) sets no arrival marker:
 it is chosen by the same lookup that skips shadows by identity,
 and it keeps `vet` and the repeated check before its start.
@@ -1052,6 +1055,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   an unknown slice,
   a kernel before 5.14),
   the run goes on in a process group of its own and prints one line naming the missing capability.
+  A program that outlives its run is killed on the scope path and left alive on that process-group fallback.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new
   transaction refuses such a journal,
