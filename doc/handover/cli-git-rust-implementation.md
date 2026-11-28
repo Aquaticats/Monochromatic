@@ -1607,53 +1607,9 @@ and each of the three edits gets a control shown red by it.
 A state outside the `cargo-shadow` alpha.14 read's merges stays open:
 a scope that does not exist yet may be read as collected and its unit left loaded in silence.
 
-What `mpm-shadow`'s alpha.17 read found
-(`~/temp/agent/mpm-shadow-alpha-17-release-review-2026-11-27/keep/review.md`,
-a same-vendor second pass,
-written 2026-11-27T18:45:20-05:00):
-no High finding,
-one Medium and six Low.
-What it confirmed with the released binaries:
-the real `rustup` arm of issue 6630,
-as the release's passage says;
-that 38 commands on an input with nothing left behind differ in the version string alone;
-that a move of `current` that fails once and a put-back behave in alpha.17 as in alpha.16;
-and that the README's blocks for a kill match what alpha.17 prints.
-Its Medium finding,
-shown with a real `rustup` and two real toolchains:
-the exposure folder links each program of the Rust row from the first toolchain in name order that holds it,
-and never looks at the row's own channel,
-so an older toolchain that sorts before the pin owns the folder's `rustc`,
-`cargo` and `rustfmt` while `list` says `ok`.
-The code is older than alpha.16.
-On this machine,
-measured between 2026-11-27T18:45:20-05:00 and 2026-11-27T18:46:47-05:00
-(the review's own time and the clock of the command after the measurement),
-the toolchains are the pin and an unpinned `nightly`,
-the pin sorts first,
-and every Rust link of the folder points into the pin;
-the fault bites when the pin moves to a later date while the older toolchain stays,
-and the daily update moves the pin.
-It is issue 6634.
-Its Low findings:
-the warning after a publish that failed once says running the command again publishes the copy,
-where the next run removes it,
-and alpha.16 said so rightly;
-a version whose program is cut short under its marker is still called the holder of a second copy,
-by the install and by `prune`;
-the folder keeps a link an earlier row made for a name no row declares;
-two README sentences about `rustup` are not so where rustup's proxies stand in the cargo bin directory;
-`list` says a toolchain is in sync while a declared component is missing;
-and two of the five `prune` lines,
-and the cleanup after a real failed rename,
-are asserted by no test.
-The read broke its brief in one place and said so:
-one driver ran an install that tried to resolve a fixture tool through `api.github.com` from the host,
-from a throwaway home with no credential,
-and nothing was fetched.
 The coordinator's weighing:
 all seven are taken,
-by the two rounds the release's passage names;
+by the two rounds the `mpm-shadow` alpha.17 release's passage names;
 their picks are the coordinator's with the veto open,
 and are written into `doc/handover/questions-for-the-owner.md` when the rounds' reports are read.
 
