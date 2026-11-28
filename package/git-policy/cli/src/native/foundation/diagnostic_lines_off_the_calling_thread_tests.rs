@@ -635,14 +635,17 @@ fn a_line_a_stream_nobody_drains_is_answered_unwritten_and_holds_no_caller() {
 /// Why:
 ///  The notice is the only account a person gets of diagnostics that stopped reaching them,
 ///  so a change that moved where it is said must not move when it is said,
-///  what it says, or whether it is said twice.
+///  what it says,
+///  or whether it is said twice.
 ///  A reader that takes its line at once owes no notice,
 ///  so the first arm is the positive control for the arm that owes one:
-///  without it, a notice said for every line would pass.
+///  without it,
+///  a notice said for every line would pass.
 ///  The notice is read through `take_lines_written`,
 ///  which only the door over the words calls,
 ///  so a notice that reached the queue some other way would leave that list empty.
-///  The bound is the code's own, and a loaded host may wake this control's thread late,
+///  The bound is the code's own,
+///  and a loaded host may wake this control's thread late,
 ///  so the wait is allowed thirty times it (issue 6519).
 ///
 /// In TS you'd write (pseudocode):
@@ -661,10 +664,7 @@ fn the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound() {
     crate::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own(
         module_path!(),
         "the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound",
-        &[(
-            "MONOCHROMATIC_VERBOSE",
-            std::ffi::OsStr::new("true"),
-        )],
+        &[("MONOCHROMATIC_VERBOSE", std::ffi::OsStr::new("true"))],
         &["MONOCHROMATIC_WARN"],
         || {
             // What: every word of the notice after the time it carries, which is the one part of a line this control
@@ -680,9 +680,9 @@ fn the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound() {
             // Why:  the arm below reads a notice, and this one proves the notice is not simply every line's.
             let (mut keeping_up, writer) = std::io::pipe().expect("a pipe");
             give_the_thread(Box::new(writer));
-            let answered: HandedOver = write_bytes(b"[warn] a line a reader takes at once\n");
+            let taken: HandedOver = write_bytes(b"[warn] a line a reader takes at once\n");
             assert_eq!(
-                answered,
+                taken,
                 HandedOver::Written,
                 "a reader that is taking lines takes this one, so nothing is owed the person about it"
             );
@@ -696,11 +696,12 @@ fn the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound() {
             // Why:  the wait gives the reader up at its bound, and the notice is said at that moment.
             let (mut stopped, full) = a_pipe_that_is_full();
             give_the_thread(Box::new(full));
-            let began: Instant = Instant::now();
-            let answered: HandedOver = write_bytes(b"[warn] a line the stopped reader never takes\n");
-            let waited: Duration = began.elapsed();
+            let before_the_bound_passed: Instant = Instant::now();
+            let left_out: HandedOver =
+                write_bytes(b"[warn] a line the stopped reader never takes\n");
+            let waited: Duration = before_the_bound_passed.elapsed();
             assert_eq!(
-                answered,
+                left_out,
                 HandedOver::Unwritten,
                 "a reader that stopped taking lines leaves the line out of the stream"
             );
@@ -725,12 +726,12 @@ fn the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound() {
             );
             // What: a second line for the same stopped reader, which pays no bound and says no second notice.
             // Why:  the notice is owed once, and no later caller waits for a reader the queue already gave up on.
-            let began: Instant = Instant::now();
-            let answered: HandedOver =
+            let handed_again: Instant = Instant::now();
+            let left_out_again: HandedOver =
                 write_bytes(b"[warn] a second line the stopped reader never takes\n");
-            let again: Duration = began.elapsed();
+            let again: Duration = handed_again.elapsed();
             assert_eq!(
-                answered,
+                left_out_again,
                 HandedOver::Unwritten,
                 "a reader that stopped taking lines leaves every later line out of the stream"
             );

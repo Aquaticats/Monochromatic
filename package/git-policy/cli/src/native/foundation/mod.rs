@@ -48,12 +48,6 @@
 //!   claim name and audit line spells bytes with.
 //! - `iso_time.rs`:
 //!   UTC timestamps in the exact form of JavaScript's `toISOString`.
-//! - `diagnostic_log.rs`:
-//!   line-oriented debug and warning diagnostics on standard error.
-//! - `earlier_push_programs_record.rs`:
-//!   the record an unreleased branch wrote of a shell's programs,
-//!   and the staging files of its writes,
-//!   removed by the first command that meets them.
 //! - `json_record.rs`:
 //!   compact JSON records read and written with the incumbent's `JSON` semantics.
 //! - `js_text.rs`:
@@ -65,14 +59,8 @@
 //! - `line_sink.rs`:
 //!   where one line of progress goes,
 //!   as a trait a struct can implement.
-//! - `log_generations_kept_to_a_bound.rs`:
-//!   the numbered generations a log's rotations leave,
-//!   the bound on their bytes and the pass that removes the oldest.
 //! - `name_held_while_one_thread_publishes_it.rs`:
 //!   the in-memory claim on a file name that one thread of this process is publishing by the checked rename.
-//! - `notice_stream_that_does_not_hold_its_writer.rs`:
-//!   a stream of a command's notices written by a thread of its own,
-//!   so a reader that stopped draining never holds the command.
 //! - `parallel_budget.rs`:
 //!   how many workers independent items may use together,
 //!   from the CPUs allowed,
@@ -110,6 +98,12 @@
 //!   the bounded queue,
 //!   its thread,
 //!   and the wait the end of a process makes for them.
+//! - `the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote.rs`:
+//!   the words one diagnostic line is made of:
+//!   the two switches a level answers to,
+//!   the line an incumbent's tagged logger prints,
+//!   the sentence the diagnostics' queue says when its reader stops taking lines,
+//!   and the record of the lines this thread wrote.
 //! - `shared_notice_stream.rs`:
 //!   one stream of a command's notices,
 //!   written whole line by whole line by two threads through one small lock.
@@ -129,7 +123,23 @@
 //! - `diagnostic_lines_off_the_calling_thread.rs`:
 //!   the diagnostic lines themselves,
 //!   written by a thread of their own,
-//!   so a reader that stopped draining never holds the command that said them.
+//!   so a reader that stopped draining never holds the command that said them,
+//!   and the notice this queue says once when its reader stopped taking lines.
+//! - `diagnostic_log.rs`:
+//!   the door over a diagnostic line's words:
+//!   a debug record said only when the verbose switch is on,
+//!   and a warning said unless the warning switch is off,
+//!   each handed to the thread that writes it.
+//! - `earlier_push_programs_record.rs`:
+//!   the record an unreleased branch wrote of a shell's programs,
+//!   and the staging files of its writes,
+//!   removed by the first command that meets them.
+//! - `log_generations_kept_to_a_bound.rs`:
+//!   the numbered generations a log's rotations leave,
+//!   the bound on their bytes and the pass that removes the oldest.
+//! - `notice_stream_that_does_not_hold_its_writer.rs`:
+//!   a stream of a command's notices written by a thread of its own,
+//!   so a reader that stopped draining never holds the command.
 //! - `standard_error_off_the_calling_thread.rs`:
 //!   this process's standard error as a stream whose every whole line is handed to the thread that writes it,
 //!   so the thread that says a line never waits for the reader.
@@ -370,7 +380,8 @@ pub mod hexadecimal_of_bytes;
 /// Text operations with the exact semantics of JavaScript's built-ins.
 pub mod js_text;
 
-/// Line-oriented debug and warning diagnostics on standard error.
+/// Line-oriented debug and warning diagnostics on standard error:
+/// the door that chooses a level and asks for its line to be written.
 pub mod diagnostic_log;
 
 /// Lines a caller hands over and a thread of its own writes:
@@ -378,6 +389,13 @@ pub mod diagnostic_log;
 /// its thread,
 /// and the wait the end of a process makes for them.
 pub mod lines_written_by_a_thread;
+
+/// The words one diagnostic line is made of:
+/// the two switches a level answers to,
+/// the line an incumbent's tagged logger prints,
+/// the sentence the diagnostics' queue says when its reader stops taking lines,
+/// and the record of the lines this thread wrote.
+pub mod the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote;
 
 /// The diagnostic lines themselves,
 /// written by a thread of their own,

@@ -43,14 +43,31 @@
 //!  meet the same refusal from the same limit;
 //!  this file asks for it,
 //!  and names what its lines are for.
+//!  One line of the queue's is said here rather than by its caller:
+//!  when a caller's wait gives the reader up at its bound,
+//!  the queue says once,
+//!  on that caller's thread,
+//!  that the reader of this queue's stream took no line within it.
+//!  The wait is this file's (`wait_until_written` is called from `write_bytes` alone),
+//!  so the notice is said where every diagnostic line is said,
+//!  through this file's own `write`,
+//!  and a caller that hands a line in by any path says it the same way.
+//!  Its words are
+//!  `the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote.rs`,
+//!  which the door over them shares.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! hand(`[warn] ...\n`); // waits for the line to reach the stream, at most WARNING_WRITE_CEILING
 //! ```
 
+/// The current time in `toISOString` form,
+/// which the notice about a stopped reader is stamped with.
+use crate::iso_time::now_iso;
 /// The bounded queue,
-/// its thread and its control hooks,
+/// its thread,
+/// the reader's own state,
+/// and its control hooks,
 /// which this file gives the diagnostics' words and rules.
 use crate::lines_written_by_a_thread::{
     HandedOver,
@@ -58,6 +75,7 @@ use crate::lines_written_by_a_thread::{
     SharedQueue,
     hand,
     start_the_queue,
+    the_reader_stopped as queue_the_reader_stopped,
     wait_until_written,
     write_what_waits as queue_write_what_waits,
 };
@@ -68,10 +86,22 @@ use crate::lines_written_by_a_thread::{
     dropped_so_far as queue_dropped_so_far,
     give_the_thread as queue_give_the_thread,
     queued as queue_queued,
-    the_reader_stopped as queue_the_reader_stopped,
 };
 /// The stream that is this process's standard error without the shared lock.
 use crate::standard_error_descriptor::StandardErrorDescriptor;
+/// The record of the lines this thread wrote,
+/// which every line said here is remembered in.
+#[cfg(test)]
+use crate::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote::remember_the_line;
+/// The words of a diagnostic line,
+/// the switch a debug record answers to,
+/// and the notice the queue says when its reader stopped,
+/// which are written below this file.
+use crate::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote::{
+    diagnostic_line,
+    the_reader_stopped_sentence,
+    verbose_enabled,
+};
 /// The bound of one write,
 /// measured beside that constant.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
@@ -225,6 +255,91 @@ pub fn write(line: &str) {
 }
 
 /// What:
+///  Write one complete rendered line through the one write a diagnostic takes,
+///  ignoring a closed stream,
+///  and never waiting for a reader that has stopped draining,
+///  and remember it for the control of a command's words where this build carries one.
+/// Why:
+///   A diagnostic must never turn into a failure of the command it describes,
+///  and it must never hold what the command holds:
+///  a line is said at whatever moment the code reaches it,
+///  inside a landing that holds the index lock or a push that holds its claim included,
+///  so the wait for the person's reader is the writer thread's and not the caller's
+///  (`lines_written_by_a_thread.rs`).
+///  Both the door over the words and the notice about a stopped reader say their line here,
+///  so the words a person reads and the words a control reads are one path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(line);
+/// ```
+pub(crate) fn write_line(line: &str) {
+    #[cfg(test)]
+    remember_the_line(line);
+    // The line is handed over and the caller goes on: a reader that stopped taking lines must not be able to hold
+    //  whatever this command holds at this moment.
+    write(line);
+}
+
+/// Whether this process has said the notice about a reader that stopped taking lines.
+/// Why:
+///  The queue gives the reader up once,
+///  and the notice is owed once:
+///  two callers can find the same stopped reader at the same moment,
+///  and one of them says it.
+///  It is a flag rather than a `Once` because the notice is itself a line this file writes,
+///  so saying it reaches the write that says a notice,
+///  and a `Once` would wait there for itself.
+static THE_NOTICE_IS_SAID: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// What:
+///  Says,
+///  once for this process,
+///  that this queue's reader took no line within the bound,
+///  as a debug record,
+///  through the same write every diagnostic line takes.
+/// Why:
+///   One reader that was not taking a line by the bound is a reader that is not taking lines,
+///  so the person is told once how long it was given and that nothing waits for it any more.
+///  It is said by the caller whose wait gave the reader up,
+///  and not by the queue's thread,
+///  because a reader that stopped is the one thing that thread cannot reach:
+///  a line said to that stream would wait there for as long as the reader does not read.
+///  The switch is the debug record's own,
+///  so a command that says no debug line says no notice either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// once(() => { if (!DEBUG_ON) return; writeLine(diagnosticLine('debug', nowIso(), 'diagnosticLines', readerStoppedSentence(WARNING_WRITE_CEILING))) })
+/// ```
+fn say_the_reader_stopped() {
+    // What:     `swap(true, ...)` is this call's claim on saying the notice, and every other caller reads a yes.
+    // Why:      The notice is a line this file writes, so saying it comes back through this function; the claim is
+    //           taken before the line is said, so that line finds the notice already said and says nothing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (theNoticeIsSaid.swap(true)) return;
+    // ```
+    if THE_NOTICE_IS_SAID.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    if !verbose_enabled() {
+        return;
+    }
+    // The tag is the queue's own, which is the policy this file gives its lines, as the notice was tagged when the
+    //  queue said it itself.
+    let line: String = diagnostic_line(
+        "debug",
+        now_iso().as_str(),
+        THE_POLICY.tag,
+        the_reader_stopped_sentence(WARNING_WRITE_CEILING).as_str(),
+    );
+    write_line(line.as_str());
+}
+
+/// What:
 ///  Hands one rendered line's bytes to the thread that writes it,
 ///  waits for it to reach the stream only while the reader is still taking lines,
 ///  and answers what the stream holds now.
@@ -263,9 +378,22 @@ pub fn write_bytes(line: &[u8]) -> HandedOver {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
+    // const answered = waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
     // ```
-    return wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
+    let answered: HandedOver = wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
+    // What:     `answered == HandedOver::Unwritten && queue_the_reader_stopped(queue)` is this caller's wait having given
+    //           the reader up, which is the moment the notice is owed.
+    // Why:      The notice is said once per process by `say_the_reader_stopped`, and a caller that found the reader
+    //           already stopped only reads the Once it set; a reader that took the line owes no notice at all.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (answered === 'Unwritten' && theReaderStopped(queue)) sayTheReaderStopped();
+    // ```
+    if answered == HandedOver::Unwritten && queue_the_reader_stopped(queue) {
+        say_the_reader_stopped();
+    }
+    return answered;
 }
 
 /// What:
@@ -326,7 +454,7 @@ pub fn give_the_thread(writer: Box<dyn Write + Send>) {
 }
 
 /// Whether a caller of this process stopped waiting for the reader,
-/// which a control reads and no release path asks for.
+/// which a control reads and which says whether the notice is owed.
 #[cfg(test)]
 pub fn the_reader_stopped() -> bool {
     return queue_the_reader_stopped(queue());

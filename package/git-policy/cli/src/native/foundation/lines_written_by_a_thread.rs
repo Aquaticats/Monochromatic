@@ -1052,11 +1052,18 @@ pub(crate) fn wait_until_written(
         // const left = deadline - now(); if (left <= 0) { readerStopped = true; log(...); return 'Unwritten'; }
         // ```
         let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
-            // Said once per process, to the log this command keeps rather than to the stream it cannot reach.
+            // What:     `held.reader_stopped = true` is this process remembering that a reader is not taking lines,
+            //           so no later caller waits for one.
+            // Why:      The wait is paid once per process and never again, which is what keeps a command that says twenty
+            //           lines under a held lock to one bound rather than twenty. The line the person is owed about it is
+            //           said by the caller that reads this state after the wait, through the one write a diagnostic line
+            //           takes (`diagnostic_lines_off_the_calling_thread.rs`).
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const left = deadline - now(); if (left <= 0) { readerStopped = true; return 'Unwritten'; }
+            // ```
             held.reader_stopped = true;
-            let tag: &'static str = held.policy.tag;
-            drop(held);
-            crate::diagnostic_log::debug(tag, format!("the reader of this queue's stream took no line within {within:?}, so the command stops waiting for it").as_str());
             return HandedOver::Unwritten;
         };
         held = match ready.wait_timeout(held, left) {
@@ -1204,9 +1211,14 @@ pub(crate) fn give_the_thread(
     held.reader_stopped = false;
 }
 
-/// Whether a caller of this process stopped waiting for the reader,
-/// which a control reads and no release path asks for.
-#[cfg(test)]
+/// Whether a caller of this process stopped waiting for the reader:
+/// whether a wait gave the reader up,
+/// and so whether no later caller waits either.
+/// Why:
+///  A caller that must know when that happened reads it after its own wait
+///  (`diagnostic_lines_off_the_calling_thread.rs`,
+///  which says the notice the state is owed),
+///  and a control reads it to show a stopped reader is remembered.
 pub(crate) fn the_reader_stopped(queue: SharedQueue) -> bool {
     let (held_queue, _ready) = queue;
     return held_queue
