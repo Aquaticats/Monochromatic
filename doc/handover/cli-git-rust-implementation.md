@@ -2829,11 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-- The new message for a start refused as busy says an upgrade or an install is the usual cause,
-  which the release's own record contradicts;
-  it says "the program's file" when the held file can be a script's interpreter;
-  and it promises the same command works afterwards,
-  which is false after a writer that died half way.
 - "Every writer this tool starts publishes by rename" is false for `go install` across file systems
   (the pass traced it writing the published path in place for about 4 ms),
   though neither the shadow nor the launcher starts that path;
