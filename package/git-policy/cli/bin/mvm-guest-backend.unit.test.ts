@@ -10,7 +10,6 @@ import {
   GUEST_BACKEND_ENV_VAR,
   guestBackend,
   isGuestBackendKind,
-  refuseAStepWhoseArmsCannotRun,
   resolveGuestBackend,
 } from './mvm-guest-backend.ts';
 
@@ -22,7 +21,7 @@ type ExpectedFacts = {
   readonly rootWords: readonly string[];
   readonly sharedFolder: string;
   readonly pushDestination: string;
-  readonly runsTheArms: boolean;
+  readonly makesTheFolder: boolean;
 };
 
 /**
@@ -35,7 +34,7 @@ const EXPECTED_FACTS: Readonly<Record<string, ExpectedFacts>> = {
     rootWords: [],
     sharedFolder: '/mnt/shared',
     pushDestination: '/shared/a.tar.gz',
-    runsTheArms: true,
+    makesTheFolder: false,
   },
   ovh: {
     hostname: 'mvm-guest-a',
@@ -44,9 +43,9 @@ const EXPECTED_FACTS: Readonly<Record<string, ExpectedFacts>> = {
       '--non-interactive',
       '--',
     ],
-    sharedFolder: '/home/ubuntu',
-    pushDestination: '/home/ubuntu/a.tar.gz',
-    runsTheArms: false,
+    sharedFolder: '/mnt/shared',
+    pushDestination: '/mnt/shared/a.tar.gz',
+    makesTheFolder: true,
   },
 };
 
@@ -178,7 +177,7 @@ function aBackendCase(
     readonly rootWords: readonly string[];
     readonly sharedFolder: string;
     readonly pushDestination: string;
-    readonly runsTheArms: boolean;
+    readonly makesTheFolder: boolean;
   },
 ) {
   return it({
@@ -190,7 +189,7 @@ function aBackendCase(
       expect(backend.rootWords,).toEqual(expected.rootWords,);
       expect(backend.guestSharedFolder,).toBe(expected.sharedFolder,);
       expect(backend.pushDestinationOf('a.tar.gz',),).toBe(expected.pushDestination,);
-      expect(backend.runsTheArms,).toBe(expected.runsTheArms,);
+      expect(backend.makesTheSharedFolder !== undefined,).toBe(expected.makesTheFolder,);
     },
   },);
 }
@@ -201,55 +200,4 @@ await describe({
     .map(function aKind(entry: readonly [string, (typeof EXPECTED_FACTS)[string]],) {
       return aBackendCase(entry[0], entry[1],);
     }),
-},);
-
-await describe({
-  name: refuseAStepWhoseArmsCannotRun.name,
-  children: [
-    it({
-      name: 'lets libvirt run every step',
-      fn: async () => {
-        for (const step of ['create', 'prepare', 'run', 'destroy', 'all',]) {
-          refuseAStepWhoseArmsCannotRun({
-            backend: GUEST_BACKENDS.libvirt,
-            step,
-            stepsThatRunNoArm: ['create', 'prepare', 'destroy',],
-          },);
-        }
-      },
-    },),
-    it({
-      name: 'lets ovh make, prepare and destroy a guest',
-      fn: async () => {
-        for (const step of ['create', 'prepare', 'destroy',]) {
-          refuseAStepWhoseArmsCannotRun({
-            backend: GUEST_BACKENDS.ovh,
-            step,
-            stepsThatRunNoArm: ['create', 'prepare', 'destroy',],
-          },);
-        }
-      },
-    },),
-    it({
-      name: 'refuses on ovh a step that runs an arm, naming the step and the backend',
-      fn: async () => {
-        for (const step of ['run', 'arm', 'all',]) {
-          let said = '';
-          try {
-            refuseAStepWhoseArmsCannotRun({
-              backend: GUEST_BACKENDS.ovh,
-              step,
-              stepsThatRunNoArm: ['create', 'prepare', 'destroy',],
-            },);
-          }
-          catch (caught) {
-            said = String(caught,);
-          }
-          expect(said,).toContain(`step '${step}'`,);
-          expect(said,).toContain(`'ovh'`,);
-          expect(said,).toContain('/mnt/shared',);
-        }
-      },
-    },),
-  ],
 },);

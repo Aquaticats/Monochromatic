@@ -14,10 +14,10 @@
  own, never `root`"), `mvm push` writes the absolute path it is given over `scp`, its hostname is the instance's name with
  `mvm`'s prefix (`package/mvm/cli/src/backend/ovh/config.ts`, `validateOvhName`), and it has no share at all.
 
- The arms are the one thing this module still refuses on a second backend: every arm script this package runs is a shell
- script that reads and writes `/mnt/shared` itself, which is the libvirt share, so an arm step says which backend it
- cannot run on and refuses before it creates a guest ({@link refuseAStepWhoseArmsCannotRun}). A driver's `create`,
- `prepare` and `destroy` steps name no such path, and run on either backend.
+ The folder is the same `/mnt/shared` on both backends: libvirt mounts its share there, and a backend without a share
+ has the folder made once, owned by the account its pushes and pulls run as ({@link GuestBackend.makesTheSharedFolder}).
+ So the arm scripts, which name `/mnt/shared` themselves, run on either backend without a change of their own, and the
+ one mechanism that moves their files in and out is the one every driver already used.
  */
 
 //region Kinds and the record
@@ -49,7 +49,7 @@ export type GuestBackend = {
    */
   readonly rootWords: readonly string[];
   /**
-   The folder inside the guest a pushed file, and a log copied out of it, are readable at.
+   The folder inside the guest every pushed file lands in and every pulled log is read from.
    */
   readonly guestSharedFolder: string;
   /**
@@ -57,9 +57,11 @@ export type GuestBackend = {
    */
   readonly pushDestinationOf: (file: string) => string;
   /**
-   Whether this package's arm scripts run on this backend.
+   The command a guest runs to make that folder, or nothing when the backend already mounts it there.
+   A libvirt guest's folder is the virtiofs share `mvm create` mounts; a guest reached over `ssh` has no share, so the
+   folder is made once, owned by the account every push and pull runs as.
    */
-  readonly runsTheArms: boolean;
+  readonly makesTheSharedFolder: readonly string[] | undefined;
 };
 
 /**
@@ -77,7 +79,12 @@ export const DEFAULT_GUEST_BACKEND_KIND = 'libvirt';
  The home of the account an OVHcloud Ubuntu image logs in as.
  `/root` is not writable by that account, so a pushed file and a copied-out log live here.
  */
-const OVH_ACCOUNT_HOME = '/home/ubuntu';
+const OVH_ACCOUNT = 'ubuntu';
+
+/**
+ The folder inside the guest every pushed file lands in, and the one a libvirt guest mounts its virtue share at.
+ */
+const SHARED_FOLDER = '/mnt/shared';
 
 /**
  Every backend a guest driver can drive, keyed by kind.
@@ -95,12 +102,13 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
     },
     // The guest agent runs as root, so a step that must be root asks for nothing.
     rootWords: [],
+    // The folder `mvm create` mounts the virtiofs share at, so nothing has to make it.
     guestSharedFolder: '/mnt/shared',
     // The share keeps only the file name, so the word names one file and no directory.
     pushDestinationOf(file: string,): string {
       return `/shared/${file}`;
     },
-    runsTheArms: true,
+    makesTheSharedFolder: undefined,
   },
   ovh: {
     kind: 'ovh',
@@ -118,11 +126,26 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
       '--non-interactive',
       '--',
     ],
-    guestSharedFolder: OVH_ACCOUNT_HOME,
+    // The same folder the share is mounted at on libvirt, made once by `makesTheSharedFolder`, so a guest script that
+    // names `/mnt/shared` runs on either backend.
+    guestSharedFolder: SHARED_FOLDER,
+    // A push writes the absolute path it is given over `scp`, so the word is the file's whole path in that folder.
     pushDestinationOf(file: string,): string {
-      return `${OVH_ACCOUNT_HOME}/${file}`;
+      return `${SHARED_FOLDER}/${file}`;
     },
-    runsTheArms: false,
+    // Owned by the account every `scp` and `ssh` of this backend runs as, so a push can write into it and a pull can
+    // read what a root command copied there.
+    makesTheSharedFolder: [
+      'install',
+      '--directory',
+      '--owner',
+      OVH_ACCOUNT,
+      '--group',
+      OVH_ACCOUNT,
+      '--mode',
+      '0755',
+      SHARED_FOLDER,
+    ],
   },
 };
 
@@ -216,57 +239,3 @@ export function guestBackend(): GuestBackend {
 }
 
 //endregion Resolution
-
-//region Steps whose arms cannot run
-
-/**
- The steps a guest driver runs without an arm in the guest: the recipe's own create, prepare and destroy.
-
- Every other step of every driver runs an arm, so a driver hands this list to
- {@link refuseAStepWhoseArmsCannotRun} rather than naming its own, and a step a driver adds later is refused on a backend
- without the arms until it is written to run there.
- */
-export const STEPS_THAT_RUN_NO_ARM: readonly string[] = [
-  'create',
-  'prepare',
-  'destroy',
-];
-
-/**
- Refuse a step whose arms run in a backend this package's arm scripts cannot reach.
-
- The arms are shell scripts that read and write the guest's `/mnt/shared` folder, which is the libvirt share, so a
- backend without that share can make and prepare a guest but not run an arm in it. Said before the step runs anything,
- so a step that cannot finish never leaves a machine behind.
-
- @param backend - the backend this run resolved
-
- @param step - the step the run named
-
- @param stepsThatRunNoArm - the steps of this driver that run no arm in the guest
-
- @throws Error naming the step, the backend and the path the arms need
-
- @example
- ```ts
- refuseAStepWhoseArmsCannotRun({ backend, step: 'run', stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM });
- ```
- */
-export function refuseAStepWhoseArmsCannotRun({
-  backend,
-  step,
-  stepsThatRunNoArm,
-}: {
-  readonly backend: GuestBackend;
-  readonly step: string;
-  readonly stepsThatRunNoArm: readonly string[];
-},): void {
-  if (backend.runsTheArms || stepsThatRunNoArm.includes(step,)) {
-    return;
-  }
-  throw new Error(
-    `step '${step}' runs an arm in the guest, and this package's arm scripts read and write the guest's /mnt/shared folder, which a '${backend.kind}' guest does not have: create, prepare and destroy run on '${backend.kind}', and an arm needs a libvirt guest`,
-  );
-}
-
-//endregion Steps whose arms cannot run

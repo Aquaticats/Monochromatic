@@ -94,7 +94,7 @@ function bootEnvironment({
     `export CLI_GIT_ZFS_STEP19_SBIN=${openZfsSbin}`,
     `export CLI_GIT_ZFS_STEP19_CHECKOUT_DATASET=${checkoutDataset}`,
     `export CLI_GIT_ZFS_STEP19_CONTAINER=${containerDataset}`,
-    `export CLI_GIT_ZFS_STEP19_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_STEP19_GUEST=${backend.hostnameOf(chosen.name)}`,
   ];
 }
 

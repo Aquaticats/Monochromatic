@@ -70,12 +70,9 @@ The run's own log names are `step7-pool.log`,
 `step7-versions.log`.
 
 - `create` makes the guest with `mvm`,
-  whose default `libvirt` backend runs it on
-  this machine,
-  and refuses a name `mvm --backend libvirt list` already reports,
+  on the backend this run names (see "The backend the guest is made on"),
+  and refuses a name `mvm list` already reports,
   so a run never takes over a guest another run holds.
-  The `hetzner` backend is never used:
-  it rents an outside server.
 - `prepare` checks the guest runs the plan's kernel release,
   stops and masks the image's unattended-upgrade services and timers,
   waits for the `dpkg` lock they may still hold,
@@ -138,6 +135,64 @@ test:
 the fixture variables are set only inside the guest,
 and each live test also
 refuses to run unless the machine's hostname is the guest's.
+
+## The backend the guest is made on
+
+The recipe takes its backend from one place,
+`e2e/guest-backend.ts`,
+which reads what `mvm` itself reads:
+`--backend`,
+then the `MVM_BACKEND` environment variable,
+then `libvirt`.
+A run that names nothing makes the local guest it always made,
+and the module holds what each backend answers for the facts a guest step meets:
+
+- the guest's hostname,
+  which is the name the run gave on `libvirt`
+  and `mvm-<name>` on `ovh`
+  (`OVHcloud turns an instance name into its hostname`);
+- what runs a command as root,
+  which is nothing on `libvirt`,
+  whose guest agent is root,
+  and `sudo --non-interactive --` on `ovh`,
+  whose commands run over SSH as the image's account;
+- where `mvm push` puts a file and where the guest reads it,
+  which is the guest's `/mnt/shared` share on `libvirt`
+  and the account's `/home/ubuntu` on `ovh`;
+- whether a step may reboot the guest or cut its power,
+  which `ovh` cannot do at all:
+  `mvm` never stops, pauses, shelves or resumes an instance on it.
+
+`--guest-image <name>` names an image in a cloud backend's own catalogue,
+which `prepare` still installs and builds against;
+`--image <template>` is the libvirt custom template, which `prepare` only asserts.
+`--kernel-release <release>` names the kernel the prepared guest must boot,
+and defaults to the release `libvirt`'s baked image carries,
+or to the release a cloud guest answers with,
+printed before anything is built against it.
+
+The steps whose subject is a reboot or a power cut refuse on a backend without that,
+by name, before the run creates anything:
+`zfs-add`, `zfs-add-boot-*` and `zfs-add-power-*`.
+
+A run on `ovh` costs money by the second until the machine is deleted,
+so the round that makes one lists the project before the create,
+makes one machine at a time,
+destroys it by its name (never `--all`, which deletes other rounds' machines),
+and ends with a listing that shows none of its own.
+The recipe's `destroy` step does the first half of that;
+the listing is the round's.
+
+The first run of this kind,
+2026-11-28,
+made `b3-16` (4 vCPUs, 16 GiB) in `BHS5` from the image `Ubuntu 24.04`,
+prepared it (kernel `6.8.0-136-generic`, OpenZFS 2.4.4 built in the guest),
+ran the step 4 attach arm (6 passed, teardown clean)
+and destroyed it.
+Its timings and what it refused first are in
+`package/git-policy/cli/e2e/README.md`,
+"The recipe's first OVHcloud run".
+The run is unapproved and non-final.
 
 ## `prepare` in a guest that is already prepared
 
