@@ -104,3 +104,10 @@ pub fn list_checkouts(start: &Path) -> Vec<PathBuf> {
 pub fn main_checkout(start: &Path) -> Option<PathBuf> {
     return common_git_directory(start)?.parent().map(Path::to_path_buf);
 }
+
+/// The tests of the checkout listing.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_checkouts_tests.rs"]
+mod lean_checkouts_tests;

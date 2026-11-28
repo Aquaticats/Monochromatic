@@ -78,14 +78,17 @@ pub mod install_bin;
 pub mod install_cargo;
 
 /// What an `install` argument names:
-/// an id the plan holds, or a request to add to the plan,
+/// an id the plan holds,
+/// or a request to add to the plan,
 /// with its route and its binaries.
 pub mod install_argument;
 
-/// Appending entries to the plan's text with its comments, trailing commas and order kept.
+/// Appending entries to the plan's text with its comments,
+/// trailing commas and order kept.
 pub mod plan_insert;
 
-/// Where in a plan's text the new entry goes, read from the parser's positions.
+/// Where in a plan's text the new entry goes,
+/// read from the parser's positions.
 mod plan_insert_place;
 
 /// Reading the parser's positions of a plan's values and keys in the order it reported them.
@@ -354,6 +357,18 @@ mod plan_insert_tests;
 #[cfg(test)]
 mod exposure_tests;
 
+/// The controls of this repository's own `rust` row:
+/// an install of it names no unresolved bin,
+/// and a bin no route provides is still named.
+#[cfg(test)]
+mod the_repository_rust_row_names_no_unresolved_bin_tests;
+
+/// The controls of the same row against a machine holding exactly what it declares:
+/// the programs its own components install,
+/// and what an install asks the manager for.
+#[cfg(test)]
+mod the_rust_rows_own_toolchain_holds_every_bin_it_declares_tests;
+
 /// The unit tests of the `github:` resolver's `tagPrefix` option.
 #[cfg(test)]
 mod update_github_prefix_tests;
@@ -413,6 +428,12 @@ mod install_cargo_tests;
 #[cfg(test)]
 mod published_archive_tests;
 
+/// The unit tests of the order a recovery's newest-only rule keeps:
+/// the link is moved before the older version is removed,
+/// and what the report says about the version that went.
+#[cfg(all(test, unix))]
+mod a_recovery_moves_current_before_it_removes_an_older_version_tests;
+
 /// The unit tests of the launcher's decision.
 #[cfg(test)]
 mod launcher_tests;
@@ -457,6 +478,14 @@ mod archive_install_tests;
 /// and what a kill at each of those steps leaves behind.
 #[cfg(test)]
 mod archive_staging_tests;
+
+/// The unit tests of what an install says about the copies a killed install left:
+/// the publish it finished,
+/// the copy it leaves beside a hidden name whose installer may still run,
+/// the hidden directory it removed,
+/// and the copy a failed download leaves on disk.
+#[cfg(test)]
+mod the_sentences_about_a_killed_install_tests;
 
 /// The unit tests of the tool environment fragment.
 #[cfg(test)]

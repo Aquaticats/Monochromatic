@@ -12,6 +12,7 @@ use super::{
     GuardedForwarded,
     decide_guarded_forwarded,
 };
+use crate::forwarded_command::MAX_ALIAS_EXPANSIONS;
 use crate::rule_linked_worktree::{
     GuardedCommand,
     LinkedWorktreeDecision,
@@ -265,6 +266,90 @@ fn a_shell_alias_is_decided_on_the_git_command_it_names() {
             "{value}: Git receives the alias word"
         );
     }
+}
+
+/// What:
+///  Every spelling made only of forms the shell passes through is decided on the
+///  command Git runs,
+///  and a chain the reading cannot follow is left to Git.
+/// Why:
+///  alpha.49's finding M3:
+///  a `!` alias whose value names another `!` alias,
+///  a value written `! git`,
+///  a TAB after `!git`,
+///  a bare `!git` whose caller's own words begin with a global option,
+///  and a chain past the reading's count were all left unread although each is
+///  made only of forms the records call readable,
+///  so `git -c 'alias.fixup=! git' fixup --no-pager reset --hard` reset the
+///  worktree with no guard notice.
+///  A command the reading cannot follow still passes,
+///  which is what Git does with an alias the wrapper does not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['fixup', '!git']], words: ['fixup', '--no-pager', 'reset', '--hard'] })
+/// //   => decision 'needs-effective-target: reset-hard'
+/// ```
+#[test]
+fn a_shell_alias_is_decided_in_every_form_the_shell_passes_through() {
+    for (pairs, words, command) in [
+        (
+            vec![("fixup", "!git reset")],
+            vec!["fixup", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            vec![("fixup", "! git reset")],
+            vec!["fixup", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            vec![("fixup", "!git\treset")],
+            vec!["fixup", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            vec![("fixup", "!git")],
+            vec!["fixup", "--no-pager", "reset", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        // The shell alias that names another shell alias: the command Git finally runs is the inner one.
+        (
+            vec![("outer", "!git inner"), ("inner", "!git reset")],
+            vec!["outer", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+    ] {
+        let walked: GuardedForwarded = decided(pairs.as_slice(), words.as_slice());
+        assert_eq!(
+            walked.decision,
+            LinkedWorktreeDecision::NeedsEffectiveTarget(command),
+            "{pairs:?} {words:?}"
+        );
+        assert_eq!(walked.arguments, args(words.as_slice()), "{pairs:?}");
+    }
+    // A chain longer than the reading follows names no command, so the guard leaves it to Git.
+    let links: usize = MAX_ALIAS_EXPANSIONS + 1;
+    let mut names: Vec<String> = Vec::new();
+    for index in 0..links {
+        names.push(format!("fixturechain{index}"));
+    }
+    let mut owned: Vec<(String, String)> = Vec::new();
+    for index in 0..links {
+        let target: String = if index + 1 < links {
+            names[index + 1].clone()
+        } else {
+            String::from("reset --hard")
+        };
+        owned.push((names[index].clone(), target));
+    }
+    let mut pairs: Vec<(&str, &str)> = Vec::new();
+    for (name, target) in &owned {
+        pairs.push((name.as_str(), target.as_str()));
+    }
+    let walked: GuardedForwarded = decided(pairs.as_slice(), &["fixturechain0"]);
+    assert_eq!(walked.decision, LinkedWorktreeDecision::Pass);
+    assert_eq!(walked.arguments, args(&["fixturechain0"]));
 }
 
 /// What:

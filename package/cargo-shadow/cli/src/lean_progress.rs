@@ -470,3 +470,10 @@ impl Progress {
         ));
     }
 }
+
+/// The tests of the record of where a pass stopped.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_progress_tests.rs"]
+mod lean_progress_tests;

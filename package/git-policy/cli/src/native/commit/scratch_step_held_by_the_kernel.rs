@@ -38,6 +38,13 @@ use crate::scratch_step_stall_decided_once::{
     HeldProgram,
     WhyTheStepWasWaitedFor,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the backticks that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 /// Time spans,
 /// for the figures each line names.
 use std::time::Duration;
@@ -109,9 +116,10 @@ pub fn held_by_the_kernel_line(held: HeldByTheKernel) -> String {
     } = the_held;
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository (process {step}) was sent `SIGKILL` when its ceiling came \
-         after {seconds} seconds, and the kernel has not released it: the program it started, `{name}` (process {number}), is in uninterruptible sleep (state `D`), \
+         after {seconds} seconds, and the kernel has not released it: the program it started, `{}` (process {number}), is in uninterruptible sleep (state `D`), \
          so the commit ends when the call that program is inside returns. Nothing was committed, and nothing of yours is at risk: your index and files are as they were. \
-         The terminal stays here until the kernel lets go.\n"
+         The terminal stays here until the kernel lets go.\n",
+        shown_so_it_cannot_rewrite_the_line(name.as_str(), TheWrappingAroundTheName::Backticks)
     );
 }
 
@@ -140,7 +148,8 @@ pub struct AStall {
     /// Why the ceiling stood aside:
     /// the process the kernel is holding,
     /// which is the step itself or a program it started,
-    /// or nothing, when nothing could be learned about the step.
+    /// or nothing,
+    /// when nothing could be learned about the step.
     pub why: WhyTheStepWasWaitedFor,
 }
 
@@ -182,7 +191,11 @@ pub fn a_stall_is_waited_for(stall: AStall) -> String {
         }
         WhyTheStepWasWaitedFor::TheKernelHeldIt(the_held) => format!(
             "the program it started, `{}` (process {}), is in uninterruptible sleep (state `D`), which a signal cannot end, so the step is waiting for the disk rather than stuck in its own work",
-            the_held.name, the_held.number
+            shown_so_it_cannot_rewrite_the_line(
+                the_held.name.as_str(),
+                TheWrappingAroundTheName::Backticks
+            ),
+            the_held.number
         ),
         WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead => String::from(
             "its state could not be read (a look at `/proc` failed), so this commit cannot tell whether the disk is holding it",

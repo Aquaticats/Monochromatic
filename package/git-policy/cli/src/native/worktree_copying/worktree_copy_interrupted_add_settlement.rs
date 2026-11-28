@@ -265,8 +265,10 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 /// so once the worktree's `index` stands no rung of ours is between the two names,
 /// and a name another program left there is the only thing this could touch,
 /// which is the same price the recovery already pays for the record itself.
-/// The ZFS clone route's fill calls it too, before it writes its own waiting
-/// index again, because `write_index_under_a_name` refuses a name that stands
+/// The ZFS clone route's fill calls it too,
+/// before it writes its own waiting
+/// index again,
+/// because `write_index_under_a_name` refuses a name that stands
 /// (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 /// F42 and T6b).
 ///

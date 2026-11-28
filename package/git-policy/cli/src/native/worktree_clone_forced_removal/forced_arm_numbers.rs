@@ -6,7 +6,8 @@
 //!  and the wait for a locked unit's stop.
 //! Why:
 //!  The owner's answer fixes the order and leaves the length to a decision or a
-//!  measurement, and the design repeats it:
+//!  measurement,
+//! and the design repeats it:
 //!  "the wait's length is a constant with no value;
 //!  step 17's build sets it only after the owner decides one or M12 sizes it,
 //!  and the forced arm does not ship before then"
@@ -16,12 +17,14 @@
 //!  L9 and L21;
 //!  `doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
 //!  "The signal").
-//!  A number here would be a number no measurement supports, so this build
+//!  A number here would be a number no measurement supports,
+//! so this build
 //!  writes the constants as [Option]s that answer nothing,
 //!  and the one function that would arm a clock refuses while any of them is
 //!  unset.
 //!  The probe rounds ran their stand-in with provisional values of the harness's
-//!  own (10 s, 1 s and 4 s) and those are not these:
+//!  own (10 s,
+//! 1 s and 4 s) and those are not these:
 //!  a harness value that a test reads is never a shipped one.
 //!
 //! In TS you'd write (pseudocode):
@@ -34,11 +37,15 @@ use std::time::Duration;
 
 /// How long a blocker has to leave after `SIGTERM` before it is sent `SIGKILL`.
 /// Why:
-///  The owner chose "ask, wait, then kill" and left the wait unvalued
+///  The owner chose "ask,
+/// wait,
+/// then kill" and left the wait unvalued
 ///  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
 ///  "The signal").
-///  Step 22's measurement sizes it; until then a forced removal that would need
-///  it does not run, which is what makes the arm unshippable rather than
+///  Step 22's measurement sizes it;
+/// until then a forced removal that would need
+///  it does not run,
+/// which is what makes the arm unshippable rather than
 ///  untested.
 pub const TERMINATION_WAIT: Option<Duration> = None;
 
@@ -52,10 +59,13 @@ pub const HEARTBEAT_PERIOD: Option<Duration> = None;
 /// How many whole heartbeat periods the wrapper waits before it reads the
 /// handler as gone.
 /// Why:
-///  The design fixes the multiple and not the period: "a stated multiple of
-///  `T_h` (four in this design, since a whole number of periods is what a reader
+///  The design fixes the multiple and not the period:
+/// "a stated multiple of
+///  `T_h` (four in this design,
+/// since a whole number of periods is what a reader
 ///  can compare)" (L21).
-///  A multiple is a relation rather than a measured duration, so it is written
+///  A multiple is a relation rather than a measured duration,
+/// so it is written
 ///  while the period itself is not.
 pub const GIVE_UP_HEARTBEATS: u32 = 4;
 
@@ -63,8 +73,10 @@ pub const GIVE_UP_HEARTBEATS: u32 = 4;
 /// to stop it.
 /// Why:
 ///  The design gives this wait no provisional value at all ("`T_stop` has no
-///  provisional value, because a manager's stop is not the act's own wait and
-///  nothing has timed one", "The constants").
+///  provisional value,
+/// because a manager's stop is not the act's own wait and
+///  nothing has timed one",
+/// "The constants").
 pub const STOP_WAIT: Option<Duration> = None;
 
 /// What:

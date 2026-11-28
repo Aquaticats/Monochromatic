@@ -24,10 +24,13 @@ use super::super::across_roots::{
     winning_version,
 };
 /// Imports the hidden siblings a killed install leaves,
+/// what a recovery that failed answers,
 /// the rule that keeps an older repository tool out of the way,
 /// and the repair of them.
 use super::super::archive_staging::{
+    ARecoveryThatFailed,
     AnOlderVersion,
+    CopyRecord,
     Recovered,
     recover_leftovers,
 };
@@ -53,6 +56,9 @@ use super::super::exposure::{
 use super::super::install::install_tool;
 /// Imports `reconcile_rust_parts` from `super::super::install_rust_android`.
 use super::super::install_rust_android::reconcile_rust_parts;
+/// Imports the artifact row of this host,
+/// whose SHA-256 is what the repair compares a hidden copy with.
+use super::super::install_support::artifact_for_host;
 /// Imports `applies_to_family` from `super::super::layout`.
 use super::super::layout::applies_to_family;
 /// Imports the install directory of one tool version.
@@ -92,6 +98,9 @@ use std::cmp::Ordering;
 /// Imports the owned path type the version directory is built into.
 use std::path::PathBuf;
 
+/// Imports the one instant this rule's two steps are apart,
+/// which a control stands in with a start of the tool and may end a run at.
+use super::a_control_holds_the_instant_between_the_two_steps::reached_the_instant_between_the_two_steps;
 /// Imports the order the tools are installed in.
 use super::the_install_order::sync_order;
 /// Imports the report a run answers with,
@@ -100,7 +109,7 @@ use super::the_install_order::sync_order;
 /// and the sentence for an older version the newest-only rule removed.
 use super::what_the_sync_did::{
     SyncReport,
-    older_versions_removed_sentence,
+    older_version_removed_sentence,
     recovery_sentence,
     replacement_warning,
 };
@@ -155,6 +164,9 @@ fn older_version_rule(
 /// so the version gets its name back without the archive being downloaded again,
 /// which is what an offline machine needs to start that version at all
 /// (`archive_staging`).
+/// Only a copy whose completion marker records the lock's own tool,
+/// version and archive SHA-256 is published,
+/// so this path keeps the check the download makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,27 +176,52 @@ fn recover_a_killed_install(
     ctx: &Context,
     tool: &LockedTool,
     older_version: AnOlderVersion,
-) -> Result<Recovered, ToolchainError> {
-    let version_dir: PathBuf = tool_install_dir(
+) -> Result<Recovered, ARecoveryThatFailed> {
+    // What: a version directory the layout refuses is a failure that read no hidden name.
+    // Why: the sentence that follows it may then claim nothing about a copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const versionDir = toolInstallDir(ctx.scope.toolchainRoot, tool.declaration.id, tool.version);
+    // ```
+    let version_dir: PathBuf = match tool_install_dir(
         &ctx.scope.toolchain_root,
         &tool.declaration.id,
         &tool.version,
-    )?;
+    ) {
+        Ok(path) => path,
+        Err(error) => return Err(ARecoveryThatFailed::nothing_read(error)),
+    };
+    // What: the lock's own record of the archive this version came from.
+    // Why: a hidden copy is published only when its marker records the same tool, version and digest.
+    let expected: Option<CopyRecord> =
+        artifact_for_host(tool, &ctx.host.platform)
+            .ok()
+            .map(|artifact| {
+                return CopyRecord {
+                    tool: tool.declaration.id.clone(),
+                    version: tool.version.clone(),
+                    archive_sha256: artifact.sha256.clone(),
+                };
+            });
     return recover_leftovers(
         &version_dir,
         program_that_finishes_the_install(tool),
         older_version,
+        expected.as_ref(),
     );
 }
 
 /// What:
 /// Settles the rule that an older repository-published tool is never kept after a recovery put a copy at a version's name:
 /// every version directory older than the newest finished one is removed,
-/// and the report says so.
+/// the tool's `current` link is moved to that version before anything is removed,
+/// and the report says what went.
 /// Why:
 /// A newer version can land between the recovery's own check and its publish,
 /// and a version directory older than the newest one may already be there;
 /// the removal is the same one an install makes,
+/// in the same order that install keeps,
 /// run at the same point of the run.
 ///
 /// In TS you'd write (pseudocode):
@@ -200,6 +237,36 @@ fn settle_the_newest_only_rule(
     if !is_published_archive(tool) || !recovered.put_a_copy_at_the_version_name() {
         return;
     }
+    // What: the link is moved to the newest finished version first, which is the order `install_archive` keeps.
+    // Why: every start goes through `current`, so a run that removed an older version before moving the link would leave
+    //  a start in between failing, and a run killed there would leave every start failing until the next `install`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // pointCurrentAtNewestOf(ctx.scope.toolchainRoot, tool);
+    // ```
+    if let Err(error) = point_current_at_newest_of(&ctx.scope.toolchain_root, tool) {
+        // What: the removal below does not run when the link could not be moved.
+        // Why: a version removed under a link that still names it is the state this order exists to prevent.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // report.failed.push([tool.declaration.id, error.message]); return;
+        // ```
+        report
+            .failed
+            .push((tool.declaration.id.clone(), error.message));
+        return;
+    }
+    // What: the one instant between this rule's two steps, which a control stands in and may end a run at.
+    // Why: a start made there and a run killed there are the two facts the order of the two steps decides, and neither
+    //  can be shown from the end state of a run that finished.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // reachedTheInstantBetweenTheTwoSteps(ctx.scope);
+    // ```
+    reached_the_instant_between_the_two_steps(ctx.scope);
     match remove_older_archives(
         &ctx.scope.toolchain_root,
         &tool.declaration.id,
@@ -207,22 +274,30 @@ fn settle_the_newest_only_rule(
     ) {
         Ok(removed) if removed.is_empty() => {}
         Ok(removed) => {
-            // What: `.iter().map(...).collect()` builds the version names out of the directories removed, since the
-            //  report names versions and the removal answers paths (TS: `removed.map((path) => basename(path))`).
-            // Why: the sentence a person reads names the versions, not the directories they sit in.
+            // What: `.iter().map(...)` asks each removed directory for its version name, since the report names versions
+            //  and the removal answers paths (TS: `removed.forEach((directory) => ...)`).
+            // Why: the sentence a person reads names the version, not the directory it sat in.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // const versions = removed.map((directory) => basename(directory));
+            // for (const directory of removed) { const version = basename(directory); ... }
             // ```
-            let versions: Vec<String> = removed
-                .iter()
-                .map(|directory| return file_name_text(directory))
-                .collect();
-            report.recovered.push(older_versions_removed_sentence(
-                &tool.declaration.id,
-                &versions,
-            ));
+            for directory in &removed {
+                let version: String = file_name_text(directory);
+                // What: the sentence says whether this run put that version at its name.
+                // Why: the rule removes a version that was installed before the run as well as the one a recovery
+                //  published, and only the second one is a version this run recovered.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // report.recovered.push(olderVersionRemovedSentence(tool.declaration.id, version, version === tool.version));
+                // ```
+                report.recovered.push(older_version_removed_sentence(
+                    &tool.declaration.id,
+                    &version,
+                    version == tool.version,
+                ));
+            }
         }
         Err(error) => report
             .failed
@@ -263,13 +338,13 @@ pub fn sync_tools(
     }
     for tool in &entries {
         let mut recovered: Recovered = Recovered::default();
-        let mut recovery_problem: Option<String> = None;
+        let mut recovery_problem: Option<ARecoveryThatFailed> = None;
         if tool.declaration.route == Route::Archive {
             match recover_a_killed_install(ctx, tool, older_version_rule(ctx, tool)) {
                 Ok(outcome) => recovered = outcome,
                 // The install below may still put the version in place: a recovery that failed must not cost the run the
                 // download that can repair it, and a network that is there is what an offline machine does not have.
-                Err(error) => recovery_problem = Some(error.message),
+                Err(failed) => recovery_problem = Some(failed),
             }
         }
         if let Some(sentence) = recovery_sentence(&tool.declaration.id, &tool.version, &recovered) {
@@ -322,7 +397,19 @@ pub fn sync_tools(
             // A recovery that failed is a warning here, not a failure: the version's name holds the finished copy the
             // lock asks for, and what went wrong is a hidden sibling this run left or could not remove.
             if let Some(problem) = recovery_problem {
-                report.warnings.push(problem);
+                // What: the recovery's own words, followed by the fact that left them without a consequence.
+                // Why: this arm is reached only when the edition the lock asks for is there anyway,
+                //  so what a person needs to know is that nothing failed for it.
+                //  The copy's fate is not promised: a later run may publish nothing from it and remove it,
+                //  and the failure this arm can carry may be one that stops that run reading it at all.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // report.warnings.push(`${problem}; this tree's lock is satisfied anyway, so the run does not fail for it`);
+                // ```
+                report.warnings.push(format!(
+                    "{problem}; this tree's lock is satisfied anyway, so the run does not fail for it"
+                ));
             }
             continue;
         }
@@ -330,7 +417,30 @@ pub fn sync_tools(
             Ok(()) => {
                 report.installed.push(tool.declaration.id.clone());
                 if let Some(problem) = recovery_problem {
-                    report.warnings.push(problem);
+                    // What: the recovery's own words, followed by what this run then did,
+                    //  and, when that failure named a copy, by what the next run does with it.
+                    // Why: the recovery's own sentences name the copy it kept and say where it is,
+                    //  and they promise nothing about a later run, because this run cannot know what that one reads.
+                    //  This run does: it put the version at its name, so a later run finds the copy a second one.
+                    //  Only the publish's own failure states it: that is the arm whose copy a control can leave behind
+                    //  with the version at its name afterwards, and a failed listing names no copy at all.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const fate = problem.thePublishKeptItsCopy
+                    //   ? 'so a later run publishes nothing from that copy and removes it, and the run does not fail for it'
+                    //   : 'so the run does not fail for it';
+                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, ${fate}`);
+                    // ```
+                    let fate: &str = if problem.the_publish_kept_its_copy {
+                        "so a later run publishes nothing from that copy and removes it, and the run does not fail for it"
+                    } else {
+                        "so the run does not fail for it"
+                    };
+                    report.warnings.push(format!(
+                        "{problem}; the install this run went on to make put {} {} at its name, {fate}",
+                        tool.declaration.id, tool.version
+                    ));
                 }
             }
             Err(error) => {
@@ -358,10 +468,11 @@ pub fn sync_tools(
             .failed
             .push(("postinstall links".to_string(), error.message)),
     }
-    if let Err(error) = rebuild_exposure(ctx, &entries) {
-        report
+    match rebuild_exposure(ctx, &entries) {
+        Ok(exposure) => report.removed_exposure_links.extend(exposure.links_removed),
+        Err(error) => report
             .failed
-            .push(("exposure directory".to_string(), error.message));
+            .push(("exposure directory".to_string(), error.message)),
     }
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.

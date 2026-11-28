@@ -79,7 +79,8 @@ fn place_of(place: GrantPlace) -> (&'static str, Inheritance) {
     };
 }
 
-/// The nine decided grants pass, print nothing and are not refused.
+/// The nine decided grants pass,
+/// print nothing and are not refused.
 #[test]
 fn the_decided_delegation_passes() {
     let facts: DelegationFacts = healthy_delegation();

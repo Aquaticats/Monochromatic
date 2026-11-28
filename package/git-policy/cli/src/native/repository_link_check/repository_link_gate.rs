@@ -189,25 +189,100 @@ fn gate_for_identity(
 }
 
 /// What:
-///  Tells the person the identity file could not be read,
-/// on standard error,
-/// once at each gate that reads it.
+///  The words that open the sentence a person reads when the identity file cannot be used,
+///  as the message names what is wrong and not only that something is.
 /// Why:
-///  Without the identity the gate cannot name the repository,
-/// so the command goes on;
-/// saying so keeps the missing protection visible.
-///  The entry gate and the startup step each read the identity file and neither reads the other's answer,
-/// so a command that meets an unreadable one prints this line twice:
-/// measured on 2026-11-26,
-/// a `status` with `not json` in that file printed it twice and went on.
+///  `recorded_identity` says it,
+///  and the control that counts how often one command says it matches on this text,
+///  so the words a control looks for are the words the gate writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.stderr.write(`monochromatic-git-policy-cli: ${why}; ...`);
+/// const UNUSABLE_IDENTITY_LEAD = 'the repository link identity cannot be used';
 /// ```
-fn say_identity_unreadable(why: &str) {
+const UNUSABLE_IDENTITY_LEAD: &str = "the repository link identity cannot be used";
+
+/// What:
+///  The reason this process has already said the identity file cannot be used,
+///  which is how the sentence each gate says is said once for a command.
+/// Why:
+///  A command meets the gate twice,
+///  at the entry and in the startup step,
+///  and each meeting reads the file on its own,
+///  so both said the same sentence about one file that cannot be used,
+///  and the person read one fault as two
+///  (measured 2026-11-26 against the released alpha.48 and alpha.49:
+///  `git status --short` printed the line twice in both).
+///  A process is one command,
+///  which is the same reason the ready answer is remembered here once
+///  (`ReadyMemory`).
+///  The reason is kept rather than a flag,
+///  so a file that changed between the two readings is still said twice:
+///  two different sentences are two faults and not one repeated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let said: string | undefined;
+/// ```
+static SAID_WHY: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// What:
+///  Tells the person the identity file could not be used,
+/// on standard error,
+/// once for this process and this reason.
+/// Why:
+///  Without the identity the gate cannot name the repository,
+/// so the command goes on;
+/// saying so keeps the missing protection visible,
+/// and saying it once keeps a reader from counting one fault twice.
+///  The entry gate and the startup step each read the identity file and neither reads the other's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sayIdentityUnreadableOnce(why: string): boolean { const first = !said || said !== why; said = why; if (first) write(2, `monochromatic-git-policy-cli: ${LEAD} (${why}), ...`); return first; }
+/// ```
+fn say_identity_unreadable(why: &str) -> bool {
+    // What: the reason this process has said, which the guard below replaces with this one.
+    // Why:  a mutex that cannot be taken says nothing about this fault, so the sentence is written rather than dropped.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const held = lock(); if (!held) { write(2, sentence(why)); return true; }
+    // ```
+    let Ok(mut said) = SAID_WHY.lock() else {
+        write_the_sentence(why);
+        return true;
+    };
+    if said.as_deref() == Some(why) {
+        return false;
+    }
+    *said = Some(why.to_owned());
+    // What: the lock is given back before the write, which may wait on a reader.
+    // Why:  a slow stream must not hold the sentence the next gate asks about in this process.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // drop(held); write(2, sentence(why)); return true;
+    // ```
+    drop(said);
+    write_the_sentence(why);
+    return true;
+}
+
+/// What:
+///  The sentence about an identity file that cannot be used,
+///  written to standard error.
+/// Why:
+///  One place writes it,
+///  so the words a control counts are the words both gates say.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(`monochromatic-git-policy-cli: ${UNUSABLE_IDENTITY_LEAD} (${why}), so ...`);
+/// ```
+fn write_the_sentence(why: &str) {
     let _noted = std::io::stderr().write_all(
-        format!("monochromatic-git-policy-cli: the repository link identity cannot be used ({why}), so the repository link is not checked for this command\n").as_bytes(),
+        format!("monochromatic-git-policy-cli: {UNUSABLE_IDENTITY_LEAD} ({why}), so the repository link is not checked for this command\n").as_bytes(),
     );
 }
 
@@ -216,7 +291,7 @@ fn say_identity_unreadable(why: &str) {
 /// nothing when there is no home or no identity file.
 /// Why:
 ///  An absent file is the usual case and costs one failed open;
-/// one that cannot be read is said once on standard error and the command goes on,
+/// one that cannot be read is said once for this command on standard error and the command goes on,
 /// because without it the gate cannot name the repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -228,7 +303,7 @@ fn recorded_identity(home: Option<&Path>) -> Option<LinkIdentity> {
     return match read_identity(directory) {
         IdentityRead::Absent => None,
         IdentityRead::Unreadable(why) => {
-            say_identity_unreadable(why.as_str());
+            let _said: bool = say_identity_unreadable(why.as_str());
             None
         }
         IdentityRead::Found(identity) => Some(identity),

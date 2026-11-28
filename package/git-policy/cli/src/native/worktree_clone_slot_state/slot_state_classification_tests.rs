@@ -365,7 +365,8 @@ fn the_state_names_the_records_clone_dataset() {
     assert!(matches!(CloneMount::Nowhere, CloneMount::Nowhere));
 }
 
-/// A path's last component names the slot, and a path no record can be keyed by says why.
+/// A path's last component names the slot,
+/// and a path no record can be keyed by says why.
 #[test]
 fn a_paths_slot_name_is_its_last_component() {
     use crate::worktree_clone_slot_state::slot_state_classification::slot_name_of;

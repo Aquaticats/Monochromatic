@@ -49,7 +49,8 @@ use std::time::{
 /// Why:
 ///  `IN_PROGRESS_MARKERS` answers the same question for a merge the wrapper runs itself,
 ///  so its list is reused rather than written again,
-///  and a bisect needs the question answered too, because it never touches `HEAD`:
+///  and a bisect needs the question answered too,
+/// because it never touches `HEAD`:
 ///  the checkout stays on its branch and every file stays clean,
 ///  and `git worktree remove` deletes the worktree and Git's own bisect records without a word.
 ///  `git bisect start` writes `BISECT_START`,

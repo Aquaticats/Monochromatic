@@ -841,7 +841,8 @@ fn assert_fixtures_follow_the_links_the_filesystem_allows(
 /// its one
 /// stored copy where it does not (`EXDEV`),
 /// and copies of its bytes where no link works.
-/// The store stands in the run's shared fixture root, the parent of every process's own fixture root.
+/// The store stands in the run's shared fixture root,
+/// the parent of every process's own fixture root.
 #[test]
 fn fixtures_are_the_built_executable_or_its_one_stored_copy() {
     let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
@@ -1374,7 +1375,9 @@ fn shared_copy_waits_for_a_copy_in_progress_instead_of_writing_another() {
 
 /// What:
 ///  The control of one run's fixture root:
-///  two test processes of a run, on a file system other than the build's, leave one stored copy of the wrapper.
+///  two test processes of a run,
+/// on a file system other than the build's,
+/// leave one stored copy of the wrapper.
 /// Why:
 ///  The gate's fixture root is a 768 MiB tmpfs (`bin/native-gate-fixture-root.ts`) while the build is on the image's
 ///  file system,
@@ -1383,7 +1386,8 @@ fn shared_copy_waits_for_a_copy_in_progress_instead_of_writing_another() {
 ///  so every one of the gate's test processes copied the 154 MB debug wrapper into that tmpfs and the whole gate failed
 ///  with `No space left on device` (issue 6488).
 ///  The file system other than the build's is a tmpfs this module mounts inside a user and mount namespace of its own,
-///  which no other namespace sees: nothing on the host is mounted (`crate::root_namespace_test_support`).
+///  which no other namespace sees:
+/// nothing on the host is mounted (`crate::root_namespace_test_support`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1413,13 +1417,16 @@ mod shared_by_a_run {
         Path,
         PathBuf,
     };
-    /// `Output` is what a child wrote and how it ended; `passed` answers one per child.
+    /// `Output` is what a child wrote and how it ended;
+    /// `passed` answers one per child.
     use std::process::Output;
 
     /// What:
-    ///  The variable the inner half of the control is started with, so it knows which half it is.
+    ///  The variable the inner half of the control is started with,
+    /// so it knows which half it is.
     /// Why:
-    ///  The test binary is the only program that can run this test, and the outer half has to know that the child it
+    ///  The test binary is the only program that can run this test,
+    /// and the outer half has to know that the child it
     ///  started ran the body rather than passing without one.
     ///
     /// In TS you'd write (pseudocode):
@@ -1432,7 +1439,8 @@ mod shared_by_a_run {
     ///  The path libtest answers to for this control,
     ///  which the outer half hands the child that runs the inner half.
     /// Why:
-    ///  `--exact` matches this text alone, so a wrong path runs no test,
+    ///  `--exact` matches this text alone,
+    /// so a wrong path runs no test,
     ///  and `passed` fails the control instead of counting the child as the control.
     ///
     /// In TS you'd write (pseudocode):
@@ -1447,8 +1455,10 @@ mod shared_by_a_run {
 
     /// What the one line the child prints about its fixture root begins with.
     /// Why:
-    ///  The control compares the two roots the children name, so two processes that made a fixture each are told apart
-    ///  from one process run twice, which would prove nothing about sharing.
+    ///  The control compares the two roots the children name,
+    /// so two processes that made a fixture each are told apart
+    ///  from one process run twice,
+    /// which would prove nothing about sharing.
     const THE_FIXTURE_ROOT_LINE: &str = "fixture root: ";
 
     /// How many test processes of one run the control starts.
@@ -1456,7 +1466,8 @@ mod shared_by_a_run {
 
     /// What:
     ///  How many copies of the build the tmpfs must hold at once:
-    ///  one for each of the control's processes, which is what a store rooted in each process's own folder writes.
+    ///  one for each of the control's processes,
+    /// which is what a store rooted in each process's own folder writes.
     /// Why:
     ///  The file system has to be big enough for the copies a store per process makes,
     ///  so a run that keeps one copy per process fails on the count below and never on a full file system.
@@ -1467,16 +1478,21 @@ mod shared_by_a_run {
     /// ```
     const COPIES_BETWEEN_THE_PROCESSES: u64 = 2;
 
-    /// The room the tmpfs leaves, over those copies, for the fixtures' folders,
-    /// a publisher's partial copy beside the stored one, and the file system's own bookkeeping.
+    /// The room the tmpfs leaves,
+    /// over those copies,
+    /// for the fixtures' folders,
+    /// a publisher's partial copy beside the stored one,
+    /// and the file system's own bookkeeping.
     const ROOM_BESIDE_THE_COPIES: u64 = 64 << 20;
 
     /// What:
-    ///  Two test processes of one run, whose fixtures sit on a tmpfs of this control's own,
+    ///  Two test processes of one run,
+    /// whose fixtures sit on a tmpfs of this control's own,
     ///  end with one stored copy of the build in the run's shared fixture root.
     /// Why:
     ///  One stored copy per run is what keeps the gate's 768 MiB tmpfs from filling with a copy per test process;
-    ///  the count is what the gate failed on, and the fixture roots the children name prove two processes made them.
+    ///  the count is what the gate failed on,
+    /// and the fixture roots the children name prove two processes made them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1548,10 +1564,13 @@ mod shared_by_a_run {
 
     /// What:
     ///  The body of each of the control's two processes:
-    ///  one fixture in the run root this process was given, and one line naming the fixture root it made.
+    ///  one fixture in the run root this process was given,
+    /// and one line naming the fixture root it made.
     /// Why:
-    ///  The line is what tells the control that two processes made a fixture each, and the fixture is what makes the
-    ///  wrapper link, which is the store's one caller here.
+    ///  The line is what tells the control that two processes made a fixture each,
+    /// and the fixture is what makes the
+    ///  wrapper link,
+    /// which is the store's one caller here.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1571,7 +1590,8 @@ mod shared_by_a_run {
     /// What:
     ///  The fixture root a child named in its one line.
     /// Why:
-    ///  The control compares the two, so it fails rather than passes when both children shared one folder.
+    ///  The control compares the two,
+    /// so it fails rather than passes when both children shared one folder.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1600,7 +1620,8 @@ mod shared_by_a_run {
     }
 
     /// What:
-    ///  Every file under `root` whose name is `name`, in the order of their paths.
+    ///  Every file under `root` whose name is `name`,
+    /// in the order of their paths.
     /// Why:
     ///  A stored copy is the one file the store names after the build's content,
     ///  and a walk of the whole run root finds a copy wherever a process kept it,

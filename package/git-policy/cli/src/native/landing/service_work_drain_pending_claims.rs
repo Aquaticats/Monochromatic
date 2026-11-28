@@ -14,7 +14,9 @@
 //! Inside one kind the items of different worktrees run beside each other and one worktree's items keep their turn
 //! (`service_work_items_side_by_side.rs`),
 //! and the pushes of different branches of the repository run beside each other.
-//!  Each item is settled, and its notice written, as that item's work ends,
+//!  Each item is settled,
+//! and its notice written,
+//! as that item's work ends,
 //! and an item whose handler stopped unexpectedly fails alone (`a_panic_that_ends_one_item.rs`),
 //!  so a finished push does not wait for a sibling that a silent server holds.
 //! Why:

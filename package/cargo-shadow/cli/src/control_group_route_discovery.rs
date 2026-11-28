@@ -30,6 +30,18 @@
 /// ```
 use crate::control_group_route_child_runs::run_plain;
 /// What:
+/// `use crate::control_group_route_manager_reach::a_refusal_that_ends_the_asking;` imports the read that says nothing on this host
+/// could carry an ask to a user manager.
+/// Why:
+/// A host with no manager refuses every ask at once,
+/// so the one failure that host gives ends the discovery instead of spending the whole span of the asking again (issue 6629).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { aRefusalThatEndsTheAsking } from 'crate/control_group_route_manager_reach';
+/// ```
+use crate::control_group_route_manager_reach::a_refusal_that_ends_the_asking;
+/// What:
 /// `use crate::inherited_limits::{InheritedLimits, caller_limits};` imports the limits a scope keeps from its caller and the read of them.
 /// Why:
 /// A scope that did not carry the caller's limits would loosen the run it bounds.
@@ -114,15 +126,22 @@ use std::path::{
 /// ```
 use std::sync::Arc;
 /// What:
-/// `use std::time::Duration;` imports a span of time.
+/// `use std::time::{Duration, Instant};` imports a span of time and a reading of the monotonic clock (sibling of `Instant`:
+/// `SystemTime`,
+/// the wall clock,
+/// which can jump).
 /// Why:
-/// A route carries the bound of its discovery question and the interval of its reaping check.
+/// A route carries the bound of its discovery question and the interval of its reaping check,
+/// and an ask of the manager is timed so a failure that came before its own deadline is told from one that spent it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // a number of milliseconds
+/// // a number of milliseconds, and Date.now()
 /// ```
-use std::time::Duration;
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The check that a group directory can be killed through `cgroup.kill` (split out of this module).
 pub(crate) use crate::control_group_route_child_runs::kill_file_present;
@@ -347,6 +366,241 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
     };
 }
 
+/// How many times the discovery asks the manager where its slice is before a failed ask is read as a capability this host has not
+/// got.
+/// Why:
+/// One failed ask is not a host without a control group.
+/// Everything that needs a delegated scope asks this before it does anything,
+/// so on 2026-11-27 a run of the whole suite failed ten controls in nine milliseconds each,
+/// which is the shape of this question being answered with a failure and of nothing else those controls do (issue 6619).
+/// A program this discovery starts can fail for a moment that is not the host's answer about itself,
+/// and asking again is what tells the two apart.
+/// What it rests on:
+/// the manager's own reexecution,
+/// measured 2026-11-27 in a container of its own (Linux 7.3.5,
+/// systemd 262)
+/// and in a guest (Linux 6.8,
+/// systemd 255):
+/// asks fail while the manager reexecutes and answer again as soon as it has,
+/// and the longest reexec across which an ask failed was 0.588 s.
+/// Five attempts `ASKING_AGAIN_PAUSE` apart span 0.800 s,
+/// which covers that,
+/// and a reload of 0.415 s to 0.654 s refused no ask at all.
+/// What it does not rest on:
+/// the event it was asked about,
+/// ten controls whose asks began about half a second after a reexec had ended (issue 6623):
+/// no ask failed in the five seconds after any reexec measured here,
+/// so nothing is sized to that event and it stays open.
+/// Where no user manager can be reached at all,
+/// which is not the case these attempts are for:
+/// the first failed ask is not put again,
+/// because the discovery reads in its own process that nothing here could carry another one
+/// (`control_group_route_manager_reach`).
+/// Measured 2026-11-27 in a container with no user manager,
+/// both ways of having none,
+/// nine rounds of this branch's binary beside the released `0.1.5-alpha.15` one and a byte-identical copy of each:
+/// one ask per call for all 72 calls,
+/// and this branch's call 1.01 to 1.28 times the released one per round where neither variable is set (median 1.11),
+/// and 0.87 to 1.05 times it where the runtime directory holds no socket (median 1.00),
+/// where the same harness measured 12.90 to 29.68 times before this change (README,
+/// "Development").
+const ASKING_AGAIN_ATTEMPTS: u32 = 5;
+
+/// How long the discovery waits before it asks the same question again,
+/// where a manager could be reached and did not answer for a moment.
+/// What it rests on:
+/// the longest reexec measured across which asks fail (0.588 s,
+/// 2026-11-27),
+/// so that four waits of this length hold the question open past the end of one however early in it the first ask fell,
+/// and a copy of each figure is in `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
+/// This wait is spent where a manager can be reached and did not answer for a moment,
+/// and that includes a host whose socket file or manager directory is still there with nothing behind it:
+/// at the instant an ask fails,
+/// that is what a manager in a reexec looks like.
+/// An ask that spent its own deadline inside its bound is not made again (see `ask_where_the_slice_is`),
+/// and an ask that failed where no user manager can be reached is not made again either,
+/// because nothing here could carry a second one (`control_group_route_manager_reach`),
+/// which is what keeps a call there at one ask and no wait.
+pub(crate) const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
+
+/// What one ask of the manager left when it answered nothing:
+/// the words of the failure,
+/// and whether the program ran out of the bound that ask gave it.
+/// Why:
+/// The two are different failures.
+/// A manager that answered nothing inside its bound is what a host without one looks like,
+/// and a second ask would only spend a second bound;
+/// a program that failed at once can be a moment of pressure,
+/// and asking again is what tells the two apart.
+/// Each program is timed on its own,
+/// because the discovery starts two of them and a slow one followed by a fast failure must still be put again.
+struct FailedAsk {
+    /// The words the refusal names.
+    reason: String,
+    /// Whether the program this ask ran ran out of the bound the ask gave it.
+    spent_its_deadline: bool,
+}
+
+/// What:
+/// `fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk>` starts the slice when the ordinary question is asked,
+/// asks the manager where the slice is,
+/// and answers the path it reported or what the failure left.
+/// Why:
+/// The two asks are one answer about one thing:
+/// a slice that could not be started cannot be asked about.
+/// The words are the refusal the caller names,
+/// so they say which of the two failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askOnce(settings: RouteSettings): string  // throws FailedAsk
+/// ```
+fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
+    // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
+    // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
+    if settings.question.is_none() {
+        let began: Instant = Instant::now();
+        let started: Result<String, String> = run_plain(
+            &settings.systemctl,
+            &["--user", "start", &settings.slice],
+            &settings.environment,
+            settings.discovery_bound,
+        );
+        if let Err(reason) = started {
+            return Err(FailedAsk {
+                reason: format!(
+                    "the user manager cannot start {} ({reason})",
+                    settings.slice
+                ),
+                spent_its_deadline: spent_its_bound(settings, began.elapsed()),
+            });
+        }
+    }
+    let ordinary: Vec<String> = vec![
+        "--user".to_string(),
+        "show".to_string(),
+        settings.slice.clone(),
+        "--property=ControlGroup".to_string(),
+        "--value".to_string(),
+    ];
+    let question: Vec<&str> = settings
+        .question
+        .as_ref()
+        .unwrap_or(&ordinary)
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let began: Instant = Instant::now();
+    let answered: String = match run_plain(
+        &settings.systemctl,
+        &question,
+        &settings.environment,
+        settings.discovery_bound,
+    ) {
+        Ok(text) => text,
+        Err(reason) => {
+            return Err(FailedAsk {
+                reason: format!(
+                    "the user manager cannot be asked where {} is ({reason})",
+                    settings.slice
+                ),
+                spent_its_deadline: spent_its_bound(settings, began.elapsed()),
+            });
+        }
+    };
+    let reported: &str = answered.trim();
+    if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
+        return Err(FailedAsk {
+            reason: format!(
+                "the user manager reports no control group for {}",
+                settings.slice
+            ),
+            // An answer that is not a path is an answer: the program ran and ended inside its bound, so it is put again.
+            spent_its_deadline: false,
+        });
+    }
+    return Ok(reported.to_string());
+}
+
+/// What:
+/// `fn spent_its_bound(settings: &RouteSettings, took: Duration) -> bool` says whether one program that failed used the whole bound
+/// the ask gave it.
+/// Why:
+/// Only the program's own time says it ran out of its bound:
+/// the discovery starts two programs per ask,
+/// so the time around both tells neither.
+/// `DISCOVERY_POLL` is the interval the wait notices an end at,
+/// and twice it is the most an ended program can be noticed after its deadline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function spentItsBound(settings: RouteSettings, took: number): boolean
+/// ```
+fn spent_its_bound(
+    settings: &RouteSettings,
+    took: Duration,
+) -> bool {
+    return took + DISCOVERY_POLL * 2 >= settings.discovery_bound;
+}
+
+/// What:
+/// `fn ask_where_the_slice_is(settings: &RouteSettings) -> Result<String, String>` asks until the manager reports the path of the
+/// slice,
+/// and answers that path or the words of the last failure.
+/// Why:
+/// A run and every control that needs a delegated scope ask this before they may do anything,
+/// and one failed ask is not the host's answer about itself:
+/// the same host answers a moment later (issue 6619).
+/// Two failures are not put again.
+/// An ask whose program spent its own deadline is one,
+/// because a manager that answered nothing inside its bound is what a host without one looks like,
+/// and a second ask would only spend a second bound.
+/// A host where nothing could carry an ask to a manager at all is the other,
+/// which the discovery reads in its own process rather than from the words of the refusal (issue 6629).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askWhereTheSliceIs(settings: RouteSettings): string  // throws the last reason
+/// ```
+fn ask_where_the_slice_is(settings: &RouteSettings) -> Result<String, String> {
+    let mut last: String = String::new();
+    for attempt in 1..=ASKING_AGAIN_ATTEMPTS {
+        if attempt > 1 {
+            // What:     `std::thread::sleep(ASKING_AGAIN_PAUSE)` gives the moment the failure met time to pass.
+            // Why:      An ask put again with no wait meets the same condition again and answers nothing new.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // await new Promise((resolve) => setTimeout(resolve, ASKING_AGAIN_PAUSE))
+            // ```
+            std::thread::sleep(ASKING_AGAIN_PAUSE);
+        }
+        match ask_once(settings) {
+            Ok(reported) => return Ok(reported),
+            Err(failed) => {
+                if failed.spent_its_deadline {
+                    return Err(failed.reason);
+                }
+                // What:     `a_refusal_that_ends_the_asking(settings, &failed.reason)` says what to refuse with where nothing on
+                //           this host could carry an ask to a user manager.
+                // Why:      The same failure is that host's whole answer, so putting the question again only spends the span the
+                //           asking again is sized to (issue 6629).
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const refusal = aRefusalThatEndsTheAsking(settings, failed.reason)
+                // if (refusal !== undefined) throw new Error(refusal)
+                // ```
+                if let Some(refusal) = a_refusal_that_ends_the_asking(settings, &failed.reason) {
+                    return Err(refusal);
+                }
+                last = failed.reason;
+            }
+        }
+    }
+    return Err(last);
+}
+
 /// What:
 /// `pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable>` finds out whether this host can give a
 /// delegated scope,
@@ -383,58 +637,10 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
             settings.systemd_run
         )));
     }
-    // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
-    // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
-    if settings.question.is_none() {
-        let started: Result<String, String> = run_plain(
-            &settings.systemctl,
-            &["--user", "start", &settings.slice],
-            &settings.environment,
-            settings.discovery_bound,
-        );
-        if let Err(reason) = started {
-            return Err(unavailable(format!(
-                "the user manager cannot start {} ({reason})",
-                settings.slice
-            )));
-        }
-    }
-    let ordinary: Vec<String> = vec![
-        "--user".to_string(),
-        "show".to_string(),
-        settings.slice.clone(),
-        "--property=ControlGroup".to_string(),
-        "--value".to_string(),
-    ];
-    let question: Vec<&str> = settings
-        .question
-        .as_ref()
-        .unwrap_or(&ordinary)
-        .iter()
-        .map(String::as_str)
-        .collect();
-    let asked: Result<String, String> = run_plain(
-        &settings.systemctl,
-        &question,
-        &settings.environment,
-        settings.discovery_bound,
-    );
-    let answer: String = match asked {
-        Ok(text) => text,
-        Err(reason) => {
-            return Err(unavailable(format!(
-                "the user manager cannot be asked where {} is ({reason})",
-                settings.slice
-            )));
-        }
+    let reported: String = match ask_where_the_slice_is(settings) {
+        Ok(found) => found,
+        Err(reason) => return Err(unavailable(reason)),
     };
-    let reported: &str = answer.trim();
-    if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
-        return Err(unavailable(format!(
-            "the user manager reports no control group for {}",
-            settings.slice
-        )));
-    }
     let slice_dir: PathBuf = settings.cgroup_root.join(reported.trim_start_matches('/'));
     if slice_dir.to_str().is_none() {
         return Err(unavailable(format!(
@@ -497,3 +703,17 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
         limits: Arc::new(limits),
     });
 }
+
+/// The controls of the question to the manager:
+/// that a failure which came back at once is put again,
+/// and that a manager which answered nothing is asked once (issue 6619).
+#[cfg(test)]
+#[path = "control_group_route_discovery_asking_again_tests.rs"]
+mod asking_again_tests;
+
+/// The controls of the span the asking again covers:
+/// a moment as long as the longest reexec measured here,
+/// and a real reexec of a container's own user manager (issue 6623).
+#[cfg(test)]
+#[path = "control_group_route_discovery_reexec_tests.rs"]
+mod reexec_tests;

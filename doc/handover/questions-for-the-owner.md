@@ -1128,6 +1128,489 @@ and its round runs.
   and brings back the question per scoped run that alpha.13 removed.
   The choice stays the owner's and stays open.
 
+## Open: two choices the wrapper's alpha.49 reads left (recorded 2026-11-27T13:13:22-05:00)
+
+Neither holds a round or a release.
+Both come from Claude Sonnet reads of `0.6.1-alpha.49`,
+same-vendor second passes and not independent reviews.
+Each is to be filled in from its round's report before it is asked:
+the rounds measure what the options cost.
+
+### What a batch's width is when the host's free memory cannot be read
+
+The service sizes each batch of its work from the CPUs and the free memory it reads when the batch starts
+(`worker_budget` in `package/git-policy/cli/src/native/foundation/parallel_budget.rs`).
+When the CPU count cannot be read the width is one.
+When the memory reading fails there is no memory bound at all,
+so the width is the CPUs less their margin;
+the read of alpha.49 points out that one failure narrows and the other widens.
+Alpha.48 did the same per round of work.
+The round `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read` (merged `203bd65854`) holds what the code does now with a control,
+`a_host_whose_memory_could_not_be_read_bounds_no_batch`,
+which asserts a width of 28 on a stated host of 32 threads.
+With no memory figure each caller comes to:
+
+- a work directory's round of lanes (`service_round.rs`):
+  the items and the CPUs less their margin,
+  and nothing else;
+- the pushes of different branches (`pushes_side_by_side`):
+  the branches and the CPUs less their margin,
+  with no ceiling;
+- the slow kinds of one work directory (`slow_items_side_by_side`):
+  the same,
+  under `SLOW_ITEMS_CEILING` of four.
+
+The reading is `System::new()` of the `sysinfo` crate,
+and the round found no record of it failing.
+The round's own ranking was to leave the code as it stands over a width of one,
+which is B over C here;
+it did not weigh A.
+
+- A,
+  keep the last good reading:
+  a batch that cannot read memory uses the reading of the batch before it.
+  It never widens past what memory last allowed and never drops to one for a passing failure.
+  It costs a value kept between batches,
+  and a first batch with no reading still needs one of the other two answers.
+- B,
+  no memory bound,
+  as now:
+  work runs as wide as the CPUs allow,
+  which is what ran before the memory bound existed.
+  On a host short of memory it can start more than memory holds.
+- C,
+  width one:
+  the safe answer,
+  and the slowest:
+  a passing failure makes a whole batch run one item at a time.
+
+Ranking:
+A > B > C.
+A beats B because it keeps the bound the reading exists to give,
+at the price of one remembered number.
+B beats C because C makes a whole batch run one item at a time behind a failure that may say nothing about memory:
+nothing measured says a failed reading goes with a host short of memory,
+and the coordinator has not looked for a failed reading in any log.
+A and C are limits the shipped wrapper would carry,
+and `AGENTS.md` asks such a limit to cite a workload measurement or the owner's decision beside its value.
+
+### Whether the wrapper crate's published functions should be narrowed
+
+The control that stops a split from widening an item's reach
+(`source_guard/nothing_becomes_nameable_from_outside_tests.rs`)
+did not see a function written `pub async fn`:
+154 of them are nameable from outside the crate with no line in its list,
+by the read's count.
+(The round has since merged as `b929e8c39b`:
+the list holds 12,395 entries,
+12,295 of them names that were already nameable at `0.6.1-alpha.47` and that nobody has reviewed,
+fields and methods among them.
+Those counts are the list's on the day that round merged:
+a later round widened the control again and narrowed ten names,
+so the file's own length is the count now.)
+The round `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`
+makes the control see them and gives each a line,
+and narrows only an item a split widened.
+Whether the rest should be public was never decided.
+
+- A,
+  a round narrows each one that still builds narrower:
+  the compiler then warns about any that nothing uses,
+  which it never does for a `pub` item,
+  and the list shrinks to what is meant to be published.
+  It touches many files at once,
+  so it meets every other round at merge.
+- B,
+  leave them listed:
+  the control holds the line from here,
+  and nothing moves.
+
+Ranking:
+A > B,
+because a narrower reach lets the compiler find dead code that a `pub` hides,
+and the control already keeps the surface from growing either way.
+
+## Open points of the `cargo-shadow` round that ended at 14:21 on 2026-11-27 (recorded 2026-11-27T14:30:09-05:00)
+
+None holds a round or a release.
+The round on the refusal's sentence is merged as `87399f8462`.
+
+### A run that leaves a kept journal says nothing about it
+
+A refusal keeps the run's journal,
+and only a later run that resolves dependencies,
+or `cargo-shadow update`,
+settles it.
+A pass-through command such as `cargo fmt` and a frozen run under `CI` leave it and print nothing,
+so a journal can stay through any count of such runs unnoticed.
+The round changed no run's output.
+
+- A,
+  a frozen run names each kept journal in one line:
+  it already announces kept files at that place,
+  and the cost is one directory read.
+- B,
+  a pass-through command does too:
+  it has no such place today,
+  so every `cargo fmt` would first walk up to find the catalog.
+- C,
+  as now.
+
+Ranking:
+A > C > B.
+A beats C because a frozen run is where a CI log is read,
+and the line costs one directory read there.
+C beats B because B puts a directory walk and a line in front of commands that today hand straight over to `cargo`.
+
+What the read of `0.1.5-alpha.15` adds:
+a run on the fast path leaves the journal and says nothing too
+(shown in a second crate of the same repository),
+as does `cargo-shadow install --frozen-lockfile`.
+The journal belongs to the catalog's root,
+so a later run in any crate of the repository settles it.
+
+What the round on the refusal's words added
+(merged as `7eb08ea6b9`):
+it staged a real refusal and made each kind of later run,
+and the refusal now states the rule and names the kinds.
+A later run of the catalog that checks or updates a lockfile settles the journal,
+both dry runs included;
+a frozen run,
+a run on the fast path,
+a run that resolves nothing and a run outside the catalog's repository leave it and print nothing.
+The choice between A,
+B and C stands as it was.
+
+### A dry run settles a kept journal before it looks
+
+`cargo-shadow install --dry-run` and `update --dry-run` say they report and then restore every `Cargo.lock`.
+With a kept journal present each settles it first,
+as every run that is not frozen does,
+and that can keep or replace a lockfile
+(the read of `0.1.5-alpha.15`,
+on both releases).
+
+- A,
+  a dry run reports the kept journal and what settling it would do,
+  and changes nothing:
+  the word "dry" then holds,
+  at the price of a recovery that can describe without acting,
+  and of a report about lockfiles a real run would first change.
+- B,
+  as now,
+  with the help saying so:
+  what a dry run reports is true of the settled state,
+  and a person who ran it only to look gets a changed lockfile.
+
+Ranking:
+A > B,
+because a person reaches for a dry run exactly when they do not want anything changed.
+The round did both
+(merged as `7eb08ea6b9`).
+Each dry run's help now says that a kept journal is settled first.
+What A would take,
+as the round returned it:
+a branch beside the frozen one that reads the journals only to report them,
+with a recovery that can decide without applying,
+no transaction,
+and no lockfile touched.
+What A would cost a person whose journal waits:
+the dry run would name the journal and leave it,
+so the habit of running a dry run first to clear it stops working,
+and the uncertainty lasts until a run that is not dry.
+The round recommends leaving it as it is in this pass,
+now that the help says what happens.
+The coordinating session's ranking stays A > B for the reason given,
+and nothing is built on A without an answer.
+
+### The steps that merge a round's branch are written down and no command does them
+
+The coordinator's merge script lived in scratch and went with the cleanup of 2026-11-27T15:26:37-05:00.
+Its steps are in `doc/handover/cli-git-rust-implementation.md`,
+with the check that a merge really landed
+(a `git merge` once returned 0 with nothing merged).
+The owner said on 2026-11-11 of the scripts for Pi runs:
+"I don't wanna see you edit pi-runs outside the workspace again."
+The coordinator read that as about the scripts that start rounds,
+and asks whether it covers this.
+
+- A,
+  a task of the driver package (`package/pi-shared/subagent-driver`) that takes branches in order and makes every check:
+  no step can be dropped by a session in a hurry,
+  at the price of one more command to keep.
+- B,
+  as now,
+  by hand from the handover.
+
+Ranking:
+A > B,
+because the check that the merge landed exists for a failure that printed success.
+
+### A scope whose directory was never made reads as a collected scope
+
+The retire gate reads a missing directory as the manager having collected the scope,
+asks nothing,
+prints nothing and leaves the unit loaded;
+a directory that was never made answers the same.
+A control holds that it happens.
+The one run-level occurrence came from a stand-in's race in the read of `0.1.5-alpha.14`.
+The fix needs one of two facts
+(`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
+"A directory that was never made reads as a collected scope"):
+
+- A,
+  the run records the group it made,
+  so an absent directory afterwards is a collection and one never recorded is not:
+  no question to the manager.
+- B,
+  the `LoadState` question to the manager,
+  which `0.1.5-alpha.12` took out for its cost on every call.
+
+Ranking:
+A > B,
+because A tells the two cases apart without bringing back the cost that was taken out.
+The read of `0.1.5-alpha.15` reached the silent state in a release build,
+through a start the manager refuses and through a launcher that is killed,
+and did not find a unit left loaded:
+in 56 launcher kills and two stand-ins both unit names read not found afterwards.
+So no round starts on A until a unit left loaded is shown outside a stand-in's race.
+
+### What each shadow package's copies test compares
+
+The test file is byte-identical in the four crates and names three of them,
+so `search-shadow`'s suite fails for a changed copy in any of the four,
+and the other three fail only for a change among those three
+(measured:
+with one line added to `search-shadow`'s copy alone,
+three suites passed and its own failed).
+The README says exactly that now.
+
+- A,
+  as now:
+  a copy that changed alone fails the suite of the crate it was changed in,
+  which is what the file's own header promises.
+- B,
+  every suite compares all four:
+  a drift is seen from any package,
+  and a suite then fails for a change it did not cause.
+
+Ranking:
+A > B,
+because the change that drifts a copy is always made in some crate,
+and that crate's suite fails.
+
+## Picks and open points of the rounds that ended between 14:08 and 14:15 on 2026-11-27 (recorded 2026-11-27T14:24:29-05:00)
+
+None holds a round or a release.
+
+### `cargo-shadow`: an unreadable `populated` line no longer counts as a collected scope (pick, veto open)
+
+The read of `0.1.5-alpha.14` asked for a comment or a check where the retire gate reads a group's `populated` line.
+The round found a real input:
+the kernel makes a group's directory before its control files,
+so a read in that window answers "No such file" for a group that is there
+(`kernel/cgroup/cgroup.c` at `v6.1`,
+quoted in the round's commit;
+read,
+not observed).
+Alpha.14 read that as the manager having collected the scope and said nothing while the unit stayed loaded.
+The round's pick,
+merged as `3bf99cd706`:
+the run says what it could not read and keeps the unit.
+No exit status changes.
+The other way is one guard to revert,
+which puts alpha.14's silence back.
+
+What the read of `0.1.5-alpha.15` adds
+(a same-vendor second pass):
+by its reading of the kernel at three versions,
+the window does not exist.
+A new group's directory and its files are made invisible and become visible together,
+so no read sees the directory without its `cgroup.events`.
+The answer the kernel can give with the directory there is "No such device",
+for a file opened before the group was removed and read after;
+there alpha.14's silence was right,
+and alpha.15 prints "may be left loaded" about a unit the manager is freeing.
+The round's reason was a reading as well,
+neither observed anything,
+and this host's kernel was not read.
+What the measurement found
+(the round merged as `92a10aa7dc`,
+on this host's kernel `7.3.5-2-cachyos`,
+2026-11-27):
+the read was right.
+Of 3,090 reads made while a group was being created,
+none answered "No such file" with the group's directory there,
+while the same harness counted 1,640 such answers on a plain directory whose file is written after it.
+Of 300 removals,
+24 put the step's own read at "No such device",
+and the directory was still there in 20 of those.
+The method and the counts are in `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
+in the section on which absence means what.
+Three picks follow from it,
+each with the veto open and each beside its other way.
+
+- "No such device" with the directory there answers as a collected scope (taken),
+  as alpha.14 did:
+  the kernel removes a group only when it holds no task,
+  so no warning is printed about a unit the manager is freeing.
+  The cost is that an answer of "No such device" from anything other than a removal,
+  which nobody has seen,
+  would be read as silence too.
+  The other way keeps alpha.15's warning in the one state the kernel was shown to produce.
+- "No such file" with the directory there keeps its warning (taken),
+  and the records say this kernel is not seen to produce it:
+  the same check is the live one at the `pids.peak` read,
+  where a group without that file must go to the manager.
+  The cost is one branch on the `populated` read that nothing reaches today.
+  The other way drops the check,
+  and a kernel that did show the state would leave the unit loaded with nothing printed.
+- The control of the bound at a run's end allows one second over the promise (taken),
+  where it allowed five:
+  measured,
+  the helper took 5068,
+  5073 and 5079 ms,
+  and the control now fails when the call site's bound is raised by three seconds.
+  The cost is a margin of one second on a busy host.
+  The other way lets any raise under five seconds pass.
+
+Ranking,
+the round's and the coordinating session's on reading its report whole:
+for each of the three,
+the way taken > its other way.
+The first because it is what the measurement shows;
+the second because one check serves both reads and the other read needs it;
+the third because a control that passes under the edit it guards protects nothing.
+Not measured:
+how often a real run's read meets a removal.
+
+### The driver: who makes a run's scratch folder, and who clears one a launcher never reached
+
+Issue 6618 is merged (`a40a99467c`):
+the launcher clears a finished run's scratch folder beside `keep/`.
+Two points of the record's sentence it left,
+each a choice:
+
+- The launcher does not make the folder;
+  the brief tells the round to.
+  A,
+  leave it:
+  nothing more to build,
+  and a round that never makes one costs nothing.
+  B,
+  the launcher makes it and names it to the round in its prompt:
+  the record's sentence becomes true as written,
+  and a round cannot choose another place.
+  Ranking:
+  B > A,
+  because a folder the launcher made is one it can always find and clear,
+  where a round that writes somewhere else leaves a folder nothing clears.
+- A launcher killed before its unit ends,
+  and a run started by hand,
+  clear nothing;
+  those folders stay until `~/temp` expires them.
+  A,
+  `remove-finished-worktrees` also clears such folders,
+  by the same conditions:
+  nothing is left,
+  at the price of a second owner of the same folder.
+  B,
+  leave them to the daily expiry.
+  Ranking:
+  A > B,
+  because the conditions are already one function both can call,
+  and a killed launcher is an ordinary event on this machine.
+
+### The linter: a byte order mark is named, not taken off (pick, veto open)
+
+The round for the `0.5.2-alpha.20` read (merged `2261d05b14`) chose that the list reader does not strip a byte order mark:
+the message names the character,
+its place and the edit that removes it.
+Its reason:
+a line no other tool reads as a `uses` line would start reading as one here,
+and a key a macro prints may hold that character as content.
+The other way is to strip one at the start of a list,
+which makes a file saved by a Windows editor read with no message.
+
+## Picks the round that joined two `mpm-shadow` rounds made, veto open (recorded 2026-11-27T13:23:53-05:00)
+
+Two rounds of the `0.2.7-alpha.14` pass changed one module,
+and their words could not both hold in two places.
+The joining round chose (merge `d3f0628c0b`,
+released in `0.2.7-alpha.15`),
+and each choice is one line or one arm to turn round.
+
+### Which hidden names hold back the copy a kill moved aside
+
+The copy a kill moved aside is put back only when nothing may still hold that version.
+One round said a name whose installer cannot be judged does not hold it back;
+the other said a name from another process namespace may belong to a live installer this reader cannot see.
+The choice:
+a hidden name of this boot whose installer cannot be judged
+(another process namespace,
+a record `/proc` hides,
+a start time of zero)
+holds the copy back,
+and a name in an earlier build's shape does not.
+Holding costs no copy:
+a later install puts the copy back once nothing may hold the version.
+The cost taken,
+which the README states:
+a live install by an earlier build that holds an earlier-shape name loses the finished copy it holds,
+because its own publish does not retry over a name that appeared.
+The other way,
+one line in `may_still_be_running`:
+an earlier-shape name holds the put-back for ever,
+since nothing removes such a name,
+and the version's name stays empty after every run until a person deletes the hidden name by hand.
+
+What the read of `0.2.7-alpha.15` adds
+(2026-11-27T14:35:51-05:00,
+a same-vendor second pass):
+"Holding costs no copy" is true only while the holder lives.
+For an installer that died in another process namespace the hold never ends:
+the version's name stays empty on every offline run,
+and the deletion `prune --toolchain` advises loses the only finished copy
+(shown with a hand-made name;
+a real second namespace was not built).
+A name in the earlier build's shape is never judged at all,
+so after a kill under `0.2.7-alpha.14` its finished copy is neither published nor removed by any command.
+A round changes the sentences and the README,
+and the rules stay as picked.
+The reader's own suggestion,
+untested:
+hold the put-back while an earlier-shape name's process id and start time name a process running here,
+a hold that ends when that process does.
+
+### What becomes of a finished copy of an older version
+
+A recovery never publishes an older version beside a newer installed one.
+The choice:
+such a finished copy stays under its hidden name only when its marker records the lock's row,
+so a later install of that version publishes it with no download;
+one whose marker the lock does not vouch for is removed,
+since no install can ever publish it;
+and a run that holds no row for the archive removes nothing.
+The other way,
+one arm of `a_finished_copy_nothing_here_publishes`:
+keep every such copy.
+
+What the read of `0.2.7-alpha.15` adds:
+the removal asks only the running checkout's lock,
+where `prune --toolchain` asks every known lock.
+So one checkout's install removes a finished copy that another checkout's lock vouches for
+(two checkouts that pin one version with two digests),
+and the other checkout,
+offline,
+then cannot install.
+A third way follows from it:
+keep a copy that any known lock vouches for.
+A round returns that as a proposal and changes only the sentence printed.
+
+The round also split two files over the line budget and named the new ones
+`the_completion_marker.rs` and `what_a_recovery_answers.rs`;
+the names are open to renaming.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.
@@ -2575,3 +3058,1229 @@ Ranking:
 leave them out > widen,
 because the folders exist to hold work that is not being done,
 and the rule already reaches a package the moment it comes back.
+
+## Veto open: a name of another boot that carries no start time is ended (recorded 2026-11-27T15:23:31-05:00)
+
+The Claude Sonnet read of `mpm-shadow` `0.2.7-alpha.15`
+(returned 2026-11-27T14:35:51-05:00)
+found that `Owner::liveness` asked whether a hidden name's start time field is zero before it asked which boot the name belongs to.
+A run that cannot read its own `/proc/<pid>/stat` record writes that zero,
+so a name it wrote under an earlier boot was read as "the system did not say" and never reclaimed,
+although no process survives a reboot,
+and the README says a name from another boot names an installer that reboot certainly ended.
+A round answering that read gave the boot the first word
+(merged as `2c6513069b`),
+so the code and that sentence now agree.
+The round wrote this entry on its branch;
+the coordinating session re-broke its lines and named the read on 2026-11-27,
+changing nothing it says.
+
+- The boot decides first (taken):
+  a name of another boot is ended whatever its start time says,
+  so the copy under it is published or removed instead of staying for ever.
+  The cost is that a name of a boot this reader is not in is now removed on the strength of the boot alone,
+  where before a zero start time held every such name back.
+  If `/proc/sys/kernel/random/boot_id` ever answers two values for two live processes of one machine
+  (a container that bind-mounts another over it,
+  or a kernel that namespaces the file),
+  a live installer's directory could be removed.
+  The same risk already covers every name with a start time other than zero,
+  so this widens a hazard that exists rather than making one.
+- The zero decides first (the code before that round):
+  such a name is never judged,
+  and the README sentence needs the qualification that a name which carries no start time is not placed in any boot.
+  The cost is a copy that stays for ever:
+  nothing publishes it,
+  nothing removes it,
+  and `prune --toolchain` prints it for a person to delete by hand.
+
+Ranking,
+the coordinating session's on reading the round's entry:
+the boot first > the zero first,
+because a reboot ends every process whatever a name's start time field holds,
+and the hazard the boot's word carries already covers every other name.
+
+Neither way changes the picks recorded at `2026-11-27T13:23:53-05:00`:
+a name of another boot never held the copy a kill moved aside,
+because it does not carry this boot's identifier,
+and it does not become a vouched finished copy either.
+What changes is only which `.staging` and `.replaced` directories of another boot with a zero start time a recovery or `prune --toolchain` removes.
+
+## Veto open: what `mpm-shadow` tells a person about a finished copy it cannot judge (recorded 2026-11-27T15:56:07-05:00)
+
+A round answering the same read changed messages and the README and no rule
+(merged as `7a216deafc`).
+The coordinating session read its report whole and wrote this entry.
+
+An install whose download failed,
+while a finished copy of that version sits under a hidden name it cannot judge,
+used to print the download's failure alone.
+It now goes on:
+
+```text
+a finished copy of mpm-shadow 0.2.1 sits under the hidden name <toolchain root>/mpm-shadow/.0.2.1.staging.42.100, whose installer this build cannot judge, so no install of this build publishes it; the version comes back from a download with the network there, or by moving that copy to <toolchain root>/mpm-shadow/0.2.1 by hand, which checks none of its bytes against the lock
+```
+
+- Name the move by hand and what it gives up (taken):
+  a machine with no network has a way to get the version back,
+  and the sentence says the bytes are then unchecked.
+  The cost is that the tool itself tells a person how to run bytes the lock did not verify.
+- Name the copy and stop there:
+  the tool never suggests running unverified bytes.
+  The cost is that a person with no network is told a finished copy exists and not what can be done with it.
+
+Ranking,
+the coordinating session's:
+name the move and what it gives up > name the copy alone,
+because the person is the only one left who can judge that copy,
+and a sentence that hides the one way out leaves a machine with no network without the version.
+
+## Open: two `mpm-shadow` proposals nobody built, for a finished copy no rule can use today (recorded 2026-11-27T15:56:07-05:00)
+
+Both come from the round merged as `7a216deafc`.
+Neither is built,
+and each changes a rule an earlier round picked with the owner's veto open,
+so nothing starts on either without an answer.
+
+### Publish a finished copy an earlier build left, instead of only naming it
+
+The lock records the archive's SHA-256 and the copy on disk is the unpacked tree,
+so a run with no network cannot compare the copy's bytes with the lock's row.
+
+- A tree digest in the marker and in the lock:
+  every install writes a digest over the unpacked tree into the marker,
+  and `update` writes it into the lock,
+  so a copy is judged byte for byte with no network and no other build's word.
+  The cost is a change of the lock's format and of the marker's,
+  and the markers earlier builds wrote carry neither.
+- Trust the earlier build's marker:
+  one line of code.
+  The cost is that bytes edited since that build's own check are published unchecked.
+- Publish only after a person confirms:
+  the cost,
+  in the round's words,
+  is that it "defeats the offline case it is for".
+- Leave it (today):
+  the copy is named and never published,
+  and the person moves it by hand or finds a network.
+
+Ranking,
+the round's for the first three and the coordinating session's for the last:
+the tree digest > leave it > trust the earlier marker > publish after a confirmation,
+because only the digest lets a run with no network judge the bytes;
+leaving it runs no unchecked byte,
+which trusting the marker does;
+and trusting the marker at least serves the machine with no network,
+which the round says a confirmation does not.
+
+### Keep a finished copy another known lock vouches for
+
+Today a removal and a publish consult only the running tree's lock row,
+and `prune` reads every known lock's versions and never its digests,
+so one checkout's install removes a finished copy another checkout's lock vouches for.
+
+- Keep it hidden when any known lock names the marker's digest:
+  the other checkout's copy survives,
+  which is the only copy a machine with no network has of it.
+  The cost is a read of every known lock's artifact rows inside `install`,
+  and bytes that no tree's own install may ever run staying on disk with no line printed for them.
+  Two trees that pin one version with two archives still do not recover each other's copy.
+- Keep the rule and say what the removal took (what the round did):
+  a person who needs that copy knows it is gone.
+  The cost is that the copy is gone.
+
+Ranking,
+the coordinating session's:
+keep it hidden > say what the removal took,
+because a sentence does not bring a finished copy back,
+and the read of the other locks is one `prune` already makes for their versions.
+
+## Open: two words in `mpm-shadow`'s install report that say more than the run read (recorded 2026-11-27T16:19:06-05:00)
+
+The round that made the report's sentences about a leftover say only what the run read
+(merged as `a49bf155cd`)
+left these as they were and returned them,
+because each trades exactness against something a person learns from the word.
+Neither holds a release.
+
+### "another install published that version meanwhile"
+
+Printed when this run drops a copy because the version's name already holds a finished one.
+What the run read is that a finished copy stood at the name which this run did not put there.
+
+- Say what was read:
+  "because a finished copy of that version appeared at its name meanwhile".
+  The sentence then claims nothing about who did it;
+  the cost is that a person is no longer told the usual writer of that name,
+  another install.
+- As now:
+  the sentence names the one writer the scheme has;
+  the cost is that a copy a person put there by hand is called an install's.
+
+Ranking,
+the coordinating session's:
+say what was read > as now,
+because the release read's finding was that these sentences name causes the tool does not know,
+and the exact words lose only a guess.
+
+### "the older version that was installed before this run"
+
+Printed when the newest-only rule removes an older version directory this run did not put there.
+The rule removes unfinished directories too,
+so "installed" is one step past what the run read.
+
+- Say which it was:
+  the run reads whether that directory held a finished copy,
+  says "installed" when it did,
+  and "an unfinished copy that was there before this run" when it did not.
+  The cost is one more read of a directory that is about to be removed.
+- Say "that was there before this run" for both:
+  exact,
+  at the cost of the word that tells a person the older version had been working.
+- As now.
+
+Ranking,
+the coordinating session's:
+say which it was > "that was there" > as now,
+because the first is exact and keeps the word where it is true,
+and the second is exact where today's sentence is not.
+
+## Veto open: three picks of the wrapper round on a process's name in two sentences nothing calls yet (recorded 2026-11-27T16:36:52-05:00)
+
+The round answering the behaviour read of `0.6.1-alpha.50` made its picks and returned each with its other way.
+The coordinating session read its report whole and wrote this entry;
+the round merged as `e772d8ad66`.
+None holds a release.
+
+### A process's recorded name is kept as the kernel gave it, and the sentence escapes it
+
+`CommandWord::of` used to escape control characters itself,
+by a rule weaker than the one every other sentence uses,
+and the two refusal sentences printed its text raw inside parentheses.
+
+- One escape and at the sentence (taken):
+  the record keeps the kernel's bytes,
+  cut to the kernel's own length,
+  and each sentence shows the name through the one function every other sentence uses.
+  The cost is a changed behaviour of a name another crate can reach:
+  a caller that relied on the record's text being escaped now gets the bytes.
+- Escape in the record as well:
+  the record's text stays safe to print as it is.
+  The cost is a name escaped twice once a sentence shows it,
+  so a line feed reads as an escaped backslash and letters,
+  or a record with two texts and two escapers again.
+
+Ranking,
+the round's and the coordinating session's:
+one escape at the sentence > an escape in the record as well,
+because the repository's rule is to encode at the final interpolation,
+and two escapers were the finding.
+The crate is not on crates.io at this version,
+so the changed behaviour is a design change and breaks no published contract.
+
+### A record written as JSON leaves a bidirectional control and U+2028 as the name's bytes
+
+`SPEC.md` said every line that names a process escapes everything outside printable ASCII.
+A JSON record is escaped by JSON's own rule,
+which leaves those characters as bytes.
+
+- Say so in `SPEC.md` and leave the record (taken):
+  the record is data a program reads,
+  and its bytes compare equal with the kernel's.
+  The cost is that a person who prints such a record in a terminal sees those characters act.
+- Escape them in the record too:
+  the record is safe to print.
+  The cost is a change of the bytes of every record that holds a name outside ASCII,
+  and of every reader that compares them.
+
+Ranking,
+the round's and the coordinating session's:
+leave the record > escape in the record,
+because the reader of a record is a program,
+and the line rule already covers every sentence a person is shown.
+
+### The sentence about an unusable identity file is remembered for the process and never reset
+
+It is said once for a command because a process is one command.
+The round showed from the source,
+and from one run of a serving process,
+that the commit service and the clone mount handler's modes never read the identity file:
+`main.rs` chooses each before the wrapper's entry runs.
+That run served its socket and no commit went through it,
+because a fixture has no service manager.
+
+- Leave it (taken):
+  the memory cannot outlive a command today.
+  The cost is that a later change which makes a serving process read the file would say the sentence once for ever,
+  and no test can show that yet.
+- Reset it per request now:
+  safe against that later change.
+  The cost is code nothing can exercise.
+
+Ranking,
+the round's and the coordinating session's:
+leave it > reset it now,
+because a reset no run reaches is held by no control.
+
+## Veto open: how long `cargo-shadow` asks its route question again, and the release that waits on it (recorded 2026-11-27T17:05:55-05:00)
+
+The round of issue 6623 merged as `e595486ec8`.
+The coordinating session read its report whole and wrote this entry.
+
+### The asking again is sized to a measured reexec
+
+- Five asks,
+  200 ms apart,
+  spanning 0.800 s (taken):
+  it covers the longest reexec of a user manager across which asks were measured to fail,
+  0.588 s,
+  and a control that reexecutes a container's own manager passes with it.
+  The cost is paid where no user manager can be reached at all:
+  every call makes five asks and takes 883.1 ms at the median,
+  against 43.2 ms and one ask for `0.1.5-alpha.15`.
+- Three asks,
+  50 ms apart,
+  as before that round:
+  the cost where no manager answers is about a tenth of a second.
+  The same control failed with it in a container,
+  142 ms into a real reexec.
+
+Ranking,
+the round's and the coordinating session's:
+five asks 200 ms apart > three asks 50 ms apart,
+because only the first rides through what was measured.
+Its cost has a round of its own,
+issue 6629:
+a call with no manager to reach asks once.
+
+### `0.1.5-alpha.16` waits for issue 6629's round
+
+- Wait (taken by the coordinating session):
+  the release and its lock would put the five asks into every call where no manager answers,
+  and the repository's workflows install the locked binary.
+  The cost is that this machine keeps `0.1.5-alpha.15` for as long as the round takes,
+  in which one failed ask still reads as a host with no delegated control group.
+- Release now and again after the round:
+  this machine gets the asking again at once.
+  The cost is that wait on every such call until the next release.
+
+Ranking,
+the coordinating session's:
+wait > release now,
+because the wait is one round long and the cost of releasing lands on every call of a kind.
+
+That wait is over:
+the round merged as `aa7b4eb927` at 2026-11-27T17:49:46-05:00,
+a call with no user manager to reach makes one ask again,
+and the release started after it.
+One thing the round left:
+a host whose manager died and left its socket file or its directory behind is still asked five times.
+
+- Leave it (taken):
+  the cost is the five asks on such a host and nothing anywhere else.
+- Tell a dead socket from a manager that is reexecuting:
+  such a host would be asked once.
+  The cost is a rule nobody has found:
+  in the round's sampling a reexec answered `Connection refused` in 393 of 399 refused asks,
+  which is what a socket file with nothing listening answers too,
+  and a wrong guess there refuses a call across a reexec.
+
+Ranking,
+the round's and the coordinating session's:
+leave it > tell them apart,
+because the second risks the failure the asking again exists to prevent.
+Issue 6629 stays open for it.
+
+### What stays unexplained
+
+The ten failures of 2026-11-27 came after the reexec had ended,
+and no measurement reproduced them.
+Issue 6623 was closed by its commit's `Closes` line at the merge;
+a comment on that commit says `Refs` is the accurate word,
+and issue 6628 holds the event.
+
+## Veto open: four picks of the linter round on `file-uses` lines and characters a reader cannot see (recorded 2026-11-27T17:05:55-05:00)
+
+The round for the read of `0.5.2-alpha.21` merged as `83d10dd296`.
+The coordinating session read its report whole and wrote this entry.
+None holds `0.5.2-alpha.22`.
+
+### A line whose words name a folder is refused by naming that folder, for every spelling of its gaps
+
+- For every spelling (taken):
+  one folder gets one sentence,
+  which is what the read asked.
+  The cost is that a doubled gap,
+  which re-spacing would mend,
+  is answered with a sentence about the folder's name.
+- The word-count sentence for the gaps a person can re-space,
+  and the folder's name only where no re-spacing gives a readable line:
+  the smaller edit is named.
+  The cost is two sentences for one folder in a list aligned by hand.
+
+Ranking,
+the coordinating session's,
+since the round gave costs and no order:
+for every spelling > split by gap,
+because the read's finding was that one folder drew different sentences.
+
+### A doubled gap beside a name is read as the name without the gap's whitespace
+
+A name that begins with whitespace would be read as the name without it.
+The round's reason for leaving it:
+no tree the layout rules accept can hold such a name,
+so the choice changes a message and no verdict.
+No other way was built.
+
+### `AllowEntry` gains a public field, `column`
+
+Code outside this repository that builds an `AllowEntry` must pass it.
+Nothing in the repository does,
+and the crate is a pre-release,
+so this is a design change.
+
+### The set of characters is tied to Unicode 17.0.0
+
+The ranges beyond the general categories are written beside the data file they come from,
+and a control fails when the linked tables move to another release.
+The other way was a crate that answers the property directly:
+one call in place of the ranges,
+at the cost of that crate's own Unicode release beside the one the categories come from.
+
+## Veto open: the picks of two more wrapper rounds for the `0.6.1-alpha.50` reads (recorded 2026-11-27T17:05:55-05:00)
+
+The coordinating session read both reports whole and wrote this entry.
+None holds a release.
+
+### No resolved merge answer holds a copy of a line a side deleted
+
+The round merged as `85be73acf1`.
+
+- The copies bound for every shape of region (taken):
+  no answer the word pass resolves holds more copies of a line the base held than the two sides leave.
+  The cost,
+  on the read's 2,300 seed cases:
+  21 answers that resolved are conflicts now,
+  each of which broke the bound,
+  and a refused file keeps both sides of every region the sides disagree about.
+- Leave the code and state the exception in `README.md`:
+  21 more answers resolve.
+  The cost is text a side removed landing with no marker.
+- The bound read for each region alone,
+  not taken:
+  it refuses right answers,
+  where one region holds more copies than its own two sides leave and another holds fewer.
+
+Ranking,
+the round's and the coordinating session's:
+every shape > the stated exception > each region alone,
+because the exception is the loss issue 6529 exists to prevent,
+and the per-region reading refuses answers that are right.
+The seeds are synthetic and repetitive,
+so neither figure is a rate for real files.
+Where both sides wrote more copies of one line than the base held,
+nothing judges the answer;
+the round left that as its brief said.
+
+### Ten names and one alias leave the crate's published surface
+
+The round merged as `35fdc1797c`.
+The widened control saw ten names `0.6.1-alpha.50` published that nothing outside their module reads:
+seven associated constants,
+and three fields of one struct.
+
+- Narrow them (taken):
+  each takes the reach its readers need,
+  and an alias with no reader at all is deleted.
+  The cost is that a consumer outside this repository that names one stops compiling;
+  the round found none in the binary,
+  the fuzz sidecar,
+  the end-to-end folder,
+  the integration targets
+  or any branch on origin.
+- Give each a line in the list:
+  the surface stays as `0.6.1-alpha.50` published it.
+  The cost is ten published names nobody chose to publish.
+
+Ranking,
+the round's and the coordinating session's:
+narrow > list,
+because the crate is not on crates.io,
+so a narrower surface is a design change and breaks no published contract.
+
+## Veto open: two things `mpm-shadow` `0.2.7-alpha.16` does that no record chose (recorded 2026-11-27T17:12:22-05:00)
+
+The second pass over `0.2.7-alpha.16` found both,
+with both released binaries on fixtures.
+The coordinating session read it whole and wrote this entry.
+A round held each with a control and wrote it into the README,
+merged as `d46572181c`;
+neither behaviour changes before the owner says so.
+
+### A recovery that puts an unfinished copy back also points `current` at the newest finished version
+
+The state:
+an older version finished,
+`current` absent,
+and a newer version whose copy a kill left unfinished and no lock vouches for.
+
+- As `0.2.7-alpha.16` does (kept for now):
+  `current` names the older version and the launcher starts it,
+  while `list` says drift and `install` ended 1.
+  A person's tool works.
+  The cost is that it is silently the older one.
+- As `0.2.7-alpha.15` did:
+  `current` stays absent,
+  and the launcher fails and says to run the install.
+  The cost is a tool that does not start although a finished version is on disk.
+
+Ranking,
+the coordinating session's:
+as alpha.16 does > as alpha.15 did,
+because `list` and the install's own exit status already say the newer version is missing,
+and a start that fails helps nobody who has a working older copy.
+
+### A move of `current` that fails once ends the run 1, and the older version stays
+
+One failed rename of the link:
+nothing is removed,
+the run reports the failure and ends 1,
+a later step of the same run moves the link,
+and the older version stays until `prune --toolchain`.
+The README says a run ends 1 only when the locked version is not at its name afterwards,
+which is not so here.
+
+- The run makes up for it when its later step moves the link:
+  the removal runs then and the first failure is a warning.
+  The cost is a second place that removes older versions.
+- The behaviour stays and the README says what happens:
+  no code changes.
+  The cost is a status 1 for a run that left everything in place,
+  and a retired version on disk until a `prune`.
+
+The round kept the behaviour and wrote it into the README (merged as `d46572181c`),
+with a control that holds it.
+Its argument is from the code:
+the later step moves the link of whichever toolchain root wins,
+which can be the other root,
+so a removal tied to that step could remove under this root's link that has not moved.
+A make-up would need a second move of this same link,
+would still end 1 if that failed too,
+and would have to leave a plain install of an already-installed tool alone.
+
+Ranking,
+the round's and the coordinating session's:
+the behaviour stays > the run makes up for it,
+because the removal must never run under a link that still names the version going away,
+and the cost of staying is one status 1 and one `prune`.
+
+## Veto open: two picks of the wrapper round on the list guards (recorded 2026-11-27T17:12:22-05:00)
+
+The coordinating session read the report whole and wrote this entry.
+None holds a release.
+
+### An excuse names the line of the one use it covers
+
+- The line (taken):
+  a use removed and another of the same text added to the same file fails,
+  which a count let through.
+  The cost is that a line `rustfmt` reflows makes its entry stale,
+  and the entry and the reflow become one commit's work.
+- A count of uses per file,
+  as before:
+  a reflow costs nothing.
+  The cost is the swap the read found.
+
+Ranking,
+the round's and the coordinating session's:
+the line > a count,
+because the swap is the finding,
+and one guard of the crate already named its lines.
+
+### `Command::new(r` stays a banned text
+
+It also matches a start through a variable whose name begins with that letter.
+No file of the commit path holds one today,
+so the round left the ban;
+a rule that reads a literal argument would be narrower and is not built.
+
+## Veto open: three picks inside the router the owner chose for the writer's list (recorded 2026-11-27T17:30:22-05:00)
+
+The owner chose that the router pass over a member too small for a request,
+and that a pool advertise its head member's window.
+The round that built it merged as `45b9aaeb94`,
+and the built copy Pi loads was rebuilt at 2026-11-27T17:28:33-05:00,
+so it is live.
+The coordinating session read its report whole and wrote this entry.
+
+### A member is too small when the request's input alone exceeds its window
+
+- The input alone (taken):
+  Pi cuts the answer's limit to what the window leaves,
+  so a request whose input fits is served.
+  The cost is a short answer near the edge:
+  the round's case leaves 10,875 tokens of answer for an input of 509,317 in a window of 524,288.
+- The input plus the member's output limit:
+  no answer is cut short.
+  The cost is that a request Pi can serve is passed over.
+
+Ranking,
+the round's and the coordinating session's:
+the input alone > the input plus the output limit,
+because passing a member over refuses a request it can answer.
+
+### No margin beside the estimate
+
+- None (taken):
+  the estimate is Pi's own,
+  and over 48,805 requests in 200 sessions it stood within 0.1% to 0.2% of the count the member reported,
+  at the 5th and the 95th percentile.
+  A request the estimate misjudges ends in the member's own rejection,
+  after which Pi compacts and retries the turn once,
+  as the owner's chosen option said.
+- A margin of a few percent:
+  fewer such rejections.
+  The cost is a member passed over for a request it can hold;
+  0.6% of the requests in untouched sessions stood 5% or more from their member's count.
+
+Ranking,
+the round's and the coordinating session's:
+none > a margin,
+because the tail is rare and already has a recovery,
+and a margin costs every request near the edge.
+
+### The head is the first member the session's registry resolves
+
+Where the first member of the list is not registered,
+the pool advertises the next member's limits,
+which is 524,288 and 65,536 where Qwen's member is missing.
+The other way would keep the list's first member's limits whether or not it is registered,
+and advertise a window no member of the session has.
+No ranking is needed:
+the second is wrong for such a session.
+
+## Veto open: the Rust toolchain row no longer declares `rustup`, and what its two format programs need (recorded 2026-11-27T17:30:22-05:00)
+
+The round of issue 6626 merged as `7aa3e5e61f`.
+The coordinating session read its report whole and wrote this entry.
+
+### The row stops declaring `rustup`
+
+- Stop declaring it (taken):
+  `rustup` is the manager,
+  no toolchain holds it,
+  and nothing in the repository's tasks,
+  scripts or workflows reaches it through the exposure folder.
+  An install now names no unresolved bin on this machine.
+- Teach the route to link the manager's own program:
+  the folder would hold a `rustup`.
+  The cost is a link into a program this tool neither installs nor updates,
+  whose place differs by machine,
+  and which would shadow the manager for every task.
+
+Ranking,
+the round's and the coordinating session's:
+stop declaring it > link the manager,
+because nothing needs the link.
+
+### The row declares `cargo-fmt` and `rustfmt`, and no component it declares installs them
+
+Both resolve on this machine only because the `rustfmt` component was added by hand on 2026-11-25.
+A machine that follows the plan has neither,
+and a task that runs `rustfmt` finds none.
+This is issue 6630.
+
+- Declare the `rustfmt` component in the row,
+  which is the coordinating session's pick and what a round builds:
+  the row's bins resolve on any machine.
+  The cost is one more component download where it is missing,
+  and nothing here.
+- Stop declaring the two bins:
+  no download.
+  The cost is that the tasks that run `rustfmt` or `cargo fmt` depend on some other copy on `PATH`,
+  which this machine does not have.
+
+Ranking,
+the round's and the coordinating session's:
+declare the component > drop the bins,
+because the repository's own tasks run both programs.
+
+## Veto open: two things the round on the `final-newline` hint left as they are (recorded 2026-11-27T17:48:05-05:00)
+
+The round of issue 6627 merged as `0f69dbfe93`.
+The coordinating session read its report whole and wrote this entry.
+None holds a release.
+
+### `finding_hint` takes a fourth positional parameter
+
+The repository's rule asks a function of two or more parameters to take one object.
+
+- A fourth positional parameter (taken):
+  it follows the neighbouring functions of the crate,
+  and publishes three names.
+- One object:
+  the rule is kept.
+  The cost is five more published names,
+  by the round's count.
+
+Ranking,
+the round's:
+the positional parameter > the object,
+because the crate's own functions around it are positional.
+The coordinating session adds no ranking:
+the rule is written for TypeScript,
+and this is Rust.
+
+### A landed commit and a manual push still say to edit the file and stage it again
+
+That is a true next step and not the only one:
+the `fix` command corrects the worktree copy,
+and the person still commits it.
+The issue asked that the sentence stay only where nothing corrects the bytes,
+which is what the round did;
+saying more there was not built.
+
+## Veto open: three things the round on the driver's watch cases chose (recorded 2026-11-27T18:11:08-05:00)
+
+The round of issue 6631 merged as `ae937863bc`.
+The coordinating session read its report whole and wrote this entry.
+None holds a release.
+
+### How long a case waits for its event
+
+A case of the driver's suite waited three polls,
+900 ms,
+for an event that takes two looks,
+and one whole run of the suite left it 177 ms of room.
+
+- A bound from the looks a case needs (taken):
+  each look is counted with the longest wait a look can be handed,
+  so no loaded host decides these cases.
+  The cost:
+  a watch that reaches its event only after seconds still passes,
+  and one that never reaches it is reported after as long as 181.8 s,
+  where it took about a second.
+- A clock each case owns,
+  as `wait-for-an-answer.unit.test.ts` has:
+  the case ends at its event with no figure in milliseconds at all,
+  and a slow watch is caught.
+  The cost is a stand-in clock and its driver in twenty-one cases,
+  and the record's silence window reads that clock too.
+
+Ranking,
+the coordinating session's:
+the owned clock > the bound from looks,
+because it catches a slow watch and the bound does not.
+The round built the bound because it is the smaller change to a file it only had to make hold.
+
+### Two cases that assert the wall clock keep their poll counts
+
+One of them needs its first look before its clock,
+so a timer that fires about 285 ms late still fails it.
+
+- Leave them (taken):
+  no failure of either is on record.
+- Give those two the owned clock:
+  the exposure goes.
+  The cost is a round on two cases.
+
+Ranking,
+the coordinating session's:
+the owned clock > leave them,
+for the same reason,
+and the two questions are one round if the first is taken.
+
+### Where the cause is written down
+
+The round wrote it into `doc/troubleshooting/testing.md`,
+as the next cause of a bug whose other causes are written there.
+`AGENTS.md` asks that a fact about one package go in that package's docs.
+
+- Leave it beside the bug's other causes (taken).
+- Move the whole bug,
+  with every cause,
+  into the driver's own docs:
+  the rule is kept and the causes stay together.
+- Move this cause alone:
+  the rule is kept for it and the bug is split over two files.
+
+Ranking,
+the coordinating session's:
+move the whole bug > leave it > move this cause alone,
+because the first keeps the rule and the record whole,
+and the last trades one for the other.
+
+## Veto open: whether a command the linter prints may spell a name it must hold raw (recorded 2026-11-27T18:17:40-05:00)
+
+The Claude Sonnet read of the linter's `0.5.2-alpha.22` found that the loop message,
+the missing-link message and the command that message gives
+(`mkdir --parents <folder>/uses && ln --symbolic ...`)
+print a folder's name raw when it holds a character that prints as nothing,
+a right-to-left override among them.
+The list reader's own messages spell such a character since alpha.22.
+No round builds any of this yet;
+the read's other findings went to a round.
+
+- Sentences spell the name,
+  and a command keeps it raw and says in words that it holds such a character (the coordinating session's pick):
+  the command works when copied.
+  The cost:
+  the raw character still reaches the terminal inside the command's text.
+- Spell the name everywhere,
+  commands too:
+  nothing raw reaches a terminal.
+  The cost:
+  the copied command names a folder that is not there,
+  so the message has to say how to type the real name.
+- Leave the messages as they are:
+  no work.
+  The cost:
+  the module's own comment says every message spells such a character,
+  which is then not so.
+
+Ranking,
+the coordinating session's:
+sentences spell and commands stay raw > spell everywhere > leave them,
+because the first keeps the command usable and the second gives a command that fails,
+and because the second still tells a person what the name holds where the third prints it unseen.
+
+The Braille blank,
+U+2800,
+prints as an empty cell and is printed raw by both releases:
+Unicode does not count it among the characters that print as nothing.
+The pick is to leave it;
+the other way is to add it to the set by hand,
+which ties the set to a list of the linter's own beside Unicode's.
+
+## Veto open: what four rounds of 2026-11-27 chose or left (recorded 2026-11-27T18:42:35-05:00)
+
+The coordinating session read each round's report whole and wrote this entry.
+None holds a release.
+
+### The wrapper: a slot command behind a shell alias that could not be placed is refused
+
+When Git cannot be asked where a `!` alias's shell runs,
+a removal,
+a move or a prune of a worktree behind that alias was forwarded with no refusal.
+The round on the alias reading (merged as `461d441ef7`) refuses it,
+with words saying what could not be read.
+
+- Refuse it (taken):
+  a bound slot keeps its protection.
+  The cost:
+  such a command is refused whenever one start of Git fails,
+  also in a repository with no record at all,
+  and the person types it again without the alias.
+- Forward it and print a line:
+  nothing is refused that Git would have run.
+  The cost:
+  a removal of a bound slot deletes the registration and the pointer under the clone.
+
+Ranking,
+the round's and the coordinating session's:
+refuse > forward,
+because the owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe.
+
+### The wrapper: the guard in that same failure state
+
+When that ask fails,
+the guard judges the caller's own worktree.
+For an alias whose own words name no other place that is the right worktree.
+For one whose words carry `-C`,
+`--git-dir` or `--work-tree` it is the wrong one.
+
+- Leave it (taken):
+  the guard refuses only what it can prove.
+  The cost:
+  in that failure state a guarded command aimed at another worktree is judged for the caller's.
+- Refuse a guarded command behind such an alias when the ask fails:
+  the hole closes.
+  The cost:
+  a false refusal of every such command whenever one start of Git fails,
+  and no record says the guard may refuse what it cannot place.
+
+Ranking,
+the coordinating session's:
+refuse > leave it,
+because a command judged for the wrong worktree is the failure this release set out to end,
+and a refusal can be typed again.
+The round built neither way of its own accord and left it as it was.
+
+### The wrapper: one more line in the folder rule's allow list, and two more files over the line budget
+
+The plan says the allow list may only shrink
+and that a split inside the `invocation/` folder waits for the crate's move.
+That round made one new file there to keep a file under the budget,
+with one `group-file` line for it,
+and left two other files over the budget,
+at 313 and 305 code lines.
+
+- As the round did (taken):
+  one file stays under the budget at the cost of one line the move deletes.
+- Take the line out and leave that file over the budget too,
+  with the folder's other nine:
+  the list does not grow.
+  The cost:
+  one more file over the budget until the move.
+
+Ranking,
+the coordinating session's:
+take the line out > as the round did,
+because the plan's rule is that the list only shrinks and the round broke it for one file while keeping it for two.
+Nothing is built either way until the owner says.
+
+### The scanner of forbidden strings: what a link given by name means
+
+The workflow no longer hands the scanner a link whose target is a folder
+(issue 6632,
+merged as `fc1c84b58e`),
+and a round now makes it hand over each such link's own name and target text through an option the released scanner has
+(issue 6633).
+Inside the scanner a link given by name is still followed:
+a link to a file is read through,
+and a link to a folder is a read error.
+Each way below needs a release of the scanner,
+which is not an alpha and is asked first.
+
+- Leave it (taken):
+  no release.
+  The cost:
+  any other caller that lists a folder link gets one read error for it.
+- Leave links out of named arguments as the walk does:
+  no read error.
+  The cost:
+  a link to a file is no longer read through.
+- Scan a link's own name and target text and never follow it:
+  the most is inspected.
+  The cost:
+  a new output shape in a security gate,
+  and a link to a file is no longer read through.
+
+Ranking,
+the coordinating session's:
+scan name and target text > leave it > leave links out,
+because the first inspects what Git stores and follows nothing outside the repository,
+and the last inspects least.
+
+### The linter: when its read, fix and release loop ends
+
+Twelve alphas of the linter were released on 2026-11-26 and 2026-11-27,
+by the count of its release commits,
+each read by a second pass,
+each read answered by a fix round and the next alpha.
+The read of `0.5.2-alpha.22` found no High and no Medium finding,
+and nine Low ones on folder names that hold tabs,
+arrows or characters that print as nothing.
+A fix round for seven of them runs.
+
+- Stop reading each alpha once a read finds no High and no Medium
+  (the coordinating session's pick for what follows `0.5.2-alpha.23`):
+  the alpha is still released and locked,
+  and the next read waits for a change that is more than an answer to a read.
+- Go on as now:
+  every alpha is read.
+  The cost:
+  each read finds a handful of Low points on names no repository here holds,
+  and each fix adds reading logic the next read probes.
+
+Ranking,
+the coordinating session's:
+stop at a read with no High and no Medium > go on,
+because the findings no longer change what a person using the linter here meets.
+Until the owner says,
+`0.5.2-alpha.23` is read as the others were.
+
+### `cargo-shadow`: how much room its module list has
+
+`src/lib.rs` holds 201 code lines against the budget of 300,
+after 52 test files were declared by the modules they test (merged as `60ecd08eef`).
+Thirty test files that belong to no one module stay declared there.
+
+- Leave them (taken):
+  99 lines of room.
+- Group those thirty under one parent module:
+  about 149 code lines.
+  The cost:
+  26 more test paths change,
+  for a grouping the suites do not have.
+
+Ranking,
+the round's:
+leave them > group them,
+because the room is enough for 99 more modules.
+
+## Veto open: what the rounds read on the evening of 2026-11-27 chose or left (recorded 2026-11-27T19:13:58-05:00)
+
+Each entry is a choice the coordinating session made,
+or one a round's report left,
+with the way not taken.
+None holds work:
+each stands unless the owner says otherwise.
+
+### `mpm-shadow`: where the Rust row's programs come from
+
+The Claude Sonnet second pass of `0.2.7-alpha.17` found that the folder of links (`.cache/toolchain-bin`)
+takes each program of the Rust row from the first toolchain in name order that holds it,
+not from the pinned one
+(issue 6634).
+This machine's folder points at the pin today,
+because the pin's name sorts first;
+it stops doing so when the pin moves to a later date while the older toolchain stays.
+The fix round was given these picks as its own to show wrong:
+
+- the row's programs come from the toolchain the row names and from no other;
+- the rebuild removes a symbolic link the folder holds for a name no row declares,
+  never a regular file,
+  and the install's report says which it removed;
+- `list` reports a declared component or target the toolchain lacks as drift,
+  since `install` would act on it.
+
+The way not taken for the second pick is today's:
+the rebuild only ever adds links,
+so nothing in the folder is deleted,
+at the cost of a link that dangles or serves a program no row asks for.
+The round lists what the rebuild would remove from a folder like this machine's,
+and that list is read before `0.2.7-alpha.18` is installed here.
+
+### `mpm-shadow`: what a warning and a `prune` line may say
+
+The same pass found a warning that promises a publish the next run does not make,
+and two sentences that call a version whose program is cut short the holder of "a second copy".
+The picks given to that round:
+each warning says what the next run does for the kind of failure that reached it;
+the rule for a finished version
+(a marker and a program found,
+with no size or digest)
+stays,
+as the round before priced it,
+and the two sentences end at what the run read.
+The way not taken:
+check a program's size or digest before calling a version finished,
+which costs every install a read of every program.
+
+### The store fixture: what the round of issue 6410 left
+
+- The branch's history holds merge commits with no `Refs` line,
+  and commits that repeat one tree,
+  made by the pusher before a message was amended.
+  Pick:
+  leave them,
+  since removing them rewrites pushed history.
+- The default deadline of 2,000 ms.
+  It failed four calls falsely under a small cap,
+  and a recorded disk stall on this machine is 2,564 ms.
+  Pick:
+  size it from a measurement under the caps its users run in,
+  which a round is doing now;
+  the way not taken is to keep 2,000 ms and call the small cap the fault.
+- The tool runs in a process group of its own,
+  so that a helper it leaves behind stops with it at the deadline.
+  The cost:
+  an interrupt typed at a terminal no longer reaches the tool,
+  which then runs to the deadline.
+  Pick:
+  keep the group.
+- A helper that moves itself out of the group,
+  and the moment between the leader's exit and the signal in which its number is free to be reused:
+  nothing reaches either.
+  Left as written in the package's README.
+- A call that succeeds does not stop a helper the tool left running.
+  Pick:
+  leave it,
+  since stopping there widens what a passing call signals.
+
+### The scanner's workflow: what the round of issue 6633 left
+
+- A link to a file is read through,
+  and its stored target text is not scanned;
+  a link to a folder now has its text scanned.
+  Ranking:
+  scan it > leave it,
+  because a forbidden string can sit in a link's target text whatever the link points at,
+  and the cost is a second finding under another label when the file behind it matches too.
+  No round runs on it.
+- The whole-tree arm (`--all`) inspects neither a link's name nor its target text.
+  Ranking:
+  list the index's links there too > leave it,
+  because the whole-tree arm is the one that runs when no baseline exists;
+  the cost is every link inspected on each such run.
+  No round runs on it.
+- A name that holds a line break fails the gate whether or not it holds a forbidden string,
+  because the released scanner counts its `unsupported pathname line break` answer.
+  Left:
+  it is the scanner's behaviour,
+  and changing it needs a release that is not an alpha.
+
+### The linter: what the alpha.22 fix round chose
+
+- Where one text is the line for two folders,
+  the raw reading wins,
+  so the line names the folder whose own name begins with the character it wrote.
+  Not taken:
+  the joined reading first,
+  which names a folder the line was not written for.
+- The second reading takes the whole run of whitespace before the file,
+  then the leading run one character at a time.
+  Not taken:
+  trimming both runs whole,
+  which loses a name's own leading whitespace.
+- A dead line that holds an unseen character is told to be deleted,
+  and the sentence still names the character and its place.
+  Not taken:
+  a bare "Delete this line",
+  which leaves the README's promise that every message names it false.
+- A key line whose edited text would still not read as a list line is told to be deleted.
+  Not taken:
+  the advice to take the character out,
+  which the next run contradicts.
+- A line of more than five words whose first folder word is absolute or holds a backslash
+  is refused for that cause before its word count.
+- A six-word line refused for a spaced folder is not told that it would read as a `file-uses` line.
+- The help of a dead `uses` line spells the folder's name in the sentence that says what the name holds,
+  so the name appears twice.
+
+### The driver: a round's edits landed in the main checkout
+
+Rounds of 2026-11-27 wrote edits into the main checkout
+(issue 6636;
+the handover's Next list has what was done).
+The coordinating session put three files of the main checkout back at what `main` holds,
+after saving their differences as a patch,
+with the wrapper's `--no-enforce-worktree`.
+That is a restore in the main checkout made without asking:
+the files were this session's own round's,
+by their content,
+and an edit left there blocks merges.
+Pick for the cure:
+the driver refuses an edit or write call on a main-checkout path > the brief's wording alone,
+because the wording failed twice in one day.
+A round for it starts after the wrapper's release is dispatched.
+
+## Veto open: what two more results of 2026-11-27 left (recorded 2026-11-27T19:25:26-05:00)
+
+### `cargo-shadow`: where the asking again is spent
+
+The Claude Sonnet second pass of `0.1.5-alpha.16` found no High and no Medium point.
+Its Low points say the five asks of the route question,
+about 0.9 s where one ask took about 0.04 s,
+are spent in more states than the records name:
+on hosts with no manager where a socket file,
+a `systemd` directory or a bus was left,
+and on a host whose manager is reachable and refuses at once
+(`app.slice` masked:
+941 ms against 68 ms).
+The picks given to the fix round as its own to show wrong:
+
+- the read of the host counts only the transports the ask can take,
+  shown from systemd's source at the versions met here;
+- an ask the manager answered with a refusal of its own ends the asking,
+  and a failure to reach the manager is asked again,
+  unless a real reexec shows such an answer inside its window,
+  in which case the README names the cost;
+- the README and the package document name every state in which the span is spent.
+
+The way not taken:
+accept the wait everywhere and only correct the sentences,
+which costs each such host about 0.9 s on every call that asks.
+
+### `mpm-shadow`: what the sentences round chose beyond its brief
+
+- The warning states the kept copy's fate only where the publish itself failed.
+  For a failed claim and a failed put-back it says nothing of the copy,
+  because no control can build a state in which the install that follows succeeds there.
+  Not taken:
+  say it in those arms too,
+  on an assertion no test holds.
+- Where the lock was already satisfied,
+  and where the install that followed failed too,
+  the warning claims nothing about a copy.
+- The `prune` line for a second copy keeps its clause on what deleting the directory loses.
+- Two README sentences outside the round's section made the same promise and were corrected with it.
+
+## Veto open: what the round on `mpm-shadow`'s Rust row chose (recorded 2026-11-27T19:34:10-05:00)
+
+The round is merged and goes out in `0.2.7-alpha.18`.
+Its picks were the coordinating session's,
+in the entry recorded 2026-11-27T19:13:58-05:00;
+these are what it chose beyond them.
+
+- The row's toolchain is found by its directory's name,
+  the channel or the channel followed by one host triple.
+  Not taken:
+  ask `rustup which` for each declared program,
+  which is exact for every case and costs a process per program on each rebuild.
+  What the name rule gives up:
+  a channel installed for more than one host triple,
+  where the first name in order answers.
+- A toolchain whose name carries a date never answers for a bare channel,
+  so `nightly` does not take a dated toolchain's programs.
+- The rebuild removes a link a person made by hand too,
+  when its name is one no row declares,
+  and names it in the report;
+  a regular file stays.
+  This machine's folder holds no such name today.
+- The name the running `mpm-shadow` is linked under stays even where no row declares it.
+- `list` asks `rustup` three questions for a Rust row where it asked one,
+  to say that a declared component or target is missing.
+  Open:
+  whether that answer is worth the two extra processes on every `list`.
+- Open:
+  whether the README should say that a plan may declare `rustup` on purpose,
+  for a machine whose cargo bin directory holds rustup's own programs.
+
+## Veto open: what four more rounds of 2026-11-27 left (recorded 2026-11-27T19:45:16-05:00)
+
+### The test tasks: `depends` against the root rule
+
+The root `mise.toml` says of tasks:
+"never use depends or post depends,
+use run only because it's the easiest to understand."
+The round of issue 6635 used `depends = ["build"]` on the driver's `test:unit`,
+as other packages do for the same need,
+and as the root's own `lint:monochromatic-lint` does with its reason beside it:
+a `run` list hands the words after `--` to every entry,
+and a test task takes test file names there.
+Ranking:
+say in the root sentence when `depends` is right > leave the sentence > forbid `depends` everywhere,
+because the first makes the rule match what works,
+the second leaves a rule that 90 package files contradict,
+and the third breaks `test:unit -- <file>` wherever a build must come first.
+
+### The test tasks: packages whose tests read a built copy the task does not build
+
+96 more packages are in the state issue 6635 cured for the driver
+(issue 6637 lists them),
+and the root aggregate `test:unit` builds nothing.
+Ranking:
+give each package's `test:unit` the same line > make the root aggregate build > leave,
+because the fault is quiet wherever the stale copy still exports every name a test asks for,
+and a per-package line keeps a package's own task right when it is run alone.
+The cost is one build per run of each such task.
+No round runs on it:
+it changes packages this work does not own.
+
+### The store fixture's deadline
+
+- The value.
+  15,000 ms is 3.26 times the slowest call measured under the small cap,
+  and equals the reader's own deadline for the same tool.
+  Not taken:
+  about 5,000 ms,
+  which still clears that call and makes a true hang cost a third as much.
+- The equality with the reader's `SOPS_TIMEOUT_MS` is a comment and not an import,
+  so the two can drift.
+- The test runner's worker count ignores the control group's `cpu.max`.
+  Ranking:
+  leave it > cap the workers at the quota,
+  because the suite now passes at the small cap in about 150 s,
+  and capping would make that several times longer without making any call faster.
+
+### The wrapper: a slot command at a directory that is no repository
+
+A removal,
+a move or a prune typed with `-C` at a directory that resolves to no repository reaches Git unchanged,
+and Git answers in its own words.
+Left as it is.
+Not taken:
+refuse every slot command whose directory Git cannot resolve,
+which would also refuse `git worktree prune` typed where there is no repository at all.

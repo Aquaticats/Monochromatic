@@ -69,7 +69,8 @@ impl ProgressFile {
     ///  another mode or another owner is never read as its own.
     ///
     /// # Errors
-    /// The folder, the file or its bytes are not the designed ones,
+    /// The folder,
+    /// the file or its bytes are not the designed ones,
     /// or the file answers another nonce.
     pub fn read(&self) -> Result<ProgressReading, ProgressRefusal> {
         let folder: std::fs::File = self.open_the_folder()?;

@@ -19,6 +19,7 @@ use super::{
     tolerated,
 };
 use crate::{
+    layout_allow_entries::name_holds_an_arrow_word,
     layout_finding::LayoutFinding,
     run_test_support::write,
     test_fs::Fixture,
@@ -337,9 +338,17 @@ fn a_use_line_the_reader_cannot_place_names_the_whitespace_it_needs() {
 ///  so the line is a misspelling of the shape.
 #[test]
 fn a_use_line_with_no_name_before_its_arrow_is_an_error() {
-    let error: String = error_of("uses  -> src/b\n");
-    assert!(error.contains("Line 1"), "{error}");
-    assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+    // What: one line with two spaces and one with a single space before the arrow.
+    // Why: the single space reaches the reader's default for a name that is not there, and both hold no name.
+    for line in ["uses  -> src/b", "uses -> src/b"] {
+        let error: String = error_of(format!("{line}\n").as_str());
+        assert!(error.contains("Line 1"), "{error}");
+        assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+        assert!(
+            error.contains("No folder name stands before the arrow"),
+            "`{line}` must be told no name stands there: {error}"
+        );
+    }
 }
 
 /// A run of two spaces in front of a name reads as that name's own leading space,
@@ -375,6 +384,59 @@ fn a_use_line_with_two_arrows_is_an_error() {
     );
 }
 
+/// A second arrow set off with tabs is refused as one set off with spaces is,
+///  because whitespace sets an arrow off whatever character it is,
+///  and a reader that looked for the literal spelling would read a folder name that holds a tab.
+#[test]
+fn a_use_line_whose_second_arrow_is_set_off_by_tabs_is_an_error() {
+    let error: String = error_of("uses src/a -> src/b\t->\tsrc/c\n");
+    assert!(error.contains("no folder name holds"), "{error}");
+    assert!(
+        error.contains("two `->` are set off by whitespace"),
+        "{error}"
+    );
+}
+
+/// A bare `->` inside a folder name is no arrow of the line:
+///  the reader takes the first arrow that whitespace sets off on both sides,
+///  and the rule prints such a folder name in a line its own reader reads back.
+#[test]
+fn a_bare_arrow_inside_a_name_is_not_the_lines_arrow() {
+    let list: AllowList = parsed("uses src/x->y -> src/z\n");
+    assert!(
+        list.covers_use(Path::new("src/x->y"), Path::new("src/z")),
+        "the arrow after the name is the line's own"
+    );
+    assert!(
+        !list.covers_use(Path::new("src/x"), Path::new("y -> src/z")),
+        "the arrow glued inside the name is no separator"
+    );
+}
+
+/// A folder name whose `->` touches a character holds no arrow word,
+///  because only whitespace on both sides sets one off;
+///  the folder rule therefore reads a tree holding `x->` or `->x`,
+///  where a reader that took one side for enough would stop it.
+#[test]
+fn a_folder_name_that_touches_the_arrow_word_without_whitespace_holds_none() {
+    // What: the names whose arrow touches a character on one side, which a `uses` line still reads.
+    // Why: such a name is no shape the reader could mistake for its own arrow, so no line could misread it.
+    for name in ["x->", "->x", "x->y"] {
+        assert!(
+            !name_holds_an_arrow_word(name),
+            "`{name}` holds no arrow word"
+        );
+    }
+    // What: the control, names whose arrow whitespace sets off, which the reader really would misread.
+    // Why: a check that answers no for every name would pass the loop above and protect nothing.
+    for name in ["x -> y", "-> y", "x ->", "->"] {
+        assert!(
+            name_holds_an_arrow_word(name),
+            "`{name}` holds an arrow word"
+        );
+    }
+}
+
 /// A dead `uses` or `file-uses` line that names a folder no source folder of the package is called names it,
 ///  so a hand-aligned or mistyped line is told to be re-spaced,
 ///  and a line whose folders the package does hold is told only to be deleted.
@@ -394,8 +456,13 @@ fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
         .iter()
         .map(|name| return base.join(name))
         .collect::<BTreeSet<PathBuf>>();
-    let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &folders,
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
     assert_eq!(findings.len(), 4, "{findings:#?}");
     assert!(
         findings[0].message.contains(
@@ -443,8 +510,13 @@ fn a_dead_use_line_spells_the_whitespace_that_is_part_of_the_name() {
         .iter()
         .map(|name| return base.join(name))
         .collect::<BTreeSet<PathBuf>>();
-    let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &folders,
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
     assert_eq!(findings.len(), 2, "{findings:#?}");
     assert!(
         findings[0]
@@ -460,6 +532,39 @@ fn a_dead_use_line_spells_the_whitespace_that_is_part_of_the_name() {
         "{}",
         findings[1].message
     );
+}
+
+/// A dead `uses` line whose gap holds two whitespace characters names the character the reader kept
+///  and which one it took off as the separator,
+///  because the line already reads as the shape it spells and its reader has to know which of the two to remove.
+#[test]
+fn a_dead_use_line_whose_gap_holds_two_characters_says_which_to_remove() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("uses  src/alpha  ->  src/b\n");
+    // What: the folder of the fixture the package holds, so only the mis-read name before the arrow is absent.
+    // Why: a help that spoke of two absent folders would answer about a different line.
+    let folders: BTreeSet<PathBuf> = ["src/b"]
+        .iter()
+        .map(|name| return base.join(name))
+        .collect::<BTreeSet<PathBuf>>();
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &folders,
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    let help: &str = findings[0].help.as_deref().expect("a dead line has help");
+    for part in [
+        "One whitespace character sets each word off",
+        "took the character nearest the word `uses` or the arrow as the separator",
+        "kept `\\u{20}` after the word `uses`, before `src/alpha`",
+        "`\\u{20}` after `->`, before `src/b`",
+        "remove every character listed there",
+    ] {
+        assert!(help.contains(part), "{part} missing in {help}");
+    }
 }
 
 /// A `file-uses` line cannot name a folder whose name holds a space,
@@ -489,13 +594,23 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
         !error.contains("A use between two files is written"),
         "{error}"
     );
-    // What: two lines of six words whose words between the folder's place and the arrow name no folder.
-    // Why: a third file name and a doubled arrow are misspellings of the shape, and the folder they seem to name neither exists nor holds a space.
+    // What: what is wrong with each line of six words whose words between the folder's place and the arrow name no folder.
+    // Why: a third file name and a doubled arrow are misspellings of the shape, and telling their reader only the shape sends them back to a line that already looks like it.
     let plain: Fixture = Fixture::new();
     std::fs::create_dir_all(plain.path.join("src/ab")).expect("create the folder the line names");
-    for line in [
-        "file-uses src/ab one.rs two.rs -> three.rs\n",
-        "file-uses src/ab one.rs -> -> two.rs\n",
+    for (line, wrong) in [
+        (
+            "file-uses src/ab one.rs two.rs -> three.rs\n",
+            "which is five words; this line is 6 words",
+        ),
+        (
+            "file-uses src/ab one.rs -> -> two.rs\n",
+            "two `->` are set off by whitespace",
+        ),
+        (
+            "file-uses src/ab one.rs -> two.rs extra\n",
+            "which is five words; this line is 6 words",
+        ),
     ] {
         // What: the refusal one mistyped line earns, named apart from the spaced folder's own sentence above.
         // Why: one name for each answer keeps the two failures apart in a run's output.
@@ -507,9 +622,147 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
             "`{line}` must be told about the shape it misspells: {mistyped}"
         );
         assert!(
+            mistyped.contains(wrong),
+            "`{line}` must be told what is wrong with it, `{wrong}`: {mistyped}"
+        );
+        assert!(
             !mistyped.contains("holds a space"),
             "`{line}` names no folder that holds a space: {mistyped}"
         );
+    }
+}
+
+/// A `file-uses` line cannot name a folder whose name holds any whitespace character,
+///  because its shape is five words set off with one whitespace character each,
+///  so a tab, a no-break space or a doubled space in that name makes a sixth word exactly as a space does.
+///  The refusal names that folder and says what to do about it,
+///  rather than sending its reader back to a line that already reads as the shape it names.
+#[test]
+fn a_file_use_line_whose_folder_name_holds_other_whitespace_is_refused_by_that_cause() {
+    // What: one folder per whitespace class, and its name as the refusal spells it.
+    // Why: only a space was held before, so a reader that asked the joined words for a folder stayed green for the others.
+    for (named, spelled) in [
+        ("src/c\td", "src/c\\u{9}d"),
+        ("src/c\u{a0}d", "src/c\\u{a0}d"),
+        ("src/c  d", "src/c  d"),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        std::fs::create_dir_all(fixture.path.join(named))
+            .expect("create the folder whose name holds the whitespace");
+        let error: String = parse_allow_list(
+            format!("file-uses {named} one.rs -> two.rs\n").as_str(),
+            Path::new("allow-list.txt"),
+            fixture.path.as_path(),
+        )
+        .expect_err("no line can name that folder");
+        assert!(error.contains("Line 1"), "{error}");
+        assert!(
+            error.contains(format!("the folder `{spelled}`").as_str()),
+            "the refusal must name `{spelled}`: {error}"
+        );
+        assert!(error.contains("Rename the folder"), "{error}");
+        assert!(
+            !error.contains("A use between two files is written"),
+            "`{named}` must not be told about the shape: {error}"
+        );
+    }
+}
+
+/// A dead `uses` or `file-uses` line spells a character a reader cannot see that the line holds in a name,
+///  because such a character prints as nothing and the name it makes is no folder of the package:
+///  a reader shown `src/a` would look for a folder the package may well hold.
+#[test]
+fn a_dead_use_line_spells_a_character_it_holds_that_a_reader_cannot_see() {
+    let base: &Path = Path::new("package");
+    // What: one line per place such a character stands, with the name as the message must spell it.
+    // Why: a name's own invisible character and the folder of a `file-uses` line are read by two arms of the finding.
+    for (line, spelled) in [
+        ("uses src/a\u{200b} -> src/b\n", "src/a\\u{200b}"),
+        ("uses src/a -> src/b\u{200b}\n", "src/b\\u{200b}"),
+        (
+            "file-uses src/a\u{200b} one.rs -> two.rs\n",
+            "src/a\\u{200b}",
+        ),
+    ] {
+        let list: AllowList = parsed(line);
+        let findings: Vec<LayoutFinding> = dead_entry_findings(
+            &list,
+            &BTreeSet::<usize>::new(),
+            &BTreeSet::<PathBuf>::new(),
+            &BTreeSet::<PathBuf>::new(),
+            base,
+        );
+        assert_eq!(findings.len(), 1, "{line}");
+        assert!(
+            findings[0].message.contains(spelled),
+            "`{spelled}` must be spelled in the message: {}",
+            findings[0].message
+        );
+        assert!(
+            findings[0]
+                .help
+                .as_deref()
+                .unwrap_or("")
+                .contains("take that character out"),
+            "the help must say to take it out: {:?}",
+            findings[0].help
+        );
+    }
+}
+
+/// A line whose first character is a byte order mark is read as a key and tolerates nothing,
+///  so the message names that character and where it stands, and sends its reader to take it out;
+///  deleting the line, which the old sentence said, would leave the loop the line records partly unwritten.
+#[test]
+fn a_byte_order_mark_before_a_line_is_named_where_it_stands_and_taken_out() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("\u{feff}uses src/a -> src/b\n");
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &BTreeSet::<PathBuf>::new(),
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    let message: &str = findings[0].message.as_str();
+    for part in [
+        "\\u{feff}uses src/a -> src/b",
+        "byte order mark",
+        "character 1",
+        "Take that character out of the line",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert!(
+        !message.contains("Delete the line so the list keeps shrinking"),
+        "the line records a use, so deleting it is the wrong edit: {message}"
+    );
+}
+
+/// A zero-width space where a separator belongs is not whitespace, so the reader takes the word it touches for a key,
+///  and the message names the character and its position and says to take it out and put the separator back.
+#[test]
+fn a_zero_width_space_where_a_separator_belongs_is_named_and_taken_out() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("uses\u{200b}src/a -> src/b\n");
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &BTreeSet::<PathBuf>::new(),
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    let message: &str = findings[0].message.as_str();
+    for part in [
+        "\\u{200b}",
+        "zero-width space",
+        "character 5",
+        "Take that character out of the line",
+        "write a whitespace character where it stood",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
     }
 }
 
@@ -815,6 +1068,7 @@ fn list_whose_index_names_another_entry(entry: usize) -> AllowList {
     let entries: Vec<super::AllowEntry> = vec![
         super::AllowEntry {
             line: 1,
+            column: 1,
             text: String::from("glob src/a/lib.rs child::*"),
             kind: AllowKind::Key(String::from("glob src/a/lib.rs child::*")),
         },
@@ -822,6 +1076,7 @@ fn list_whose_index_names_another_entry(entry: usize) -> AllowList {
         // Why: a use line tolerates a use and never a key, so the lookup has to refuse it.
         super::AllowEntry {
             line: 2,
+            column: 1,
             text: String::from("uses src/a -> src/b"),
             kind: AllowKind::FolderUse {
                 from: PathBuf::from("src/a"),
@@ -900,4 +1155,640 @@ fn a_file_use_lookup_walks_the_entries() {
         LINES,
         "the last pair is found by walking every entry before it"
     );
+}
+
+/// The one dead-entry message and help a list earns, against the folders of the package it is read from.
+fn one_dead_line(
+    lines: &str,
+    folders: &[&str],
+) -> (String, String) {
+    let list: AllowList = parsed(lines);
+    // What: each folder the package holds, spelled from the package folder the list is read from.
+    // Why: a dead line is judged against the folders the walk names from that base, so a folder given another way is no folder the package holds.
+    let known: BTreeSet<PathBuf> = folders
+        .iter()
+        .map(|one| return Path::new("package").join(one))
+        .collect();
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &known,
+        &BTreeSet::<PathBuf>::new(),
+        Path::new("package"),
+    );
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    return (
+        findings[0].message.clone(),
+        findings[0].help.clone().unwrap_or_default(),
+    );
+}
+
+/// A six-word `file-uses` line whose words name a real folder is refused by naming that folder,
+///  whatever whitespace stands in its gaps and whether the name holds an arrow word.
+///  The line cannot be satisfied by re-spacing it, because a folder whose name holds whitespace
+///  is refused even when every gap is one character,
+///  so renaming the folder is the only sentence its reader can act on;
+///  and the folder named is one that is there, never another spelling of the words.
+#[test]
+fn a_six_word_file_use_line_names_the_folder_its_words_name() {
+    // What: the tree each line is written for, the line, and the folder its refusal must name.
+    // Why: a doubled gap and an arrow-named folder each sent the reader to a sentence about the word count.
+    for (folders, line, named) in [
+        (
+            &["src/c d"][..],
+            "file-uses src/c d one.rs  -> two.rs\n",
+            "src/c d",
+        ),
+        (
+            &["src/c d"][..],
+            "file-uses  src/c d one.rs -> two.rs\n",
+            "src/c d",
+        ),
+        (
+            &["src/c d"][..],
+            "file-uses src/c d  one.rs -> two.rs\n",
+            "src/c d",
+        ),
+        (
+            &["src/c\td"][..],
+            "file-uses\t src/c\td one.rs -> two.rs\n",
+            "src/c\\u{9}d",
+        ),
+        (
+            &["src/c\td"][..],
+            "file-uses  src/c\td one.rs -> two.rs\n",
+            "src/c\\u{9}d",
+        ),
+        (
+            &["src/x -> y"][..],
+            "file-uses src/x -> y one.rs -> two.rs\n",
+            "src/x -> y",
+        ),
+        (
+            &["src/p ->"][..],
+            "file-uses src/p -> one.rs -> two.rs\n",
+            "src/p ->",
+        ),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        for folder in folders {
+            std::fs::create_dir_all(fixture.path.join(folder))
+                .expect("create the folder the line is written for");
+        }
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("no line can carry a folder name that holds whitespace");
+        assert!(
+            error.contains(format!("the folder `{named}`").as_str()),
+            "`{line}` must name the folder `{named}`: {error}"
+        );
+        assert!(
+            error.contains("Rename the folder"),
+            "`{line}` must say what renaming gives: {error}"
+        );
+    }
+}
+
+/// A five-word `file-uses` line whose fourth word is no arrow is told which word stands there,
+///  because a misspelt or misplaced arrow is the likeliest typo,
+///  and "this line is 5 words" about a line of five words names no cause and cannot be acted on.
+#[test]
+fn a_five_word_file_use_line_whose_fourth_word_is_no_arrow_names_that_word() {
+    let fixture: Fixture = Fixture::new();
+    std::fs::create_dir_all(fixture.path.join("src/ab")).expect("create the folder the line names");
+    for (line, fourth) in [
+        ("file-uses src/ab one.rs => two.rs\n", "=>"),
+        ("file-uses src/ab one.rs --> two.rs\n", "-->"),
+        ("file-uses src/ab -> one.rs two.rs\n", "one.rs"),
+        ("file-uses -> src/ab one.rs two.rs\n", "one.rs"),
+        ("file-uses src/ab one.rs two.rs ->\n", "two.rs"),
+    ] {
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("the fourth word is no arrow");
+        assert!(
+            error.contains("the fourth word must be `->`"),
+            "`{line}` must say which word belongs there: {error}"
+        );
+        assert!(
+            error.contains(format!("this line's fourth word is `{fourth}`").as_str()),
+            "`{line}` must name the fourth word `{fourth}`: {error}"
+        );
+    }
+}
+
+/// A `file-uses` line whose word count is not five says that number,
+///  with a word that agrees with it, because "this line is 1 words" is a sentence its reader stops trusting.
+#[test]
+fn a_file_use_line_missing_words_says_how_many_it_holds() {
+    let fixture: Fixture = Fixture::new();
+    std::fs::create_dir_all(fixture.path.join("src/ab")).expect("create the folder the line names");
+    for (line, counted) in [
+        ("file-uses\n", "this line is one word"),
+        ("file-uses src/ab\n", "this line is 2 words"),
+        (
+            "file-uses src/ab one.rs -> two.rs extra\n",
+            "this line is 6 words",
+        ),
+    ] {
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("the line holds the wrong number of words");
+        assert!(
+            error.contains(counted),
+            "`{line}` must say `{counted}`: {error}"
+        );
+    }
+}
+
+/// A line a copied page led with a mark a reader cannot see is told to take that mark out,
+///  and the message spells it and names it,
+///  because "Delete the line" would leave the use the line records unwritten
+///  and the mark itself would print as nothing.
+#[test]
+fn a_dead_line_led_by_a_character_a_reader_cannot_see_is_told_to_take_it_out() {
+    let (message, help) = one_dead_line("\u{200e}uses src/a -> src/b\n", &[]);
+    for part in [
+        "a left-to-right mark (`\\u{200e}`)",
+        "at character 1 of the line",
+        "reads as a `uses` line",
+        "Take that character out of the line",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert!(
+        !message.contains('\u{200e}'),
+        "the mark itself must not be printed: {message}"
+    );
+    assert!(
+        !message.contains("Delete the line so the list keeps shrinking"),
+        "the line records a use, so deleting it is the wrong edit: {message}"
+    );
+    assert!(help.contains("Take that character out"), "{help}");
+}
+
+/// A refusal quotes the line it refuses with every character a reader cannot see spelled,
+///  and says where that character stands and what to do with it,
+///  because a refusal stops the whole rule, so it is the message a reader most needs to act on.
+#[test]
+fn a_refusal_spells_the_character_it_quotes_and_says_to_take_it_out() {
+    let error: String = error_of("uses src/a\u{200e}-> src/b\n");
+    for part in [
+        "`uses src/a\\u{200e}-> src/b`",
+        "a left-to-right mark (`\\u{200e}`)",
+        "at character 11 of the line",
+        "take it out",
+    ] {
+        assert!(error.contains(part), "{part} missing in {error}");
+    }
+    assert!(
+        !error.contains('\u{200e}'),
+        "the mark itself must not be printed: {error}"
+    );
+}
+
+/// A dead `file-uses` line whose file name holds a character a reader cannot see is told to take it out,
+///  because the name the line holds is not the name on disk,
+///  and deleting the line would leave the use unrecorded.
+#[test]
+fn a_dead_file_use_line_whose_file_name_holds_an_unseen_character_is_told_to_take_it_out() {
+    let (message, help) = one_dead_line("file-uses src/f one.rs\u{200b} -> two.rs\n", &["src/f"]);
+    for part in [
+        "a zero-width space (`\\u{200b}`)",
+        "at character 23 of the line",
+        "Take that character out of the line",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert!(
+        !message.contains("Delete the line so the list keeps shrinking"),
+        "taking the character out is the edit: {message}"
+    );
+    assert!(help.contains("Take that character out"), "{help}");
+}
+
+/// A character a reader cannot see is placed by its character count from the line's first one,
+///  because the entry's own index is off by the indent and a byte count is off by every two-byte letter before it,
+///  while an editor may show a tab as several cells or write one character as more than one byte.
+#[test]
+fn the_place_a_character_a_reader_cannot_see_stands_at_is_a_column_of_the_line() {
+    // What: an indented line, whose mark stands at character 4 of the line but at index 1 of the trimmed entry.
+    // Why: the message said "character 1 of the entry it read", which no count from the line's first character gives.
+    let (indented, _) = one_dead_line("   \u{feff}uses src/a -> src/b\n", &[]);
+    assert!(
+        indented.contains("at character 4 of the line"),
+        "the place is a column of the line: {indented}"
+    );
+    // What: a refusal whose line holds a two-byte letter before the mark.
+    // Why: counting bytes would answer 13 here, one past the character the line holds at 12.
+    let two_byte: String = error_of("uses src/a\u{e9}\u{200e}-> src/b\n");
+    assert!(
+        two_byte.contains("at character 12 of the line"),
+        "characters are counted, not bytes: {two_byte}"
+    );
+}
+
+/// A dead line that would read as a `file-uses` line once its character a reader cannot see is out
+///  names that word, which is the line's own,
+///  because telling the reader of a `file-uses` line that its first word is not `uses` names a word the line never had.
+#[test]
+fn the_word_a_dead_line_would_read_with_is_the_line_s_own_word() {
+    let (message, _) = one_dead_line("\u{feff}file-uses src/a one.rs -> two.rs\n", &[]);
+    assert!(
+        message.contains("reads as a `file-uses` line"),
+        "the line's own word is `file-uses`: {message}"
+    );
+    assert!(
+        !message.contains("not `uses`"),
+        "the line never begins with `uses`: {message}"
+    );
+}
+
+/// A line whose first word merely begins with the word `uses` is no `uses` line,
+///  so taking its character out is not the edit, and the message does not offer it:
+///  deleting the line is, because the line names a finding no rule prints.
+#[test]
+fn a_key_that_begins_with_the_word_is_not_told_to_take_a_character_out() {
+    let (message, help) = one_dead_line("uses\u{e9}\u{200b} src/a -> src/b\n", &[]);
+    assert!(
+        message.contains("Delete the line so the list keeps shrinking"),
+        "a key that reads as nothing must be deleted: {message}"
+    );
+    assert!(
+        !message.contains("Take that character out"),
+        "taking the character out leaves a key: {message}"
+    );
+    assert!(!help.contains("Take that character out"), "{help}");
+}
+
+/// The help of a dead line spells the name it says the gap stands before,
+///  because that sentence goes on to say the name holds a character a reader cannot see,
+///  and a right-to-left override prints nothing while it reorders what follows it.
+#[test]
+fn the_help_of_a_dead_line_spells_the_name_it_says_the_gap_stands_before() {
+    // What: a doubled gap in front of a name holding U+202E, absent from the fixture package.
+    // Why: the absent folder is what earns the help that names the gap and the folder it stands before.
+    let (message, help) = one_dead_line("uses  src/a\u{202e}b -> src/c\n", &["src/c"]);
+    assert!(
+        help.contains("before `src/a\\u{202e}b`"),
+        "the name is spelled where the gap is named: {help}"
+    );
+    assert!(
+        !help.contains('\u{202e}'),
+        "the override itself is not printed: {help}"
+    );
+    assert!(
+        message.contains("`\\u{20}src/a\\u{202e}b`"),
+        "the quote spells it too: {message}"
+    );
+}
+
+/// The help of a dead line names every whitespace character its gap kept,
+///  not the first one,
+///  because a gap of three characters leaves a dead line for anyone who removes one.
+#[test]
+fn the_help_of_a_dead_line_names_every_character_its_gap_kept() {
+    let (_, help) = one_dead_line("uses   src/a -> src/b\n", &["src/a", "src/b"]);
+    for part in [
+        "It kept 2 whitespace characters (`\\u{20}` and `\\u{20}`) after the word `uses`, before `src/a`",
+        "remove every character listed there",
+    ] {
+        assert!(help.contains(part), "{part} missing in {help}");
+    }
+}
+
+/// The refusal of a folder whose name holds whitespace names that character,
+///  with a tab called a tab and a no-break space called a no-break space,
+///  because the name is what its reader renames and two whitespace characters need the same edit for different names.
+#[test]
+fn the_refusal_of_a_folder_whose_name_holds_whitespace_names_that_character() {
+    for (folder, spelled, named) in [
+        ("src/c\td", "src/c\\u{9}d", "a tab (`\\u{9}`)"),
+        (
+            "src/c\u{a0}d",
+            "src/c\\u{a0}d",
+            "a no-break space (`\\u{a0}`)",
+        ),
+        (
+            "src/e\u{202f}f",
+            "src/e\\u{202f}f",
+            "a narrow no-break space (`\\u{202f}`)",
+        ),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        std::fs::create_dir_all(fixture.path.join(folder))
+            .expect("create the folder whose name holds the whitespace");
+        let error: String = parse_allow_list(
+            format!("file-uses {folder} one.rs -> two.rs\n").as_str(),
+            Path::new("allow-list.txt"),
+            fixture.path.as_path(),
+        )
+        .expect_err("no line can name that folder");
+        assert!(
+            error.contains(format!("the folder `{spelled}`, which holds {named}").as_str()),
+            "`{folder}` must be called `{named}`: {error}"
+        );
+    }
+}
+
+/// A dead line quotes its own text, spelled, and not merely a spelling that another part of the message holds,
+///  because the two names of a `uses` line appear again in the sentence about the folder that is absent,
+///  and a quote that falls back to the raw text would print the character as nothing.
+#[test]
+fn a_dead_line_quotes_its_spelled_text_and_no_other_part_of_the_message() {
+    let (message, _) = one_dead_line("uses src/a\u{200b} -> src/b\n", &["src/a", "src/b"]);
+    assert!(
+        message
+            .starts_with("The allow-list entry `uses src/a\\u{200b} -> src/b` in allow-list.txt "),
+        "the quote is the entry's own text, spelled: {message}"
+    );
+}
+
+/// A line written for an arrow-named folder names that folder even when a tab or a no-break space sets the
+/// folder's own arrow off, or a doubled space stands where that arrow spells one,
+/// because those are spellings of the whitespace a printed line uses,
+/// and is not told about a second arrow the line does not hold.
+#[test]
+fn a_six_word_file_use_line_names_an_arrow_named_folder_whose_own_arrow_other_whitespace_sets_off()
+{
+    for (folder, spelled) in [
+        ("src/x\t->\ty", "src/x\\u{9}->\\u{9}y"),
+        ("src/x\u{a0}->\u{a0}y", "src/x\\u{a0}->\\u{a0}y"),
+        ("src/x  ->  y", "src/x  ->  y"),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        std::fs::create_dir_all(fixture.path.join(folder)).expect("create the arrow-named folder");
+        let error: String = parse_allow_list(
+            format!("file-uses {folder} one.rs -> two.rs\n").as_str(),
+            Path::new("allow-list.txt"),
+            fixture.path.as_path(),
+        )
+        .expect_err("no five-word shape can carry a folder name that holds whitespace");
+        assert!(
+            error.contains(format!("the folder `{spelled}`").as_str()),
+            "`{folder}` must be named `{spelled}`: {error}"
+        );
+        assert!(
+            !error.contains("two `->` are set off by whitespace"),
+            "`{folder}` must not be told about a second arrow the line does not hold: {error}"
+        );
+    }
+}
+
+/// A line written for a folder whose own name begins with whitespace names that folder for every spelling of
+/// its gaps the reader can tell apart from the name's own whitespace,
+/// because the name the line writes is read first and a doubled gap is one character beside it.
+#[test]
+fn a_six_word_file_use_line_names_a_folder_whose_name_begins_with_whitespace_for_every_gap_spelling()
+ {
+    let gaps: [&str; 5] = [" ", "  ", "\t", "\u{a0}", "\t\t"];
+    let fixture: Fixture = Fixture::new();
+    std::fs::create_dir_all(fixture.path.join(" src/c d")).expect("create the folder");
+    for after_word in gaps {
+        for before_file in gaps {
+            let line: String =
+                format!("file-uses{after_word} src/c d{before_file}one.rs -> two.rs\n");
+            let error: String = parse_allow_list(
+                line.as_str(),
+                Path::new("allow-list.txt"),
+                fixture.path.as_path(),
+            )
+            .expect_err("a folder name holding whitespace makes six words");
+            assert!(
+                error.contains("the folder `\\u{20}src/c d`"),
+                "`{line}` must name the folder that begins with a space: {error}"
+            );
+        }
+    }
+}
+
+/// The same text can be the line for two folders: a doubled gap after the word is one separator and one
+/// character of a name that may begin with whitespace.
+///  The raw reading comes first, so the text names the folder whose own name begins with that character.
+#[test]
+fn a_line_whose_text_two_folders_share_names_the_folder_its_raw_reading_names() {
+    let fixture: Fixture = Fixture::new();
+    for folder in ["src/c d", " src/c d"] {
+        std::fs::create_dir_all(fixture.path.join(folder)).expect("create the folder");
+    }
+    let plain: String = parse_allow_list(
+        "file-uses src/c d one.rs -> two.rs\n",
+        Path::new("allow-list.txt"),
+        fixture.path.as_path(),
+    )
+    .expect_err("a folder name holding a space makes six words");
+    assert!(
+        plain.contains("the folder `src/c d`"),
+        "the single-gap line names the plain folder: {plain}"
+    );
+    let shared: String = parse_allow_list(
+        "file-uses  src/c d one.rs -> two.rs\n",
+        Path::new("allow-list.txt"),
+        fixture.path.as_path(),
+    )
+    .expect_err("a folder name holding a space makes six words");
+    assert!(
+        shared.contains("the folder `\\u{20}src/c d`"),
+        "the doubled gap names the folder whose own name begins with the space: {shared}"
+    );
+}
+
+/// A six-word line whose folder is absolute or holds a backslash gets the cause a five-word line gets,
+///  because the path is what is wrong with the folder and no rename for a space can mend it.
+#[test]
+fn a_six_word_file_use_line_whose_folder_is_absolute_or_holds_a_backslash_gets_the_five_word_cause()
+{
+    let fixture: Fixture = Fixture::new();
+    let plain: std::path::PathBuf = fixture.path.join("xy");
+    std::fs::create_dir_all(&plain).expect("create the absolute folder");
+    let spaced: std::path::PathBuf = fixture.path.join("x y");
+    std::fs::create_dir_all(&spaced).expect("create the absolute folder that holds a space");
+    for (line, cause) in [
+        (
+            format!("file-uses {} one.rs -> two.rs\n", plain.display()),
+            "names a folder that is absolute",
+        ),
+        (
+            format!("file-uses {} one.rs -> two.rs\n", spaced.display()),
+            "names a folder that is absolute",
+        ),
+    ] {
+        let error: String = parse_allow_list(
+            line.as_str(),
+            Path::new("allow-list.txt"),
+            fixture.path.as_path(),
+        )
+        .expect_err("no absolute path names a folder of the package");
+        assert!(
+            error.contains(cause),
+            "`{line}` must get `{cause}`: {error}"
+        );
+        assert!(
+            !error.contains("Rename the folder so its name holds no space"),
+            "`{line}` must not be told to rename a folder for a space: {error}"
+        );
+    }
+    // What: the control, a folder whose first word holds a backslash, at both word counts.
+    // Why: the six-word reading must not answer a backslash with a rename for a space.
+    std::fs::create_dir_all(fixture.path.join("src\\a"))
+        .expect("create the folder holding a backslash");
+    std::fs::create_dir_all(fixture.path.join("src\\a b"))
+        .expect("create the folder holding a backslash and a space");
+    for line in [
+        "file-uses src\\a one.rs -> two.rs\n",
+        "file-uses src\\a b one.rs -> two.rs\n",
+    ] {
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("a folder name holding a backslash is no path");
+        assert!(
+            error.contains("holds a backslash"),
+            "`{line}` must get the backslash cause: {error}"
+        );
+        assert!(
+            !error.contains("Rename the folder so its name holds no space"),
+            "`{line}` must not be told to rename a folder for a space: {error}"
+        );
+    }
+}
+
+/// Every refusal the entry reader makes quotes its line, spelled,
+///  and a line that holds a character a reader cannot see carries the note that names it and its place,
+///  because a refusal stops the whole rule and a person fixes what the one message says.
+#[test]
+fn every_refusal_quotes_its_line_and_notes_an_unseen_character_with_its_place() {
+    // What: a real spaced folder whose file name holds a zero-width space, and the two faults one message must say.
+    // Why: the refusal for the folder's space used to leave the character unmentioned, so the next run refused for it.
+    let fixture: Fixture = Fixture::new();
+    std::fs::create_dir_all(fixture.path.join("src/e f"))
+        .expect("create the folder holding a space");
+    let spaced: String = parse_allow_list(
+        "file-uses src/e f one.rs\u{200b} -> two.rs\n",
+        Path::new("allow-list.txt"),
+        fixture.path.as_path(),
+    )
+    .expect_err("a folder name holding a space makes six words");
+    for part in [
+        "`file-uses src/e f one.rs\\u{200b} -> two.rs`",
+        "holds a space",
+        "a zero-width space (`\\u{200b}`)",
+        "at character 25 of the line",
+    ] {
+        assert!(spaced.contains(part), "{part} missing in {spaced}");
+    }
+    // What: the refusals of a path that is absolute or holds a backslash, on both shapes of line.
+    // Why: a quote is what a person copies to find the line, and these three sentences had none.
+    for (line, quote) in [
+        ("uses /a\u{200e} -> src/b\n", "`uses /a\\u{200e} -> src/b`"),
+        (
+            "file-uses /nowhere\u{200b} one.rs -> two.rs\n",
+            "`file-uses /nowhere\\u{200b} one.rs -> two.rs`",
+        ),
+        (
+            "file-uses src\\a\u{200b} one.rs -> two.rs\n",
+            "`file-uses src\\a\\u{200b} one.rs -> two.rs`",
+        ),
+    ] {
+        let error: String = error_of(line);
+        assert!(
+            error.contains(quote),
+            "`{line}` must quote its line: {error}"
+        );
+        assert!(
+            error.contains("at character "),
+            "`{line}` must say where the character stands: {error}"
+        );
+    }
+}
+
+/// A sentence that says what the line would read as after the edit says it only when the edited text does read so,
+///  because a person who follows it and meets the same refusal learns nothing from it.
+#[test]
+fn a_line_that_would_still_not_read_as_a_use_line_is_not_told_that_it_would() {
+    // What: a key line whose mark stands where the separator belongs but which holds no arrow.
+    // Why: with the mark out or replaced by a space the line is still no `uses` line, so the sentence would be false.
+    let (message, _) = one_dead_line("uses\u{200b}src/a src/b\n", &[]);
+    assert!(
+        !message.contains("reads as a `uses` line"),
+        "the line would still not read as one: {message}"
+    );
+    assert!(
+        message.contains("Delete the line so the list keeps shrinking"),
+        "the line names a key no finding prints, so deleting it is the edit: {message}"
+    );
+    // What: the control, the same mark with the arrow the shape needs, whose edited text does read as one.
+    // Why: a sentence that never appeared would pass the lines above and leave the reader no reading at all.
+    let (control, _) = one_dead_line("uses\u{200b}src/a -> src/b\n", &[]);
+    assert!(
+        control.contains("reads as a `uses` line"),
+        "the edited text reads as a `uses` line: {control}"
+    );
+}
+
+/// A character a reader cannot see that has no plain name is named by its code point in the sentence,
+///  because that is where a person looks for it and the quote alone does not say what it is.
+#[test]
+fn a_character_with_no_plain_name_is_named_by_its_code_point_in_the_sentence() {
+    let (message, _) = one_dead_line("\u{70f}k\n", &[]);
+    assert!(
+        message.contains("a character a reader cannot see (`\\u{70f}`) at character 1 of the line"),
+        "the code point stands in the sentence: {message}"
+    );
+}
+
+/// The place a character a reader cannot see stands at is counted in characters from the line's first one,
+///  whatever whitespace makes the indent: a tab, a no-break space and an ideographic space are one character each.
+#[test]
+fn the_place_counts_characters_under_an_indent_of_a_tab_a_no_break_space_and_an_ideographic_space()
+{
+    for indent in ["\t", "\u{a0}", "\u{3000}"] {
+        let line: String = format!("{indent}uses src/a\u{200e}-> src/b\n");
+        let error: String = error_of(line.as_str());
+        assert!(
+            error.contains("at character 12 of the line"),
+            "an indent of {indent:?} is one character: {error}"
+        );
+    }
+}
+
+/// The first of the three readings names the folder, and every later one answers only a reading that names none,
+///  so a tree holding two folders the same text could name has the line for the raw one named as that one.
+#[test]
+fn a_line_naming_two_folders_names_the_one_its_raw_reading_names() {
+    let fixture: Fixture = Fixture::new();
+    for folder in ["src/c\td", "src/c d"] {
+        std::fs::create_dir_all(fixture.path.join(folder)).expect("create the folder");
+    }
+    let error: String = parse_allow_list(
+        "file-uses src/c\td one.rs -> two.rs\n",
+        Path::new("allow-list.txt"),
+        fixture.path.as_path(),
+    )
+    .expect_err("no five-word shape carries a folder name that holds whitespace");
+    assert!(
+        error.contains("the folder `src/c\\u{9}d`"),
+        "the raw reading names the tab folder: {error}"
+    );
+    assert!(
+        !error.contains("the folder `src/c d`"),
+        "the joined reading names no folder the raw one names: {error}"
+    );
+}
+
+/// The help of a dead line names a tab and a no-break space its gap kept, spelled,
+///  because half of the characters a hand-aligned line keeps print as nothing.
+#[test]
+fn the_help_of_a_dead_line_names_a_tab_and_a_no_break_space_its_gap_kept() {
+    for (line, spelled) in [
+        ("uses\t\tsrc/a -> src/b\n", "\\u{9}"),
+        ("uses\u{a0}\u{a0}src/a -> src/b\n", "\\u{a0}"),
+    ] {
+        let (_, help) = one_dead_line(line, &["src/a", "src/b"]);
+        assert!(
+            help.contains(
+                format!("It kept `{spelled}` after the word `uses`, before `src/a`").as_str()
+            ),
+            "`{line}` must name the character it kept: {help}"
+        );
+    }
 }

@@ -22,7 +22,8 @@
 //! and it needs no lock and no channel:
 //! the answers come back in the order the futures were given,
 //! whatever order they finish in.
-//!  An answer is handed over as its item ends, not when the slowest of the wave does:
+//!  An answer is handed over as its item ends,
+//! not when the slowest of the wave does:
 //! a push refused at once is on record at once,
 //! and with a silent server its sibling holds the wave for the push deadline or the connected push's quiet window
 //! (`wait_ceilings.rs`),
@@ -60,7 +61,8 @@ use std::task::Poll;
 pub enum AnAnswer<T> {
     /// The item's work answered.
     Answered(T),
-    /// The item's work stopped unexpectedly, and these are the words it left.
+    /// The item's work stopped unexpectedly,
+    /// and these are the words it left.
     Stopped(String),
 }
 
@@ -81,7 +83,8 @@ fn no_answer_yet<T>() -> Option<AnAnswer<T>> {
 }
 
 /// What:
-///  One wave of futures, whose answers are taken one at a time as their items end.
+///  One wave of futures,
+/// whose answers are taken one at a time as their items end.
 /// Why:
 ///  The wave keeps the futures and which of them have answered,
 /// so a future that answered is never polled again,
@@ -96,7 +99,8 @@ pub struct AnswersAsTheyCome<'wave, T> {
     /// The futures still to answer,
     /// each guarded so a panic in it is that item's answer.
     futures: Vec<Pin<Box<dyn Future<Output = Result<T, String>> + Send + 'wave>>>,
-    /// Which of them have answered, by the index the caller gave each.
+    /// Which of them have answered,
+    /// by the index the caller gave each.
     answered: Vec<bool>,
 }
 
@@ -228,7 +232,8 @@ impl<'wave, T: 'wave> Future for TheNextAnswer<'wave, '_, T> {
 /// and no future holds the others back while it waits.
 /// This is the shape a caller needs when it wants every answer at the end;
 /// a caller that settles each item's record as it ends uses `AnswersAsTheyCome` instead.
-/// A panic in one item is that item's own answer (`AnAnswer::Stopped`), never the caller's.
+/// A panic in one item is that item's own answer (`AnAnswer::Stopped`),
+/// never the caller's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

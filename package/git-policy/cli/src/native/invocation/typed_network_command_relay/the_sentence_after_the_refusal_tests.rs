@@ -11,9 +11,11 @@ use super::{
 use crate::typed_network_command_relay::a_target_the_sentence_may_name::Target;
 
 /// What:
-///  The host the proposal's fixture names, so the sentence can be compared with the kept file byte for byte.
+///  The host the proposal's fixture names,
+/// so the sentence can be compared with the kept file byte for byte.
 /// Why:
-///  The three texts were measured with `target` standing for the host, and a comparison against them is only exact with the
+///  The three texts were measured with `target` standing for the host,
+/// and a comparison against them is only exact with the
 ///  same word in the slot.
 ///
 /// In TS you'd write (pseudocode):
@@ -50,7 +52,8 @@ fn each_refusal_is_read_from_the_words_it_prints() {
     assert_eq!(refusal_in(""), None);
 }
 
-/// A line Git relayed from the far end is not a refusal, with or without the escape a terminal puts in front of it.
+/// A line Git relayed from the far end is not a refusal,
+/// with or without the escape a terminal puts in front of it.
 #[test]
 fn a_remote_s_own_line_is_dropped_before_the_reading() {
     let relayed: &str = "remote: Host key verification failed.\n";
@@ -62,7 +65,8 @@ fn a_remote_s_own_line_is_dropped_before_the_reading() {
     assert_eq!(refusal_in(own), Some(Refusal::HostKey));
 }
 
-/// The record starts unset and is set by the printing, so a second face of one refusal stays silent.
+/// The record starts unset and is set by the printing,
+/// so a second face of one refusal stays silent.
 #[test]
 fn one_refusal_is_recorded_once() {
     assert!(!printed_for_this_command());
@@ -80,8 +84,11 @@ fn one_refusal_is_recorded_once() {
     assert!(printed_for_this_command());
 }
 
-/// The host-key sentence is the seventh revision's kept file byte for byte, with the fixture host in both of its slots: the one
-/// the owner's decision names, whose fingerprint clause is in the design's "The words".
+/// The host-key sentence is the seventh revision's kept file byte for byte,
+/// with the fixture host in both of its slots:
+/// the one
+/// the owner's decision names,
+/// whose fingerprint clause is in the design's "The words".
 #[test]
 fn the_host_key_sentence_is_the_kept_file_byte_for_byte() {
     // What: `r#"..."#` is a raw string: backslashes and quotes are literal, so the kept text is compared byte for byte.
@@ -98,7 +105,8 @@ fn the_host_key_sentence_is_the_kept_file_byte_for_byte() {
     assert_eq!(sentence.len(), 565);
 }
 
-/// The strict-checking sentence is the kept file byte for byte, with the fixture host in both of its slots.
+/// The strict-checking sentence is the kept file byte for byte,
+/// with the fixture host in both of its slots.
 #[test]
 fn the_strict_sentence_is_the_kept_file_byte_for_byte() {
     // What: `r#"..."#` is a raw string: backslashes and quotes are literal, so the kept text is compared byte for byte.
@@ -115,7 +123,9 @@ fn the_strict_sentence_is_the_kept_file_byte_for_byte() {
     assert_eq!(sentence.len(), 409);
 }
 
-/// The key sentence is the kept file byte for byte; it names no host, so no slot is filled.
+/// The key sentence is the kept file byte for byte;
+/// it names no host,
+/// so no slot is filled.
 #[test]
 fn the_passphrase_sentence_is_the_kept_file_byte_for_byte() {
     // What: `r#"..."#` is a raw string: backslashes and quotes are literal, so the kept text is compared byte for byte.

@@ -15,14 +15,16 @@
 //! runChildUnderFileSizeLimit(name, 4096, directory); // spawnSync(testBinary, ['--exact', name, '--ignored'], { limits: { fsize: limit } })
 //! ```
 
-/// The one request for a child of this test binary, and the wait that ends it.
+/// The one request for a child of this test binary,
+/// and the wait that ends it.
 use super::child_test_process::{
     ChildTest,
     finished,
 };
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
-/// `ExitStatus` is how a process ended: an exit code or the signal that ended it.
+/// `ExitStatus` is how a process ended:
+/// an exit code or the signal that ended it.
 use std::process::ExitStatus;
 
 /// Variable that tells a child test the directory it works in.

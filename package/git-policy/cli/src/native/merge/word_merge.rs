@@ -42,8 +42,20 @@
 //! (`src/native/merge/word_merge_deleted_lines.rs`,
 //! issue 6529).
 //! A region one side also wrote a line into is read by word,
-//! and a word merge that would write back more copies of a line one side deleted
-//! than that side still holds is refused there.
+//! and an answer that would write more copies of a line the base held
+//! than the two sides leave is refused there too,
+//! so no region resolves to text a side removed.
+//! The copies bound is read for every shape,
+//! and it refuses an answer that holds more copies of a line
+//! than the side that holds fewer of them leaves,
+//! while at most one side wrote more copies of that line than the base held.
+//! A merge of two sides that only deleted lines is refused as well
+//! when its answer writes the lines in an order one side does not hold them in,
+//! which no union of the two deletions does:
+//! the order bound is read only where both sides only deleted lines,
+//! because a side that wrote a line of its own holds an order the other side does not.
+//! Two sides that each wrote more copies of one line than the base held are not judged:
+//! no count over the two sides is right for such a line.
 //! A region's own text is the bytes its stages hold,
 //! so a region that ends a file keeps the file's own ending:
 //! a file whose last line has no line end keeps none,
@@ -59,10 +71,11 @@
 //! ```
 
 /// The answer for a region both sides only deleted lines from,
-/// and the check that keeps a line one side deleted out of a merged region.
+/// and the checks that keep a line one side deleted out of a merged region.
 use crate::merge::word_merge_deleted_lines::{
     keeps_a_deleted_line,
     merged_deletions,
+    writes_past_what_the_sides_leave,
 };
 /// The checks that keep a word merge from writing text no side wrote.
 use crate::merge::word_merge_invented_text::refuses_word_merge;
@@ -243,6 +256,9 @@ fn trivial<'a>(gap: &Gap<'a>) -> Option<&'a [u8]> {
 /// and reading it word by word loses which line is which
 /// (`src/native/merge/word_merge_deleted_lines.rs`,
 /// issue 6529).
+/// A word merge of such a region that writes back a copy of a line one side deleted keeps both sides instead,
+/// and one whose whole answer writes past what the sides leave is kept by `walk`,
+/// which is where the answer's own bounds can be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -382,7 +398,10 @@ fn line_span(
 /// and by word where both sides changed a line region.
 /// Why:
 ///   See the module comment.
-/// The result is `Resolved` only when no region keeps two different changes of the same words.
+/// The result is `Resolved` only when no region keeps two different changes of the same words,
+/// and the whole answer writes no copy and no order that two sides cannot leave
+///  (`writes_past_what_the_sides_leave`).
+/// The answer is judged whole because a region's own counts cannot say what the merge as a whole holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -450,6 +469,9 @@ fn marker_line(
 /// Every region the pass does resolve is the bytes `merge_by_word` would write,
 /// so
 ///  a file that resolves has no marker in it.
+/// An answer `merge_by_word` refuses for writing past what the sides leave keeps both sides of every region
+///  here as well,
+/// so the text it would have written lands with a marker rather than as the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -473,16 +495,56 @@ pub fn keep_both(
 ///  walk produces both:
 /// `merge_by_word` reads its count,
 /// `keep_both` reads its bytes.
+/// An answer that writes past what the sides leave is no merge the pass may take,
+/// so it walks again and keeps both sides of every region it would have resolved:
+/// a refusal this walk only counts would leave `keep_both` writing the refused text with no marker in it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function walk(base, ours, theirs, conflict: [string, string] | null): { merged: Uint8Array; parts: MergedPart[]; unresolved: number };
+/// function walk(base, ours, theirs, conflict: [string, string] | null): { merged: Uint8Array; parts: MergedPart[]; unresolved: number } {
+///   const taken = walkTheRegions(base, ours, theirs, conflict, false);
+///   if (taken.unresolved !== 0 || !writesPastWhatTheSidesLeave(base, ours, theirs, taken.merged)) return taken;
+///   return walkTheRegions(base, ours, theirs, conflict, true);
+/// };
 /// ```
 fn walk(
     base: &[u8],
     ours: &[u8],
     theirs: &[u8],
     conflict: Option<(&str, &str)>,
+) -> (Vec<u8>, Vec<MergedPart>, usize) {
+    let (merged, parts, unresolved) = walk_the_regions(base, ours, theirs, conflict, false);
+    if unresolved != 0 || !writes_past_what_the_sides_leave(base, ours, theirs, merged.as_slice()) {
+        return (merged, parts, unresolved);
+    }
+    return walk_the_regions(base, ours, theirs, conflict, true);
+}
+
+/// What:
+///  One walk over the line regions,
+/// resolving each region unless `everything_kept` says a region keeps both sides.
+/// Why:
+///   `walk` reads the whole answer before it decides,
+/// and a region's own answer cannot say whether the merge as a whole is past what the sides leave:
+/// a merge can put copies of a line in one region while another region holds none of them,
+/// which is still what the sides leave.
+/// A region one side left as it was is no word merge of the pass,
+/// yet it is still a region the two sides disagree about,
+/// so `everything_kept` keeps both sides of it as well:
+/// an answer the copies bound refuses has to land as a conflict,
+/// and a refusal this walk could not carry
+/// would leave the refused text in the file with no marker in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walkTheRegions(base, ours, theirs, conflict: [string, string] | null, everythingKept: boolean): { merged: Uint8Array; parts: MergedPart[]; unresolved: number };
+/// ```
+fn walk_the_regions(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    conflict: Option<(&str, &str)>,
+    everything_kept: bool,
 ) -> (Vec<u8>, Vec<MergedPart>, usize) {
     let mut merged: Vec<u8> = Vec::with_capacity(ours.len().max(theirs.len()));
     let mut parts: Vec<MergedPart> = Vec::new();
@@ -491,8 +553,21 @@ fn walk(
         match hunk {
             Hunk::Same(text) => merged.extend_from_slice(text),
             Hunk::Gap(gap) => match trivial(&gap) {
-                Some(text) => merged.extend_from_slice(text),
-                None => match merge_gap_by_word(&gap) {
+                // What:
+                //  A region this walk settles here, rather than keeping both sides.
+                // Why:
+                //  A walk that keeps everything still takes a region both sides wrote the same text for,
+                // and keeps both sides of every other one:
+                // two sides that disagree must land with a marker,
+                // or `keep_both` writes the text `merge_by_word` refused.
+                Some(text) if !everything_kept || gap.ours == gap.theirs => {
+                    merged.extend_from_slice(text);
+                }
+                _ => match if everything_kept {
+                    None
+                } else {
+                    merge_gap_by_word(&gap)
+                } {
                     Some(text) => {
                         parts.push(MergedPart {
                             base: line_span(base, gap.starts[0], gap.base.len()),

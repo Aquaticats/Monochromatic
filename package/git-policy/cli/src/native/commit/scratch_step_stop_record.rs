@@ -5,7 +5,8 @@
 //!  the bound that ended it,
 //!  and what became of the programs below it.
 //! Why:
-//!   Two enforcers watch one ceiling, and each answers a stop of its own.
+//!   Two enforcers watch one ceiling,
+//! and each answers a stop of its own.
 //!  Taking one figure from one of them and one from the other is how a stop named the longer bound
 //!  and a wait that never happened,
 //!  for a step the other enforcer had ended at the usual ceiling
@@ -59,7 +60,8 @@ pub struct TheEnforcersOfAStep<'a> {
     /// and nothing when that wait ended no step.
     pub the_waits_stop: Option<&'a CeilingStop>,
     /// The one decision both enforcers read:
-    /// whether the ceiling stood aside, and the bound the step then ran under.
+    /// whether the ceiling stood aside,
+    /// and the bound the step then ran under.
     pub the_stall: &'a TheStall,
     /// The usual ceiling of a commit whose message came with the command,
     /// which the words name when that is the bound that ended the step.

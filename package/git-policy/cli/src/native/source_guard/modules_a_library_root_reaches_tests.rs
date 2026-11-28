@@ -134,14 +134,16 @@ pub(crate) fn read_the_tree(root: &Path) -> Result<BTreeMap<String, ModuleOfTheT
 ///  started from the module `from` that holds the line.
 /// Why:
 ///  `crate::name` starts at the root,
-/// `self::name` at the module that writes the line,
+/// `self::name` and a bare `name` at the module that writes the line,
 /// `super::name` at its parent,
-/// and a bare `name` at the module that writes the line.
-///  A name at the crate root may also be a module another folder's glob re-export publishes,
-///  so a root lookup that misses falls back to the modules of that name the tree holds.
+/// and `super::super::name` as many levels up as it writes.
+///  A name looked up at the crate root may also be a module the root's own glob re-export publishes,
+///  so a root lookup that misses falls back to the public modules of that name the tree holds.
 /// Gotcha:
 ///  The answer is a chain whether or not `pub mod` lines reach it;
 /// the caller decides whether that chain publishes.
+///  A bare name is never looked for outside the module that writes it:
+///  a private child named like a public module elsewhere would otherwise be read as that module.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,7 +177,7 @@ pub(crate) fn chain_the_target_reaches(
             }
             current = parent.to_owned();
         }
-        _ => {}
+        _ => current = from.to_owned(),
     }
     let mut first: bool = true;
     while index < segments.len() {

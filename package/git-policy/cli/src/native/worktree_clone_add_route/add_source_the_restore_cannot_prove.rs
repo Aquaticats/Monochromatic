@@ -5,7 +5,8 @@
 //!  and a directory where the index records a file.
 //! Why:
 //!  The fill restores the mounted clone through the snapshot rung's own restore
-//!  (`add_fill.rs`, `worktree_dirty_restore.rs`),
+//!  (`add_fill.rs`,
+//! `worktree_dirty_restore.rs`),
 //!  and both shapes end that restore after the snapshot has been taken:
 //!  the clean keeps a repository of its own and the proof names it as untracked,
 //!  and the removal before the reset cannot unlink a directory with the tools it
@@ -16,7 +17,8 @@
 //!  the mounted clone and the origin snapshot stay,
 //!  and the settle that destroys them is plan step 14's
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  and `SPEC.md`, "What this release does not yet do").
+//!  and `SPEC.md`,
+//! "What this release does not yet do").
 //!  So the preflight asks these questions before the claim,
 //!  and an add whose source holds one takes the ladder,
 //!  whose failed restore destroys its own stage and falls back to Git's own
@@ -166,7 +168,8 @@ fn a_directory_where_the_index_records_a_file(
 ///  one per Git repository of the source's own that the proof would then name.
 /// Why:
 ///   `git clean --force -d` keeps every directory that holds a `.git` entry of
-///   its own (`builtin/clean.c`, `REMOVE_DIR_KEEP_NESTED_GIT`),
+///   its own (`builtin/clean.c`,
+/// `REMOVE_DIR_KEEP_NESTED_GIT`),
 ///   and the proof lists what it left as still untracked.
 ///   A directory Git lists as untracked is not one the restore carries:
 ///  the two listings are Git's own and a directory is either untracked or

@@ -3134,7 +3134,8 @@ fn a_merge_whose_service_does_not_answer_tells_it_once() {
     );
 }
 
-/// Whether this run's fixtures are on btrfs, or the reason the control did not run.
+/// Whether this run's fixtures are on btrfs,
+/// or the reason the control did not run.
 fn a_btrfs_fixture_root(
     root: &Path,
     control: &str,
@@ -3160,9 +3161,11 @@ fn a_btrfs_fixture_root(
 }
 
 /// What:
-///  The registration directories a repository holds now, by name.
+///  The registration directories a repository holds now,
+/// by name.
 /// Why:
-///  A removal of the last worktree removes the `worktrees` folder itself, as Git does,
+///  A removal of the last worktree removes the `worktrees` folder itself,
+/// as Git does,
 ///  so a control that
 ///  listed it unconditionally would fail on the state it means to prove.
 ///

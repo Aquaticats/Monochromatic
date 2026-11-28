@@ -11,14 +11,16 @@
 //! only the call that starts it,
 //!  which waits for the pipes here and on the runtime there,
 //! differs.
-//!  Written once, the command,
+//!  Written once,
+//! the command,
 //! the input file,
 //! the subject,
 //! the ledger name,
 //! the bound,
 //!  the stopping rule and the timing mark cannot drift between the faces,
 //!  which is what the debt ledger of 2026-11-25 measured them doing.
-//! The child command, the input file it may read and the sentence a failed step is named with are made here too,
+//! The child command,
+//! the input file it may read and the sentence a failed step is named with are made here too,
 //! and `transaction_git.rs` re-exports them under the paths they had there.
 //!
 //! In TS you'd write (pseudocode):

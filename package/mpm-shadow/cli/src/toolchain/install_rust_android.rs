@@ -421,6 +421,71 @@ pub fn reconcile_rust_parts(
 }
 
 /// What:
+/// The declared Rust parts `rustup` does not list as installed for this row's toolchain:
+/// one sentence per missing component and per missing target,
+/// or an empty list when the toolchain holds every declared part.
+/// Why:
+/// `install` adds such a part and `list` said the toolchain was in sync without it
+/// (issue 6634's Low point 5),
+/// so one question answers for both:
+/// `list` counts a toolchain that lacks a declared part as drift,
+/// and names what the next `install` would add.
+/// A row that declares no part asks `rustup` nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function missingRustParts(ctx: Context, tool: LockedTool): string[]  // throws
+/// ```
+pub fn missing_rust_parts(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<Vec<String>, ToolchainError> {
+    let components: Vec<String> = declared_names(&tool.declaration.options.rust_components);
+    let targets: Vec<String> = declared_names(&tool.declaration.options.rust_targets);
+    if components.is_empty() && targets.is_empty() {
+        return Ok(Vec::new());
+    }
+    // What:
+    // the targets `rustup` lists as installed for this toolchain, read first because the component
+    // check needs them.
+    // Why:
+    // `rustup component list --installed` spells a component with its target triple,
+    // and `install` reads the two listings in this same order.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const installedTargets = installedNames(ctx, tool, 'target');
+    // ```
+    let installed_targets: Vec<String> = installed_names(ctx, tool, "target")?;
+    // What:
+    // the sentences being collected, one per part the toolchain lacks.
+    // Why:
+    // A person acts on each name, and there may be more than one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const missing: string[] = [];
+    // ```
+    let mut missing: Vec<String> = Vec::new();
+    if !components.is_empty() {
+        let installed_components: Vec<String> = installed_names(ctx, tool, "component")?;
+        for name in components {
+            if lists_component(&installed_components, &name, &installed_targets) {
+                continue;
+            }
+            missing.push(format!("the toolchain lacks the declared component {name}"));
+        }
+    }
+    for name in targets {
+        if lists_exactly(&installed_targets, &name) {
+            continue;
+        }
+        missing.push(format!("the toolchain lacks the declared target {name}"));
+    }
+    return Ok(missing);
+}
+
+/// What:
 /// Installs the Android command-line tools from the locked zip into `<install dir>/cmdline-tools/<version>`
 ///           and runs `android sdk install <packages>` with `ANDROID_HOME` and `ANDROID_SDK_ROOT` set.
 /// Why:

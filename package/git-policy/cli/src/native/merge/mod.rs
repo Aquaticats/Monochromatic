@@ -72,7 +72,9 @@
 //!   which keeps that region in conflict.
 //! - `word_merge_deleted_lines.rs`:
 //!   the lines both sides kept in a region they only deleted lines from,
-//!   and the check that keeps a line one side deleted out of a merged region.
+//!   and the checks that keep a line,
+//!   or an order,
+//!   that one side's deletions removed out of a merged region.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
 //! - `merge_second_pass_git_runner.rs`:
@@ -743,7 +745,8 @@ pub mod merge_isolation_carry_ref;
 /// the mode and permission bits Git records for it,
 /// and one capture of every layer.
 pub mod merge_isolation_carry;
-/// What stands at one worktree path, as a merge reads it.
+/// What stands at one worktree path,
+/// as a merge reads it.
 pub mod merge_isolation_worktree_entry;
 
 /// What one step of the carry reads at the top of the worktree.

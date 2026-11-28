@@ -412,3 +412,8 @@ pub fn base_object(capture: &InvocationCapture) -> Result<Option<ObjectId>, Tran
 #[cfg(test)]
 #[path = "commit_transaction_tests.rs"]
 mod tests;
+
+/// Controls for the bytes a commit's policies read stay out of the release executable.
+#[cfg(test)]
+#[path = "commit_policy_reads_the_committed_bytes_tests.rs"]
+mod policy_reads_the_committed_bytes_tests;

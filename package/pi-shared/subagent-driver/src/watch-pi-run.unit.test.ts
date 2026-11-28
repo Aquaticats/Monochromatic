@@ -63,6 +63,50 @@ const RUN_MILLISECONDS = 2 * POLL_MILLISECONDS;
 const HOLD_MILLISECONDS = 3 * POLL_MILLISECONDS;
 
 /**
+ Milliseconds the longest wait a look of the watch can be handed may take.
+
+ A look is one `wait(POLL_MILLISECONDS)` of the watch's loop and then the work before the next look: the reads of the limits, the
+ inbox and the feed, the delivery of a message, and the wait for Pi's answer to it. The reads take what the host makes them take.
+ The wait is bounded: every send inside a look is given the run's own deadline and the connection's own bound for an answer, which
+ is `COMMAND_ANSWER_MILLISECONDS` (`deliverMessage` in `watch-pi-run.ts`, `answerWithAnotherAttempt` in `answer-a-model-error.ts`).
+
+ Read with {@link patienceOf}, which is where a case's bound comes from.
+ */
+const LOOK_WORK_MILLISECONDS = COMMAND_ANSWER_MILLISECONDS;
+
+/**
+ Milliseconds a case's watch may run, when the end the case asserts is an event rather than the wall clock: the looks the case
+ needs, each with its own wait and the longest wait a look can be handed.
+
+ `looks * POLL_MILLISECONDS` is not that bound, because it counts the waits and leaves every step between two of them out, and those
+ steps are not free. Measured in one whole run of this suite on 2026-11-27, the look that delivers an inbox message spent 100 ms on
+ its own work out of the 300 ms the two-look bound of the case "delivers an inbox message a turn Pi started after the read can take"
+ left over, and a run of that case on a loaded host ended it at its wall clock instead of at the idle end it asserts
+ (`doc/troubleshooting/testing.md`, "Bug 6", and issue 6631).
+
+ A case that asserts an event is not measuring the wall clock, so this is the bound against a watch that never reaches the event:
+ it must not be able to arrive before the event, and a watch that never arrives is reported rather than hung. What it costs is that
+ a watch which reaches its event only after seconds is not caught here, which is the price of a bound no loaded host can decide.
+
+ @param looks - how many looks the watch takes before the end the case asserts, counted in a run of the case
+
+ @returns the bound a case's watch is given, in milliseconds
+
+ @example
+ ```ts
+ const bound = patienceOf({ looks: 2, },);
+ const deadline = Date.now() + bound;
+ ```
+ */
+function patienceOf({
+  looks,
+}: {
+  readonly looks: number
+},): number {
+  return looks * (POLL_MILLISECONDS + LOOK_WORK_MILLISECONDS);
+}
+
+/**
  Seconds of silence after which a settled run can end, if no work or failure still holds it.
  */
 const IDLE_SECONDS = 0;
@@ -593,6 +637,35 @@ function connectionWhosePiStartedItsOwnTurn({
 }
 
 /**
+ A stand-in connection whose Pi answers the watch's message a whole poll after it arrives, and opens its turn of its own then.
+
+ It is the case beside it with one named step made slower: the delivery's answer takes `POLL_MILLISECONDS` longer than the watch's
+ own wait between two looks. A host under a whole suite run puts that kind of time under a look (issue 6631), and a bound that
+ counts only polls then ends the run at its wall clock instead of at the idle end the case asserts.
+
+ @param record - the run's record, where the turn and the reply that ends it are observed
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiAnswersAPollLate({
+  record,
+}: {
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  /**
+   The stand-in this one is, with the one step made slower.
+   */
+  const inner = connectionWhosePiStartedItsOwnTurn({ record, },);
+  return {
+    ...inner,
+    send: async function send(request: CommandRequest,) {
+      await wait(POLL_MILLISECONDS,);
+      return await inner.send(request,);
+    },
+  };
+}
+
+/**
  A connection whose Pi answers the first attempts as busy and takes the one after them, which is what a Pi that read a delivery
  naming steering as busy anyway would do: the message is neither refused nor delivered until Pi takes it.
 
@@ -864,12 +937,13 @@ await describe({
           declineDialog: refuseDialog,
         },);
         expect(run.record.silentMilliseconds(),).toBe(0,);
+        const bound = patienceOf({ looks: 1, },);
         const endReason = await watchUntilEnded({
           connection: answeringConnection(),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          deadline: Date.now() + bound,
         },);
         expect(endReason,).toBe('idle',);
       },
@@ -907,15 +981,16 @@ await describe({
             return false;
           },
         };
+        const bound = patienceOf({ looks: 3, },);
         /**
          Why the watch ended, with enough time for an inbox scan after the settle and after the reply.
          */
         const endReason = await watchUntilEnded({
           connection: connectionWhosePiReplies({ sent, record: run.record, },),
           record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+          deadline: Date.now() + bound,
         },);
         expect(endReason,).toBe('idle',);
         expect(sent,).toEqual([MESSAGE_TEXT,],);
@@ -950,15 +1025,16 @@ await describe({
       fn: async () => {
         await using run = await startRunThatSettled();
         await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        const bound = patienceOf({ looks: 2, },);
         /**
          Why the watch ended, with enough looks for the delivery and the idle end after it.
          */
         const endReason = await watchUntilEnded({
           connection: connectionWhosePiStartedItsOwnTurn({ record: run.record, },),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          deadline: Date.now() + bound,
         },);
         // The turn Pi opened after the read took the message, so nothing of it was kept aside as one Pi refused.
         expect(await readdir(run.inbox,),).toEqual([],);
@@ -973,6 +1049,33 @@ await describe({
       },
     },),
     it({
+      name: 'ends idle when the delivery the watch makes takes a whole poll longer, instead of on its wall clock',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        const bound = patienceOf({ looks: 2, },);
+        /**
+         Why the watch ended: the same two looks as the case beside it, with the one step that answers the message made a poll
+         slower, which is the room issue 6631's whole suite run grew past in the case beside it.
+         */
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiAnswersAPollLate({ record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
+          inbox: run.inbox,
+          deadline: Date.now() + bound,
+        },);
+        // The late answer changed nothing about where the run ends: the turn Pi opened took the message, and the run ended idle.
+        expect(endReason,).toBe('idle',);
+        expect(await readdir(run.inbox,),).toEqual([],);
+        /**
+         What the feed says about the delivery.
+         */
+        const delivered = (await wholeFeedOf(run,)).find((entry,) => entry.kind === 'inbox',);
+        expect(delivered?.success,).toBe(true,);
+      },
+    },),
+    it({
       name: 'a busy answer leaves an inbox message for the next look rather than keeping it aside as refused',
       fn: async () => {
         await using run = await startRunWithAMessage();
@@ -980,15 +1083,16 @@ await describe({
          The messages the watch sent, of which a busy answer owes another.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 3, },);
         /**
          Why the watch ended, with enough looks for both attempts and the idle end after them.
          */
         const endReason = await watchUntilEnded({
           connection: connectionWhosePiIsBusyFor({ sent, record: run.record, },),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+          deadline: Date.now() + bound,
         },);
         // Pi said only that its agent was busy, so the message went back to the inbox and was sent again, never kept aside.
         expect(sent,).toEqual([MESSAGE_TEXT, MESSAGE_TEXT,],);
@@ -1014,6 +1118,7 @@ await describe({
          The newer message a producer publishes under the name while the older one is held as the driver's claim.
          */
         const newer = 'a newer message of the same name';
+        const bound = patienceOf({ looks: 3, },);
         await watchUntilEnded({
           connection: connectionWhosePiIsBusyFor({
             sent,
@@ -1023,9 +1128,9 @@ await describe({
             },
           },),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+          deadline: Date.now() + bound,
         },);
         // The newer message kept the name and went to Pi; the older one stays readable under its claim rather than replacing it.
         expect(sent,).toEqual([MESSAGE_TEXT, newer,],);
@@ -1058,15 +1163,16 @@ await describe({
          How many attempts Pi answers as busy before it takes the message: enough rounds that a claim kept per look would show.
          */
         const busyAttempts = 2;
+        const bound = patienceOf({ looks: busyAttempts + 2, },);
         /**
          Why the watch ended, with enough looks for every attempt and the idle end after the last.
          */
         const endReason = await watchUntilEnded({
           connection: connectionWhosePiIsBusyFor({ sent, record: run.record, busyAttempts, },),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * (busyAttempts + 1)),
+          deadline: Date.now() + bound,
         },);
         // Each busy answer sent the message again, and Pi took the last attempt.
         expect(sent,).toEqual(Array.from({ length: busyAttempts + 1, }, () => MESSAGE_TEXT,),);
@@ -1109,16 +1215,17 @@ await describe({
       name: 'keeps the failure standing when the retry Pi was sent only handles the prompt',
       fn: async () => {
         await using run = await startRunThatFailed({ atWork: false, },);
+        const bound = patienceOf({ looks: 3, },);
         /**
          When the run must be over: after the looks that send the prompt and see Pi resting with nothing answering it.
          */
-        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const deadline = Date.now() + bound;
         const endReason = await watchUntilEnded({
           connection: answeringConnection({ disposition: 'handled', },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 2 * HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 1,
             retryBaseSeconds: NO_WAIT_SECONDS,
             idleSeconds: RESTING_IDLE_SECONDS,
@@ -1147,10 +1254,11 @@ await describe({
          The messages the watch sent, which a turn that recovered the error leaves at the one retry.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 4, },);
         /**
          When the run must be over: after the retry met the turn, and after that turn's reply and settle.
          */
-        const deadline = Date.now() + (3 * HOLD_MILLISECONDS);
+        const deadline = Date.now() + bound;
         const endReason = await watchUntilEnded({
           connection: connectionWhoseRetryMeetsAnOwnTurnThatRecovers({
             sent,
@@ -1159,7 +1267,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 3 * HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 3,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -1203,10 +1311,11 @@ await describe({
          The messages the watch sent: the retry that met the agent's own turn, and the attempt that turn's own failure earned.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 6, },);
         /**
          When the run must be over: after both turns, the retry cap leaving no further attempt.
          */
-        const deadline = Date.now() + (4 * HOLD_MILLISECONDS);
+        const deadline = Date.now() + bound;
         const endReason = await watchUntilEnded({
           connection: connectionWhoseRetryMeetsAnOwnTurnThatFailsAgain({
             sent,
@@ -1215,7 +1324,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 4 * HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 1,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -1256,10 +1365,11 @@ await describe({
          The messages the watch sent, which is the one retry Pi turned back.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 2, },);
         /**
          When the run must be over: a refusal ends it at once.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = Date.now() + bound;
         const endReason = await watchUntilEnded({
           connection: answeringConnection({
             sent,
@@ -1268,7 +1378,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 3,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -1289,10 +1399,11 @@ await describe({
          The messages the watch sent, which is the one retry Pi turned back.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 2, },);
         /**
          When the run must be over: a refusal ends it at once.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = Date.now() + bound;
         const endReason = await watchUntilEnded({
           // This answer comes from the agent library, not from the session that started a turn: it names no streaming behaviour
           // and no turn of its own, so it refused the message and the run ends rather than waiting for a settle nobody will produce.
@@ -1304,7 +1415,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 3,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -1344,16 +1455,17 @@ await describe({
          The messages the watch sent, which a 429 leaves to Pi's own retry.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 1, },);
         /**
          When the run must be over: past the looks an attempt would have gone in, had the watch scheduled one.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = Date.now() + bound;
         const endReason = await watchUntilEnded({
           connection: answeringConnection({ sent, },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 3,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -1499,10 +1611,11 @@ await describe({
          The messages the watch sent, which a recovered failure owes nothing to.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 2, },);
         /**
          When the run must be over.
          */
-        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const deadline = Date.now() + bound;
         /**
          What the watch does, which runs while the reply arrives.
          */
@@ -1511,7 +1624,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 2 * HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 3,
             retryBaseSeconds: WAIT_LONGER_THAN_ONE_LOOK_SECONDS,
           },),
@@ -1535,10 +1648,11 @@ await describe({
          The messages the watch sent, which the failure that replaced the first one earns none of.
          */
         const sent: string[] = [];
+        const bound = patienceOf({ looks: 2, },);
         /**
          When the run must be over.
          */
-        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const deadline = Date.now() + bound;
         /**
          What the watch does, which runs while the second failure arrives.
          */
@@ -1547,7 +1661,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 2 * HOLD_MILLISECONDS,
+            milliseconds: bound,
             retryCap: 3,
             retryBaseSeconds: WAIT_LONGER_THAN_ONE_LOOK_SECONDS,
           },),
@@ -1579,12 +1693,13 @@ await describe({
          The line that names the work the run left running.
          */
         const work = ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'];
+        const bound = patienceOf({ looks: 4, },);
         const endReason = await watchUntilEnded({
           connection: connectionWhosePiReplies({ sent, record: run.record, },),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          deadline: Date.now() + bound,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 2) ? work : [];
@@ -1683,6 +1798,7 @@ await describe({
          How many times the work was asked about, which is how the test ends it after one look.
          */
         let looks = 0;
+        const bound = patienceOf({ looks: 3, },);
         const endReason = await watchUntilEnded({
           connection: answeringConnection({
             sent,
@@ -1691,10 +1807,10 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 2,
+            milliseconds: bound,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          deadline: Date.now() + bound,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1717,6 +1833,7 @@ await describe({
          How many times the work was asked about, which is how the test ends it after one look.
          */
         let looks = 0;
+        const bound = patienceOf({ looks: 2, },);
         const endReason = await watchUntilEnded({
           connection: answeringConnection({
             sent,
@@ -1725,10 +1842,10 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 2,
+            milliseconds: bound,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          deadline: Date.now() + bound,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1757,6 +1874,7 @@ await describe({
          How many times the work was asked about, which is how the test ends it after one look.
          */
         let looks = 0;
+        const bound = patienceOf({ looks: 4, },);
         const endReason = await watchUntilEnded({
           // Pi answers that its agent is already processing, which says the agent is awake in a turn of its own, and that turn
           // replies and settles a few looks after the answer.
@@ -1764,10 +1882,10 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 3,
+            milliseconds: bound,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 3),
+          deadline: Date.now() + bound,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1807,6 +1925,7 @@ await describe({
          How many times the work was asked about, which is how the test ends it after one look.
          */
         let looks = 0;
+        const bound = patienceOf({ looks: 2, },);
         const endReason = await watchUntilEnded({
           // This answer comes from the agent library, not from the session that started a turn: it says the message was refused,
           // so the run ends as one Pi refused rather than waiting for a settle no turn will produce.
@@ -1818,10 +1937,10 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: bound,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          deadline: Date.now() + bound,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1843,12 +1962,13 @@ await describe({
          The deadlines the work was asked under, which must be none at all when there is nothing to wait for.
          */
         let looks = 0;
+        const bound = patienceOf({ looks: 1, },);
         const endReason = await watchUntilEnded({
           connection: answeringConnection({ sent, },),
           record: run.record,
-          options: optionsOf({ runFolder: run.runFolder, },),
+          options: optionsOf({ runFolder: run.runFolder, milliseconds: bound, },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          deadline: Date.now() + bound,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return [];

@@ -11,10 +11,18 @@
 //!  so each is built here with its values filled and every path quoted as a
 //!  shell word
 //!  (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
-//!  "The refusal, and what it leaves").
+//!  "The refusal,
+//! and what it leaves").
 //!  Each says what was and was not changed,
 //!  because a person's next act depends on whether the clone,
 //!  its snapshots and the Git registration are as they were.
+//!  A command's name is another program's text,
+//!  and it is escaped here and nowhere earlier:
+//!  the record keeps the kernel's own bytes,
+//!  so the sentence that shows them is where they enter a line
+//!  (`AGENTS.md` rule `SYB`,
+//!  and `source_guard/every_sentence_that_names_a_process_shows_it_tests.rs`,
+//!  which holds both of these sentences to it).
 //!  The service-manager sentence is
 //!  `started_by_the_service_manager::the_refusal_text`'s,
 //!  which the wrapper prints before any request is written.
@@ -24,6 +32,10 @@
 //! console.error(callerHoldsInItsWorkingDirectory({ slot, pid, command, session }));
 //! ```
 
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::worktree_clone_forced_removal::the_acts_journal_lines::quoted;
 
 /// What:
@@ -76,15 +88,29 @@ pub enum WhyNotStopped<'a> {
 ///  It names the process,
 ///  its session and the reason the removal never ends it,
 ///  and then the one act that frees the folder.
+///  The command's name is shown through the escape for the parenthesis the
+///  sentence puts around it,
+///  so no name a process chose closes that parenthesis,
+///  starts a line or moves the cursor.
 pub fn caller_holds_in_its_working_directory(
     slot: &str,
     pid: i32,
     command: &str,
     session: i32,
 ) -> String {
+    // What: the command's name as this line may show it: one parenthesis wrapping, escaped.
+    // Why:  the name is the one field of the sentence another program wrote,
+    //  and the escape is the last step before the name reaches the person.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const shownCommand = shownSoItCannotRewriteTheLine(command, TheWrappingAroundTheName.Parentheses);
+    // ```
+    let shown_command: String =
+        shown_so_it_cannot_rewrite_the_line(command, TheWrappingAroundTheName::Parentheses);
     return format!(
         "the clone at {} is held by the removal's own protected set, and a removal never ends it.\n\
-         process {pid} ({command}) holds it in its working directory, in session {session}, and that process is the caller, or is in the caller's session or its ancestor chain.\n\
+         process {pid} ({shown_command}) holds it in its working directory, in session {session}, and that process is the caller, or is in the caller's session or its ancestor chain.\n\
          Nothing was moved, unmounted or destroyed: the clone, its snapshots and the Git registration are as they were, and the folder is still mounted.\n\
          Leave the folder (end that job, or run the command from another shell) and run the removal again.\n",
         quoted(slot)
@@ -96,6 +122,10 @@ pub fn caller_holds_in_its_working_directory(
 /// Why:
 ///  Leaving the folder does not release a namespace's copy,
 ///  which is the one thing a person would otherwise try first.
+///  The command's name is shown through the escape for the parenthesis the
+///  sentence puts around it,
+///  so no name a process chose closes it,
+///  starts a line or moves the cursor.
 pub fn the_callers_namespace_holds(
     slot: &str,
     namespace: &str,
@@ -105,9 +135,19 @@ pub fn the_callers_namespace_holds(
     command: &str,
     session: i32,
 ) -> String {
+    // What: the command's name as this line may show it: one parenthesis wrapping, escaped.
+    // Why:  the escape is the last step before the name reaches the person,
+    //  so the parenthesis the sentence writes around it is the one that closes it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const shownCommand = shownSoItCannotRewriteTheLine(command, TheWrappingAroundTheName.Parentheses);
+    // ```
+    let shown_command: String =
+        shown_so_it_cannot_rewrite_the_line(command, TheWrappingAroundTheName::Parentheses);
     return format!(
         "the clone at {} is held by the removal's own protected set, and a removal never ends it.\n\
-         mount namespace {namespace} keeps a copy at {} (mount {mount_id}), and process {pid} ({command}) in session {session} is the caller, or is in the caller's session or its ancestor chain.\n\
+         mount namespace {namespace} keeps a copy at {} (mount {mount_id}), and process {pid} ({shown_command}) in session {session} is the caller, or is in the caller's session or its ancestor chain.\n\
          Leaving the folder does not release a namespace's copy: end that session or its unit, or run the removal from a session that never entered the clone.\n\
          Nothing was moved, unmounted or destroyed: the clone, its snapshots and the Git registration are as they were.\n",
         quoted(slot),

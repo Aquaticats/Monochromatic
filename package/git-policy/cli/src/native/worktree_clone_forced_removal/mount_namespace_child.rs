@@ -1,7 +1,11 @@
 //! What:
 //!  The single-threaded child that enters one mount namespace and runs one
 //!  piece of the act there:
-//!  the pipe, the fork, the entry, the wait, and the report it reads back.
+//!  the pipe,
+//! the fork,
+//! the entry,
+//! the wait,
+//! and the report it reads back.
 //! Why:
 //!  `setns(CLONE_NEWNS)` from a thread of a multithreaded process is refused
 //!  `EINVAL`,

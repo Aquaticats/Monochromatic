@@ -194,6 +194,25 @@ use crate::control_group_process_identity::parse_stat;
 /// import { KILL_REAP_GRACE } from 'crate/control_group_route_child_runs';
 /// ```
 use crate::control_group_route_child_runs::KILL_REAP_GRACE;
+/// `use crate::failpoints::retire_reads::{...}` imports the three switches of the last look's own reads,
+/// with the question whether each was reached.
+/// Why:
+/// A group cannot be removed between the look's two reads from outside,
+/// and a removed group's control file answers an error no path here answers,
+/// so the reads are made to answer those states.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { armPeakReadSeesTheGoneGroup, firesPeakReadSeesTheGoneGroup } from 'crate/failpoints/retire-reads';
+/// ```
+use crate::failpoints::retire_reads::{
+    arm_directory_check_sees_the_gone_group,
+    arm_peak_read_sees_the_gone_group,
+    arm_populated_read_sees_the_gone_group,
+    fires_directory_check_sees_the_gone_group,
+    fires_peak_read_sees_the_gone_group,
+    fires_populated_read_sees_the_gone_group,
+};
 /// What:
 /// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
 /// Why:
@@ -614,16 +633,21 @@ fn a_scope_that_holds_a_member_keeps_its_unit_and_the_run_says_so() {
 
     let said: String = word.expect("a unit left loaded is reported");
     assert!(said.contains(&unit), "{said}");
-    assert!(said.contains("still has a member"), "{said}");
+    assert!(
+        said.contains("the kernel's `populated 1` line was read"),
+        "the sentence does not say what was read about the members: {said}"
+    );
     assert!(
         said.contains("was left loaded"),
         "the unit is certainly loaded with a member in it, and the run does not say so: {said}"
     );
     assert!(
-        said.contains(
-            "a member that joins after this look is killed by that stop with nothing printed"
-        ),
-        "the sentence about a stop does not say what becomes of a member that joins after the look: {said}"
+        said.contains("so this step asked for no stop"),
+        "the sentence does not say that this look asked for no stop: {said}"
+    );
+    assert!(
+        !said.contains("stop this step makes") && !said.contains("killed by that stop"),
+        "the sentence describes a stop this branch never makes: {said}"
     );
     assert_eq!(
         calls(&log),
@@ -666,6 +690,15 @@ fn an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so() {
         said.contains("may be left loaded"),
         "the unit was never read as loaded, so the run must not say that it was: {said}"
     );
+    // Nothing was read about this group's members: the `populated` read itself is the read that found the absence.
+    assert!(
+        said.contains("so it is not shown that no member is left"),
+        "the warning does not say that nothing was read about the members: {said}"
+    );
+    assert!(
+        !said.contains("`populated 0` line was read for it"),
+        "the warning says an emptiness was read, where the read that failed is the one about the members: {said}"
+    );
     assert_eq!(
         calls(&log),
         "",
@@ -700,6 +733,17 @@ fn a_populated_read_that_fails_is_reported() {
     assert!(
         said.contains("may be left loaded"),
         "nothing was read about the unit, so the run must not say that it was left loaded: {said}"
+    );
+    // What:     the tail is the half of the sentence this arm decides, so the control reads it too.
+    // Why:      A failed read is the one arm that read nothing about the members; an edit that let it say an emptiness had
+    //           been read would print a sentence about a line that was never read, and no other control looks at that word.
+    assert!(
+        said.contains(", so it is not shown that no member is left"),
+        "the warning does not say that nothing was read about the members: {said}"
+    );
+    assert!(
+        !said.contains("`populated 0` line was read for it"),
+        "the warning says an emptiness was read, where the read that failed is the one about the members: {said}"
     );
     assert_eq!(calls(&log), "", "an unreadable scope is not stopped");
 }
@@ -993,7 +1037,10 @@ fn a_member_is_read_before_the_peak_and_its_unit_is_kept() {
         let said: String = word.unwrap_or_else(|| {
             return format!("the run said nothing about the member it read ({what})");
         });
-        assert!(said.contains("still has a member"), "{what}: {said}");
+        assert!(
+            said.contains("the kernel's `populated 1` line was read"),
+            "{what}: {said}"
+        );
         assert_eq!(
             calls(&log),
             "",
@@ -1030,10 +1077,11 @@ fn a_group_whose_directory_is_gone_is_not_asked_about() {
 /// The control of the decision a peak read's failure asks for:
 /// a file that is not there in a directory that is is a kernel without the file,
 /// which needs the question,
-/// and a directory that went away is a collected group,
-/// which needs none.
-/// The race the second case comes from (the manager removing the group between the two reads) cannot be staged from
-/// outside,
+/// a directory that went away is a collected group,
+/// which needs none,
+/// and so is a group the kernel is removing,
+/// whether its directory still reads there or not.
+/// The race the third case comes from cannot be staged from outside,
 /// so the decision is driven the way the refusal's decision is.
 #[test]
 fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
@@ -1066,6 +1114,228 @@ fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
     assert!(
         refused_answer.is_none(),
         "a read failure that is not an absence was read as a collected group: {refused_answer:?}"
+    );
+    // What:     `no_device` is the error a file the kernel has deactivated answers, with the directory still there.
+    // Why:      The directory has not gone away yet when the kernel answers this, so a check of it would ask the manager about
+    //           a unit the manager is freeing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const removing = groupGoneAtThePeak(there, noDevice)
+    // assert(removing === 'collected')
+    // ```
+    let no_device: io::Error =
+        io::Error::from_raw_os_error(rustix::io::Errno::NODEV.raw_os_error());
+    let removing_answer: Option<Emptiness> = group_gone_at_the_peak(&there, &no_device);
+    assert!(
+        matches!(removing_answer, Some(Emptiness::Collected)),
+        "a group the kernel is removing was asked about: {removing_answer:?}"
+    );
+}
+
+/// The control of the arm that reads a failed `pids.peak` as a collected group,
+/// driven through `retire`:
+/// a group whose directory went away between the look's two reads keeps its unit and asks nothing,
+/// and a `populated` read that answers the error a removed group's file answers is read the same way.
+/// Neither window can be held open from outside:
+/// the manager removes a group the moment its last member leaves,
+/// and a path that is gone answers `ENOENT` before a file in it is opened,
+/// so a test build answers for the two reads.
+/// The request is the guard:
+/// a look that read such a failure as a group that never held a process asks the manager once,
+/// and the log says so.
+#[test]
+fn the_look_reads_a_group_that_goes_away_between_its_reads_as_collected() {
+    let route: Route = delegated_route();
+    // The peak arm: `populated 0` was read, and then the group's directory went away.
+    let vanishing = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(vanishing.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &vanishing.path().join("vanishing"),
+        "cargo-shadow-test-vanishing",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    arm_peak_read_sees_the_gone_group();
+    arm_directory_check_sees_the_gone_group();
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    let reached_peak: bool = !fires_peak_read_sees_the_gone_group();
+    let reached_check: bool = !fires_directory_check_sees_the_gone_group();
+    assert!(
+        reached_peak,
+        "the peak read never answered the armed failure, so this control shows nothing about the arm that reads it"
+    );
+    assert!(
+        reached_check,
+        "the directory check after the peak read was never reached"
+    );
+    assert_eq!(
+        word, None,
+        "a group that went away between the two reads is a unit the manager collected, and the run says nothing about it"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager about a unit the manager had already collected"
+    );
+
+    // The first read: the group's own `cgroup.events` answered the error a removed group's file answers.
+    let removed = crate::test_scratch::scratch();
+    let (removed_systemctl, removed_log) = answering_systemctl(removed.path());
+    let removed_group: ControlGroup = an_absent_group(&route, "cargo-shadow-test-removed-file");
+    arm_populated_read_sees_the_gone_group();
+
+    let removed_word: Option<String> = retire(&removed_group, &removed_systemctl, RETIRE_BOUND);
+
+    assert!(
+        !fires_populated_read_sees_the_gone_group(),
+        "the `populated` read never answered the armed failure"
+    );
+    assert_eq!(
+        removed_word, None,
+        "`ENODEV` is one of the two errors a removed group answers, so the run says nothing about its unit"
+    );
+    assert_eq!(
+        calls(&removed_log),
+        "",
+        "the step asked the manager about a unit whose `populated` read said the group is gone"
+    );
+}
+
+/// The control of the warning a unit kept for an unverifiable absence carries on the peak arm:
+/// the look read `populated 0` before the group's directory went away,
+/// so the warning may not say that nothing was read about the members.
+/// The absence is planted (a failpoint) because no run can make this process see another cgroup view.
+#[test]
+fn a_unit_kept_after_an_emptiness_was_read_says_what_the_look_read() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = recording_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("vanishing"),
+        "cargo-shadow-test-vanishing-unproven",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    arm_peak_read_sees_the_gone_group();
+    arm_directory_check_sees_the_gone_group();
+    arm(Point::AbsenceUnverifiable);
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    assert!(
+        !fires_peak_read_sees_the_gone_group()
+            && !fires_directory_check_sees_the_gone_group()
+            && !crate::failpoints::fires(Point::AbsenceUnverifiable),
+        "the look did not walk the peak arm and its absence check, so this control shows nothing"
+    );
+    let said: String = word.expect("a unit kept because its absence was not shown is reported");
+    assert!(said.contains("may be left loaded"), "{said}");
+    assert!(
+        said.contains("`populated 0` line was read for it"),
+        "the warning does not say that an emptiness was read before the directory went away: {said}"
+    );
+    assert!(
+        !said.contains("so it is not shown that no member is left"),
+        "the warning denies the emptiness the same look read: {said}"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager to stop a unit whose emptiness it had not shown"
+    );
+}
+
+/// The control of the `ENOENT` half of the absence check:
+/// a group's directory that is there without a `cgroup.events` in it answers `ENOENT`,
+/// and a name that is not there is not the group's absence,
+/// so the run says what it could not read rather than report a collected unit in silence.
+/// This host's kernel is not shown to make that state for a group being created:
+/// 3090 reads raced against 300 creations never answered `ENOENT` while the directory was there,
+/// and every first sight of a new directory held `cgroup.events` in it.
+/// The row the same check is live for is the peak read,
+/// where a group whose parent does not enable the pids controller has no `pids.peak` at all
+/// (`a_group_without_a_pids_peak_file_is_asked_about_once`),
+/// so this control holds the answer for a state a kernel could present and this one is not seen to.
+#[test]
+fn a_directory_that_is_there_without_a_populated_line_is_not_read_as_collected() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("half-made"),
+        "cargo-shadow-test-half-made",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    fs::remove_file(group.directory().join("cgroup.events"))
+        .expect("take the populated line out of the directory");
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    let said: String =
+        word.expect("a group whose directory is there and whose members were not read is reported");
+    assert!(
+        said.contains("may be left loaded"),
+        "the unit was never read as loaded, so the run must not say that it was: {said}"
+    );
+    assert!(
+        said.contains("`populated` line could not be read"),
+        "the warning does not say what could not be read: {said}"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager about a group whose directory is there"
+    );
+}
+
+/// The control of the one moment this host's kernel is measured to answer `ENODEV` for the `populated` read:
+/// the group's own file was opened before the kernel took the group away and read after it,
+/// and the group's directory is still there when the read is answered.
+/// Measured on 2026-11-27:
+/// 300 removals raced by this step's own read answered `ENODEV` 24 times,
+/// and a directory check right after each of them found the directory there in 20.
+/// The kernel removes a group only when it holds no task,
+/// so the unit is the manager's to free:
+/// the look says nothing and asks nothing.
+#[test]
+fn a_group_the_kernel_is_removing_is_read_as_collected() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("being-removed"),
+        "cargo-shadow-test-being-removed",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    assert!(
+        group.directory().is_dir(),
+        "the directory has to be there for the row this control stands for"
+    );
+    arm_populated_read_sees_the_gone_group();
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    assert!(
+        !fires_populated_read_sees_the_gone_group(),
+        "the `populated` read never answered the armed failure, so this control shows nothing"
+    );
+    assert_eq!(
+        word, None,
+        "a group the kernel is removing is a unit the manager is freeing, and the run says nothing about it: {word:?}"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager about a unit the manager is already freeing"
     );
 }
 

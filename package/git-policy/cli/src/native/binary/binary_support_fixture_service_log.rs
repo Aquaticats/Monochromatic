@@ -8,7 +8,8 @@
 //! an inherited stream mixes that line with the output of every other control running at the same moment,
 //! and a panic removes the fixture the line belongs to;
 //! so the words go to a file beside the fixture and to the stream a person reads.
-//!  The copy runs on a thread of its own, so the file holds what a service wrote only once that thread has written it:
+//!  The copy runs on a thread of its own,
+//! so the file holds what a service wrote only once that thread has written it:
 //! the pipe closes when the last service holding it ends,
 //! the thread then ends,
 //! and `kept_stderr_pipe` answers a channel that says so.
@@ -44,8 +45,11 @@ const SERVICE_LOG_KEPT_BYTES: u64 = 8 * 1024;
 ///   An inherited stream loses the line that explains a failure with the fixture a panic removes,
 /// and a file alone would take the service's words off the output a person reads while it runs;
 /// the copy keeps both.
-///  A read that decides anything cannot wait on the clock for the copy: the pipe closes when the service's own end
-/// closes it, and the copy ends after that, so the channel's message is the event the read waits for.
+///  A read that decides anything cannot wait on the clock for the copy:
+/// the pipe closes when the service's own end
+/// closes it,
+/// and the copy ends after that,
+/// so the channel's message is the event the read waits for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

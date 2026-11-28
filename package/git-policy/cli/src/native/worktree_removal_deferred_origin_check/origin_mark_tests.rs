@@ -4,10 +4,12 @@
 //!  an absent or unreadable property is never off,
 //!  and a hold count the reply lacks does not become zero.
 //! Why:
-//!  A reader that required a `source` would refuse every origin, marked or not,
+//!  A reader that required a `source` would refuse every origin,
+//! marked or not,
 //!  and a reader that fell through to "not marked" would fail open on the one state the check
 //!  exists to catch
-//!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`, F4 and veto V3).
+//!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
+//! F4 and veto V3).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

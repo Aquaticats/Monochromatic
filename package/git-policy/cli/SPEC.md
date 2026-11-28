@@ -3711,14 +3711,16 @@ with the same force:
 - A subvolume or a mount point below the worktree's root is removed around,
   never destroyed and never handed to Git
   (`src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs`,
-  and the section "A volume the removal did not make: removing around it" for the decision of 2026-11-12).
+  and the section "A volume the removal did not make:
+  removing around it" for the decision of 2026-11-12).
   The destroy cannot take such a tree:
   the kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
   so nothing of the worktree is renamed for the commit service,
   and the removal empties every other entry and keeps each volume with the directories that lead to it.
   An unforced removal whose proof of cleanliness refuses refuses here too,
   with one report that names each volume and gives the reason,
-  and no volume is moved, unmounted or deleted.
+  and no volume is moved,
+  unmounted or deleted.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -4991,7 +4993,8 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
-  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  The person's own `--lock`,
+  `--reason` or `--checkout` is refused after the
   source check,
   so a declined add reaches the ladder with the words Git's own `worktree add`
   takes by itself,
@@ -5488,8 +5491,92 @@ so a refusal skips none of them,
 and a command started inside a repository's Git directory reads that directory's
 records,
 which Git still names although the command stands in no worktree.
+A bare repository is the other shape no worktree names:
+a command started in one,
+or in a folder inside it,
+reads the records kept in the bare repository's own directory,
+which Git names as that repository's common directory.
+Git names no top of a working tree in either shape,
+so the shell of a `!` alias runs where the command's own `-C` options left it,
+which is the directory the command was typed in when it carries none,
+and a removal's or a move's operand is read from there as it is at the top:
+`git -C <repository>/.git worktree remove -f -f ../../<slot>` names the worktree
+Git would remove,
+typed in the repository's Git directory,
+and the records a removal,
+a move or a prune reads in either shape are the records the spelling at the top
+reads.
 Only the ladder's own steps keep the shorter list of globals they serve
-("Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS").
+("Cheap worktree creation and removal on btrfs,
+XFS,
+overlayfs and ZFS").
+A command reached through a shell alias is read by the same reader the guard
+uses,
+so the two rules cannot disagree about what an alias is,
+and the operand of that command is read from the top of the working tree,
+because Git changes to it before it starts the shell
+(`git.c:388` to `git.c:407`):
+`git -C checkouts/repo -c 'alias.rmwt=!git worktree remove --force' rmwt ./../slot-one`
+names the worktree Git would remove,
+for `git worktree move`'s source as for the removal's operand,
+where a reading that took the operand from the directory the wrapper was started
+in would name none.
+That reading is of the operand,
+not of where the wrapper allows a command to begin:
+`require-root` still refuses a command whose directory is below the top of its
+repository,
+before any slot refusal runs.
+A command the root rule does not refuse reaches that same reading from below the
+top:
+`policies.require-root` at `off`,
+`policies.require-root` at `warn`,
+and the wrapper's own `--no-enforce-require-root`
+each leave a removal or a move typed below the top behind a shell alias to the
+slot refusal,
+which then names the slot the spelling at the top names.
+The records the refusal reads are those of the repository the command names:
+caller's words that carry `-C`,
+`--git-dir` or `--work-tree` make the refusal read that repository's records,
+not the ones beside the caller,
+because that is the repository Git's own command works in.
+A slot command behind a `!` alias whose shell's directory Git could not be asked
+for is one nothing placed,
+so it is refused with words saying what could not be read,
+and never forwarded in silence.
+When the rule is off or escaped it says nothing about the command;
+at `warn` its finding and the line saying the policy is warn-unsafe are printed
+before a refusal of any of the three slot commands,
+a removal's,
+a move's and a prune's alike,
+in the order a removal prints them.
+The spellings that reach that reading are the guard's own,
+stated in the passage "git by the word Git will run":
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
+whose own words name no global option,
+and whose first word after the `!` and after any blanks is `git`,
+so `!git <words>`,
+`! git <words>` and `!git<TAB><words>` are read,
+while a value that names `git` and nothing else leaves the command to the
+caller's own words,
+which follow the value into the shell and may begin with a global option;
+a value whose own words name another `!` alias is followed through the shells it
+starts,
+four of them;
+and an ordinary alias chain is expanded to 64 links.
+`git worktree prune` needs no operand,
+so no directory changes what its pass reads,
+and a prune typed in a repository's Git directory or in a bare repository reads
+that repository's records,
+as a removal's and a move's refusals do.
+Everything else,
+`!sh -c 'git worktree remove -f -f <slot>'` included,
+is left to Git as the guard leaves it,
+and so is a chain longer than those counts,
+whose words are not the command Git runs.
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
@@ -5575,7 +5662,8 @@ and the `--no-` form of it,
 with the last of them typed deciding.
 The pass reads no pool and writes no record.
 A prune started inside the repository's Git directory (`git -C <repository>/.git worktree prune`)
-is the same pass over that directory: Git names the repository although the command stands in no worktree,
+is the same pass over that directory:
+Git names the repository although the command stands in no worktree,
 and the registrations it would drop are the ones the records name.
 
 The repair report says what a damaged link can and cannot restore,
@@ -5985,7 +6073,8 @@ It is built ahead of the plan's order:
 
 - No management grammar admits it,
   no `git` command reaches it,
-  `doctor`, the mount handler and the boot units do not either,
+  `doctor`,
+  the mount handler and the boot units do not either,
   and the round that switches the removal's command path on adds it to the grammar.
   This release's binary prints the management usage and exits `2` for the word.
 - It takes the slot's removal claim through the repository's own generation claim,
@@ -9891,7 +9980,9 @@ and a password a URL carries is never printed.
 A command ssh does not carry names no next step and keeps the process replacement it has today.
 Four limits stand with it:
 `kill -9` of the typed process number is not one of the four signals the relay carries:
-the wrapper ends at once, prints nothing, and does not end Git through the relay;
+the wrapper ends at once,
+prints nothing,
+and does not end Git through the relay;
 under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
 so no sentence follows;
 a typed LFS push explains a refused key through the upload's own words instead,
@@ -15294,6 +15385,40 @@ names with a control character or a byte that is not UTF-8 as `$'...'`),
 so the command can be
 pasted and a terminal escape in a file name is never printed raw.
 
+A process's name is not this program's text either:
+another program sets it (`/proc/<pid>/comm`,
+and the `comm` field of `/proc/<pid>/stat`),
+and so is a command line.
+Every line this program writes for a person,
+on standard output or on standard error,
+that names one shows it as text that can act on nothing:
+the parentheses or the backticks that line puts around the name are escaped inside it,
+the backslash is escaped,
+and every control character,
+every character outside printable ASCII and every line separator
+is written as an escape
+(`foundation/shown_so_it_cannot_rewrite_the_line.rs`,
+the one function that writes such a name into a line,
+and `source_guard/every_sentence_that_names_a_process_shows_it_tests.rs`
+holds every sentence of this program that shows a name to it).
+So one name is shown the same way wherever a person meets it in a line,
+and no name can end the sentence's own punctuation,
+erase the line or start a second one.
+A record this program writes as data is not such a line:
+a name in a record written as JSON,
+such as the commit timing record's `below[].name`,
+is escaped by JSON's own rule
+(`foundation/json_record.rs`'s `quote`,
+which is `serde_json`'s):
+the string's quote,
+the backslash and the control characters below U+0020 are escaped,
+so no name ends the string or starts a line of the record,
+while a bidirectional control,
+U+2028 and every character outside ASCII stay the bytes the name holds,
+because JSON asks for no escape of them.
+A person who reads that record in a terminal reads those bytes as the name spelled them;
+the line rule above is what the sentences a person is shown keep.
+
 ```text
 # A lock whose pid file names a process that has ended: said, and nothing removed.
 monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: a pid file beside it names process 2629996, which has ended, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around.
@@ -17876,9 +18001,11 @@ each with its reason in the code and here:
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
-  under it one line is pushed or popped, one number is moved and the writer is handed out or given back,
+  under it one line is pushed or popped,
+  one number is moved and the writer is handed out or given back,
   and the write itself runs outside it.
-  A queue of `QUEUED_LINES` (256 in each: measured over the six slowest commits of 2026-11-12 for the service's log,
+  A queue of `QUEUED_LINES` (256 in each:
+  measured over the six slowest commits of 2026-11-12 for the service's log,
   and over this repository's commit timing log and the package's gates on 2026-11-15 for the diagnostics)
   is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
@@ -21360,14 +21487,46 @@ merge `b928c5fa6999`,
 whose resolution `24f8c1947b` corrected by hand).
 A base line written twice in the region is read by word:
 which copy a side deleted cannot be told there.
+Three rules refuse a word merge there rather than write a copy a side deleted.
 A region whose word merge would write more copies of a line the base held
 than the side that holds it fewer times than the base did still holds,
 while the other side's part holds it as often as the base did,
 is refused rather than merged,
 and keeps both sides
 (`keeps_a_deleted_line` in the same file).
+An answer of the merge is refused as well
+when it writes more copies of a line the base held than the two sides leave:
+at most as many as the side that holds fewer of them holds,
+while neither side wrote more copies of that line than the base held,
+and at most as many as the side that wrote more of them holds,
+while one side did
+(`writes_past_the_copies_the_sides_leave` in the same file).
+That bound is read over the whole answer the merge resolves,
+which is one region for a merge from objects and the file the pass was handed otherwise,
+because a region that holds more copies of a line than its own two sides leave can be right
+when another region holds fewer of them.
+It is read for a region one side also wrote a line into as well:
+a copy that side wrote lifts the bound of that one line,
+and says nothing about the others.
+A line the base never held,
+and a line both sides wrote more copies of than the base held,
+are not judged:
+no bound over the two sides is right for either.
+And a region whose two parts each hold only lines of the base's part,
+in the base's order,
+is one where both sides only deleted lines,
+so the union of the two deletions is the only right answer there:
+a word merge of such a region that would write the lines
+in an order one part does not hold them in
+is refused rather than merged,
+and keeps both sides
+(`writes_past_what_the_sides_leave` in the same file).
+The order is judged only there,
+because a side that wrote a line of its own holds an order the other side does not.
+A file one of these rules refuses keeps both sides of every region the two sides disagree about,
+so the answer that was refused never lands without a marker.
 The measurements above were taken on 2026-11-10,
-before these two rules,
+before these rules,
 and were not run again.
 
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
@@ -24072,6 +24231,14 @@ Every finding code of a policy whose message has no alternative of its own,
 and every engine failure code,
 has a hint,
 and the test suite fails when one is added without it.
+A finding's hint says what corrects the bytes it names where the finding is made.
+The `final-newline` finding of an `add` and of a direct check says a commit that takes the file corrects the ending
+while this repository's settings keep `final-newline` on,
+and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+The same finding of a commit whose selection is read-only,
+of a landed commit and of a pushed tree says to edit the file,
+because nothing corrects bytes a commit records as they are.
+A finding of a patch-capable commit or of a direct fix says the correction is that lifecycle's own.
 Plain stderr notices that report a divergence from real Git's behavior end with a hint in the same voice.
 A reader that ignores unknown fields is unaffected.
 
@@ -24116,7 +24283,8 @@ is the refusal and passes.
 The word this reading reads is the word Git will run.
 An ordinary alias (`alias.<name>`,
 either spelling) is expanded the way Git expands it,
-up to 16 expansions,
+up to 64 expansions (`MAX_ALIAS_EXPANSIONS`),
+a bound on this reading's own work rather than a limit Git has,
 and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
 One `git config --null --list` answers which value Git keeps:
@@ -24220,18 +24388,36 @@ which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
 One plain form of it is read,
 only so the guard can decide:
-a value written `!git <words>` whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
-and whose words name no global option of their own.
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
+whose own words name no global option,
+and whose first word after the `!` and after any blanks is `git`.
+A blank there is a space or a TAB,
+because both separate the words of the shell command Git builds:
+`! git <words>`,
+`!git<TAB><words>` and `!git <words>` run the same command,
+and a value of exactly `!git` runs whatever the caller's own words name.
 Git appends the caller's own words to the value before the shell reads it
 (`git.c:401` to `git.c:402`),
 so the command followed is the value's words and then the caller's:
 a value of exactly `!git` starts that command with the caller's first word,
 and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
+Those caller's words may begin with a global option,
+because that same Git reads them there and the reading keeps them,
+and the worktree or repository such an option names is the one the guard
+judges:
+`-C`,
+`--git-dir` and `--work-tree` are read from the directory Git runs the shell in,
+and every repository fact the decision reads is asked through them,
+so the worktree a command changes is the one measured and the one refused;
+a global option among the value's own words is left unread,
+as the boundary below says.
+A value whose own words name a `!` alias starts a second shell,
+and the command Git finally runs is the one the last of those shells runs,
+so that chain is followed through four shells.
 The Git inside the shell also reads the configuration and the exec path the caller passed,
 which Git exports to what it starts
 (`config.c:469` to `config.c:504`,
@@ -24242,11 +24428,14 @@ and the alias itself is still forwarded unchanged,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
 which a substituted argument list would lose.
 Everything else,
-`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included,
+`!sh -c 'git reset --hard'`,
+`!git -C <directory> reset --hard` and a chain past either count included,
 runs as Git runs it:
 through real Git,
 with no guard and no index-writer coordination,
-because the wrapper never sees that command start.
+because the wrapper never sees that command start,
+and a chain the reading gave up on names no command at all,
+so the guard leaves it to Git as it leaves any alias it cannot read.
 `git by the word Git will run` is the boundary of this guard.
 
 A form is rejected in the main worktree and outside any worktree always,
@@ -25864,6 +26053,16 @@ read-only commit selection and other pre-forward commands,
 including `git add`,
 warn and continue without offering an inapplicable patch.
 An explicit error override makes those findings blocking.
+The hint of a finding here says what corrects the file where the finding is made.
+An `add` and a direct check read worktree bytes a commit takes,
+so their hint names that commit's correction,
+which happens while the settings keep `final-newline` on,
+and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+A commit whose selection is read-only (`-p`,
+`-i`,
+`--include`),
+a landed commit and a pushed tree name bytes nothing corrects,
+and their hint tells the person to edit the file and stage it again.
 Direct fix affects selected worktree bytes only.
 Every real index entry remains exact during direct fix.
 

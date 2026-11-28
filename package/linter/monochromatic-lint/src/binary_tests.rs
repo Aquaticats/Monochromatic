@@ -3872,7 +3872,7 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
         "would read as another pair of folders",
         // What: the half that says what renaming must give, which has to cover a name holding the arrow words inside it.
         // Why: a name told to hold no arrow word at its beginning or its end would keep the one in the middle and stop again.
-        "so rename the folder so its name holds no `->` set off by whitespace on both sides,",
+        "so rename the folder so its name holds no ` -> `,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -3914,6 +3914,11 @@ fn layout_a_folder_name_that_sets_its_arrow_off_with_a_tab_is_refused() {
                 "its name sets off an arrow word with a whitespace character other than a space,",
             ),
             String::from("would read as another pair of folders"),
+            // What: the fix for this shape, which must not send its reader to a space it does not hold.
+            // Why: the name sets its arrow off with a tab or a no-break space, so the fix has to cover any whitespace character.
+            String::from(
+                "so rename the folder so its name holds no `->` set off by a whitespace character,",
+            ),
         ] {
             assert!(
                 message.contains(part.as_str()),
@@ -4007,9 +4012,44 @@ fn layout_the_file_rule_alone_reads_every_arrow_shape_of_a_folder_name() {
     }
 }
 
+/// The file rule alone reads an arrow-named folder that holds a `uses` folder,
+///  because that rule reads no `uses` line and names such a folder in a key as written,
+///  and the entries of a `uses` folder are no paths either:
+///  the entry check must not refuse the folder above them.
+#[cfg(unix)]
+#[test]
+fn layout_the_file_rule_alone_reads_a_uses_folder_under_an_arrow_named_folder() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write("file.txt", "");
+    fixture.write("src/lib.rs", "#[path = \"x -> y/mod.rs\"]\nmod a;\n");
+    fixture.write(
+        "src/x -> y/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n",
+    );
+    fixture.write("src/x -> y/one.rs", "pub struct One;\n");
+    // What: an entry of the `uses` folder the check walks, whose name no line would mind.
+    // Why: the folder above it is the one whose arrow words the file rule leaves alone, and this entry makes that walk happen.
+    uses_link(&fixture.path, "src/x -> y/uses/child", "..");
+    let read: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (read.status, read.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        read.stdout,
+        read.stderr
+    );
+}
+
 /// A folder name that would be misread on a `uses` line is refused only while the folder rule is selected:
 ///  the file rule reads no `uses` line,
 ///  so it reads such a tree as alpha.17 did rather than stop the run.
+///  That holds while the folder holds a `uses` folder too,
+///  because the entries of such a folder are no paths and their names are read as written.
 #[cfg(unix)]
 #[test]
 fn layout_the_file_rule_alone_reads_a_folder_named_the_arrow() {
@@ -4090,6 +4130,9 @@ fn layout_a_folder_name_that_ends_in_the_arrow_is_refused() {
         "The layout rules stop at the folder src/a ->,",
         "its name ends with ` ->`,",
         "would read as another pair of folders",
+        // What: the fix for a name that ends with the arrow, which a sentence about both sides would not fit.
+        // Why: inside this name the arrow is set off on one side only, so it already satisfies a sentence about both.
+        "so rename the folder so its name does not end with ` ->`,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -4119,6 +4162,7 @@ fn layout_a_folder_name_that_begins_with_the_arrow_is_refused() {
         "The layout rules stop at the folder src/-> a,",
         "its name begins with `-> `,",
         "would read as another pair of folders",
+        "so rename the folder so its name does not begin with `-> `,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -4148,6 +4192,7 @@ fn layout_a_folder_name_that_is_the_arrow_is_refused() {
         "The layout rules stop at the folder src/->,",
         "its name is `->`,",
         "would read as another pair of folders",
+        "so rename the folder so its name is not `->`,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }

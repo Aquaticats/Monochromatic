@@ -88,7 +88,8 @@ const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "service_land_follow_index_reset.rs"]
 mod index_reset;
-/// The awaited derived names, read by the control that compares both faces of the reset.
+/// The awaited derived names,
+/// read by the control that compares both faces of the reset.
 #[cfg(test)]
 use self::index_reset::derived_names_awaiting;
 use self::index_reset::reset_once;

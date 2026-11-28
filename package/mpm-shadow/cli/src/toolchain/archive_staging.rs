@@ -42,23 +42,25 @@
 //! and an unfinished `.replaced` sibling after the rename,
 //! which the next install of that tool removes.
 //! `leftovers_of_a_killed_install` holds that list with its reasoning,
-//! and tells a dead installer's sibling from a running one's by the pair in its name.
+//! and tells a dead installer's sibling from a running one's by the four facts in its name.
 //!
 //! A publish that fails costs neither copy:
 //! the finished copy stays under the name this run holds it at,
-//! which the next install publishes without downloading,
 //! and the message names that path and the version's name,
 //! so a person reads what is on disk.
+//! What a later install does with that copy is that install's to read:
+//! it publishes it when the version's name holds no finished copy,
+//! and removes it as a second one when the version is at its name by then.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // archive-staging.ts
 //! export function stagingDirOf(versionDir: string): string
 //! export function hasCompleteMarker(dir: string): boolean
-//! export function writeCompleteMarker(dir: string, toolId: string, version: string): void
+//! export function writeCompleteMarker(dir: string, toolId: string, version: string, archiveSha256: string): void
 //! export function publishStaged(staging: string, finalDir: string, firstBin: string): 'here' | 'already-there'
 //! export function discardStaging(staging: string): void
-//! export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion): Recovered
+//! export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered
 //! ```
 
 /// Imports `fs` from `std`.
@@ -79,9 +81,28 @@ mod exchanging_the_two_names;
 /// The hidden siblings a killed install leaves,
 /// and what a later install does with them.
 mod leftovers_of_a_killed_install;
+/// The completion marker,
+/// the facts it records and the lock that vouches for them.
+mod the_completion_marker;
 /// The process that made a hidden sibling,
-/// as the pair that no reuse repeats.
+/// as the facts that no reuse repeats.
 mod the_owner_of_a_hidden_sibling;
+
+/// Re-exports the marker file's name,
+/// the question whether a directory carries it,
+/// and the write an install makes last.
+pub use self::the_completion_marker::{
+    COMPLETE_MARKER,
+    has_complete_marker,
+    write_complete_marker,
+};
+/// Re-exports what the lock verified about a copy,
+/// and the questions a publish and a cleanup ask of the marker it holds.
+pub(crate) use self::the_completion_marker::{
+    CopyRecord,
+    has_vouched_marker,
+    marker_vouches,
+};
 
 /// Imports the renames a control can refuse,
 /// which the rename below names whether or not a control is planted.
@@ -97,6 +118,7 @@ pub(crate) use self::a_control_plants_these_steps::{
 /// Imports the steps of a publish and the answers a control plants for them.
 use self::a_control_plants_these_steps::{
     exchange_is_refused,
+    reached_the_instant_before_the_aside_rename,
     reached_the_instant_before_the_name_is_given,
     reached_the_instant_between_the_two_renames,
     refused_or_none,
@@ -108,22 +130,37 @@ use self::exchanging_the_two_names::{
     cannot_exchange,
     exchange_the_two_names,
 };
-/// Imports what a later install does with the leftovers of a killed one.
+/// Imports what a later install does with the leftovers of a killed one,
+/// what a recovery that failed answers,
+/// and the hidden name that holds the copy a kill moved aside.
 pub(crate) use self::leftovers_of_a_killed_install::{
+    ARecoveryThatFailed,
     AnOlderVersion,
     FinishedCopy,
+    HoldingInstaller,
     Recovered,
+    RemovedFinishedCopy,
+    RemovedLeftover,
+    WhyNotPublished,
+    hidden_siblings,
     recover_leftovers,
 };
-/// Imports the owner of a hidden sibling,
-/// and re-exports it and the two reads of a process's record for a caller that builds one of these names itself.
-pub(crate) use self::the_owner_of_a_hidden_sibling::Owner;
 /// Re-exports what a process's record answers,
 /// and the reader a control uses to name a process of its own choosing.
 #[cfg(test)]
 pub(crate) use self::the_owner_of_a_hidden_sibling::{
+    ForcedStart,
+    ReaderView,
     moment_in,
+    read_as,
+    read_as_a_proc_that_hides_records,
     start_time_of_a_process,
+};
+/// Imports the owner of a hidden sibling,
+/// and re-exports it and the two reads of a process's record for a caller that builds one of these names itself.
+pub(crate) use self::the_owner_of_a_hidden_sibling::{
+    Liveness,
+    Owner,
 };
 
 /// Imports `ToolchainError` from `super::error`.
@@ -132,10 +169,6 @@ use super::error::ToolchainError;
 use super::published_archive::is_finished;
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
-
-/// The file whose presence shows an install finished;
-/// it is the last file written before the version directory takes its name.
-pub const COMPLETE_MARKER: &str = ".mpm-shadow-installed";
 
 /// The purpose in a hidden sibling's name that holds an install being unpacked.
 pub(crate) const STAGING_PURPOSE: &str = "staging";
@@ -148,22 +181,29 @@ pub(crate) const REPLACED_PURPOSE: &str = "replaced";
 /// so no other install publishes from the same directory.
 pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
 
-/// `<parent>/.<name>.<purpose>.<process id>.<start time>`,
+/// `<parent>/.<name>.<purpose>.<process id>.<start time>.<namespace>.<boot>`,
 /// a hidden sibling of `version_dir` that no version scan lists.
-/// The two last fields name the installer that made it,
+/// The last four fields name the installer that made it,
 /// so a later install can tell one that no longer runs from one that does
 /// (`the_owner_of_a_hidden_sibling`).
+/// A name whose owner could not read its boot or namespace
+/// falls back to the earlier shape that carries only the process id and its start time,
+/// which no later install can judge.
 pub(crate) fn hidden_sibling(
     version_dir: &Path,
     purpose: &str,
     owner: Owner,
 ) -> PathBuf {
-    let name: String = format!(
-        ".{}.{purpose}.{}.{}",
-        file_name_text(version_dir),
-        owner.pid,
-        owner.started
-    );
+    let version: String = file_name_text(version_dir);
+    let name: String = match (owner.boot.as_deref(), owner.namespace) {
+        (Some(boot), Some(namespace)) => {
+            format!(
+                ".{version}.{purpose}.{}.{}.{namespace}.{boot}",
+                owner.pid, owner.started
+            )
+        }
+        _ => format!(".{version}.{purpose}.{}.{}", owner.pid, owner.started),
+    };
     return version_dir.with_file_name(name);
 }
 
@@ -176,32 +216,6 @@ pub fn staging_dir_of(version_dir: &Path) -> PathBuf {
 /// where the file system cannot exchange the two names.
 fn replaced_dir_of(version_dir: &Path) -> PathBuf {
     return hidden_sibling(version_dir, REPLACED_PURPOSE, Owner::here());
-}
-
-/// Whether `dir` holds the completion marker as a regular file
-/// (a link of that name does not count).
-pub fn has_complete_marker(dir: &Path) -> bool {
-    return match fs::symlink_metadata(dir.join(COMPLETE_MARKER)) {
-        Ok(metadata) => metadata.is_file(),
-        Err(_) => false,
-    };
-}
-
-/// Writes the completion marker into `dir`;
-/// call it after everything else in the install has been checked.
-pub fn write_complete_marker(
-    dir: &Path,
-    tool_id: &str,
-    version: &str,
-) -> Result<(), ToolchainError> {
-    let marker: PathBuf = dir.join(COMPLETE_MARKER);
-    if let Err(error) = fs::write(&marker, format!("{tool_id} {version}\n")) {
-        return Err(ToolchainError::failure(format!(
-            "cannot write {}: {error}",
-            marker.display()
-        )));
-    }
-    return Ok(());
 }
 
 /// Removes a path the installer made and no longer needs,
@@ -288,7 +302,8 @@ fn the_rename(
 /// A failed publish costs nothing either:
 /// the finished copy is the only way an offline machine gets the version back,
 /// so it stays under the name this run claimed it at,
-/// where the next install publishes it without downloading.
+/// and a later install publishes it when the version's name holds no finished copy by then,
+/// and removes it as a second one when it does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -346,7 +361,7 @@ fn move_the_finished_install(
             return replace_the_copy_that_is_there(staging, final_dir, first_bin);
         }
         return Err(ToolchainError::failure(format!(
-            "cannot move the finished install to {}: {error}; the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+            "cannot move the finished install to {}: {error}; the finished copy this run holds is still at {}",
             final_dir.display(),
             staging.display()
         )));
@@ -364,7 +379,8 @@ fn move_the_finished_install(
 /// (`leftovers_of_a_killed_install` repairs that,
 /// and the exchange means the instant need not exist at all).
 /// A failure here changes neither name and keeps the finished copy this call holds,
-/// so the next install publishes it.
+/// so a later install either publishes it or removes it as a second one,
+/// once there is a finished copy at the version's name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -422,7 +438,7 @@ fn replace_the_copy_that_is_there(
                 return Ok(Published::AlreadyThere);
             }
             return Err(ToolchainError::failure(format!(
-                "cannot put the finished install in place of the copy at {}: {error}; that copy is as it was, the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+                "cannot put the finished install in place of the copy at {}: {error}; that copy is as it was, the finished copy this run holds is still at {}",
                 final_dir.display(),
                 staging.display()
             )));
@@ -436,9 +452,13 @@ fn replace_the_copy_that_is_there(
 /// Why:
 /// The copy that is there is moved aside first,
 /// so a failed second rename puts it back and a working copy is never deleted before its replacement is in place.
-/// The instant between the two renames is the one window this module has.
-/// A copy that a second install published in that instant goes back rather than being replaced,
-/// and the finished copy this call holds stays wherever it is when anything here fails,
+/// The instant between the two renames is the one window in which the version's name is absent,
+/// and a second install can also publish the version since this call read the name,
+/// which makes the copy this call moves aside a finished one.
+/// A copy that a second install published in that instant is kept rather than replaced,
+/// and the copy this call holds and the copy it moved aside are dropped;
+/// a copy that a second install put back in it goes back rather than being replaced,
+/// and the finished copy this call holds stays wherever it is when anything else fails,
 /// so the next install publishes it.
 ///
 /// In TS you'd write (pseudocode):
@@ -453,9 +473,18 @@ fn two_renames(
     let aside: PathBuf = replaced_dir_of(final_dir);
     // A leftover of a killed run with the same owner would block the rename.
     discard_path(&aside);
+    // What: the instant before whatever stands at the version's name is moved aside, which a control may fill.
+    // Why: a second install can give the version its name in the instant since this call read it,
+    //  and then the copy this rename moves aside is a finished one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // reachedTheInstantBeforeTheAsideRename(staging, finalDir);
+    // ```
+    reached_the_instant_before_the_aside_rename(staging, final_dir);
     if let Err(error) = the_rename(final_dir, &aside, RenameRefused::MovesTheCopyAside) {
         return Err(ToolchainError::failure(format!(
-            "cannot move the copy at {} aside to install over it: {error}; that copy is as it was, the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+            "cannot move the copy at {} aside to install over it: {error}; that copy is as it was, the finished copy this run holds is still at {}",
             final_dir.display(),
             staging.display()
         )));
@@ -467,7 +496,7 @@ fn two_renames(
     if is_finished(&aside, first_bin) {
         if let Err(error) = the_rename(&aside, final_dir, RenameRefused::PutsTheCopyBack) {
             return Err(ToolchainError::failure(format!(
-                "cannot put the finished install that was at {} back from {}: {error}; the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+                "cannot put the finished install that was at {} back from {}: {error}; the finished copy this run holds is still at {}",
                 final_dir.display(),
                 aside.display(),
                 staging.display()
@@ -478,6 +507,15 @@ fn two_renames(
     }
     reached_the_instant_between_the_two_renames(staging, final_dir);
     if let Err(error) = the_rename(staging, final_dir, RenameRefused::GivesTheVersionItsName) {
+        // What: whether another install published the version in the instant between the two renames, which makes both
+        //  this rename and the put-back below fail.
+        // Why: the version is then finished by that install, so this call has nothing to put in place and nothing to
+        //  restore, and the copies it holds are the leftovers a later install would only remove.
+        if is_finished(final_dir, first_bin) {
+            discard_path(staging);
+            discard_path(&aside);
+            return Ok(Published::AlreadyThere);
+        }
         if let Err(restore_error) = the_rename(&aside, final_dir, RenameRefused::PutsTheCopyBack) {
             return Err(ToolchainError::failure(format!(
                 "cannot move the finished install to {}: {error}; the copy that was there could not be put back from {}: {restore_error}; the finished copy this run holds is still at {}",
@@ -487,7 +525,7 @@ fn two_renames(
             )));
         }
         return Err(ToolchainError::failure(format!(
-            "cannot move the finished install to {}: {error}; the copy that was there is back at {}, the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+            "cannot move the finished install to {}: {error}; the copy that was there is back at {}, the finished copy this run holds is still at {}",
             final_dir.display(),
             final_dir.display(),
             staging.display()

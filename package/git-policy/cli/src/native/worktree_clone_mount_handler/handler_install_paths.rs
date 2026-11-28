@@ -33,7 +33,8 @@ use crate::worktree_clone_mount_handler::root_mode_names::ROOT_GROUP_WORD;
 ///  The root-owned regular file every root mode is started as,
 ///  and the file ZED's entry links to.
 /// Why:
-///   One file under the ZED event's own name means a stray, mistyped or stale
+///   One file under the ZED event's own name means a stray,
+/// mistyped or stale
 ///  start at this path is a refusal or a mode and never Git as root,
 ///  which is what the layout is for.
 ///
@@ -77,7 +78,8 @@ pub const CHECKOUT_RECORD_PATH: &str =
 /// Why:
 ///   The guards already pin both constants,
 ///  so a refusal cannot name words the dispatch does not accept,
-///  and a rename moves the version line, the usage and every refusal
+///  and a rename moves the version line,
+/// the usage and every refusal
 ///  together.
 ///
 /// In TS you'd write (pseudocode):
@@ -92,7 +94,8 @@ pub fn root_modes_name() -> String {
 ///  The line `--version` prints:
 ///  the words and the release this build came from.
 /// Why:
-///   An install, the release smoke and a person check the installed bytes with
+///   An install,
+/// the release smoke and a person check the installed bytes with
 ///  one command that carries no word a mode would read,
 ///  and the line names the release so a lockfile's row can be compared with
 ///  it.

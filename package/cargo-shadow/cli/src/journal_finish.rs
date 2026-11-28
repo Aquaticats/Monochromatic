@@ -207,3 +207,10 @@ pub(crate) fn settle_finish(
         }
     };
 }
+
+/// Round 7 tests of the three phases of finishing a transaction and how an update joins them with its own outcome.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "finish_phase_tests.rs"]
+mod finish_phase_tests;

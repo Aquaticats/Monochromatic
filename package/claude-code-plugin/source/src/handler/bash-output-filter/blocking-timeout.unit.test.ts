@@ -13,6 +13,7 @@ import {
   isBlockingTimeoutEnabled,
   isTimeoutPolicyCall,
   SLEEP_PREFIX,
+  startsWithRedirection,
   startsWithSleepWord,
   withSleepPrefix,
 } from './blocking-timeout.ts';
@@ -50,7 +51,29 @@ const LEADING_SLEEP_COMMANDS = [
   '\nsleep 5',
   '# note\nsleep 5',
   '# a\n  # b\n\nsleep 1 > out',
+  '\\\nsleep 5 && x',
+  'sleep\r',
+  'sleep(',
+  'sleep)',
 ] as const;
+const REDIRECTION_LED_COMMANDS = [
+  '> log\nsleep 5 && x',
+  '< in; sleep 5',
+  '>> log',
+  '2> err\nsleep 5',
+  '&> all\nsleep 1',
+  '  # note\n> log\nsleep 5',
+] as const;
+const NOT_REDIRECTION_LED_COMMANDS = [
+  '',
+  'make > log',
+  'sleep 5',
+  '2',
+  'x>y',
+  '&& sleep',
+] as const;
+const DISABLING_VALUES = ['1', 'true', 'TRUE', ' yes ', 'On',] as const;
+const NON_DISABLING_VALUES = ['0', 'false', 'no', '', 'off',] as const;
 const OTHER_COMMANDS = [
   '',
   'sleeper 5',
@@ -185,17 +208,26 @@ await describe({
       name: canMoveToBackground.name,
       children: [
         it({
-          name: 'allows moves when native background tasks are enabled',
+          name: 'allows moves when the variable is unset',
           fn: async () => {
             expect(canMoveToBackground({},),).toBe(true,);
-            expect(canMoveToBackground({ [DISABLE_BACKGROUND_TASKS_ENV]: '0', },),).toBe(true,);
           },
         },),
-        it({
-          name: 'refuses moves when native background tasks are disabled',
-          fn: async () => {
-            expect(canMoveToBackground({ [DISABLE_BACKGROUND_TASKS_ENV]: '1', },),).toBe(false,);
-          },
+        ...NON_DISABLING_VALUES.map(function nonDisabling(value,) {
+          return it({
+            name: `allows moves for ${JSON.stringify(value,)}, which Claude Code reads as false`,
+            fn: async () => {
+              expect(canMoveToBackground({ [DISABLE_BACKGROUND_TASKS_ENV]: value, },),).toBe(true,);
+            },
+          },);
+        },),
+        ...DISABLING_VALUES.map(function disabling(value,) {
+          return it({
+            name: `refuses moves for ${JSON.stringify(value,)}, which Claude Code reads as true`,
+            fn: async () => {
+              expect(canMoveToBackground({ [DISABLE_BACKGROUND_TASKS_ENV]: value, },),).toBe(false,);
+            },
+          },);
         },),
       ],
     },),
@@ -258,8 +290,37 @@ await describe({
       ],
     },),
     describe({
+      name: startsWithRedirection.name,
+      children: [
+        ...REDIRECTION_LED_COMMANDS.map(function redirectionLed(command,) {
+          return it({
+            name: `sees a leading redirection in ${JSON.stringify(command,)}`,
+            fn: async () => {
+              expect(startsWithRedirection(command,),).toBe(true,);
+            },
+          },);
+        },),
+        ...NOT_REDIRECTION_LED_COMMANDS.map(function notRedirectionLed(command,) {
+          return it({
+            name: `sees no leading redirection in ${JSON.stringify(command,)}`,
+            fn: async () => {
+              expect(startsWithRedirection(command,),).toBe(false,);
+            },
+          },);
+        },),
+      ],
+    },),
+    describe({
       name: withSleepPrefix.name,
       children: [
+        ...REDIRECTION_LED_COMMANDS.map(function prefixedRedirection(command,) {
+          return it({
+            name: `prefixes redirection-led ${JSON.stringify(command,)} and keeps its text`,
+            fn: async () => {
+              expect(withSleepPrefix(command,),).toBe(`${SLEEP_PREFIX}${command}`,);
+            },
+          },);
+        },),
         ...LEADING_SLEEP_COMMANDS.map(function prefixed(command,) {
           return it({
             name: `prefixes ${JSON.stringify(command,)} and keeps its text`,

@@ -32,7 +32,8 @@ use crate::source_scan_tests::{
 };
 use std::path::PathBuf;
 
-/// The attributes that name a lint level, and so can silence one.
+/// The attributes that name a lint level,
+/// and so can silence one.
 const LINT_LEVEL_ATTRIBUTES: &[&str] = &[
     "allow(",
     "expect(",
@@ -42,7 +43,9 @@ const LINT_LEVEL_ATTRIBUTES: &[&str] = &[
     "cfg_attr(",
 ];
 
-/// Every release attribute that can set a lint level, with the file it stands in: the whole set.
+/// Every release attribute that can set a lint level,
+/// with the file it stands in:
+/// the whole set.
 /// An anchor is the squeezed text from `#[` through the attribute's closing `]`,
 /// so an attribute split over two lines is one anchor and a reason's prose is not part of it.
 const LINT_LEVELS: &[(&str, &str)] = &[
@@ -189,9 +192,11 @@ const LINT_LEVELS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Every lint-level anchor in one source, in the order the source writes them.
+/// Every lint-level anchor in one source,
+/// in the order the source writes them.
 /// Nothing is cut from the source first:
-///  the scan's needles are often literal text, and this pin's claim is about code,
+///  the scan's needles are often literal text,
+/// and this pin's claim is about code,
 ///  so the two cannot share one reader that decides what a line is.
 fn anchors(source: &str) -> Vec<String> {
     let flat: String = squeezed(source);
@@ -251,7 +256,10 @@ fn anchors(source: &str) -> Vec<String> {
     return found;
 }
 
-/// Where the value of one skipped meta item ends: a parenthesised group, a string, or a bare word.
+/// Where the value of one skipped meta item ends:
+/// a parenthesised group,
+/// a string,
+/// or a bare word.
 fn after_one_meta_value(
     bytes: &[char],
     from: usize,

@@ -423,3 +423,10 @@ pub fn sweep_run_records(
     let _ = fs::remove_dir(&trash);
     return outcome;
 }
+
+/// The tests of the run-record retention.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_run_records_tests.rs"]
+mod lean_run_records_tests;

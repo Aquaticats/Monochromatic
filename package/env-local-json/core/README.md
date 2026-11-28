@@ -3,7 +3,7 @@
 Read requested keys from the repository's sops/age-encrypted `.env.local.json`
 without loading the whole secret set and without mutating `process.env`.
 
-The module never logs or throws a secret value.
+The reader never logs or throws a secret value.
 It returns only the keys the
 caller asked for,
 treats the store as encrypted-only,
@@ -215,6 +215,62 @@ not from the public index:
   `kind` and `exitCode` describe the failure
   without sops output.
 - `EnvLocalJsonShapeError` - decrypted content failed validation.
+
+## Test fixtures
+
+Workspace tests,
+including the subagent driver,
+can import `@monochromatic-dev/env-local-json-core/ts/fixture.ts` without building this package.
+This is a test-only module,
+not a built entry point.
+
+- `createSopsFixture` creates a disposable,
+  encrypted store with a fresh age identity.
+  Use it with `await using` so the test removes its files.
+- `encryptJson`,
+  `decryptStore`,
+  and `createIdentityFile` work with that throwaway store and identity.
+- `createTempRoot` and `createRepositoryOnGoneDrive` provide disposable directories and a simulated missing drive.
+  `readerEnvironment` prepares an environment for the reader with a test home.
+- `runCommand` runs one executable without a shell and returns its complete standard output after both output streams
+  close.
+  It inherits the caller's environment with any `extraEnv` overrides;
+  `readerEnvironment` does not change this.
+
+Every tool call has a fifteen-second deadline by default,
+including the time for its output to close.
+That bound is sized from the slowest call measured where the fixture's users run it,
+the subagent driver's unit suite at the caps a test run gets:
+at a `CPUQuota` of 400 percent of one processor
+one run made 36 calls,
+median 104.2 ms and slowest 4597.5 ms,
+between 2026-11-27T19:16:30-05:00 and 2026-11-27T19:19:03-05:00,
+and the same suite at 1000 percent was slowest at 513.7 ms,
+between 2026-11-27T19:20:18-05:00 and 2026-11-27T19:21:57-05:00.
+The 2,564 ms stall a 4 KiB write-and-sync probe saw on 2026-11-17 fits inside it,
+and it is no stricter than the reader's own `SOPS_TIMEOUT_MS`,
+so a fixture never fails a call the shipped reader waits out.
+Tests can override it with `runCommand`'s `timeoutMilliseconds` option.
+On expiry the runner closes its ends of the output streams and signals the tool's whole process group.
+The tool runs in a group of its own,
+so a helper it left behind is stopped with it;
+a helper that moved itself into another group survives the deadline.
+A helper that keeps a stream open past the deadline causes failure,
+not a partial result.
+Because the group is separate,
+a terminal signal sent to the test run's group does not reach the tool,
+which leaves an interrupted run to the deadline.
+`FixtureCommandError` identifies the executable and arguments,
+explains the failure,
+and includes up to 4 KiB of the start of standard error,
+marked if cut short.
+It never includes captured standard output.
+Two options exist for tests alone:
+`spawnTool` starts the child instead of `spawn`,
+and `signalGroup` signals the group instead of `process.kill`,
+so a test can raise a failed pipe read or a refused group signal that no real tool produces on demand.
+Only use these helpers with disposable inputs,
+not credentials or real stores.
 
 ## Testing
 

@@ -3042,11 +3042,19 @@ fn the_record_of_a_binding_is_published_without_flushing() {
 /// and one that removed a dead owner's stage flushes nothing either.
 ///
 /// A flush of the journal root is a commit of the whole filesystem on the path of every command of the
-/// repository, and what the removals settle is the wrapper's own bookkeeping of a command that died:
-/// its absence costs a repeated notice and never a byte of a person's. `SPEC.md`, "Local durability follows
-/// what the remote already holds", states it for every removal the recovery makes, and an add that found other
-/// adds' live claims paid a filesystem commit for no removal at all before: measured 2026-11-11 as 4,617 ms of
-/// one add and 4,619, 13,792 and 13,886 ms of three others, out of the `recover` step of five concurrent adds.
+/// repository,
+/// and what the removals settle is the wrapper's own bookkeeping of a command that died:
+/// its absence costs a repeated notice and never a byte of a person's.
+/// `SPEC.md`,
+/// "Local durability follows
+/// what the remote already holds",
+/// states it for every removal the recovery makes,
+/// and an add that found other
+/// adds' live claims paid a filesystem commit for no removal at all before:
+/// measured 2026-11-11 as 4,617 ms of
+/// one add and 4,619,
+/// 13,792 and 13,886 ms of three others,
+/// out of the `recover` step of five concurrent adds.
 #[test]
 fn a_reaping_flushes_no_directory_whether_it_changed_one_or_not() {
     let (root, common, destination) = scene("claim-reap-flush");

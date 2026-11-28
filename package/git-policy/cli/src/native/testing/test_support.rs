@@ -64,7 +64,8 @@ pub(crate) fn arm_watchdog() {
 ///  in one file both include by `#[path]` so a fix lands in both.
 /// Why:
 ///  The two targets each kept a copy of these helpers and the copies drifted apart
-/// (`doc/debt-ledger-2026-11-25.md`, item 11),
+/// (`doc/debt-ledger-2026-11-25.md`,
+/// item 11),
 /// so every helper below is written once in `fixture_support_shared_by_both_test_targets.rs`.
 ///
 /// In TS you'd write (pseudocode):
@@ -74,7 +75,8 @@ pub(crate) fn arm_watchdog() {
 #[path = "fixture_support_shared_by_both_test_targets.rs"]
 mod fixture_support_shared_by_both_test_targets;
 
-/// The shared helpers, named here so every `crate::test_support::name` path stays the same.
+/// The shared helpers,
+/// named here so every `crate::test_support::name` path stays the same.
 pub(crate) use self::fixture_support_shared_by_both_test_targets::{
     FIXTURE_ROOT_VARIABLE,
     KEEP_FIXTURES_VARIABLE,
@@ -119,10 +121,14 @@ thread_local! {
 ///  The owner of every helper process a control starts,
 ///  named here so every `crate::test_support::name` path stays the same.
 ///  The owner is a file of its own because the binary controls' crate and the candidate consumer's crate include it by
-///  path, and the library's test-only modules are invisible to them.
+///  path,
+/// and the library's test-only modules are invisible to them.
 /// Why:
-///  One shape starts such a helper, so one file decides when it dies.
-///  `own_group` is not named here: the library's own controls all start their helper through `spawn_owned`, and a target
+///  One shape starts such a helper,
+/// so one file decides when it dies.
+///  `own_group` is not named here:
+/// the library's own controls all start their helper through `spawn_owned`,
+/// and a target
 ///  that starts one without it names the owner directly.
 ///
 /// In TS you'd write (pseudocode):
@@ -132,7 +138,8 @@ thread_local! {
 pub(crate) use super::test_process_owner::spawn_owned;
 
 /// What:
-///  Start a helper process whose output nobody reads, with its three standard streams on the null device.
+///  Start a helper process whose output nobody reads,
+/// with its three standard streams on the null device.
 /// Why:
 ///  A stand-in that `exec`s a long sleep inherits this run's output pipe and holds it open,
 ///  so a caller that pipes the run's output waits for a process the run has already lost (issue 6463);

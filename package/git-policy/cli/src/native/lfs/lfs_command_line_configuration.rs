@@ -291,7 +291,8 @@ fn quoted_into(
 ///   Git appends each command-line setting to the parameters it inherited,
 ///  and reads the parameters after the numbered pairs,
 ///  so the caller's newer pair is the one that decides.
-///  Writing the whole value here, rather than adding numbered pairs,
+///  Writing the whole value here,
+/// rather than adding numbered pairs,
 ///  keeps that order:
 /// a numbered pair is read before an inherited parameter,
 ///  and an inherited parameter would decide the upload's server.

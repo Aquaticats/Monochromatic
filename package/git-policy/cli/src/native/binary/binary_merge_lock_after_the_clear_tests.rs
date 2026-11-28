@@ -416,7 +416,8 @@ fn a_merge_whose_side_ref_cannot_be_kept_says_what_stands_and_the_next_command_p
 ///  (the review of `ce51914d2a`,
 /// its second finding).
 ///  A command that exits 0 while nothing of the merge is in the checkout and nothing of it is saved is read by its
-///  caller as a merge that was made, which is what happened on 2026-11-25 (issue 6473),
+///  caller as a merge that was made,
+/// which is what happened on 2026-11-25 (issue 6473),
 ///  so the ending is a refusal and the line says that running the merge again is safe.
 ///
 /// In TS you'd write (pseudocode):

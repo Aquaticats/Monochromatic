@@ -2289,6 +2289,16 @@ fn a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_
         message.contains(&member),
         "the refusal does not name the member that was left ({member}): {message}"
     );
+    // The refusal says which runs settle the journal it kept and which leave it, in one sentence both refusals carry
+    // (`refusal_journal_next_runs_tests` holds every kind measured at a real refusal).
+    assert!(
+        message.contains(crate::journal_recover::KEPT_JOURNAL),
+        "the refusal does not carry the one sentence about the kept journal: {message}"
+    );
+    assert!(
+        !message.contains("and the command was not run"),
+        "the refusal says the command was not run, and the line the shim prints after it says so again: {message}"
+    );
     assert_eq!(
         fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
         SATISFIED,

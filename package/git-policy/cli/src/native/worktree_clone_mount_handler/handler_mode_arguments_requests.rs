@@ -89,7 +89,8 @@ pub struct RecordCheckoutRequest {
 /// Why:
 ///   The dataset names the work and the record names the checkout it is placed
 ///  under,
-///  so the mode takes no path: a path a caller gave would be a mountpoint
+///  so the mode takes no path:
+/// a path a caller gave would be a mountpoint
 ///  nothing proved.
 ///
 /// In TS you'd write (pseudocode):
@@ -138,7 +139,10 @@ pub enum HandlerMode {
     /// the administrator's decision to record a replacement parent folder.
     AdoptWorktreeParent(AdoptRequest),
     /// `record-checkout`:
-    /// the record of the checkout's path, dataset, GUID, container and pool.
+    /// the record of the checkout's path,
+    /// dataset,
+    /// GUID,
+    /// container and pool.
     RecordCheckout(RecordCheckoutRequest),
     /// `mount-path-descendant`:
     /// one nested dataset mounted at its own mountpoint beneath the recorded

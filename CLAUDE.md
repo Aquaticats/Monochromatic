@@ -38,6 +38,43 @@ PLQ:
  saying what still runs:
  a workaround for a Claude Code defect.
 
+RZN:
+ Claude Code may restart at any moment,
+ unasked;
+ the conversation and task list stay.
+ Signs:
+ a background command reported unfinished when the previous session ended,
+ or session context re-read.
+
+RZU:
+ Whatever must outlive a Claude Code restart runs in its own named systemd user unit and writes its result to disk:
+ a restart stops the background commands the harness tracks,
+ with no result.
+
+RZW:
+ After a Claude Code restart and before acting,
+ read the clock,
+ `git log`,
+ `ps`,
+ user units and run folders,
+ then start waits again:
+ the git status the harness re-attaches can be stale.
+
+RZH:
+ A command that was running when Claude Code restarted was stopped where it stood:
+ inspect the files,
+ refs,
+ processes and releases it touches before repeating it.
+
+RZG:
+ After a Claude Code restart `ListAgents` omits the native subagents started before it,
+ yet a message to one's agent id resumes it from its transcript:
+ message it before briefing a fresh agent.
+
+What one restart showed,
+and what is not known about restarts:
+`doc/troubleshooting/claude-code-restarts-a-session-unasked-and-stops-its-tracked-background-commands.md`.
+
 Use `spawn-claude` outside sandbox to launch a steerable child Claude Code session in a visible terminal window.
 The child runs independently,
 but result forwarding back to the parent is unreliable (a Claude Code limitation),

@@ -8,7 +8,8 @@
 //! as
 //!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` reaches the transaction phases.
 //! Nothing in production sets the variable,
-//! and no release build reads it, so only a build made for a control takes this entry.
+//! and no release build reads it,
+//! so only a build made for a control takes this entry.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

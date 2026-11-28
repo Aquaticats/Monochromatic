@@ -1,5 +1,8 @@
 //! Controls for the gateway client against a loopback mock.
 //! No test reaches a real host or sends a real key.
+//! The ban on the library the owner refused reads the crate's name in the sources;
+//! a dependency renamed in the manifest (`http = { package = "ureq" }`) is one it does not see,
+//! so a reader checks the manifest beside it.
 //!
 //! What:
 //!  Every verdict here comes from the order of events:
@@ -42,20 +45,24 @@ use std::time::Instant;
 
 /// What:
 ///  `THE_CLIENT` names the release sources of the gateway client:
-///  the client,
-///  the words its failures are said in,
-///  and the lookup it does on the blocking pool.
+///  the folder every file of it lives in.
 /// Why:
 ///  The ban below is about the client,
 ///  and the alpha.48 split moved five of its items into `standards_review_client_failure_words.rs`,
-///  so the scope is stated as a prefix rather than as the one file it used to be
+///  so the scope is stated as the folder rather than as the one file it used to be
 ///  (issue 6599).
+///  A prefix of the file names covers the files the split made and nothing else:
+///  a file of the client named without that prefix is one this ban would not read,
+///  so the scope is the folder,
+///  which covers every name a later split gives a receiver.
+///  A file this ban does not read is one outside `standards_review/`,
+///  which is what a client moved to another folder would be.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_CLIENT = ['standards_review/standards_review_client'];
+/// const THE_CLIENT = ['standards_review/'];
 /// ```
-const THE_CLIENT: &[&str] = &["standards_review/standards_review_client"];
+const THE_CLIENT: &[&str] = &["standards_review/"];
 
 /// What:
 ///  `THE_LIBRARY_THAT_WAS_NOT_ADOPTED` is the HTTP client the owner refused.

@@ -250,8 +250,12 @@ fn a_refused_gate_opens_with_the_words() {
 /// A refusal a mode answers gains the words exactly once,
 /// whether its own sentence names its cause first or opens with them already.
 ///
-/// The sweep, the boot reconciliation, the holder scan and the unbuilt mode
-/// answer their own sentences without the words, and the gate, the caller's
+/// The sweep,
+/// the boot reconciliation,
+/// the holder scan and the unbuilt mode
+/// answer their own sentences without the words,
+/// and the gate,
+/// the caller's
 /// sentence and the two modes that build a prefix answer with them;
 /// the one place every refusal is printed adds them where they are missing.
 #[test]

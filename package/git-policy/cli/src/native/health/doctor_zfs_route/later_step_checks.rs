@@ -7,10 +7,13 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 18,
 //!  "Open items").
-//!  Step 15 has landed, so the deferred-origin check is `clone-origin`'s own
+//!  Step 15 has landed,
+//! so the deferred-origin check is `clone-origin`'s own
 //!  line now,
-//!  and the removal plan, the clone's own snapshots and the blocked-removal
-//!  state are `removal-plan`'s, `clone-snapshots`' and `blocked-removal`'s.
+//!  and the removal plan,
+//! the clone's own snapshots and the blocked-removal
+//!  state are `removal-plan`'s,
+//! `clone-snapshots`' and `blocked-removal`'s.
 //!  A check answered unknown here is not a gap in this build:
 //!  it is the piece's boundary made visible,
 //!  so a person reading the report learns which step to wait for rather than
@@ -56,7 +59,9 @@ pub enum LaterStep {
 
 impl LaterStep {
     /// Every later-step check the report answers.
-    pub const ALL: &[LaterStep] = &[
+    /// It is read by the checks beside this file,
+    /// so `pub(super)` is the reach it needs.
+    pub(super) const ALL: &[LaterStep] = &[
         LaterStep::CancelCommand,
         LaterStep::BootProtection,
         LaterStep::ServiceUnit,

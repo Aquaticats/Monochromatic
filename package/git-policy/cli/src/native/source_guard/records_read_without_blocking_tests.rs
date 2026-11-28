@@ -1,6 +1,8 @@
 //! The ban on reading a record folder with a call that can wait:
 //! every release file that names one of the folders this program fills reads it through
-//! `plain_file` (`read_plain_text`, `read_plain_file`, `open_plain_file`),
+//! `plain_file` (`read_plain_text`,
+//! `read_plain_file`,
+//! `open_plain_file`),
 //! which opens without blocking and refuses a handle that is not a plain file.
 //! Why:
 //!  A named pipe at a record's name holds a plain read for ever,
@@ -19,7 +21,8 @@
 //!  which every command reads
 //!  first (issue 6415;
 //!  the review of `e347be3115` held `git status` and `git worktree remove` the same way).
-//!  The folder names below are how a release file reaches those folders, so a module that reads one cannot avoid naming one,
+//!  The folder names below are how a release file reaches those folders,
+//! so a module that reads one cannot avoid naming one,
 //!  and a new module that reads a record folder with `std::fs::read_to_string` or `File::open` fails this check.
 
 use std::path::Path;
@@ -81,7 +84,8 @@ const BLOCKING_READS: &[&str] = &[
 
 /// The files that name these calls without making them,
 /// with why.
-/// This check's own text holds every one of them, and so do its fixtures.
+/// This check's own text holds every one of them,
+/// and so do its fixtures.
 const NAMES_THE_CALLS_WITHOUT_MAKING_THEM: &[(&str, &str)] = &[(
     "source_guard/records_read_without_blocking_tests.rs",
     "this check names the reads and plants them in fixtures, and never makes one",

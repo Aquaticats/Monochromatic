@@ -103,19 +103,93 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:48:40-05:00
+## The state at 2026-11-27T19:45:16-05:00
 
-`main` was `9ea0d98dda`.
+`main` was `8e4a0505bf`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 234 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 300 more by this time.
 
 ### Rounds running
 
 Every round runs on Pi's virtual writer,
 pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
+whose members the owner changed on 2026-11-27 at about 16:15 -05:00:
+"Change writer's list to match the reviewer's list."
+On `main` the reviewer asks the qwen plan,
+then Synthetic,
+then `opencode-go`,
+then Neuralwatt's flex lane,
+and the writer asks those without Synthetic
+(`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`);
+the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks` built that
+and measured what it costs:
+a pool advertises the smallest window among its registered members,
+Synthetic's member has 524,288 tokens where the others have about 1,000,000,
+so the writer's window would fall from 1,000,000 to 524,288 and its output limit from 384,000 to 65,536.
+Asked with those figures through the question tool at about 16:46 -05:00,
+the owner chose "Skip too-small member (Recommended)":
+the shared list stays,
+the router passes over a member whose own window cannot hold the request,
+and the pool advertises its head member's window,
+so the writer keeps 1,000,000 and the reviewer rises to it.
+Not chosen:
+"Keep three members" and "Live as built".
+The round `the-router-passes-over-a-member-too-small-for-the-request-and-the-pool-advertises-its-heads-window`
+built that on top of the first branch and is merged (`45b9aaeb94`),
+with the first branch inside it.
+Pi loads that extension from the main checkout's built copy,
+which the coordinator rebuilt at 2026-11-27T17:28:33-05:00
+(`mise run //package/pi-plugin/rate-limit-fallback:build`),
+so the change is live for every Pi run started after that,
+and a run started before it keeps the list it loaded.
+Asked before and after the rebuild,
+that built copy answered:
+before,
+the writer asks three members and the reviewer advertises 524,288 and 65,536;
+after,
+both pools ask the four members and advertise 1,000,000 tokens of window and 384,000 of output,
+and with the head member unregistered both advertise the next member's 524,288 and 65,536.
+The head is the first member of the pool's order that the session's registry resolves.
+The size of a request is Pi's own estimate,
+which the round measured against the counts real providers reported:
+over 200 sessions and 48,805 requests the estimate divided by the reported count had a median of 1.000,
+with 0.999 at the 5th percentile and 1.002 at the 95th.
+The router compares the input alone with a member's window,
+because Pi fits the answer into what the window leaves,
+and it keeps no margin.
+Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
+issue 6631,
+whose round is merged (`ae937863bc`) and whose issue is closed.
+One timed whole run showed the case's bound,
+three polls,
+left 177 ms of room while its own process was held up for as long as 94 ms by its sibling cases.
+With one named step made a poll slower,
+the case ended on its wall clock,
+which is the failure the issue quotes.
+The cases of that file that end on an event now take their bound from the looks they need,
+each look counted with the longest wait a look can be handed,
+so no loaded host decides them;
+the cost is that a watch that never reaches its event is reported after as long as 181.8 s.
+The watch itself is unchanged.
+The cases that assert the wall clock keep their bounds,
+and one of them still fails if a timer fires about 285 ms late.
+The suite's 228 lines passed after the merge of `main`.
+Three things of that round wait for the owner in `doc/handover/questions-for-the-owner.md`.
+The rounds started at that minute are the first on the rebuilt copy.
+The first of them to end,
+the round of issue 6630,
+recorded a context window of 1,000,000 tokens in its `summary.json`,
+with no retry and no rate-limit error,
+which closes the check of the owner's change at a real run.
+The owner also wrote,
+of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
+"nw-large is advisor,
+and that's fine."
+The rounds run
 under the owner's "Up to 64 rounds at once."
 (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
 All were started through the driver package,
@@ -125,37 +199,530 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- nothing for the wrapper package's lint,
-  which is clean on `main` and whose issue 6581 is closed ("What the rounds found").
-  Its rounds left three sets of shared guest-step helpers,
+- rounds started from the lists of 2026-11-27T15:47:54-05:00,
+  2026-11-27T15:51:32-05:00 and 2026-11-27T16:01:42-05:00,
+  each for one tracked piece of work and each named under its tool:
+  the linter's alpha.21 read,
+  the `mpm-shadow` sentences,
+  issue 6623 (`cargo-shadow`),
+  and the rounds of the wrapper's alpha.50 reads.
+  The router's round is merged (`45b9aaeb94`),
+  and the passage on the writer's members says what is live.
+  The round for issue 6622 is merged (`e56b8abaec`) and the issue is closed.
+  Nothing warns about bytes that end with one line feed:
+  on `main`'s code,
+  in each state it built,
+  the `final-newline` check read the bytes the commit writes,
+  and the released alpha.44 and alpha.50 answered the same,
+  each through its own service in a fixture,
+  since a fixture without a manager refuses a commit before any finding is printed.
+  The recorded line carries the hint a lifecycle prints when it corrects nothing,
+  which is what `git add` prints,
+  and the commit that follows corrects the file;
+  so the warning was most likely true when it was read.
+  The branch added controls and no release code.
+  That hint tells a person to edit a file the next commit corrects,
+  which is issue 6627;
+  its round is merged (`0f69dbfe93`) and the issue is closed.
+  At an `add` and at a direct check the hint now says a commit that takes the file corrects the ending,
+  and names the `fix` command for correcting it now;
+  the sentence that says to edit the file stays for a commit whose selection is read-only,
+  a landed commit and a manual push,
+  where nothing corrects the bytes.
+  The round measured both steps on fixtures,
+  and found no `add` at which nothing corrects the file,
+  which the brief had asked a control for.
+  The push of that merge was refused by GitHub with `GH009` and cleared by one push by hand,
+  as `doc/troubleshooting/github-lfs-integrity-rejection.md` records with the others.
+  Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
+  issue 6620 (`bc24b2e688`),
+  issue 6619 (`1ef6287246`),
+  issue 6621 (`71f1c34d94`),
+  and the rounds of the `mpm-shadow` alpha.15 read.
+  Issue 6621's round changed no release code.
+  Its controls show the bound-slot refusal for a removal and for a move typed below the top behind a shell alias,
+  with `policies.require-root` at `off`,
+  at `warn`,
+  and behind `--no-enforce-require-root`,
+  each shown red by handing the planning the typed directory;
+  `SPEC.md` says what such a command meets.
+  It found that a refused move drops the root rule's `warn` lines,
+  which a refused removal prints (issue 6624);
+  the wrapper round on a bare shell alias takes that issue,
+  because both change `move_refusal_of`.
+  A command standing in the repository's Git directory or in a bare repository has no such control:
+  the round's plant changes nothing there,
+  so a control of those shapes needs another plant to be shown red
+  (issue 6625,
+  which starts when the wrapper round on a bare shell alias has merged,
+  because both change one test file).
+  The round's first edits went to the main checkout's copy of its test file,
+  by a path written without the worktree's prefix;
+  it reversed them,
+  and the main checkout shows only the files other sessions modified.
+  The round for issue 6612 got a note from the coordinator in its inbox at about 15:08 that corrects or adds to its brief;
+  its report is read against the brief and the note.
+- `issue-6612-the-guest-drivers-share-one-set-of-helpers`,
+  started 2026-11-27T12:52:40-05:00:
+  the lint rounds of issue 6581 left three sets of shared guest-step helpers,
   `bin/guest-route-*.ts`,
   `bin/mvm-guest-*.ts` and `e2e/guest-host/`,
-  which issue 6612 joins into one.
-  No round holds it yet:
-  it touches every guest driver,
-  so it starts when issue 6611's round,
-  which holds the managed-lock driver,
-  has merged.
+  and this round joins them into one,
+  runs every driver's main step in its guest,
+  runs the three start-probe arms nobody ran after the rewrite,
+  narrows the managed-lock driver's build to the target its arm runs,
+  and measures whether two build jobs fit the three guests that use two.
   Issue 6615
   (the adoption driver's holder-scan arm cannot run twice in one guest,
   and its `snapdir` arm's pattern matches any character where it means a dot)
-  starts after issue 6612;
-- for what part 2's report left,
-  `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
-  (the driver's build at four jobs is killed in its 8 GiB guest,
-  so its arm has not run on the current tree;
-  it and the Sanoid driver also get a `mise` task each),
-  started 2026-11-27T11:40:23-05:00.
-  Its two siblings are merged ("What the rounds found");
-- `issue-6617-a-typescript-check-prints-the-commit-it-ran-on`,
-  started 2026-11-27T12:44:52-05:00
-  (`native:ts-checks` prints no commit when started inside the package folder,
-  because the wrapper refuses its `git -C <folder>` away from the checkout's root);
-- nothing in the linter:
-  `0.5.2-alpha.20` is released,
-  locked (`94b2e0d22e`) and installed ("Releases of 2026-11-27"),
-  and a Claude Sonnet read of it runs as a background agent of the coordinating session
-  (`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`);
+  has no round:
+  it changes a driver this round moves,
+  so it starts when this round has merged;
+- the linter,
+  whose round on what the read of `0.5.2-alpha.22` found
+  ("What the linter's alpha.22 read found"),
+  `monochromatic-lint-alpha-22-release-pass-a-list-lines-sentence-is-true-for-the-name-it-wrote-and-its-controls-can-fail`,
+  ended 2026-11-27T19:09:36-05:00 with its report read whole.
+  Its branch is merged (`f7b79c5aa8`),
+  after the wrapper's bump commit,
+  because the wrapper names the linter by path.
+  The release run of `0.5.2-alpha.23` was started at 2026-11-27T19:21:22-05:00
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46087442769>);
+  its release commit is `9fc0e387c3`,
+  which changes version rows in eight files,
+  the wrapper's and its fuzz crate's among them,
+  and `main` is fast-forwarded to it.
+  It is published
+  (publish run 46087537570;
+  the follower's log holds `PUBLISHED monochromatic-lint-v0.5.2-alpha.23`),
+  locked (`6d99c6a2da`) and installed here,
+  where `.cache/toolchain-bin/monochromatic-lint --version` says `0.5.2-alpha.23`;
+  the install named no unresolved bin,
+  and the session's `git` link was put back at 2026-11-27T19:39:58-05:00.
+  Its Claude Sonnet second pass runs as a background agent of the coordinating session,
+  a same-vendor read,
+  with its brief at `~/temp/agent/briefs-for-release-reads-written-2026-11-27/monochromatic-lint-alpha-23-read.md`
+  and its review at `~/temp/agent/monochromatic-lint-alpha-23-release-review-2026-11-27/keep/review.md`.
+  It took Lows 5,
+  7,
+  8,
+  9,
+  1 and 2,
+  the absolute-path half of Low 4 and the dead-line help of Low 6.
+  Measured by the round with the read's own generators,
+  against the released `0.5.2-alpha.22` and a byte-identical copy of it:
+  of 10,081 lists none moved between read and refused,
+  and none changed its exit status or its set of findings;
+  of the read's 5,600 matrix lines,
+  the 600 written for an arrow-named folder whose own arrow a tab,
+  a no-break space or two spaces sets off now name that folder,
+  where none did,
+  and the 200 for a folder whose name begins with a space all name it,
+  where 72 did.
+  The package's tests ran 1172 and passed 1172,
+  and its binary reports the same 19 findings on the wrapper's package as the locked release.
+  The choices its brief did not decide wait in `doc/handover/questions-for-the-owner.md`.
+  The round for the Claude Sonnet read of `0.5.2-alpha.21`
+  ("What the linter's alpha.21 read found") is merged (`83d10dd296`),
+  and `0.5.2-alpha.22` is released
+  (release commit `f10132d60f`,
+  published by the follower's log,
+  whose run ended 2026-11-27T17:21:26-05:00),
+  locked (`0b90e1d87e`) and installed,
+  with the session's `git` link put back at 2026-11-27T17:23:24-05:00.
+  Its Claude Sonnet read,
+  a same-vendor second pass,
+  started 2026-11-27T17:21:51-05:00 and wrote its review at 2026-11-27T18:12:31-05:00:
+  `~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`.
+  A `file-uses` line of six words now names the folder its words name for every spelling of its gaps:
+  1,152 of the read's 1,296 lines,
+  against 324 in alpha.21,
+  and the other 144 name a folder that holds no whitespace and read as an entry.
+  A five-word line with another word in the arrow's place is told which word belongs there.
+  Every character that prints as nothing is spelled in a message:
+  4,266 of 4,266 candidates of Unicode 17.0.0,
+  against 7 in alpha.21,
+  decided by general category and by ranges of `Default_Ignorable_Code_Point`,
+  with a control that fails when the linked tables move to another release.
+  A character's place is a column of the line.
+  Over 6,293 lists no line moved between read and refused,
+  with a byte-identical copy of alpha.21 as the control.
+  Its whole suite passed 1,158 of 1,158 after its last merge of `main`,
+  and its four picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+  The round for the `0.5.2-alpha.20` read is merged (`2261d05b14`),
+  and `0.5.2-alpha.21` is released
+  (release commit `117514dfd7`,
+  locked `6e3314812e`,
+  installed).
+  What that merged round did,
+  as its report gave it and before the alpha.21 read qualified the first point:
+  A `file-uses` line for a folder named with a tab,
+  a no-break space or two spaces names the folder again;
+  each of the five behaviours the read named has a test shown red by the edit it guards;
+  a byte order mark or a zero-width space is spelled,
+  with its place and the edit that takes it out;
+  the dead-line help names the one edit;
+  each shape of arrow name gets a fix that fits it;
+  a mistyped `file-uses` line says what is wrong with it;
+  and three README sentences say what the releases did.
+  The reader does not take a byte order mark off by itself,
+  which the README's known limits record;
+  `test:layout` passed 326 of 326;
+- rounds for the wrapper's `0.6.1-alpha.50` reads,
+  started 2026-11-27T16:01:42-05:00,
+  each named `wrapper-alpha-50-release-pass-` and then:
+  `a-bare-shell-alias-is-judged-where-its-own-options-point`
+  (with issue 6624),
+  `a-hunk-a-side-also-wrote-into-keeps-no-line-a-side-removed`,
+  `two-unwired-sentences-show-a-name-safely-and-three-records-say-what-holds`,
+  `the-surface-control-reads-associated-constants-and-long-headers`,
+  and `each-list-guard-says-what-it-matches-and-an-excuse-names-its-use`
+  ("What the wrapper's alpha.50 reads found").
+  All change `package/git-policy/cli`,
+  each brief names the others' files,
+  and the published-surface list is where their merges meet.
+  After their merges come the tip checks,
+  one whole gate,
+  and `0.6.1-alpha.51`.
+  The round on the list guards is merged (`eaef6b630c`),
+  after two checks of the merged tree in a worktree:
+  the linter's release commit landed between the first check and the merge and changed four of the package's files,
+  so the tree was checked again with it,
+  and format,
+  check,
+  Clippy,
+  the whole `source_guard` module (225 of 225) and the five other modules whose guards changed passed both times.
+  All five rounds for the reads are merged,
+  the round on a bare shell alias last (`461d441ef7`).
+  A guarded command behind a bare `!git` alias is judged for the worktree its own words name,
+  whether they say `-C`,
+  `--git-dir` or `--work-tree`:
+  before,
+  a reset of a dirty main checkout typed from a clean linked worktree ran,
+  and the reverse was refused.
+  One control compares the alias spelling with the direct one for 17 guarded commands,
+  in both directions and three spellings of the target.
+  The slot refusals read the records of the repository those words name.
+  A removal,
+  a move or a prune behind a `!` alias whose shell directory Git could not be asked for is refused,
+  with words saying what could not be read,
+  where it was forwarded with no refusal;
+  a prune only when its own words name a repository.
+  Every refused byte of the alias reader has a row,
+  each shown red by widening the reader with it,
+  and `SPEC.md` and the README state the bytes the reader trusts.
+  Every slot refusal keeps the lines the policy stage printed before it,
+  which closed issue 6624.
+  That round ran the modules it changed and the whole `source_guard` module,
+  and no `binary::` module and no gate.
+  It put two more files of `invocation/` over the line budget,
+  `entry_forward_action_planning.rs` and `global_arguments.rs`,
+  and added one `group-file` line to the folder rule's allow list for a file it made;
+  nine files of that folder are over the budget now,
+  and their splits run after the crate's move
+  (`doc/planning/cli-git-source-layout-target-tree.md`,
+  the note of 2026-11-26T20:03:52-05:00).
+  Its three picks wait in `doc/handover/questions-for-the-owner.md`.
+  The tip checks passed on `beb61ec46b`,
+  from 2026-11-27T18:40:16-05:00 to 2026-11-27T18:46:23-05:00 in a worktree no merge moved:
+  `native:check`,
+  the four Clippy tasks,
+  the `source_guard` module (225 of 225),
+  `native:ts-checks` and `lint:oxlint` with no warning and no error.
+  The whole gate passed on `main` at `beb61ec46b`,
+  started 2026-11-27T18:39:13-05:00 and read 2026-11-27T19:05:33-05:00:
+  `12307 tests run: 12307 passed (7 slow), 51 skipped`,
+  `gate-exit-status=0`,
+  and no failed,
+  flaky or signalled line in its log
+  (unit `gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500`,
+  log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500.log`,
+  the tip checks' logs in `~/temp/agent/wrapper-alpha-51-gate-and-tip-checks-2026-11-27/keep/`).
+  Measured 2026-11-27T19:10:12-05:00 against `main` at `af1647ef36`:
+  no path changed since the gated commit under the wrapper's package,
+  under the sources of the crates it names by path
+  (the ZFS request crate,
+  `jsonc-edit`,
+  `catalog-specifier`,
+  the scanner's `src/` and the linter),
+  under `package/crate-release` or in the release workflow,
+  so the tree a dispatch builds is the gated one.
+  The release run of `0.6.1-alpha.51` was started at 2026-11-27T19:16:27-05:00 from `e4c3117285`
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46087009444>);
+  its release commit is `81b06993bd`,
+  which changes one version row in each of four files,
+  the crate's and the fuzz crate's `Cargo.toml` and `Cargo.lock`,
+  and nothing else,
+  and `main` is fast-forwarded to it.
+  It is published for both targets
+  (publish run 46087105171;
+  the follower's log holds `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.51`),
+  and unpacked at `.cache/wrapper-release-0.6.1-alpha.51/`,
+  where the binary's version line says `0.6.1-alpha.51`.
+  Its install proof over alpha.50 passed in a disposable container at 2026-11-27T19:27:02-05:00
+  (`THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once`;
+  log `~/temp/agent/wrapper-alpha-51-install-proof-over-alpha-50-2026-11-27/keep/install-proof.log`).
+  Two Claude Sonnet second passes of it run as background agents of the coordinating session,
+  same-vendor reads and not independent reviews,
+  one on the merges that change what a person meets and one on those that claim to change nothing;
+  their briefs stand in `~/temp/agent/briefs-for-release-reads-written-2026-11-27/`,
+  and their reviews go to `~/temp/agent/git-policy-cli-alpha-51-release-review-behaviour-2026-11-27/keep/review.md`
+  and `~/temp/agent/git-policy-cli-alpha-51-release-review-no-change-merges-2026-11-27/keep/review.md`.
+  The round of issue 6625 is merged (`3caae5b48d`) and the issue is closed.
+  It changed no release code:
+  measured with Git 2.56.1 at a repository's top,
+  in a folder below it,
+  in its Git directory,
+  in a folder inside that,
+  in a bare repository,
+  in a folder inside it and at a linked worktree's top,
+  the directory the shell of a `!` alias prints
+  and the directory `alias_run_directory` answers are the same everywhere.
+  Its controls hold the bound-slot refusal for a removal,
+  a move and a prune,
+  typed directly and behind a shell alias,
+  in a Git directory and in a bare repository,
+  each removal and move compared word for word with the spelling typed at the top;
+  three plants turned them red.
+  `SPEC.md` says what a bare repository's records are.
+  One shape is left to Git as before:
+  a slot command typed with `-C` at a directory that resolves to no repository.
+  The next gate on `main` is the first to run these controls in the container.
+  Nine planted spellings passed their guard on `main`:
+  a renamed import,
+  a function taken as a value,
+  a call with its types written out,
+  another crate's name for the same call,
+  a handle reached through a module,
+  a macro defined outside the guard's scope,
+  and a key passed through a constant.
+  The call reader reads each now but the macro,
+  which every guard's top doc names as unseen,
+  beside a glob import and a line break between a name and its parenthesis.
+  An excuse names the line of the one use it covers,
+  where it named a count,
+  so a use removed and another added fails twice;
+  and the two exemptions that named no file are entries now.
+  Its question about the line-break rule is answered by "The Markdown the line-break sweep left out":
+  the package's findings were that sweep's,
+  and the linter's own fix took them out after the alias round's merge (`beb61ec46b`).
+  It reported that the rule broke an inline code span;
+  a probe of `0.5.2-alpha.21` on a Markdown file found no finding for a comma inside one,
+  beside two findings for a plain sentence on the next line,
+  so the round's instance is not reproduced there.
+  The round on a hunk a side also wrote into is merged (`85be73acf1`).
+  An answer of the word merge is refused when it holds more copies of a line the base held than the two sides leave,
+  for every shape of region,
+  where the earlier rule judged only a region both sides deleted from;
+  and a file a rule refuses keeps both sides of every region the sides disagree about.
+  Over the read's own 2,300 seed cases,
+  run through this crate's merge entry,
+  21 of 427 resolved answers broke that bound on `main` and none does now;
+  those 21 are conflicts now,
+  and no answer moved the other way.
+  Where both sides wrote more copies of one line than the base held,
+  nothing judges the answer,
+  as before.
+  Its merge time against `main` sat inside the spread of two byte-identical copies.
+  Its planning record's heading carries a round time,
+  which the coordinator corrects from the commit's own.
+  The round on the surface control is merged (`35fdc1797c`),
+  after a check of the merged tree in a worktree,
+  because two merges had changed the package after the branch last took `main` in:
+  format,
+  check and Clippy were clean,
+  the whole `source_guard` module passed 219 of 219,
+  and the modules the two merges and the narrowing touched passed.
+  Planted shapes showed what the control missed on `main`:
+  a constant of a published type,
+  a member whose body opens on a later line,
+  a gate that names the test inside a negation,
+  a re-export under another name,
+  a bare re-export read from the wrong module,
+  and two functions qualified twice that collapsed into one wrongly keyed entry.
+  The reader sees each now,
+  with a control per shape that failed first.
+  Ten names it newly saw are narrowed,
+  because nothing outside their module reads them;
+  one alias with no reader is deleted;
+  and one line is added for an alias the binary's integration target names.
+  Both rounds' picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+  The round on the two unwired sentences is merged (`e772d8ad66`).
+  Both sentences show the name through `shown_so_it_cannot_rewrite_the_line` and stand in the guard's list;
+  `CommandWord::of` keeps the kernel's bytes and escapes nothing,
+  so a name is escaped once,
+  at the sentence.
+  A sentence that shows a name through a local of another spelling is not seen by the guard:
+  the round planted one,
+  measured two wider scans over the release sources and found each reports the program's own words,
+  and the guard's top doc now says what a reader checks.
+  `SPEC.md` says which lines the rule covers and what a record written as JSON does with a name.
+  No process that serves more than one command reads the identity file
+  (`main.rs` chooses the service and the handler's modes before the entry runs;
+  one run of a serving process said the sentence zero times,
+  with no commit through it,
+  because a fixture has no manager),
+  and the README says the sentence is said once for a command.
+  The README's bullet on other targets says one thing,
+  resting on the sources' imports and on one dated check that cannot be repeated on this machine;
+  a clause that called two dependencies unix-only was false and is gone.
+  The whole `source_guard` module passed 213 of 213 after its last merge of `main`,
+  and its picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+  Of the `0.6.1-alpha.49` behaviour pass,
+  all four rounds are merged,
+  and the whole gate on `main` at `3aab810dd9` passed
+  (unit `gpc-gate-wrapper-next-alpha-on-3aab810dd9-20261127T142758-0500`,
+  started 2026-11-27T14:27:58-05:00,
+  `gate-exit-status=0`):
+  `Summary [ 883.520s] 12261 tests run: 12261 passed (6 slow), 51 skipped`
+  and "Clippy passed beside the test run.".
+  No file of the wrapper package changed between that commit and the release.
+  `0.6.1-alpha.50` is released
+  (release commit `3458afd18e`,
+  published 2026-11-27T14:58:49-05:00,
+  unpacked at `.cache/wrapper-release-0.6.1-alpha.50/`,
+  never locked or installed).
+  Its install proof over alpha.49 passed in a disposable container at 2026-11-27T15:01:26-05:00,
+  on the gate's own image:
+  "starts that failed at the EXEC step:
+  0",
+  no unit at the start limit,
+  none left failed,
+  and "THE PROOF PASSED:
+  the instance the older release loaded started as this release,
+  and the pair of commits each landed once".
+  Two Claude Sonnet reads of it run,
+  same-vendor second passes:
+  of the four merges that change behaviour since 2026-11-27T15:02:11-05:00,
+  writing `~/temp/agent/git-policy-cli-alpha-50-release-review-behaviour-2026-11-27/keep/review.md`,
+  and of the two merges on guards and reach since 2026-11-27T15:02:41-05:00,
+  writing `~/temp/agent/git-policy-cli-alpha-50-release-review-reach-and-guards-2026-11-27/keep/review.md`.
+  A merge that lands after that commit and changes only the package's TypeScript,
+  its guide or test code leaves the gate standing,
+  as one did for alpha.49 ("Releases of 2026-11-27"),
+  with the tip checks run again on the pinned tree;
+  issue 6612's branch changes only `bin/` and `e2e/`.
+  The round on the four small points is merged (`203bd65854`):
+  the four reads of the session's runtime directory and bus address go through the one file,
+  so a test build handed the process's whole environment cannot reach the account's manager;
+  the repository link's sentence is said once a command;
+  a failed start is held by a control at each place that answers it,
+  and the scan of `exec` calls judges each call;
+  and a control holds what a failed memory reading does today,
+  with no change to it.
+  The round on shell aliases is merged (`a137924570`):
+  a slot removal or move behind a shell alias reads its operand from the top of the working tree,
+  where Git runs the alias,
+  and the same one line fixed the move;
+  the five unread spellings are read
+  (a shell alias naming another to four deep,
+  `! git`,
+  a tab after `!git`,
+  a bare `!git` before the caller's own global option,
+  and a chain of plain aliases to 64 where it was 16);
+  a chain past either bound is passed to Git as an alias the wrapper cannot follow was before,
+  with no new refusal;
+  and `SPEC.md` says which spellings are read.
+  The read's subdirectory case never reaches the slot rule:
+  the wrapper's own rule that a command runs at the top of its repository refuses it first,
+  and a control pins that.
+  The guest arm gained one alias case,
+  and one guest run of that arm passed on the tree at `203bd65854`,
+  whose wrapper source is that of `0.6.1-alpha.50`
+  (`mise run //package/git-policy/cli:e2e:zfs-slot-state -- all`,
+  from 2026-11-27T14:45:24-05:00 to 2026-11-27T15:08:52-05:00):
+  the arm printed `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` among its lines,
+  skipped none,
+  and ended `Summary [ 0.753s] 1 test run: 1 passed, 1369 skipped`;
+  the driver destroyed its guest.
+  A repository can switch the root rule off
+  (`policies.require-root` takes `off`,
+  `warn` or `error`),
+  and controls now show the slot refusal holding below the top then
+  (issue 6621,
+  merged as `71f1c34d94`).
+  The round on process names is merged (`946cbeb0a2`):
+  it found eighteen places that printed a name another program chose with no escape,
+  where the read named five,
+  and each now escapes for what wraps the name in its sentence,
+  parentheses or backticks,
+  through one function;
+  the weaker second escaper is gone,
+  and its masking of a URL's user name stays as its own function;
+  a guard lists the eighteen sentences and fails on a `format!` that reads such a name without the escape.
+  With a program named to close the parenthesis and erase the line,
+  the released alpha.49 printed the name raw in one of two sentences of one wait,
+  and the branch's build escapes it in both.
+  The whole `source_guard` module passed on the pinned tree at `946cbeb0a2`,
+  203 of 203,
+  which is the first run of the three merged rounds' guards together.
+  The round on the merge pass is merged (`739bccb167`):
+  the merge pass no longer writes back a line a side removed when both sides only deleted lines.
+  It refuses an answer that holds more copies of a line than both sides hold,
+  or whose lines are in an order one side does not hold,
+  and keeps both sides between markers.
+  The read's three searches reproduced on `main` to the case
+  (6 of 75,
+  32 of 199 and 47 of 521 resolved answers out of bounds);
+  with the fix 82 of them became conflicts,
+  none moved the other way,
+  and no answer within bounds became a conflict.
+  The three left over are Git's own answers,
+  where no conflict reaches the pass.
+  The cause was the rule's shape:
+  it fired only where one side held the line as often as the base did,
+  and it counted inside the region Git left.
+  No timing was taken;
+  `native:check` passed on the pinned tree after the merge;
+- nothing for the wrapper's `0.6.1-alpha.49` structure pass:
+  both rounds are merged.
+  The round on the surface control (`b929e8c39b`) first planted the read's five shapes against the Rust control on `main`,
+  and each passed unseen while a plain `struct` failed.
+  The control now reads a function whatever qualifies it,
+  fields and methods of a published type,
+  and a `pub use` over any count of lines,
+  each keyed by the module path that publishes it;
+  its list went from 6,695 entries to 12,395;
+  four names a split had widened are narrowed,
+  and none of the rest;
+  and its top doc states the five shapes it still cannot see.
+  The merge restored seven platform gates,
+  counted in its diff.
+  The round on the list guards is merged (`e8d3ba3736`):
+  the hook ban fails on every spelling of a call that makes a link,
+  and on no call that only reads one;
+  an excuse names how many uses of its text its file holds,
+  so a use added to an excused file fails;
+  two guards read a whole folder where they read a name prefix;
+  each guard's top doc says what a file would have to look like to be missed;
+  the package guide holds the rules the two merges brought;
+  and the README says which targets the release builds.
+  Each of the read's plants was first run against the Rust guards on `main`,
+  and each finding held.
+  Two scopes stay open by the round's own account:
+  a link written outside `commit/`,
+  `landing/` and the three named files is no finding,
+  and the commit path's notes guard is chosen by the words a file names.
+  On the pinned tree at `203bd65854`,
+  all six merged rounds together,
+  `native:check`,
+  the four Clippy tasks and the whole `source_guard` module (212 of 212) passed,
+  and `native:ts-checks` passed with 90 unit test files and 189 suites.
+  That last run reached the account's service manager (issue 6620):
+  a unit test commits in fixture checkouts through whichever `git` the worktree's launcher names,
+  which there was the locked `0.6.1-alpha.44`,
+  so four commit services started for fixtures at 2026-11-27T14:31:32-05:00
+  and the shared program link named that release until 14:33:15.
+  Nothing was left:
+  the four instances read inactive and the fixtures were gone.
+  The pinned tree's launcher link names the reviewed build since then,
+  as the main checkout's does,
+  so the shared link stays where it is;
+  issue 6620's merge ended the services as well.
+  The task cannot be kept off the manager from outside,
+  because it starts each check in a scope of its own:
+  with a fixture runtime directory both checks ended `exit 1` before running anything.
+  The whole gate named under the behaviour pass covers these too;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -168,17 +735,209 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
   the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
   the items a split had made bare `pub` are narrowed,
-  28 platform gates are back,
+  seven platform gates are back over the 35 items they reached before the splits,
+  the seven platform gates the splits dropped are back,
   and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
   a merge record that cannot be read says which file to remove,
-  each batch of the service's work reads the room it has when it starts,
+  each batch of the service's work reads the room it has when it starts
+  (its width is decided once,
+  so every wave of that batch runs on the room of its start),
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
-  two reads of it run.
-- for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  one round started 2026-11-27T12:00:02-05:00,
-  `cargo-shadow-alpha-13-release-pass-the-retire-gates-fallback-and-its-words-are-held-by-controls`;
-  `0.1.5-alpha.14` follows its merge.
+  both reads of it have returned.
+- rounds for `cargo-shadow`:
+  both rounds of its `0.1.5-alpha.14` read are merged,
+  and `0.1.5-alpha.15` is released
+  (release commit `d9f0c8ea32`,
+  locked `bb47735936`,
+  installed);
+  its Claude Sonnet read returned
+  (`~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`;
+  "What `cargo-shadow`'s alpha.15 read found"),
+  and two rounds started from it at 2026-11-27T15:20:50-05:00,
+  each named `cargo-shadow-alpha-15-release-pass-` and then:
+  `the-populated-read-answers-as-the-kernel-is-shown-to-and-each-row-is-held`
+  and `the-refusal-says-once-which-later-runs-settle-and-the-records-match`;
+  and one more,
+  `issue-6623-the-route-questions-asking-again-is-sized-from-a-measured-manager-reexec`,
+  is merged (`e595486ec8`).
+  It measured every ask of the discovery across reexecs of a user manager,
+  in a container on Linux 7.3.5 with systemd 262
+  and in a guest on Linux 6.8 with systemd 255:
+  every refusal fell inside a reexec window,
+  the longest 0.588 s,
+  none in the five seconds after one,
+  and a reload refused none.
+  The question is now asked five times,
+  200 ms apart,
+  which spans 0.800 s.
+  One control rides a stand-in refusal of 0.600 s;
+  another reexecutes a container's own manager,
+  and on a host it prints one line and passes,
+  so only its run inside a container shows anything.
+  The ten failures of that morning came after the reexec had ended,
+  no measurement reproduced them,
+  and their words were not kept:
+  issue 6628 holds that,
+  with nothing to build until a red run's output is kept whole.
+  The commit's `Closes` line closed issue 6623 at the merge;
+  a comment on that commit says `Refs` is the accurate word.
+  That span cost a call 883.1 ms at the median where no user manager can be reached,
+  against 43.2 ms for `0.1.5-alpha.15`,
+  so `0.1.5-alpha.16` waited for the round of issue 6629,
+  which is merged (`aa7b4eb927`).
+  The discovery now reads in its own process whether anything on the host could carry an ask:
+  the runtime directory and the bus address,
+  the manager's own socket and directory,
+  and the bus socket.
+  Where nothing could,
+  the first failed ask is the answer.
+  It matches no words of another program.
+  Measured again with the same harness,
+  in both ways of having no manager:
+  one ask per call in all 72 calls,
+  and the branch's call at 1.01 to 1.28 times the released binary's per round with neither variable set
+  (median 1.11),
+  and at 0.87 to 1.05 times with a runtime directory that holds nothing
+  (median 1.00),
+  while byte-identical copies moved as much.
+  The control that reexecutes a container's own manager passed three times with the change,
+  and failed there with the asking again taken out.
+  Sampled across real reexecs,
+  the manager's socket was absent for 0.17 ms and for 0.28 ms in one run and never in another,
+  and the manager's directory was there in every sample,
+  which is why a reexec does not read as no manager.
+  One residue:
+  a host whose manager died and left its socket file or its directory behind is still asked five times.
+  Its commit's `Closes` line closed issue 6629 at the merge,
+  and the coordinator reopened the issue for that residue.
+  The release run of `0.1.5-alpha.16` was started by 2026-11-27T17:51:43-05:00
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079151776>);
+  its release commit is `4338272860`,
+  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
+  and `main` is fast-forwarded to it.
+  It is published,
+  locked (`49ca48000e`) and installed here,
+  where `.cache/toolchain-bin/cargo-shadow --version` says `0.1.5-alpha.16`,
+  and the session's `git` link is back.
+  Its Claude Sonnet second pass returned and was read whole
+  ("What `cargo-shadow`'s alpha.16 read found"),
+  and one round took its findings:
+  `cargo-shadow-alpha-16-release-pass-the-asking-again-is-spent-where-the-records-say-and-its-controls-can-fail`
+  (its first feed line written 2026-11-27T19:18:56-05:00).
+  `0.1.5-alpha.17` follows its merge.
+  Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
+  saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
+  Issue 6619's round is merged (`1ef6287246`).
+  Each of the ten tests asks first whether the host can give a delegated scope;
+  one failed ask of `systemctl` was read as a host that cannot;
+  and a stand-in that refuses the first ask of each process reproduces the ten failures at about ten milliseconds each.
+  The question is now put up to three times,
+  fifty milliseconds apart,
+  and the package's `test` task keeps a failing run's whole output in a file its last lines name.
+  The suite passed 950 of 950 on that branch,
+  and the package's record is `package/cargo-shadow/cli/doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
+  What made an ask fail that day is not measured (issue 6623).
+  The journal holds this much:
+  a system upgrade's hook re-executed the account's manager from 14:07:27.786 to 14:07:28.150;
+  the manager logged no unit start from 14:07:27.639 to 14:07:28.533,
+  nor from 14:07:28.709 to 14:07:29.935;
+  and the red run's first scope starts are at 14:07:28.533 and 14:07:28.664,
+  for the two controls that finished just before the ten.
+  So the ten asked no earlier than half a second after the reexec had ended,
+  and not inside it;
+  that is a lower bound,
+  and how much later they asked is not on record.
+  The coordinator first wrote on issues 6619 and 6623 that the reexec's own 365 ms was the trigger,
+  corrected both with a comment once the journal was read whole,
+  and then took back one clause of that correction,
+  which had placed the asks inside the second span without a unit start.
+  Issue 6623's round measures asks across a reexec and after one in a container or a guest,
+  never on this account's manager,
+  and sizes nothing if every ask there answers.
+  The round on the `populated` read is merged (`92a10aa7dc`).
+  It measured what two readings of the kernel's source disagreed about,
+  on this host's kernel `7.3.5-2-cachyos`:
+  of 3,090 reads made while a group was being created,
+  none answered "No such file" with the group's directory there,
+  against 1,640 such answers from the same harness on a plain directory whose file is written after it;
+  and of 300 removals,
+  24 put the step's own read at "No such device",
+  with the directory still there in 20 of them.
+  So a group's directory and its files appear together,
+  and "No such device" is a group the kernel is removing:
+  that row answers as a collected scope again,
+  which is alpha.14's answer and reverses the pick merged as `3bf99cd706`.
+  The row for "No such file" with the directory there keeps its warning,
+  and is recorded as one this kernel is not seen to produce;
+  the same check is live at the `pids.peak` read.
+  The control of the bound at a run's end allows one second over the promise where it allowed five.
+  The suite passed 951 of 951 on its merged tree,
+  and its picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+  The round on the refusal's words is merged (`7eb08ea6b9`).
+  It staged a real refusal and made each kind of later run:
+  `cargo check`,
+  `cargo metadata`,
+  `cargo update`,
+  `cargo-shadow install`,
+  `cargo-shadow update` and both dry runs settle the kept journal;
+  a frozen run,
+  a run on the fast path,
+  a run that resolves nothing and a run outside the catalog's repository leave it and print nothing.
+  The refusal now says each fact once and states that as a rule,
+  from one constant both refusals use;
+  the recovery's sentences say "a run that did not finish" where they said "killed";
+  each dry run's help says it settles a kept journal first;
+  and the README's and the troubleshooting file's sentences the read found wrong are corrected against their own figures.
+  It changed one sentence in the READMEs of `mpm-shadow`,
+  `pnpm-shadow` and `search-shadow`,
+  on which suites a changed identity copy fails.
+  The two rounds met in one sentence of the troubleshooting file,
+  which the coordinator resolved by hand,
+  keeping the refusal round's fact and `main`'s pointer;
+  the suite passed 964 of 964 on the merged tree.
+  The round on the refusal is merged (`87399f8462`).
+  It staged a real refusal and ran each kind of next run:
+  an ordinary resolving run and `cargo-shadow update` settle the kept journal,
+  while a pass-through command and a frozen run leave it and print nothing about it,
+  and the refusal's sentence now says so.
+  A control shows that a scope whose directory was never made is read as collected,
+  with its unit left loaded in silence;
+  the fix belongs to the retire gate and is not made
+  (`doc/handover/questions-for-the-owner.md`).
+  The two rounds met in one sentence of `control_group_stop_report.rs`;
+  the session's wrapper merged it by word when `main` was merged into the branch
+  (its README,
+  "Word-level second merge pass"),
+  the result holds both rounds' clauses word for word,
+  and the package's suite passed 946 of 946 on it.
+  The round on the retire gate is merged (`3bf99cd706`).
+  The read's finding held:
+  with either edit it named,
+  all 15 tests of the gate passed.
+  A control now reaches the new decision through `retire` and fails under each edit;
+  three warnings say only what the look had read;
+  and a `populated` read that answers "No such file" while the group's directory is there is no longer read as the manager's collection,
+  which is a changed decision with the owner's veto open
+  (`doc/handover/questions-for-the-owner.md`).
+  One whole run of the package's suite in that round failed ten tests that need a delegated scope,
+  each in about ten milliseconds,
+  and the next two runs passed 941 of 941;
+  the round's own command had cut the messages off;
+  issue 6619's round measured the mechanism,
+  and issue 6623 holds what made an ask fail that day.
+  `0.1.5-alpha.14` is released
+  (release commit `8673ec1309`),
+  locked (`c652b74260`) and installed,
+  and every round of the `0.1.5-alpha.13` pass is merged.
+  The round on the retire's gate is merged (`67103f2285`):
+  seven controls,
+  each shown red by the edit it guards and reading the real gate through a group directory of its own;
+  a group without `pids.peak` is asked about once,
+  and the README names the kernel that file came in;
+  the warning says only what was read;
+  the comment beside the reap grace says what the code polls;
+  and the README and the troubleshooting file say the manager can lose the notification an ordinary run relies on.
   The round on the refusal's listing is merged (`cf3210724e`):
   the last leftover a stop can report reaches the refusal's decision in a control that rests on no race;
   a branch no input could reach is gone;
@@ -200,21 +959,266 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the two sweeps can,
   and the ranking stays as it was,
   with its first pair closer;
-- for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  `mpm-shadow-alpha-14-release-pass-the-publish-and-the-hidden-name-rounds-joined-on-one-tree`,
-  started 2026-11-27T12:46:15-05:00;
-  `0.2.7-alpha.15` follows its merge and issue 6616's.
-  The round on who owns a hidden name has ended and is not merged:
-  its branch,
-  `fix/mpm-shadow-cli-mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`,
-  meets `main` in four files,
-  because the publish round changed the same module and merged first.
-  They also meet where no text conflicts:
-  the publish round's controls build hidden names and markers in the alpha.14 shape,
-  and under the hidden-name round's rule a name of that shape is never judged and such a marker is never published.
-  The joining round merges that branch into one made from `main` and must lose no control of either.
-  What the hidden-name round built:
-  a hidden name carries the process id,
+- a follow-up round for `mpm-shadow`:
+  every round of its `0.2.7-alpha.14` pass is merged,
+  and `0.2.7-alpha.15` is released
+  (release commit `9480230fea`),
+  locked (`481a09a3ae`) and installed,
+  with the session's `git` link put back at 2026-11-27T13:29:21-05:00.
+  Its Claude Sonnet read returned at 2026-11-27T14:35:51-05:00
+  (`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`;
+  "What `mpm-shadow`'s alpha.15 read found"),
+  and rounds started from it at 2026-11-27T14:54:37-05:00,
+  each named `mpm-shadow-alpha-15-release-pass-` and then its subject.
+  All are merged
+  (`cda9f0c7b3`,
+  `2c6513069b`,
+  `7a216deafc`),
+  and so is the follow-up round on the report's sentences (`a49bf155cd`).
+  `0.2.7-alpha.16` is released
+  (release commit `5db66260eb`,
+  published 2026-11-27T16:24:48-05:00 by the follower's log),
+  locked (`b2afb5b775`) and installed,
+  with the session's `git` link put back at 2026-11-27T16:26:38-05:00;
+  the install named `rustup` as an unresolved bin,
+  which the lock's Rust toolchain row declares and no entry of the exposure folder holds.
+  The line is older than this release:
+  four installs of 2026-11-27 before it printed the same,
+  one of 2026-11-19 named three bins,
+  and every install through 2026-11-11 whose kept output shows its last lines printed none.
+  Issue 6626 holds that evidence,
+  and its round is merged (`7aa3e5e61f`).
+  No commit began the line:
+  on 2026-11-17 this machine's `rustup` became the system's package,
+  and the proxies in the cargo home that had resolved every bin of the row went with the old one.
+  The row stops declaring `rustup`,
+  which is the manager and no program of the toolchain,
+  and nothing in the repository reaches it through the exposure folder.
+  The lock followed through `mpm-shadow install --lockfile-only --offline`;
+  the branch's lock met the linter's lock row at the merge,
+  so the coordinator regenerated it the same way in a worktree,
+  and against `main`'s lock it differed in the row's `bins` and the digest alone.
+  The install after the merge reported nothing installed,
+  nothing failed and no unresolved bin.
+  The row's `cargo-fmt` and `rustfmt` resolve here only because the `rustfmt` component was added by hand on 2026-11-25,
+  which no component the plan declares installs:
+  issue 6630,
+  with the pick in `doc/handover/questions-for-the-owner.md`,
+  and its round is merged (`b7414d5939`).
+  The row declares the `rustfmt` component,
+  the only one that installs those two programs,
+  as the installed toolchain's own component manifests show.
+  A control builds a toolchain from exactly what the row declares and the profile installs,
+  and names no unresolved bin;
+  it named the two before the change.
+  Two more hold that an install asks the manager for a declared component the toolchain lacks,
+  and for nothing where the toolchain holds them all.
+  The lock followed through the offline rewrite,
+  with the row's components and the digest as its whole diff.
+  Its whole test task passed 910 of 910 on its merged tree.
+  The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
+  saying what issue 6626's merge changed and which files that round has.
+  Its Claude Sonnet read returned,
+  a same-vendor second pass,
+  and was read whole
+  ("What `mpm-shadow`'s alpha.16 read found").
+  Two rounds started from it at 2026-11-27T17:10:06-05:00,
+  each named `mpm-shadow-alpha-16-release-pass-` and then:
+  `each-sentence-a-person-acts-on-says-what-the-run-read`
+  and `a-link-move-that-fails-once-and-what-a-put-back-does-to-current`.
+  The round of issue 6626 got a note in its inbox at 2026-11-27T17:10:09-05:00,
+  naming the files those two have.
+  The first of the two,
+  on the sentences,
+  is merged (`21c91bc9fd`):
+  each of its seven points held on `main` and was shown red there by a test that reads the sentence from a run.
+  A failed listing names the hidden names an earlier install left;
+  the second-copy clause says the version holds its completion marker and its program at its name,
+  where it said nothing was lost;
+  the step by hand is a copy of the copy's contents,
+  printed as a command,
+  where a move nested the copy inside a directory already at the version's name;
+  the failed download's clause names a download that matches the lock's digest and that the install can keep;
+  and `prune --toolchain` says one of five things it read.
+  The README says which sentences its list holds.
+  Its whole test task passed 901 of 901 on its merged tree.
+  It left the rule behind the second-copy clause alone,
+  as its brief said,
+  and priced it:
+  keeping a second copy whose program differs means reading both programs on every recovery,
+  and still cannot tell a program cut short from one rebuilt at the same size.
+  The second,
+  on the move of `current`,
+  is merged (`d46572181c`).
+  A test can now make that move fail,
+  through a seam compiled out of a shipped build,
+  and two controls hold that nothing is removed when the link cannot be moved;
+  both fail with the `return` after the failed move taken out.
+  A control holds a hidden name whose boot and namespace both differ as ended,
+  and fails with the two comparisons swapped.
+  The warning after a failed listing no longer speaks of a copy,
+  because none was read.
+  Two behaviours stay as they are,
+  each held by a control and said in the README,
+  and each waits for the owner:
+  a move of `current` that fails once ends the run 1 and leaves the older version until `prune --toolchain`,
+  and a recovery that puts an unfinished copy back points `current` at the newest finished version.
+  Its whole test task passed 906 of 906 on its merged tree.
+  Every round of the package has merged,
+  and `0.2.7-alpha.17` is released
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079725275>,
+  release commit `04d5150e0b`),
+  locked (`50e4b07543`) and installed here:
+  the install named no unresolved bin,
+  and the session's `git` link is back.
+  What backs the claim that an install adds a declared component a toolchain lacks:
+  the round's controls,
+  whose manager is a stand-in.
+  This machine's toolchain already holds `rustfmt`,
+  so its install is the arm that asks for nothing.
+  No workflow that runs on a push installs the Rust row
+  (the release workflows install a toolchain with `rustup` themselves,
+  and `music-player-release.yml` alone runs the toolchain install);
+  the drift gate in `advisory-core.yml` passed on the merge and after it.
+  The real arm passed,
+  in the release's Claude Sonnet second pass
+  ("What `mpm-shadow`'s alpha.17 read found"):
+  with a real `rustup` and the pinned toolchain at the `minimal` profile holding no `rustfmt`,
+  `0.2.7-alpha.17` asked `rustup component add rustfmt --toolchain nightly-2026-11-16`,
+  the two programs were in the toolchain's `bin` afterwards and ran,
+  and the report named no unresolved bin;
+  `0.2.7-alpha.16` in the same state asked nothing and named three.
+  Two rounds took that read's findings,
+  with files of their own.
+  `mpm-shadow-alpha-17-release-pass-a-warning-promises-only-what-the-next-run-does-and-each-prune-line-has-a-test`
+  is merged (`f4d888d5a1`).
+  Each of the five warnings of a recovery whose publish failed now ends at what the run read,
+  and where the install that followed put the version at its name,
+  it says that a later run publishes nothing from the copy and removes it,
+  which the second run of each control then did,
+  with no second download.
+  The two sentences about a second copy end at the read
+  ("because <version> holds its completion marker and its program at its name"),
+  since a program cut short under its marker reads as finished too.
+  Two `prune` lines and the cleanup after a real failed rename have a test each,
+  shown red by the read's own edits;
+  the real rename is made to fail by a destination that is a directory.
+  The package's task ran 918 and passed 918.
+  What it chose beyond its brief waits in `doc/handover/questions-for-the-owner.md`.
+  `mpm-shadow-alpha-17-release-pass-the-exposure-folder-links-the-pinned-toolchain-and-only-what-the-plan-declares`
+  is merged (`d557ebbe20`) and issue 6634 is closed.
+  The two branches met in three files,
+  so the second was merged with `main` in a worktree of its own and checked there first:
+  format,
+  check,
+  Clippy and the package's task,
+  which ran 927 and passed 927.
+  A `rustup-toolchain` row now searches the `bin` of the toolchain its channel names and of no other,
+  by the directory's name;
+  the way not taken,
+  asking `rustup which` for each program,
+  costs a process per program and is priced in the package's README and the round's commits.
+  A real `rustup` in a container,
+  holding the pin and an older toolchain that sorts first,
+  put every link of the row into the pin.
+  The rebuild removes a symbolic link for a name no row declares and names it in the report,
+  and `list` reports a declared component or target the toolchain lacks as drift,
+  at the cost of three `rustup` calls where it made one.
+  This machine's exposure folder holds exactly the names the plan declares
+  (174 entries,
+  read 2026-11-27T18:57:36-05:00 with no run against the folder),
+  so the rebuild removes nothing here;
+  an install of the new release that names a removed link is a surprise to read before going on.
+  The second round's choices wait in `doc/handover/questions-for-the-owner.md` too.
+  The release run of `0.2.7-alpha.18` was started at 2026-11-27T19:31:24-05:00
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46088339190>);
+  its release commit is `39e60f48cc`,
+  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
+  and `main` is fast-forwarded to it.
+  It is published
+  (publish run 46088436580;
+  the follower's log holds `PUBLISHED monochromatic-mpm-shadow-v0.2.7-alpha.18`),
+  locked (`e7bf60a263`) and installed here.
+  The install ran twice,
+  so that the second run was the new release's own:
+  each said `0 installed, 67 unchanged, 0 failed`,
+  and named no unresolved bin and no removed link;
+  the exposure folder held the same 174 names before and after,
+  with no link that does not resolve,
+  and `rustc` through it is the pin's (`5f4effd57 2026-11-13`).
+  The session's `git` link was put back at 2026-11-27T19:42:39-05:00.
+  Its Claude Sonnet second pass runs as a background agent of the coordinating session,
+  a same-vendor read,
+  with its brief at `~/temp/agent/briefs-for-release-reads-written-2026-11-27/mpm-shadow-alpha-18-read.md`
+  and its review at `~/temp/agent/mpm-shadow-alpha-18-release-review-2026-11-27/keep/review.md`;
+  it runs a real `rustup` in a container and tries the removal as an adversary.
+  That round made a removed hidden directory that held a finished copy say which of two things happened:
+  a second copy went and nothing was lost,
+  or the one copy the version had here went,
+  with the reason this run did not publish it.
+  The sentences that said "a killed install" say "an earlier install",
+  or "an install that has ended" where the system answered that;
+  each is read from a run by a test that was red on `main`'s code;
+  the README's list was checked against the code's own literals;
+  and the suite passed 888 of 888 on its merged tree.
+  Its two wording choices wait in `doc/handover/questions-for-the-owner.md`,
+  and the package's other files held 76 line-break findings of the linter,
+  none on a line that round wrote;
+  the linter's own `--fix` took them out (`ee8871b190`),
+  as "The Markdown the line-break sweep left out" says.
+  The rounds merged with no textual conflict and met in meaning:
+  one made the list of removed leftovers carry whether each held a finished copy,
+  and reworded the sentence for a publish a recovery finished,
+  while controls of the other rounds compared an entry with a path and asserted the earlier words.
+  The merged tree did not compile,
+  and then two controls failed on the reworded sentences.
+  The coordinator changed those test lines on the branch (`af35ea923d`),
+  no release code,
+  and the suite passed 884 of 884 on the merged tree.
+  The merge exposed one sentence the follow-up round corrects before the release:
+  after a recovery that failed and that the same run repaired by installing,
+  the next run says a finished copy "could not" be published and "is gone",
+  while the version is installed and nothing is lost.
+  The same round takes the sentences that say "a killed install" after an install that failed without being killed,
+  none of which a test read.
+  The coordinator read both sides of that merge in the Rust files each side touched
+  (`archive_staging.rs`,
+  `archive_staging_tests.rs`,
+  `toolchain/mod.rs`,
+  `sync/what_the_sync_did.rs`;
+  `git diff 468c2450a7 b5034231f0` and `git diff 2c6513069b b5034231f0`):
+  each side's changes stand in places of their own and nothing of either was lost.
+  The README section "What a kill leaves and what the next install does about it" was read whole on the merged tree,
+  and the locked linter finds nothing in the package's README on `main`.
+  The round on a raced publish is merged (`2c6513069b`):
+  a publish that finds a copy at the version's name between its own check and its rename replaces it,
+  in the step it uses for a copy that was there all along;
+  a name of another boot is ended whatever its start time says,
+  which is a changed decision with the owner's veto open
+  (`doc/handover/questions-for-the-owner.md`);
+  and the suite passed 878 of 878 on its merged tree.
+  The round on a hidden name nobody can judge is merged (`7a216deafc`),
+  with messages and the README changed and no rule:
+  a wait for such a name prints which hidden name holds it and whether that name holds a finished copy;
+  `prune --toolchain` says what deleting such a directory costs;
+  and an install that cannot download says where a finished copy it cannot judge sits.
+  Its proposals and its wording pick wait in `doc/handover/questions-for-the-owner.md`.
+  The round on the recovery's order is merged (`cda9f0c7b3`):
+  a recovery points `current` at the newest finished version before it removes an older one,
+  and removes nothing when the link cannot be moved;
+  one control starts the tool between the two steps and another kills the run there,
+  and both failed on the earlier order and again with the steps swapped back.
+  The sentence after a removal says of each version whether this run recovered it or it was installed before;
+  the warning of a recovery that failed ends with what the run then did;
+  and the README says when such a run ends 0.
+  The warning's wording for a lock that is satisfied already has no test:
+  the round could not build that state,
+  and worded it to promise nothing about the copy.
+  The suite passed 871 of 871 on the merged tree against 866 of 866 on `main`'s code.
+  The two rounds that changed one module are joined (`d3f0628c0b`),
+  with both rounds' rules kept,
+  and the package's suite passed 866 of 866 on the joined tree against 857 of 857 on `main`.
+  A hidden name carries the process id,
   its start time,
   its process namespace and the boot's identifier
   (`/proc/sys/kernel/random/boot_id`,
@@ -223,7 +1227,15 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   one from another namespace or in an earlier build's shape is never judged;
   the completion marker carries the archive's SHA-256 and a copy is published only when the lock's row matches;
   and `prune --toolchain` removes hidden directories whose owner provably ended and names what it cannot judge.
-  The other three rounds of the first list are merged.
+  Where the two rounds' words could not both hold,
+  the joining round chose,
+  and both choices wait in `doc/handover/questions-for-the-owner.md` with veto open:
+  a finished copy of an older version stays hidden only when the lock vouches for it,
+  and one no lock vouches for is removed;
+  the copy a kill moved aside waits while a name of this boot whose installer cannot be judged may hold the version,
+  and does not wait for a name in an earlier build's shape,
+  which nothing ever removes.
+  A run that holds no row for an archive removes no finished copy it could not judge.
   A failed or raced publish no longer costs the finished copy (`1add32a8fb`):
   a claimed copy that could not be published stays at the claim for the next install,
   which publishes it with no download;
@@ -252,10 +1264,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which bash and zsh reject),
   and an `mpm` without its execute bit is named with its remedy;
   17 scenarios kept their exit status and standard output.
-- `issue-6616-the-launchers-not-there-message-names-the-interpreter-that-fits`,
-  started 2026-11-27T12:41:38-05:00:
-  the launcher's own message still names a `#!` first line for a compiled program,
-  in a file the round on the shim's messages was told to leave.
 
 Released again on 2026-11-27:
 `cargo-shadow` `0.1.5-alpha.13`
@@ -338,9 +1346,9 @@ and its directory removed or published;
 the recovery publishes an older locked version beside a newer installed one;
 and no test would catch an edit that publishes the wrong copy.
 A plain `install` with the network up repairs each.
-This machine runs alpha.14 until `0.2.7-alpha.15`:
-`findmnt /proc` shows no `hidepid` here,
-and the race needs a killed install's leftovers and two installs at once.
+This machine ran alpha.14 until `0.2.7-alpha.15` was installed at 2026-11-27T13:29:
+`findmnt /proc` showed no `hidepid` here,
+and the race needed a killed install's leftovers and two installs at once.
 Two merges met in one file each and were resolved by keeping both sides,
 with the package's test task run on the merged tree
 (`package/mpm-shadow/cli/README.md`,
@@ -357,19 +1365,661 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
-each a Claude Sonnet read
-(same vendor as some of the authors,
-so a second pass and not an independent review)
-of the wrapper's `0.6.1-alpha.49` against `0.6.1-alpha.48`,
-started 2026-11-27T12:08-05:00
-(their scratch folders were made at 12:08:26 and 12:08:58):
-one of the merges that change behaviour
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`),
-one of the two that claim to change none,
-the reach and platform gates and the list guards
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`).
+The reads of the wrapper's `0.6.1-alpha.51`,
+of the linter's `0.5.2-alpha.23` and of `mpm-shadow`'s `0.2.7-alpha.18`
+run as background agents of the coordinating session,
+each at the path its release's passage gives.
+The reads of the linter's `0.5.2-alpha.22`,
+of `mpm-shadow`'s `0.2.7-alpha.17` and of `cargo-shadow`'s `0.1.5-alpha.16` returned and were read whole
+("What the linter's alpha.22 read found",
+"What `mpm-shadow`'s alpha.17 read found",
+"What `cargo-shadow`'s alpha.16 read found").
+Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
+("What the wrapper's alpha.50 reads found"),
+as was the linter's
+("What the linter's alpha.21 read found").
+Each was a same-vendor second pass and not an independent review.
 The coordinator rewrites what lasts from each into this file before scratch expires.
+
+What the wrapper's alpha.50 reads found
+(`~/temp/agent/git-policy-cli-alpha-50-release-review-behaviour-2026-11-27/keep/review.md`
+for the four merges that change behaviour,
+`~/temp/agent/git-policy-cli-alpha-50-release-review-reach-and-guards-2026-11-27/keep/review.md`
+for the merges that claim to change none;
+same-vendor second passes,
+returned 2026-11-27 before 16:00 -05:00):
+no High finding in either,
+and two Medium and five Low in each.
+Neither built the crate or ran its tests,
+and neither ran a slot command,
+because its scratch was on ZFS:
+the slot refusals are argued from code.
+What the behaviour read confirmed with both released binaries:
+of the spellings of a shell alias it tried against real Git,
+every one alpha.50 newly reads is refused where alpha.49 let `reset --hard` run;
+over 4,256 merge cases alpha.50 resolves none outside the bounds a union of two deletions keeps,
+resolves none that alpha.49 left,
+and every conflict it leaves is Git's own bytes;
+a process's name that would rewrite the waiting line is shown escaped on one line;
+the identity sentence is said once where alpha.49 said it twice;
+and of 60 commands run through both binaries,
+58 were identical and the other two differ as a merge explains.
+Its Medium findings.
+A bare `!git` followed by the caller's own `-C <another worktree>` is read,
+and judged for the caller's worktree:
+from a clean linked worktree it lets `reset --hard` reach a dirty main checkout,
+where the direct spelling is refused,
+and from the main checkout it refuses a reset of a clean linked worktree;
+alpha.49 let the first run too.
+By the same construction,
+argued,
+the slot refusals take their records from the caller's repository.
+And a hunk of repeated lines that a side also wrote a line into still resolves to text a side removed
+(base `c b b a a a a b`,
+ours `c a a a b`,
+theirs `b b b a b` gives `b a a a b`);
+`SPEC.md` states that exception and the README does not.
+Its Low findings:
+two refusal sentences nothing calls yet show a name through a weaker escape and stand outside the guard;
+when Git cannot be started to ask where an alias runs,
+the slot refusal reads no target and says nothing;
+the controls of the shell-byte list hold no row for a quote,
+a backslash,
+a brace or a parenthesis;
+the records name fewer unread bytes than the code leaves unread;
+and a chain of 64 aliases takes 3.25 times a chain of 16.
+Also from its lists:
+edits to the merge pass that no test would catch;
+the question whether the commit service,
+one process for many commands,
+ever says the identity sentence,
+whose memory is per process;
+and the release commit's move of the embedded linter from alpha.19 to alpha.21,
+which no merge names and by which no new message reaches the binary.
+What the structure read confirmed:
+the merges it read change no release code beyond four names narrowed from `pub`,
+every use of which lies inside the module each is now visible in;
+the published-surface list's entries all name something that exists;
+and no commit landed through either binary in its environment,
+which has no service manager.
+Its Medium findings:
+the surface control leaves nameable names without a line,
+seven associated constants and three fields of a struct whose header spans lines among them;
+and "each guard fails on every spelling of the call it bans" holds for one guard,
+while the others match text on one line.
+Its Low findings:
+an excuse counts text per file,
+so a use swapped for another passes,
+and two guards excuse without a count;
+the guide says every guard reads through the shared scan,
+which some do;
+more shapes the surface control would miss,
+with no instance today;
+the list's header and the reader's doc are off in details;
+and the guide still describes the surface control's earlier reader.
+The coordinator's weighing:
+five rounds take all of it but two points.
+The cost of a long alias chain is dismissed,
+because alpha.50 over alpha.49 on that input is 1.15 with a range of 0.90 to 1.18,
+inside the spread of one binary against its own copy.
+A raise of the bound constants that no control catches is dismissed,
+because the controls derive from the named constant by the repository's rule on numbers,
+and `SPEC.md` and the README state the value.
+The first half of one Low,
+that nothing pins the slot side's directory function below the top,
+was answered by issue 6621's controls after the read's revision.
+The merge finding is taken as a fix,
+by the owner's request of 2026-11-10 that wrong text land less often,
+and its round returns the pick and the other way for the owner.
+
+What `mpm-shadow`'s alpha.16 read found
+(`~/temp/agent/mpm-shadow-alpha-16-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass):
+no High,
+no Medium and ten Low.
+Shown with both released binaries on fixtures with real kills:
+the order of a recovery's last two steps,
+where a start in the window exits 127 on alpha.15 and runs the newer version on alpha.16;
+the raced publish,
+where alpha.15 ends 1 with both hidden copies kept and alpha.16 ends 0 with the other install's copy as the version;
+every message of the round on a hidden name nobody can judge;
+and all twelve text blocks of the README's section,
+byte for byte.
+On input with nothing left behind,
+38 commands compared between the two binaries differ in the version string alone.
+Each point of the alpha.15 read is closed,
+or open on purpose with its entry in `doc/handover/questions-for-the-owner.md`.
+The ten Low points,
+each weighed by the coordinating session and each taken by one of the two rounds:
+one sentence still says "a killed install",
+for a directory listing that failed;
+the README lacks five sentences the code prints;
+"nothing was lost with that copy" is printed while the program at the version's name is cut short under its marker;
+the advice to move a finished copy by hand nests it when the version's name already holds a directory;
+the failed-download sentence promises a download where the failure was a digest mismatch;
+`prune --toolchain` says "a finished copy" from the marker alone for a tool no lock names,
+and says a deletion loses a copy the version does not need;
+a move of `current` that fails once ends the run 1 although a later step of the same run moves it,
+and the older version then stays until `prune`;
+a warning after a failed listing speaks of a copy that does not exist;
+and one decision no claim named:
+a recovery that puts an unfinished copy back now also points `current` at the newest finished version,
+which the round holds with a control and writes into the README,
+and which waits for the owner in `doc/handover/questions-for-the-owner.md`.
+The read also named edits every test would still pass,
+which the rounds turn into controls:
+the `return` after a failed move of `current` deleted,
+the namespace compared before the boot,
+a second copy decided by whether the directory is there,
+and each filter of the failed-download sentence dropped.
+
+What `mpm-shadow`'s alpha.15 read found
+(`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass that a second agent finished from the first one's transcripts,
+rerunning three of them):
+no High,
+three Medium and nine Low.
+Shown with both released binaries on fixtures with real kills:
+a claimed finished copy that could not be published stays for the next install,
+which publishes it with no download;
+the copy a kill moved aside is not put back beside a live claim or a live staging name;
+a recovery never publishes an older version beside a newer one in either toolchain root;
+and each of the launcher's five start messages names the file that is missing or busy.
+With no killed install behind a run,
+nothing differs between the two releases but the version and the marker's text.
+Its Medium findings,
+all in what alpha.15 added:
+
+- a recovery removes the older version before it moves `current`,
+  so a start in between exits 127,
+  and a kill there leaves `current` naming a version that is gone until the next `install`;
+  alpha.14 removed nothing after a recovery;
+- alpha.15 never judges a name in the shape alpha.14 wrote:
+  after a kill under alpha.14 an offline `install` leaves the version's name empty,
+  says only "download failed",
+  and no command ever removes the finished copy that sits hidden;
+- the copy a kill moved aside waits for ever for an installer that died in another process namespace
+  (shown with a hand-made name),
+  the sentence printed claims a live install and names no path,
+  and the deletion `prune --toolchain` advises loses the only finished copy.
+
+Its Low findings are sentences that say more than the run knew,
+a publish raced between its two renames that fails where the file system has no exchange
+(alpha.14 did the same),
+what "vouched" means to `prune` against what it means to the recovery,
+one checkout's install removing a finished copy another checkout's lock vouches for,
+names this release cannot judge when it cannot read the boot identifier,
+and four edits no control catches.
+It found two changes no claim listed:
+a warning when the exchange call is refused,
+which the README documents,
+and an `install` that ends 0 after a failed recovery where alpha.14 ended 1.
+The rules on which names are judged,
+held or removed stay as the joining round picked them,
+with the owner's veto open and the read's costs written beside them
+(`doc/handover/questions-for-the-owner.md`);
+the three rounds change the order of one step,
+the sentences,
+the README and the controls.
+
+What `cargo-shadow`'s alpha.16 read found
+(`~/temp/agent/cargo-shadow-alpha-16-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass,
+its end state taken 2026-11-27T19:12:03-05:00):
+no High and no Medium finding,
+and four Low.
+What it confirmed with both released binaries:
+across real reexecs of a container's own manager,
+13 of 13 calls per arm that began inside a reexec took the weaker path under `0.1.5-alpha.15`
+and the delegated route under `0.1.5-alpha.16`;
+the kinds of later run after a kept journal,
+and the fast path,
+behave the same on both releases;
+and where the manager answers at once the two differ in 12 of 240 compared files,
+the version lines and the help of `install` and `update`,
+which now prints the long layout for every option,
+a change no record names.
+Its findings.
+The five asks,
+about 0.9 s against about 0.04 s,
+are spent in 11 of 24 states of a host with no manager,
+where the README says the span is spent where a manager answers "and nowhere else";
+plain files at the socket names and a live bus with no manager are named by no record.
+The read of the host counts the bus socket and the bus address,
+transports that `systemctl --user` of systemd 262.2 does not take when `XDG_RUNTIME_DIR` is set,
+where the code's comments say the reverse;
+a guest on systemd 255 was answered over the bus,
+so the versions may differ.
+A manager that is reachable and refuses at once,
+shown with `app.slice` masked,
+is asked five times (941 ms against 68 ms),
+and so is an answer that is not a path,
+which no control and no record names.
+And three edits leave every control green:
+the new `ENODEV` row skipping the check that the absence is verified,
+one ask fewer or a shorter pause,
+and the removal of the check for the manager's directory.
+The read broke its brief in two places and said so:
+four `--version` calls ran outside a scope,
+and it looked at one running batch more than twice.
+Its containers are gone and it left no scope.
+The coordinator's weighing:
+all four are taken by the one round the release's passage names,
+since they meet in the same files.
+Its picks,
+the coordinator's own with the veto open:
+the read counts the transports the ask can take,
+shown from systemd's source at both versions;
+an ask the manager answered with a refusal ends the asking,
+if a real reexec shows no such answer inside its window;
+the records name every state in which the span is spent;
+and each of the three edits gets a control shown red by it.
+
+What `cargo-shadow`'s alpha.15 read found
+(`~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass):
+no High,
+one Medium and ten Low.
+Between the two released binaries nothing differs but the version and the sentences the merges name
+(226 of 232 compared outputs identical,
+the rest version lines;
+alpha.12 as the case that must differ did,
+in 21),
+and a trivial call asks the manager two questions in alpha.11,
+alpha.14 and alpha.15 against six to ten in alpha.12.
+Timing cannot see a small change on this host:
+a byte-identical copy's own ratio ranged from 0.414 to 1.500.
+Its Medium finding is about the decision merge `3bf99cd706` changed:
+by its reading of the kernel at three versions,
+a new control group's directory and its files become visible together,
+so the "No such file with the directory there" the round guarded against is a state nothing produces,
+and the answer the kernel can give there is "No such device",
+for which alpha.14's silence was right and alpha.15 warns about a unit the manager is freeing.
+The round's reason was a reading too,
+and nothing was observed by either,
+so a round measures it on this host.
+Its Low findings:
+the printed refusal says two things twice;
+more kinds of later run settle a kept journal than the sentence names
+(a plain install,
+`cargo metadata`,
+both dry runs),
+and more leave it in silence
+(a frozen install,
+a run on the fast path);
+a dry run settles a kept journal before it looks,
+and can write;
+a scope that was never made is reachable in a release build and silent,
+and a unit left loaded was not reproduced in 56 launcher kills;
+three controls stay green under an edit each;
+and sentences of the README,
+the troubleshooting file and three sibling READMEs say what the code or the figures do not.
+
+What `cargo-shadow`'s alpha.14 read found
+(`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
+no High finding,
+two Medium and ten Low,
+and no decision or output that differs from alpha.13 beyond what the merges name.
+The manager is asked two questions a call in alpha.11,
+alpha.13 and alpha.14 alike,
+over 260 timed calls;
+the cost of a call against alpha.11 had a median ratio of 1.021 for alpha.14
+(0.409 to 2.072 over 20 rounds),
+with a byte-identical copy of alpha.11 as the control at 0.907
+(0.457 to 2.019),
+so the harness tells alpha.14 from neither alpha.13 nor alpha.11.
+Its Medium findings,
+each with a round:
+the refusal says the next run settles the kept journal by itself,
+while a pass-through run such as `cargo fmt --check` and a frozen run under `CI=true` leave it and print nothing
+(shown with a journal a killed run left,
+not with a real refusal);
+and the release's one new decision,
+a `pids.peak` read that fails because the group's directory went away,
+is held only at its helper,
+so putting alpha.13's behaviour back would pass every test
+(argued from the test files;
+the round applies the edit once to settle it).
+Its Low findings are sentences that say more than was read
+(two warnings of the retire gate,
+four sentences of the README,
+one of which gives a ratio outside its own control's range),
+two controls that stay green under named edits,
+and a state outside these merges:
+a scope that does not exist yet may be read as collected and its unit left loaded in silence.
+
+What `mpm-shadow`'s alpha.17 read found
+(`~/temp/agent/mpm-shadow-alpha-17-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass,
+written 2026-11-27T18:45:20-05:00):
+no High finding,
+one Medium and six Low.
+What it confirmed with the released binaries:
+the real `rustup` arm of issue 6630,
+as the release's passage says;
+that 38 commands on an input with nothing left behind differ in the version string alone;
+that a move of `current` that fails once and a put-back behave in alpha.17 as in alpha.16;
+and that the README's blocks for a kill match what alpha.17 prints.
+Its Medium finding,
+shown with a real `rustup` and two real toolchains:
+the exposure folder links each program of the Rust row from the first toolchain in name order that holds it,
+and never looks at the row's own channel,
+so an older toolchain that sorts before the pin owns the folder's `rustc`,
+`cargo` and `rustfmt` while `list` says `ok`.
+The code is older than alpha.16.
+On this machine,
+measured between 2026-11-27T18:45:20-05:00 and 2026-11-27T18:46:47-05:00
+(the review's own time and the clock of the command after the measurement),
+the toolchains are the pin and an unpinned `nightly`,
+the pin sorts first,
+and every Rust link of the folder points into the pin;
+the fault bites when the pin moves to a later date while the older toolchain stays,
+and the daily update moves the pin.
+It is issue 6634.
+Its Low findings:
+the warning after a publish that failed once says running the command again publishes the copy,
+where the next run removes it,
+and alpha.16 said so rightly;
+a version whose program is cut short under its marker is still called the holder of a second copy,
+by the install and by `prune`;
+the folder keeps a link an earlier row made for a name no row declares;
+two README sentences about `rustup` are not so where rustup's proxies stand in the cargo bin directory;
+`list` says a toolchain is in sync while a declared component is missing;
+and two of the five `prune` lines,
+and the cleanup after a real failed rename,
+are asserted by no test.
+The read broke its brief in one place and said so:
+one driver ran an install that tried to resolve a fixture tool through `api.github.com` from the host,
+from a throwaway home with no credential,
+and nothing was fetched.
+The coordinator's weighing:
+all seven are taken,
+by the two rounds the release's passage names;
+their picks are the coordinator's with the veto open,
+and are written into `doc/handover/questions-for-the-owner.md` when the rounds' reports are read.
+
+What the linter's alpha.22 read found
+(`~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass,
+written 2026-11-27T18:12:31-05:00):
+no High finding,
+no Medium and nine Low.
+What it confirmed with the released binaries:
+over 10,081 lists no line moved between read and refused between alpha.21 and alpha.22,
+and no exit status or set of findings changed,
+with a probe first that shows the comparison sees a move (alpha.19 against alpha.21 moves 163 lists);
+on a clean tree only `--version` differs;
+the table of unseen characters equals Unicode 17.0.0's own data,
+and over every scalar value alpha.22 spells 4,288 where alpha.21 spelled 29;
+a `file-uses` line of six words names the folder it wrote in 1,152 of 1,296 lines against 324;
+and the help of a dead line names every character a gap kept,
+in 992 of 992 lines.
+Its Low findings:
+a folder named with an arrow that a tab,
+a no-break space or two spaces set off is still told its line holds two arrows;
+a folder whose own name begins with whitespace is named for single gaps only,
+72 of 200 lines,
+and with a sibling the sibling is named;
+a line written for a folder the tree does not hold names the folder its words make;
+the name is judged against any directory on disk,
+so an absolute path in a six-word line is told to be renamed for a space;
+a dead `file-uses` line is told to take a character out whenever the line holds one,
+also where the file is really named so,
+which alpha.21 answered rightly;
+the loop and missing-link messages,
+the commands they give and the help of a dead `uses` line still print such characters raw;
+three refusals quote no line and one names no character;
+the README says the place is "the column an editor shows",
+where `vim` shows a byte column and a tab's width,
+and a sentence says a line "reads as a `uses` line" that is refused after the edit;
+and three controls stay green under a named edit,
+the ones on the range table among them,
+because they read the table they hold.
+Of the alpha.21 read's points,
+its two Medium are closed for the shapes it named,
+and the rename for each arrow shape and the wall time of a long dead list are as they were,
+the second inside its control's spread.
+The read's `vim` runs,
+headless,
+rewrote `~/.viminfo` in the account's home at 2026-11-27T18:09:40-05:00;
+the brief of the round that follows forbids running an editor.
+The coordinator's weighing:
+one round takes the dead `file-uses` advice,
+the refusals that quote no line,
+the README's and the sentences' overstatements,
+the controls,
+the two shapes of the readings,
+and the absolute path in a six-word line;
+a line for a folder the tree does not hold keeps its reading,
+and the README says so;
+and the raw characters in the other messages wait for the owner,
+because a command a person copies must hold the name raw
+(`doc/handover/questions-for-the-owner.md`).
+
+What the linter's alpha.21 read found
+(`~/temp/agent/monochromatic-lint-alpha-21-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass,
+returned 2026-11-27T15:31:26-05:00):
+no High finding,
+two Medium and eight Low.
+What it confirmed with the released binaries:
+over 5,161 lists no line changed from read to refused or back between alpha.20 and alpha.21,
+so only texts changed;
+the repository copy's findings are byte-identical in alpha.19,
+alpha.20 and alpha.21;
+and no cost shows on a package-sized run.
+Its Medium findings:
+a six-word `file-uses` line names its folder only when the gap after the word,
+the gap before the file and the gap before the arrow are each one character.
+Of 1,296 such lines over real folders named with a space,
+a tab,
+two spaces,
+a no-break space and an arrow,
+558 lost the folder's name that alpha.20 gave them:
+with only the gap before the arrow doubled the line is told it holds six words where five are wanted,
+a folder named with an arrow is told the line holds two arrows,
+and with another gap doubled a folder that does not exist is named;
+alpha.21 did put right the lines for which alpha.20 named a wrong folder.
+And a five-word line whose arrow is misspelt or misplaced is told that five words are wanted and that it holds 5.
+Its Low findings:
+alpha.21 spells six unseen code points and prints the rest raw,
+4,232 by the read's count,
+the bidirectional marks,
+embeddings and overrides among them;
+the spelling and the take-it-out advice reach dead key lines only,
+so a refusal,
+which stops the whole rule,
+and the sentence for a repeated entry still print the character raw;
+the byte order mark's sentence names `uses` on a `file-uses` line,
+counts the character's place from the trimmed entry,
+and tests the word by prefix;
+the help of a dead line names one surplus character,
+so a longer gap needs the help followed again;
+a folder name that holds two arrow shapes needs a rename for each;
+a list of 30,000 dead lines takes 1.18 times alpha.20's wall time
+(range 1.10 to 1.34,
+its control 0.96 to 1.14),
+and 1.06 where both print sentences of equal size;
+README sentences say more than the releases did;
+and tests of the merge stay green under named edits,
+with nothing holding the lines of the first Medium finding.
+Changes no claim accounted for:
+every dead line's quote now spells a tab and a no-break space as well as the format characters,
+and the refusals for a name no list line could hold spell format characters too.
+Not reviewed:
+the closure check,
+the rules outside the layout rules beyond a byte comparison,
+the test suite as run,
+Windows and macOS,
+and how `package/git-policy/cli` uses the library,
+whose pin the release commit moved to alpha.21.
+The coordinator's weighing:
+one round takes the Medium findings,
+the unseen characters,
+the dead line's help,
+the README sentences and the tests;
+the rename for each arrow shape is dismissed,
+because each sentence such a name gets is true and such names are rare;
+and the wall time of a long dead list gets no change,
+because the longer sentences are the cause the read could show.
+The coordinator's brief for that read named a README correction the merge never made
+(the figures of the walk's shape),
+which the read reported as absent.
+
+What the linter's alpha.20 read found
+(`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`):
+no High finding,
+two Medium and eight Low.
+What it confirmed with both binaries:
+of 220 spellings of a `uses` line alpha.20 reads 31 and reports 189 dead,
+with none refused,
+where alpha.19 refused 163;
+over 4,092 lists,
+none that alpha.19 read clean is unclean in alpha.20;
+the keys it prints read back with no dead line;
+the two allow lists of `package/git-policy/cli` give identical output in alpha.16,
+alpha.19 and alpha.20;
+and CPU time against alpha.19 was 0.89 to 1.08 over five interleaved rounds,
+with a byte-identical copy of alpha.19 as the control at 0.90 to 1.11,
+so no cost was measurable.
+One real change of behaviour beyond the release's notes:
+a tree whose folder name sets `->` off with a tab or a no-break space is refused with exit 2,
+where alpha.19 read it clean.
+Its Medium findings:
+a `file-uses` line for a folder whose name holds a tab,
+a no-break space or two spaces gets only the shape sentence,
+where alpha.19 named the folder;
+and five behaviours of the new code are held by no test,
+argued from the test files and not by running the edits.
+Its Low findings are messages that point the wrong way
+(a byte order mark gets the advice to delete a line that records a real loop),
+three README sentences,
+and arms no input reaches.
+The closure step did not run on this host for either binary,
+because its Dylint driver is absent and fetching it needs the network.
+One round holds all of it.
+
+
+What the wrapper's alpha.49 behaviour pass found
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`):
+no High finding,
+four Medium and three Low,
+none a regression of alpha.49.
+Demonstrated with both released binaries:
+with a reader of standard error gone,
+alpha.48 removed a notice's record and alpha.49 kept it;
+after a failed start of the real Git with standard error a closed pipe,
+alpha.48 was ended by `SIGPIPE` and alpha.49 exited 2;
+over 56 merge cases alpha.48 resolved 6 conflicts and alpha.49 resolved 14,
+each extra one matching an oracle;
+and 44 of 45 commands compared were identical,
+the other being the intended change.
+Its Medium findings,
+each with a round:
+a slot removal or move reached through a shell alias reads its operand from the directory the wrapper was started in,
+where Git runs the alias at the top of the working tree after `-C`,
+so `./wt/two` from a subdirectory or `../one` with `-C` passes the refusal and removes a bound slot's registration
+(argued from the code and from Git's own behaviour;
+the refusal itself was not run);
+a process's name is escaped at two of the seven sentences that print it;
+five alias spellings made only of readable forms stay unread
+(a shell alias naming a shell alias,
+`! git`,
+a tab after `!git`,
+a bare `!git` before the caller's own global option,
+a chain past 16),
+while `SPEC.md` says every spelling is read;
+and the merge pass,
+when both sides only delete and the base repeats a line,
+can write back a line one side removed
+(base `b a a`,
+ours `a`,
+theirs `b` resolves to `a`),
+the same in alpha.48,
+in 11 of 199 and 15 of 521 answers of a seeded search over unusually repetitive files.
+That last one lands wrong text with no marker,
+which is what the merge pass's own rule exists to stop.
+
+What the wrapper's alpha.49 structure pass found
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`),
+on the two merges that claim to change no behaviour (`02d0a6e8e6` and `97d9afb21c`):
+no High finding,
+two Medium and four Low,
+and no change of behaviour on Linux from either merge.
+A Linux release build differs through `02d0a6e8e6` in two ways only,
+argued from the source text and not from a build:
+one unused constant leaves it,
+and one tag constant goes from 141 copies to 123 with every value the same.
+Every file `97d9afb21c` changed compiles only in a test build.
+Of 61 commands run through alpha.48,
+alpha.49 and alpha.49 again as the control,
+57 were identical and the control differed in none;
+the four that differed are the merge pass's intended change.
+Its Medium findings,
+each with a round:
+the control that fails when a name becomes nameable from outside the crate cannot see a function with `async` before `fn`
+(154 of 155 such published names have no line in its list),
+a name another listed item already has,
+a field,
+a method,
+or a `pub use` written over several lines;
+and the guards that now read the folders the splits made gained scope and lost two things:
+the hook ban no longer fails on `libc::symlink(` or on an imported bare `symlink(`,
+and an excuse covers every use of a text in its file.
+Both rest on Python ports of the Rust controls' text,
+not on runs of the controls,
+so each round first plants the shapes against the Rust controls.
+Its Low findings:
+the merge restored seven platform gates
+(seven such attributes in its diff outside tests,
+counted again by the coordinator),
+where the commit says 29 items and this file said 28;
+two merges outside both passes' lists change release code
+(`1cda665610` and `0dda4eccb7`),
+and the behaviour pass read both as identity changes;
+nothing shows that the crate builds on a target other than Linux,
+and the README does not say which targets build;
+and the package guide records none of the rules the two merges brought.
+
+Beyond their findings,
+the two reads name changes that no merge's description carried.
+`cd62517318` made the refusal of a removal behind an unknown global option need a slot record in the record folder,
+where alpha.48 refused on the folder alone:
+with an empty folder alpha.48 exits 1,
+and alpha.49 passes the command to Git,
+which exits 129.
+That is the decision's own wording
+(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`):
+
+```text
+In a repository with no slot records the command is forwarded as before.
+```
+
+The control `the_home_says_whether_it_holds_a_record` holds it for an empty folder,
+an unrelated file,
+a record and a record being written;
+the read says a folder that holds only an add's claim also counts as holding no record,
+and no control shows that case.
+`7d6bd90c92` changes a real run in three edge cases:
+a runtime directory whose name is not UTF-8 is used where it was ignored,
+an empty bus address is passed on and treated as before,
+and an empty `XDG_RUNTIME_DIR` on the ZFS add route is refused as not set.
+The release binary's code grew by about 112 KiB between the two releases,
+and neither read says which merge grew it.
+
+The coordinator corrected four of the six briefs by a note to each round at 2026-11-27T13:11:19-05:00,
+because each stated the coordinator's own design as the requirement:
+the shell-alias round adds no refusal for an alias the wrapper cannot follow,
+which is the open choice of `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`;
+the four-points round writes the control for a failed memory reading and leaves what the code does with one;
+the surface round lists the items its control newly sees and narrows only one a split widened;
+and the list-guards round is held to the outcome,
+a use added to an excused file fails,
+and not to the coordinator's shape for it.
+Each report is read against its brief and its note.
+After each of the two structure branches merges,
+`native:check` runs on the pinned tree before the next merge:
+a narrowed item or a changed excuse can break a build through a merge with no textual conflict.
 
 The whole gate on `main` at `97d9afb21c` passed
 (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
@@ -496,7 +2146,7 @@ the workflow pushes its bump commit to `origin/main`,
 and a local merge made meanwhile diverges from it.
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
-(last at 2026-11-27T07:47:16-05:00).
+(last at 2026-11-27T13:29:21-05:00).
 
 - The linter,
   `0.5.2-alpha.19`:
@@ -1093,6 +2743,83 @@ and the two `truepeak` files wait on their branch.
   because only the first ends a role in the recorder.
   No real gate has run on it yet:
   the next whole gate is its first.
+- The managed-lock guest driver builds within its guest and its arm ran to its end (`239b91c5ee`,
+  issue 6611):
+  at four jobs the guest's kernel killed a `rustc` at 6.67 GiB of resident memory in an 8 GiB guest with no swap;
+  at one job with the 6 GiB swap file the sibling drivers add,
+  the build's peak was 7,019,956 kB of 8,131,780 kB,
+  with 7,216 kB of swap used,
+  in 22 minutes;
+  the arm printed its 15 markers and passed.
+  The driver and the Sanoid driver each have a `mise` task
+  (`e2e:managed-git-lock`,
+  `e2e:sanoid-coverage`),
+  and the readings are under `doc/planning/mvm-guest-memory-held-for-a-rounds-life-evidence/`.
+- Since 2026-11-27T12:49 a hook another session merged (`88632f16aa`,
+  the owner's "Clamp + prefix (Recommended)") moves a main-session Bash command that runs past two seconds to the background,
+  and its result arrives as a task notification;
+  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the design and the probes.
+  A wait loop is started with `run_in_background: true`,
+  and a step that depends on a merge or a commit is issued after that command's notification,
+  never beside it.
+- `native:ts-checks` prints the commit it ran on (`3c88496446`,
+  issue 6617):
+  it asked `git -C <the package folder>`,
+  which the wrapper refuses away from a checkout's root,
+  and kept the empty answer in silence;
+  it now asks from the checkout's root and says why when the commit cannot be read.
+  No other `git -C` in the package's `bin/` is refused in silence:
+  each names a checkout's root,
+  or runs `/usr/bin/git`,
+  or throws with the refusal's words.
+- `mpm-shadow`'s launcher names the interpreter that is missing (`4e858efdee`,
+  issue 6616):
+  for a start the system answers with "No such file or directory",
+  it names the program after `#!` for a script and the dynamic linker for a compiled program,
+  and names both kinds,
+  claiming neither,
+  when the program's own bytes are gone.
+  Each refusal in its fixture is the kernel's own.
+  `being_written_cause_and_remedy` takes a program where it took an option.
+  `being_written_cause_and_remedy_for` lived only in commits between the two releases and never shipped,
+  by the alpha.15 read's `git log -S`;
+  against `0.2.7-alpha.14` that read lists the changed signatures as `publish_staged`,
+  `write_complete_marker`,
+  `being_written_cause_and_remedy`,
+  `describe_nesting_refusal` and a new field `StartFailure.lookup`.
+- The wrapper package's unit tests no longer reach the account's service manager (`bc24b2e688`,
+  issue 6620).
+  Every fixture's `git` is the standing Git on a search path of the fixture's own,
+  with no bus address and a runtime directory of the fixture's own
+  (`bin/fixture-git-environment-for-tests.ts`).
+  Unsetting the bus alone would not have done:
+  the wrapper with no bus refuses a commit outright,
+  which the round measured with a released binary.
+  A control records what each fixture `git` was given,
+  and failed with eight calls carrying a bus address when the change was taken out.
+  One whole `native:ts-checks` with the account's own environment then left no line for a fixture repository in the journal
+  and the shared link as it was.
+  The round's commit drew a `final-newline` warning for two new files that end with one newline,
+  not reproduced (issue 6622).
+- The driver's launcher clears a finished run's scratch folder beside `keep/` (`a40a99467c`,
+  issue 6618),
+  as the owner's answer of 2026-11-13 has it.
+  It clears once the run's unit has ended,
+  the run's own work has stopped,
+  no process works in the folder and no newer run of the name has started;
+  it never follows a link,
+  and an empty run name or a home that is not absolute is refused before anything is read.
+  A round started before the merge was started by the earlier launcher,
+  so its folder stays whole until `~/temp` expires it.
+  A launcher killed before its unit ends,
+  and a run started by hand,
+  clear nothing.
+- Claude Code restarted this session unasked at 2026-11-27T14:02:39-05:00
+  (`doc/troubleshooting/claude-code-restarts-a-session-unasked-and-stops-its-tracked-background-commands.md`;
+  rules `RZN` to `RZG` of `CLAUDE.md`).
+  Rounds in their own units ran on;
+  the session's background wait was killed and was started again;
+  an earlier subagent was still reachable by a message to its id.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
@@ -1203,19 +2930,213 @@ and the two `truepeak` files wait on their branch.
   The launcher removes the worktree of a run that ended idle with nothing uncommitted,
   and a run's whole report is in `~/temp/agent/<round>-scratch/keep/report.md`,
   which each brief asks for.
-  A merge is `git merge --no-ff <branch>` in the main checkout once `git merge-tree` shows no conflict;
-  the coordinator's scratch merge script does both until the cleanup of 2026-11-27T15:26:37-05:00 deletes it.
+  A merge is made by hand in the main checkout,
+  one branch at a time,
+  since the cleanup of 2026-11-27T15:26:37-05:00 deleted the coordinator's scratch merge script:
+  the branch's tip equals its tip on origin and `main` is not behind origin;
+  `git merge-tree --write-tree --name-only main <branch>` shows no conflict;
+  `git merge --no-ff --no-edit <branch>`;
+  then the branch's tip is an ancestor of `HEAD` and `HEAD^2` is that tip,
+  before the merge is called landed.
+  A branch whose package changed on `main` since the branch last took `main` in is merged with `origin/main` in a worktree first,
+  and the package's format check,
+  compile,
+  Clippy and whole test task run there:
+  on 2026-11-27 three `mpm-shadow` rounds merged with no textual conflict,
+  and the merged tree did not compile.
+  After a merge,
+  origin holds the tip before the next step:
+  when the commit service's push of `main` is refused with `GH009`,
+  it does not try again,
+  and one `git push origin main` clears it
+  (`doc/troubleshooting/github-lfs-integrity-rejection.md`).
+  A release commit of the linter counts as such a change for the wrapper:
+  it writes the new version into `Cargo.toml` and `Cargo.lock` of `package/git-policy/cli` and of its fuzz sidecar,
+  so a wrapper branch that took `main` in before it is checked again with it.
+  That last check is not ceremony:
+  on 2026-11-25T17:24:39-05:00 `git merge` returned 0 and no merge commit landed,
+  while another session committed to `main` in the same second,
+  and the script of that day printed the other session's commit as the merge.
+  The wrapper removes the worktrees that hold a branch once it has landed
+  (its README,
+  "A merge that lands a branch also removes the worktrees that hold it"),
+  and the merged lock branches of 2026-11-27 were gone from origin before the coordinator asked for it,
+  by a step that was not read.
+  A merged branch is then deleted by hand,
+  locally and on origin:
+  deleting issue 6620's branch locally left origin's copy
+  (2026-11-27T15:19:09-05:00).
+  Since issue 6620's merge the package's unit tests give every fixture's `git` the standing Git and no session place,
+  so the TypeScript checks at `main`'s tip start nothing on the account's manager:
+  at `bc24b2e688` `test:unit` and `lint:types` exited 0 on the pinned tree,
+  the journal held no line for a fixture repository,
+  and the shared link was as before.
 - The wrapper's gate has tasks of its own,
   which the coordinator's gate of 2026-11-27 did not use and the next one does:
   `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
-- Read the three release passes that run ("Rounds running") and route their findings.
-- When a shadow tool's fix rounds have merged and `main` equals `origin/main`:
-  release `mpm-shadow` `0.2.7-alpha.13` and `cargo-shadow` `0.1.5-alpha.12`,
-  lock each on a branch worktree,
-  install,
-  put the session's `git` link back,
-  and run a Claude Sonnet pass on each.
+- Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
+- Read the second passes of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17` whole when they return,
+  and route their findings.
+- The `forbidden-strings` workflow has failed or been cancelled on every push to `main`
+  since run 44656950451 of 2026-11-20T01:54:13Z,
+  which is issue 6632.
+  The workflow hands the scanner every changed entry as a file,
+  and each of the 139 tracked links under `uses/` folders points at a folder,
+  so each prints `read error: Is a directory`;
+  run 46079689494 scanned 8149 entries and printed those 139 lines and no other finding.
+  Its round is merged (`fc1c84b58e`),
+  and run 46083398424 on that commit was green,
+  the first since 2026-11-20:
+  it left out the 139 folder links,
+  said so,
+  scanned 8017 entries and found nothing.
+  The issue is closed.
+  The step reads each changed entry's mode from `git diff --raw`
+  and leaves out a gitlink and a link whose target on disk is a folder;
+  it became two steps,
+  because the linter caps a shell step's length and the old one stood at the cap.
+  One thing is narrower than before:
+  the old step checked a folder link's own name against the name rules before its read failed,
+  and the new one does not.
+  The released scanner's `--name-path` takes a link's target text under the link's name,
+  so the workflow hands it both with no release of the scanner:
+  issue 6633,
+  whose round is merged (`af1647ef36`) and whose issue is closed.
+  A third step,
+  `Scan the entries left out of the file scan`,
+  gives the scanner each left-out entry's own name,
+  and for a link its stored target text,
+  read from Git's object for the link and never through the link.
+  Run 46086113778 on that commit was green in all three steps;
+  its delta held no link,
+  so what shows the step on real links is the round's run of the workflow's own step bodies
+  with the released `0.6.2` binary on the delta `82d6a89596..60ecd08eef`:
+  139 of 8158 changed entries left out,
+  8019 files scanned,
+  the 139 scanned by name and target text,
+  every step exit 0,
+  and a planted rule for `../` gave 139 findings there.
+  The record is `doc/troubleshooting/forbidden-strings-scan-step-treats-tracked-folder-links-as-files.md`.
+  The workflow cancels a run in progress when a later push arrives
+  (`concurrency` with `cancel-in-progress: true`),
+  so a run that must be read is waited for before the next push to `main`.
+  Its open choices wait in `doc/handover/questions-for-the-owner.md`,
+  beside what a positional link means inside the scanner.
+- `cargo-shadow`'s `src/lib.rs` holds 218 `mod` declarations and no function,
+  and is the package's one `rust/max-lines` finding.
+  Its round is merged (`60ecd08eef`),
+  under the owner's "Keep 300,
+  split everything"
+  (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`):
+  the file holds 201 code lines,
+  because 52 test files are declared by the module they test,
+  as the crate's newest modules already were,
+  and a module that brings tests costs the file one line where it cost three.
+  The crate's 731 public paths,
+  and the release binary's help and version,
+  are byte-identical before and after;
+  the same 919 unit test names are there,
+  527 under a new module path;
+  and the package's task ran 968 and passed 968.
+  Two tests that start their own binary with a filter naming their old path matched nothing after the move,
+  failed in the first run,
+  and name the new path now.
+  A round that starts in this package from the alpha.16 read declares a test file the same way.
+- The store fixture that tests of several packages build with `createSopsFixture`
+  joined a tool's output when the tool exited,
+  before its pipe had closed,
+  so a store was now and then written empty or cut:
+  issue 6410.
+  Its round is merged (`25dec7b462`),
+  with the branch of 2026-11-18 merged into it first;
+  that branch and its review branch are deleted,
+  and issue 2031 is closed by it.
+  The runner joins at `close`,
+  stops the tool's whole process group at a deadline,
+  and names the failure.
+  Measured by the round at 2026-11-27T18:35:53-05:00,
+  with eight children in flight and 80 waits per arm:
+  joined at `exit` the whole document arrived in 0 of 80 waits,
+  joined at `close` in 80 of 80.
+  The default deadline of 2,000 ms then failed four `sops --encrypt` calls falsely
+  when the driver's unit suite ran under `CPUQuota=400%`,
+  so a second round sized it from a measurement and is merged (`e948095a53`);
+  the issue is closed.
+  With the deadline lifted by a loader that rewrote the fixture module in memory,
+  one run of the driver's suite per cap logged every fixture call:
+  at `CPUQuota=400%`,
+  36 calls,
+  median 104.2 ms,
+  slowest 4,597.5 ms;
+  at `CPUQuota=1000%`,
+  36 calls,
+  median 39.3 ms,
+  slowest 513.7 ms.
+  The default is 15,000 ms,
+  the deadline the reader gives the same `sops` child,
+  and the suite then passed whole at `CPUQuota=400%` with the shipped default
+  (228 `[PASS]` lines and no `[FAIL]`).
+  A true hang costs 15 s once where it cost 2 s.
+  Why 32 test files run under a 400% cap:
+  the repository's own test runner sizes its workers from `availableParallelism()`,
+  which reads the affinity mask and not the control group's `cpu.max`;
+  the cure and its cost are in `doc/troubleshooting/subagent-driver-suite-fails-under-host-load.md`.
+  What both reports left waits in `doc/handover/questions-for-the-owner.md`.
+- The driver package's unit test task ran its tests against the built copy and did not build first:
+  issue 6635,
+  whose round is merged (`8e4a0505bf`) and whose issue is closed.
+  The task declares `depends = ["build"]`,
+  as `package/zip-writer/core` and other packages already do,
+  so mise builds before the first test file starts;
+  a test asks mise for the task's dependency list and was red before the declaration.
+  Shown before the change,
+  with no edit:
+  a built copy older than a source file ended the task with status 1,
+  two files failing to load while 72 ran against the stale copy and passed;
+  with no built copy 75 files failed to load.
+  After it both states print 229 `[PASS]` lines and no `[FAIL]`.
+  The cost is the build's own 5.053 s per run.
+  `depends` and not a `run` list,
+  because a `run` entry is handed the words after `--`,
+  which name test files here;
+  the root `mise.toml` says never to use `depends`,
+  and that sentence against the tree is a question for the owner.
+  The round counted 96 more packages whose unit tests import a built copy their task does not build,
+  and the root aggregate `test:unit` builds nothing:
+  issue 6637 holds the list,
+  and none was changed.
+- Rounds wrote edits into the main checkout on 2026-11-27:
+  the round of issue 6632 by its own report,
+  and the round of issue 6625 as the coordinating session found
+  (the wrapper's `SPEC.md`,
+  one of its test files and a planning document).
+  Each brief said to read a file "on `main`",
+  the round opened the main checkout's copy,
+  and its next edit landed on the path it had opened.
+  The coordinating session saved the files' differences as one patch in the round's `keep/`,
+  put the main checkout's copies back with `git restore --no-enforce-worktree -- <paths>`
+  (the way the wrapper's refusal of `git checkout -- <path>` names,
+  once a patch is saved),
+  and told the round,
+  which applied the patch in its worktree.
+  Its first note said the restore was done before it was;
+  a second note corrected it.
+  The gate did not build the stray test:
+  its image is built from the gate's own worktree,
+  and the probe's name is nowhere in the gate's log.
+  A brief names a file to read as the worktree's copy,
+  never as "on `main`";
+  the brief rules say so now,
+  and every live round was sent a note.
+  Issue 6636 asks for such an edit to be refused,
+  and its round,
+  `issue-6636-a-rounds-edit-of-a-main-checkout-path-is-refused-and-its-record-keeps-every-edits-path`,
+  started 2026-11-27T19:21:19-05:00.
+- A merge of a branch whose worktree still stands makes the wrapper hand that worktree's removal to the commit service,
+  and says so in a notice;
+  check that the folder,
+  the local branch and origin's branch are gone afterwards.
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
@@ -1487,15 +3408,44 @@ sweep of 2026-11-23 left out,
 because the branches that were changing them could not take the diff:
 `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` alone reports 683 findings on
 `main`,
-and everything under `package/git-policy/cli` and `package/pi-shared/subagent-driver/README.md` is the
-same.
-`fix-whitespace-only-line-breaks.ts` in `~/temp/agent/lint-line-breaks-of-the-2026-11-23-markdown/`
-applies that fix,
-and each file it rewrites is equal to its old text with whitespace collapsed,
-which is how the sweep's 108 files were committed.
-Run it once the rounds that edit those files have merged,
-one file's commit each;
-the script is in scratch and expires with it.
+and everything under `package/git-policy/cli` was the same.
+Both are fixed (`beb61ec46b`):
+4,062 findings in 480 files,
+with `bin/` and `e2e/` left as they are while the round of issue 6612 works there,
+where one file keeps two findings.
+The installed linter applies that fix itself with `--fix`,
+which changes whitespace only,
+so the scratch script of 2026-11-23 is not needed.
+On 2026-11-27 it took 76 findings out of `package/mpm-shadow/cli` (`ee8871b190`)
+and 11 out of `package/cargo-shadow/cli` (`f6b4dc0947`),
+every one in a Rust doc comment,
+and 778 out of five Markdown files of `package/pi-shared/subagent-driver` (`e6026dbd46`),
+whose six Markdown files render to the same text as before,
+in a window when no round worked in those packages:
+in a worktree per package,
+each changed file was equal to its old text once whitespace and comment markers were taken off,
+`cargo fmt --check`,
+`cargo check` and Clippy exited 0,
+and the whole test task passed,
+910 of 910 and 968 of 968.
+The wrapper's fix was checked the same way,
+and three ways more:
+of 6,789 changed Rust lines none began with anything but a doc marker;
+the linter reported no layout finding and no processing failure,
+as before;
+and the `source_guard` module (225 of 225) and the two modules whose tests read `SPEC.md` passed.
+The same count,
+of changed lines that are no doc comment,
+is zero for the two packages' merges too.
+Do the same for `bin/` and `e2e/` once the round of issue 6612 has merged.
+The driver package's build,
+`lint` and `lint:types` exited 0 in its worktree,
+and its unit suite printed 228 `[PASS]` lines beside one failure that is not the fix's:
+the store fixture of issue 6410,
+which the Next list names.
+`cargo-shadow`'s `src/lib.rs` is over the line budget,
+305 code lines against 300,
+and the Next list names its round.
 
 #### The release passes
 

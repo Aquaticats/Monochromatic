@@ -75,6 +75,14 @@ use super::published_archive::{
 /// Imports the suffix check.
 use super::util::ends_with_any;
 
+/// The step that says a failed download left a finished copy of the version on disk,
+/// which this build never publishes.
+mod a_failed_download_names_the_copy_it_cannot_publish;
+
+/// Imports that step,
+/// which `install_archive_files` runs when the download failed.
+use self::a_failed_download_names_the_copy_it_cannot_publish::adding_the_copy_this_build_cannot_publish;
+
 /// What:
 /// The last path segment of a URL (query and fragment removed) made safe as a file name:
 /// characters outside
@@ -343,17 +351,19 @@ fn unpack_into(
 
 /// Unpacks the verified download into `staging`,
 /// gives a release archive of this repository its version-independent program paths,
-/// and writes the completion marker last.
+/// and writes the completion marker last,
+/// recording the archive's SHA-256 that the download matched.
 fn unpack_and_mark(
     ctx: &Context,
     tool: &LockedTool,
     url: &str,
     download_path: &Path,
     staging: &Path,
+    archive_sha256: &str,
 ) -> Result<(), ToolchainError> {
     unpack_into(ctx, tool, url, download_path, staging)?;
     link_stable_programs(tool, staging)?;
-    return write_complete_marker(staging, &tool.declaration.id, &tool.version);
+    return write_complete_marker(staging, &tool.declaration.id, &tool.version, archive_sha256);
 }
 
 /// What:
@@ -383,12 +393,25 @@ fn install_archive_files(
         &tool.version,
     )?
     .join(&file_name);
-    download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
     let install_dir: PathBuf = tool_install_dir(
         &ctx.scope.toolchain_root,
         &tool.declaration.id,
         &tool.version,
     )?;
+    // What: the download's failure is passed on with a second sentence when a finished copy of the version is on disk.
+    // Why: an offline machine then has the version's bytes and no word about them, which reads as a bare network fault.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { downloadVerified(ctx, artifact.url, downloadPath, artifact.sha256); } catch (error) { throw addingTheCopyThisBuildCannotPublish(error, tool, installDir); }
+    // ```
+    if let Err(error) = download_verified(ctx, &artifact.url, &download_path, &artifact.sha256) {
+        return Err(adding_the_copy_this_build_cannot_publish(
+            error,
+            tool,
+            &install_dir,
+        ));
+    }
     let staging: PathBuf = staging_dir_of(&install_dir);
     // A leftover of a killed run that had this process id would be unpacked over.
     discard_path(&staging);
@@ -398,7 +421,14 @@ fn install_archive_files(
             staging.display()
         )));
     }
-    if let Err(error) = unpack_and_mark(ctx, tool, &artifact.url, &download_path, &staging) {
+    if let Err(error) = unpack_and_mark(
+        ctx,
+        tool,
+        &artifact.url,
+        &download_path,
+        &staging,
+        &artifact.sha256,
+    ) {
         discard_path(&staging);
         return Err(error);
     }

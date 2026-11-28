@@ -203,7 +203,7 @@ fn assert_coordinated_add(
 }
 
 /// The final-newline warning of `git add` about `file`.
-const FILE_WARNING: &str = "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\",\"policyId\":\"final-newline\",\"severity\":\"warn\",\"code\":\"final-newline/noncanonical-final-newline\",\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing or checking this file, edit it so it ends with exactly one newline, then stage it again.\",\"path\":\"file\",\"fix\":\"none\"}\n";
+const FILE_WARNING: &str = "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\",\"policyId\":\"final-newline\",\"severity\":\"warn\",\"code\":\"final-newline/noncanonical-final-newline\",\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing this file, a commit that takes it corrects the ending for you while this repository's settings keep `final-newline` on; to correct it now without committing, run `git monochromatic-git-policy-cli fix -- <path>`.\",\"path\":\"file\",\"fix\":\"none\"}\n";
 
 /// Native queries other than version and help (those are in `entry_announced_tests.rs`),
 ///  option errors and a bare `git` are forwarded exactly as written.

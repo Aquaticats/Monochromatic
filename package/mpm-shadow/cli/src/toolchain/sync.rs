@@ -33,6 +33,9 @@
 //! export * from './sync/the_install_entry_points.ts';
 //! ```
 
+/// The one instant a recovery's newest-only rule has,
+/// which a control stands in with a start of the tool and may end a run at.
+mod a_control_holds_the_instant_between_the_two_steps;
 /// Bringing the lock up to date with the plan without installing anything.
 mod preparing_the_lock;
 /// Whether a plan ahead of the lock is resolved or refused.
@@ -50,6 +53,13 @@ mod the_sync_itself;
 /// which this crate's own report reads (not a caller).
 mod what_the_sync_did;
 
+/// Re-exports the hold a control plants at the newest-only rule's one instant,
+/// which only a test build reads (`a_control_holds_the_instant_between_the_two_steps`).
+#[cfg(test)]
+pub(crate) use self::a_control_holds_the_instant_between_the_two_steps::{
+    Hold,
+    holding_the_next_instant,
+};
 /// Re-exports what a lock preparation wrote.
 pub use self::preparing_the_lock::{
     LockPreparation,

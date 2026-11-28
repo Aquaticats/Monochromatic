@@ -20,15 +20,18 @@
 //! const PHASES: Phase[] = ['claimed', 'slot', 'registered', 'snapshotted', 'cloned', 'mounted', 'filled', 'settling'];
 //! ```
 
-/// The first line of the binding record, naming the grammar's version.
+/// The first line of the binding record,
+/// naming the grammar's version.
 pub const BINDING_HEADER: &str =
     "# monochromatic-git-policy-cli zfs worktree clone binding, version 1";
 
-/// The first line of an inventory record, naming the grammar's version.
+/// The first line of an inventory record,
+/// naming the grammar's version.
 pub const INVENTORY_HEADER: &str =
     "# monochromatic-git-policy-cli zfs worktree clone inventory, version 1";
 
-/// Every key the binding grammar writes, in the order it writes them.
+/// Every key the binding grammar writes,
+/// in the order it writes them.
 ///
 /// Why:
 ///  The design fixes the order,
@@ -82,7 +85,8 @@ pub const KEYS_EVERY_PHASE_HOLDS: &[&str] = &[
     "cloneDataset",
 ];
 
-/// The keys a record holds from one phase on, besides [`KEYS_EVERY_PHASE_HOLDS`].
+/// The keys a record holds from one phase on,
+/// besides [`KEYS_EVERY_PHASE_HOLDS`].
 pub const KEYS_FROM_EACH_PHASE: &[(&str, &[&str])] = &[
     ("originSnapshot", &["originSnapshot"]),
     ("originDataset", &["originDataset", "originDatasetGuid"]),
@@ -117,7 +121,9 @@ pub enum Phase {
     Claimed,
     /// The empty slot exists and its identity is recorded.
     Slot,
-    /// Git's registration exists, is locked, and is recorded.
+    /// Git's registration exists,
+    /// is locked,
+    /// and is recorded.
     Registered,
     /// The checkout snapshot exists and its inventory is published.
     Snapshotted,

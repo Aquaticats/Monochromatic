@@ -34,6 +34,11 @@ run = "dprint fmt src"
 
 [tasks."test:unit"]
 extends = "test:unit"
+# The test files import the package entry, which Node resolves through the exports map to dist/final/node (74 of the 77
+# files do), so a built copy older than the sources can lack what they export: on 2026-11-27 two files failed to load
+# against one and the remaining 72 ran quietly against it (issue 6635). `depends` and not a `run` array entry, because the
+# build must take none of the post-`--` arguments that name test files.
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the library, then run unit tests; the unit tests import the built library and run the bin from source"

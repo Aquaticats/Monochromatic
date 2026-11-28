@@ -96,6 +96,10 @@ pub enum Command {
         no_frozen_lockfile: bool,
         /// Report which lockfiles are stale,
         /// then restore every Cargo.lock.
+        ///
+        /// A kept journal is settled first:
+        /// the dry run settles it,
+        /// and keeps or replaces the lockfile an interrupted or refused run left.
         #[arg(long)]
         dry_run: bool,
     },
@@ -106,6 +110,10 @@ pub enum Command {
     Update {
         /// Report what would change,
         /// then restore every Cargo.lock.
+        ///
+        /// A kept journal is settled first:
+        /// the dry run settles it,
+        /// and keeps or replaces the lockfile an interrupted or refused run left.
         #[arg(long)]
         dry_run: bool,
     },
@@ -231,3 +239,21 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
         }
     }
 }
+
+/// What:
+/// `#[cfg(test)] mod cli_tests;` declares the tests in `src/cli_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the command grammar:"
+/// so the behavior of `cli` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // cli_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "cli_tests.rs"]
+mod cli_tests;

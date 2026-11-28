@@ -240,6 +240,70 @@ or a Java major line such as `21`).
   and `android-sdk`.
   The route is how a tool installs;
   the request is where its versions come from.
+- A `rustup-toolchain` row's `bins` are the programs the toolchain the row's channel names holds:
+  that toolchain's own `bin` directory under `~/.rustup/toolchains`,
+  and never another installed toolchain's,
+  whatever the directory names sort like
+  (a second toolchain beside the pin answered for the farm's `rustc`,
+  `cargo` and `rustfmt` before issue 6634);
+  and rustup's own proxies in the cargo bin directory where `rustup` itself was installed there.
+  `rustup` is never one of them:
+  it is the manager,
+  which `rustup-init` or the distribution's package installs before the first `mpm-shadow` run,
+  and `mpm-shadow` never does (see "Bootstrap"),
+  so the farm links `rustup` only where a `rustup` proxy of that name already sits in the cargo bin
+  directory,
+  and a row that declared it names an unresolved bin wherever none does.
+  A program a component provides is in the toolchain only while that component is installed,
+  so such a program resolves through the farm once `rustComponents` declares it or
+  `rustup component add` has put it there.
+  `list` reads the same declarations:
+  it asks `rustup component list --installed` and `rustup target list --installed` about the row's
+  toolchain,
+  and a component or target it does not list is drift,
+  named in the `drift` line,
+  which is what the next `install` would add.
+  Every program a row lists that no component it declares and no profile installs is not in
+  the toolchain at all,
+  so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
+  that name in the cargo bin directory;
+  `src/toolchain/the_rust_rows_own_toolchain_holds_every_bin_it_declares_tests.rs`
+  is the control of that against a toolchain holding exactly what this repository's row declares.
+- The example's `rust` row above shortens that list to one bin:
+  this repository's own row lists the programs the toolchain holds
+  (`cargo`,
+  `cargo-clippy`,
+  `cargo-fmt`,
+  `clippy-driver`,
+  `rust-gdb`,
+  `rust-gdbgui`,
+  `rust-lldb`,
+  `rustc`,
+  `rustdoc`
+  and `rustfmt`),
+  and none of them is `rustup`.
+  Which component puts each of them there follows from the same names the plan uses:
+  `cargo` comes from the `cargo` component,
+  `rustc`,
+  `rustdoc`,
+  `rust-gdb`,
+  `rust-gdbgui` and `rust-lldb` from `rustc`,
+  `cargo-clippy` and `clippy-driver` from `clippy`,
+  and `cargo-fmt` and `rustfmt` from `rustfmt`.
+  The `cargo` and `rustc` components are not in `rustComponents`:
+  they are what rustup's profile installs before any declared component,
+  which on a machine set to the `minimal` profile
+  (the setting this repository's measurements were taken under)
+  is `rustc`,
+  `cargo` and `rust-std`,
+  so six of those ten programs arrive that way
+  and no formatter does;
+  this repository's own tasks run both
+  (`cargo fmt`,
+  and `format:processors` in `package/linter/monochromatic-lint/mise.toml` runs a bare `rustfmt`),
+  which is why the row declares `rustfmt` (issue 6630).
+  The row's `rust-src`,
+  `llvm-tools` and `rustc-dev` components put no program in the toolchain's `bin` directory.
 - An unknown field or origin is an error naming its path.
   `version` and `artifacts` are not plan fields:
   only `update` writes them.
@@ -639,7 +703,7 @@ llama-cpu-cli \
   then installs every locked tool that is not at its locked version,
   makes the postinstall links and removes the ones an earlier run made that the lock no longer declares
   (see "Postinstall links the lock no longer declares"),
-  rebuilds the exposure directory,
+  rebuilds the exposure directory (see "What the exposure folder holds"),
   writes the tool environment for mise (see "Tool environment"),
   runs the postinstall commands
   and then retires the old copies of this repository's tools
@@ -1193,7 +1257,11 @@ whichever route installed them.
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
 - An archive is unpacked into a hidden staging directory beside the version directory
-  (`.<version>.staging.<process id>.<process start time>`),
+  (`.<version>.staging.<process id>.<process start time>.<process namespace>.<boot id>`,
+  or the shorter `.<version>.staging.<process id>.<process start time>` by a run that cannot read its own boot or
+  namespace,
+  which no later install judges;
+  see "What a kill leaves and what the next install does about it"),
   the first bin of a release archive is looked for in it,
   the marker is written last,
   and only then is the version's name given the finished copy.
@@ -1203,7 +1271,8 @@ whichever route installed them.
   count as finished and cause the working older version to be deleted.
   A failed install removes its staging directory and touches no copy that was already there.
   A publish that fails keeps the finished copy under the hidden name that run holds it at,
-  which the next install of that version publishes without downloading,
+  which an install either publishes or removes as a second one,
+  depending on what the version's name holds by then,
   and its message names that path and the version's name.
   A directory without the marker (one an earlier release unpacked in place,
   or one cut short) is never finished:
@@ -1220,7 +1289,7 @@ whichever route installed them.
   `EPERM` or `EACCES` for a rename of the type it does not allow,
   and `ENOSYS` on a kernel without the call),
   the copy that is there is moved aside first
-  (`.<version>.replaced.<process id>.<process start time>`)
+  (`.<version>.replaced.<process id>.<process start time>.<process namespace>.<boot id>`)
   and the finished one renamed in after it,
   which leaves one instant in which the version's name holds nothing.
   Two of those answers,
@@ -1287,9 +1356,23 @@ whichever route installed them.
 A process killed at any instruction is normal on this host,
 so each step of an archive install either leaves nothing that a start reads
 or leaves what a later install finishes.
-The three hidden names carry the installer that made them,
-its process id and the moment that process started,
-which no reuse of a process id repeats within one boot.
+The three hidden names carry the installer that made them:
+its process id,
+the moment that process started,
+the process namespace that gave the id out,
+and the boot's identifier.
+The moment is counted from the start of the boot,
+so the same number and the same moment can come back after a reboot;
+the boot's identifier separates one boot from the next.
+A process id means one thing only inside its own namespace;
+the namespace's identifier separates one namespace from the next.
+A run that cannot read its own boot's identifier,
+or its own process namespace,
+writes the shorter name an earlier build wrote,
+which carries the process id and the start time alone:
+the facts it could not read are left out rather than made up,
+and no later install judges such a name,
+so a copy a kill leaves under it is never published and never removed.
 
 - During the download:
   the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
@@ -1321,33 +1404,106 @@ which no reuse of a process id repeats within one boot.
   and `.replaced` holds the unfinished copy it replaced,
   which the next install of that tool removes.
 
+A hidden copy that holds a finished install is published by the next install of that version,
+downloading nothing,
+unless that version's name holds a finished copy by then,
+which makes the hidden one a second one that install removes.
+
 The finished copy is what a later install publishes rather than the copy that was there,
 because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
 while the copy at the version's name was unfinished,
 which is why it was being replaced at all.
 
+The completion marker records the tool,
+the version,
+and the archive's SHA-256 that the download matched before the copy was unpacked.
+A later install publishes a hidden copy only when all three match the lock's row for that version,
+so the path that skips the download keeps the same check the download makes.
+A marker an earlier build wrote records the tool and the version but no archive digest;
+it cannot vouch for the bytes,
+so its copy is never published.
+A name an earlier build wrote carries neither a boot nor a namespace,
+so no run can show that its installer ended,
+and a copy such a name holds is never removed either:
+`prune --toolchain` prints that name on every run,
+says what it read there,
+and leaves it for a person.
+An install of that version that cannot download leaves the version's name empty,
+and its failure says that a finished copy of that version sits under that hidden name,
+which is what an offline machine has left.
+A copy this build wrote the name for is removed as an unverified leftover once its installer has ended,
+and an unfinished copy of any version goes the same way;
+a finished copy of another version is left for that version's own install to publish.
+
 A recovery whose own publish fails keeps the copy it claimed:
 the copy stays under its `.recovered` name with that run's pair,
-which the next install of that version finds dead,
-claims and publishes,
 and the failure names both the version's name and the path the copy is at.
+Such a sentence promises nothing about a later run,
+because only the run that follows reads what that one would find:
+an install publishes the copy when the version may be kept and its own name holds no finished copy by then,
+and removes it as a second one when that name holds one.
 A recovery that fails does not stop the install that follows it:
 the tool is installed from the network when the network is there,
 the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
+That warning ends with what this run then did.
+When the install that follows put the version at its name,
+the warning says that a later run publishes nothing from the copy and removes it,
+which is what that later run then does;
+when that install failed too,
+the copy stays where the run's own sentence put it.
+The one failure that names no copy is the tool's directory that could not be listed:
+its warning says what this run then did and that the run does not fail for it,
+and nothing about a copy it never read.
+A recovery that failed is a warning,
+and not a failure,
+whenever this tree's lock is satisfied after the run:
+the install that followed put the version there,
+another install had already done so,
+or a newer version runs,
+and that run ends 0.
+For a recovery that failed,
+the run ends 1 only when the locked version is not at its name afterwards,
+which is when the install that followed failed too.
+A run whose recovery put the version at its name also ends 1 when the link that names the newest finished version cannot be placed,
+even when a later step of the same run places it:
+nothing is removed under a link that does not name the newest finished version yet,
+so the version directories older than it stay until `prune --toolchain` removes them.
 A publish that finds a copy at the version's name in the instant between its own check and its rename replaces it,
 in the same step it uses for a copy that was there all along,
 so a second install's put-back costs no finished copy.
 
-The copy a killed install moved aside is put back only when no installer the system reports as running holds a claim or
+The copy a killed install moved aside is put back only when no installer that may still run holds a claim or
 a staging name for that version:
 such an installer is between its claim and its publish,
 and a copy put at the version's name in that instant would make its rename fail.
+An installer that may still run is one the system reports as running,
+and one whose name belongs to this boot but that this reader cannot see:
+a process id in another process namespace,
+a record `/proc` hides,
+and a name that carries no start time.
 Then the copy waits where it is,
-and a later install puts it back once nothing live holds that version.
-A name whose installer cannot be judged does not hold the copy back,
-because putting it back costs nothing once the publish replaces a name that appeared,
-and an earlier release's name carries no start time to judge it by.
+and a later install puts it back once nothing may hold that version.
+The wait has no end when the name belongs to this boot and its installer died where this reader cannot see it:
+an install killed in another process namespace leaves such a name,
+no later run can judge it,
+the version's name stays empty after every install,
+and each install prints which hidden name holds the wait and whether that name holds a finished copy.
+A person ends it,
+by copying that finished copy's contents into the version's name,
+which reaches a name that holds nothing and one that already holds a copy,
+or by deleting the unjudged name and letting the next install put the copy that was moved aside back,
+which loses the finished copy the unjudged name holds.
+A name written by an earlier build carries neither a boot nor a namespace,
+so it cannot be placed in any boot,
+and no install ever removes it;
+waiting for it would keep the copy of a killed install aside for ever,
+so it does not hold the copy back.
+That is the cost this rule accepts for an earlier build's name:
+a live install of an earlier build holding such a name loses the finished copy it holds,
+because its own publish does not retry over a name that appeared.
+`prune --toolchain` prints such a name,
+and its line says what deleting that directory costs.
 
 A dead install's copy is claimed before anything is published from it:
 one rename to a `.recovered` name of this process's own,
@@ -1356,57 +1512,108 @@ and the one that loses finds the name gone and publishes nothing.
 Without the claim both would replace the copy at the version's name in turn,
 and the second would leave the unfinished copy there and delete the finished one.
 
-A hidden directory is removed only when the installer that made it is known to have ended,
-and that question is answered by the pair in its name:
-the system reports a process's start time,
-and a process id handed out again belongs to a process that started at another moment,
-so a reused number is never read as the installer.
+A hidden directory is removed only when its installer is known to have ended.
+That question is answered by the facts in its name:
+a name from another boot names an installer that reboot certainly ended;
+a name from this boot and this process namespace is judged by the process id and the start time;
+a name from another process namespace is not judged,
+because a process id there means another process.
 The answer has three values and only one of them allows a removal:
 running,
 ended,
 and the system did not say.
 A record that cannot be read is the third,
 because an unreadable record is not a dead process.
-A hidden directory whose name carries no start time was written by an earlier release,
+When `/proc/<pid>/stat` says the number is free,
+the kernel's `pidfd_open` is asked whether any process holds it,
+so a `hidepid` mount that hides a live process's record does not make it read as ended.
+A hidden directory whose name carries no boot or no namespace was written by an earlier release,
 so it cannot be judged and is left where it is.
-Nothing is read of that other process except its own `/proc/<pid>/stat` record.
-The pair is read in this process's own process namespace and from this boot,
-so two installs in two namespaces that share one toolchain root are not told apart,
-and a directory whose installer it cannot judge is left alone.
+Nothing is read of that other process except its own `/proc/<pid>/stat` record and whether its number is held.
 A finished copy under another version's name may be the only copy of that version,
-so it is left for that version's own install to publish.
+so it is left for that version's own install to publish,
+and `prune --toolchain` removes it once no known lock names that version.
 
-`install` prints one sentence for each version a recovery touched.
-The publish it finished:
+`install` prints one sentence for each version a recovery touched,
+and the blocks here are that sentence,
+clause by clause:
+the head says what became of a hidden copy,
+and a removal is joined to it with `, and `.
+The sentences the steps around a recovery print about what they found are not in this list:
+the version the newest-only rule then removed (said below),
+the warning a failed recovery becomes rather than a failure (said above),
+the copy a failed download names,
+and the tool directory no run could list.
+The publish it finished,
+naming the hidden name the copy was read at:
 
 ```text
-toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed 1 hidden directory that a killed install left behind
+toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 from the finished copy an earlier install left at <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222
 ```
 
 The copy it dropped because another install published the version meanwhile:
 
 ```text
-toolchain install: dropped the copy of mpm-shadow 0.2.7-alpha.13 that a killed install left, because another install published that version meanwhile
+toolchain install: dropped the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install left, because another install published that version meanwhile
 ```
 
 The finished copy it left hidden because an older repository tool is never kept:
 
 ```text
-toolchain install: left the finished copy of mpm-shadow 0.2.7-alpha.13 that a killed install left under its hidden name, because 0.2.7-alpha.14 is installed and an older repository tool is never kept
+toolchain install: left the finished copy of mpm-shadow 0.2.7-alpha.13 under the hidden name an earlier install left it at, because 0.2.7-alpha.14 is installed and an older repository tool is never kept
 ```
 
-The copy a killed install had moved aside,
-either put back or waiting for a live install to publish:
+The copy an earlier install had moved aside and this run put back:
 
 ```text
-toolchain install: put back the copy of mpm-shadow 0.2.7-alpha.13 that a killed install had moved aside
+toolchain install: put back the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install had moved aside
+```
+
+The copy it left where it is,
+because an install that is still running holds a hidden name for that version:
+
+```text
+toolchain install: left the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install had moved aside where it is, because an install that is still running holds the hidden name <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4343.101.434343.22222222-2222-2222-2222-222222222222
+```
+
+and,
+when no run can judge the install that holds that name,
+with the finished copy that name holds when it holds one:
+
+```text
+toolchain install: left the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install had moved aside where it is, because the hidden name <toolchain root>/mpm-shadow/.0.2.7-alpha.13.recovered.4343.101.434343.22222222-2222-2222-2222-222222222222 may belong to an install that is still running, and nothing here can judge that install; that name holds a finished copy of 0.2.7-alpha.13, which nothing here publishes while that install cannot be judged
 ```
 
 and the hidden directories it removed,
-counted in the singular or the plural:
+counted in the singular or the plural,
+left behind by installs whose process the system reports ended,
+with what went with each one that held a finished copy:
 
 ```text
-toolchain install: removed 2 hidden directories that killed installs of mpm-shadow left behind
+toolchain install: removed 2 hidden directories left behind by installs of mpm-shadow that have ended
+```
+
+A removed finished copy is either a second one,
+when the run reads the version's own name as finished,
+or the one copy the version had here.
+The sentence says what that read at the version's name was,
+and never what a start of either copy does:
+the test is a completion marker and a program found,
+so a program cut short under its marker reads as finished too,
+and the copy the version's name holds may be the one that cannot run.
+
+```text
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
+```
+
+```text
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a finished copy of 0.2.7-alpha.13 that this run did not publish, because that copy's completion marker does not record the archive this lock names; no finished copy of 0.2.7-alpha.13 is at its name, so that copy is gone
+```
+
+A copy of a version that may not be kept beside a newer one says that rule instead:
+
+```text
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a finished copy of 0.2.7-alpha.13 that this run did not publish, because 0.2.7-alpha.14 is installed and an older repository tool is never kept; no finished copy of 0.2.7-alpha.13 is at its name, so that copy is gone
 ```
 
 A recovery never publishes an older version beside a newer installed one:
@@ -1414,10 +1621,69 @@ an older repository tool is never kept,
 which the run also warns about,
 so a version that is older than a finished one installed in either toolchain root stays under its hidden name,
 where a later install publishes it if that version may be kept again.
+A finished copy of that version whose marker records the lock's row stays with it;
+one whose marker the lock does not vouch for is removed instead,
+since no install can ever publish it.
 After a recovery that does put a version at its name,
-`install` removes every version directory older than the newest finished one,
-as it does after an install,
-and the report names each version it removed that way.
+`install` points `current` at the newest finished version and then removes every version directory older than it,
+the order an install keeps,
+so a start between those two steps runs the newest finished version,
+and a run killed there leaves a `current` that resolves.
+A recovery that puts back the copy a killed install had moved aside counts here too,
+even when that copy is unfinished:
+`install` points `current` at the newest finished version,
+which may be an older version than the one the lock names,
+and when the install that follows fails,
+`current` names that older version,
+so a start runs it while `list` reports the version the lock names as drift.
+The report names each version it removed that way and says what that version was in this run:
+the one the recovery published,
+or one that was installed before the run.
+
+`prune --toolchain` also reports and removes hidden directories whose installer has provably ended,
+except a finished copy whose marker records an archive digest,
+for a version some known lock names:
+such a copy is one that version's own install publishes or removes,
+so `prune` leaves that decision to the install.
+A hidden name it cannot judge is printed on standard error and left,
+and the line says what that run read there and what deleting that directory would cost.
+When a known lock names the program that finishes the tool's install,
+a copy the run reads as finished is the version's only one here unless the version's own name reads as finished by the
+same test:
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a finished copy of mpm-shadow 0.2.7-alpha.13, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged
+```
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name, and deleting it by hand loses that second copy
+```
+
+That line names the two reads and no conclusion drawn from them:
+whether the copy the version's name holds behaves when it is started is something this run did not read.
+A directory the run reads as holding no finished copy loses nothing:
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it
+```
+
+A tool no known lock names gives the run no program to look for,
+so the completion marker is the whole read there:
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a completion marker, but no known lock names the program that would finish a copy of mpm-shadow 0.2.7-alpha.13, so deleting it by hand loses whatever that name holds, which nothing publishes while its installer cannot be judged
+```
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds no completion marker, so deleting it by hand loses no finished copy, once no install uses it
+```
+
+To delete such a directory by hand,
+remove the hidden name whose version and purpose it carries,
+for example `rm -r <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222`
+on the shape this build writes,
+or `rm -r <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99` on the shape an earlier build wrote,
+once no install is using that tool.
 
 ### One set across both toolchain roots
 
@@ -1520,6 +1786,34 @@ every `install` removes the older managed copies of this repository's tools:
   its launchers keep working through the forward,
   and a link that names a version directory itself dangles until that tree's next `install`.
 
+### What the exposure folder holds
+
+The scope's exposure folder is the directory its `PATH` puts first,
+and it holds one link per declared bin
+(`.cache/toolchain-bin` in a checkout,
+`<data home>/monochromatic-dev/toolchain-global/exposure` for the machine-global scope).
+
+- A link is named after the bin its row declares,
+  and points at the program that row's route finds.
+  A repository-published tool's link points at this tree's launcher instead,
+  so a run through it can warn about the lock (see "The launcher").
+- Every link an install makes is replaced atomically,
+  so a run killed while the folder is rebuilt leaves no half-written name.
+- Every rebuild also removes what the lock no longer declares:
+  a symbolic link whose name no row of the lock declares is removed,
+  and the install's report names each one and where it pointed
+  (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
+  A regular file,
+  a directory,
+  or anything else at such a name belongs to a person and stays.
+  The name of the running `mpm-shadow`,
+  which the same rebuild has just linked when there is an install to link,
+  stays whether or not a row declares it (see "The farm also carries the running `mpm-shadow`").
+  The `rustup` link this repository's `rust` row left behind when it stopped declaring it
+  (issue 6626) is the case the rule comes from:
+  it dangled once the proxies went,
+  and `list` said the toolchain was in sync (issue 6634).
+
 ### The farm also carries the running `mpm-shadow`
 
 Every sentence `mpm-shadow` prints tells a person to run `mpm-shadow` or `mpm`,
@@ -1537,8 +1831,11 @@ makes those names reachable from a fresh shell:
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
-  Nothing removes it:
-  the program that would is the one that is gone.
+  No other program removes it:
+  the one that made it is the one that is gone.
+  A rebuild of the folder leaves it because that run makes the same link again,
+  and a scope that has the program installed nowhere removes it as a link no row declares
+  (see "What the exposure folder holds").
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
   A machine-global plan need not declare `mpm-shadow` at all,
@@ -1683,15 +1980,19 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets a `could not start` line:
-  the program is gone,
-  or the interpreter named on its first line is,
-  and the launcher cannot tell which,
+  the message names the file that is missing,
+  read from the program's own bytes (`src/named_interpreter.rs`):
+  the interpreter its first line names for a script,
+  or the dynamic linker a compiled program's own file names,
+  and both kinds and neither when the program itself is gone,
   because `execve` answers one error for both;
   the message gives the command that writes the tool's links again,
-  and adds installing the interpreter when the interpreter is the file that is missing.
+  and then installing the interpreter or the linker when that is the file that is missing.
   A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
   some process holds open for writing the program's file,
-  or the interpreter named on its first line,
+  or the interpreter the program's own file names,
+  which is the program after `#!` on a script's first line or a compiled program's dynamic linker,
+  and which of the two whenever the program's own file says so,
   the shadow cannot tell which process holds it or why,
   the same command works once that write has finished and left a whole program,
   and a write cut short leaves a broken program,
@@ -1733,6 +2034,19 @@ It runs only when asked;
 - Known locks are this scope's lock,
   the `toolchain.lock.json` of every worktree `git worktree list --porcelain` reports,
   and each file given with `--lock` (a clone that git does not list).
+- Hidden installs under `<toolchain root>/<tool id>/` are judged too:
+  one whose installer has provably ended is removed,
+  except a finished copy whose marker records an archive digest,
+  for a version some known lock names.
+  Such a copy is one that version's own install publishes or removes,
+  so `prune` leaves that decision to the install.
+  A name whose installer cannot be judged is printed on standard error and left,
+  and its line says what the run read there and what deleting the directory would cost;
+  that covers another process namespace,
+  a name an earlier release wrote without a boot and a namespace,
+  and a copy whose marker an earlier release wrote without an archive digest.
+  Delete such a directory by hand once no install is using that tool,
+  which costs the copy its line names.
 - A third-party version is kept when any known lock names it;
   a repository-published crate keeps only its newest finished version,
   and nothing when no known lock names the crate.
@@ -2048,6 +2362,14 @@ A changed file refuses the publish and names the file.
 
 A fresh machine needs one prebuilt `mpm-shadow` archive whose SHA-256 is in the lock,
 or `cargo install monochromatic-mpm-shadow` after a verified `rustup` install.
+The archive route installs no `rustup`,
+and neither does `mpm-shadow` on any route:
+both need a `rustup` the machine already has,
+from `rustup-init` or from the distribution's package,
+because the `rust` row asks it for the toolchain,
+its components and its targets.
+The `cargo install` route is the other way a machine gets `mpm-shadow`,
+and the `cargo` it runs is the one a verified `rustup` install provides.
 `mpm-shadow verify-archive` checks a downloaded archive against the lock before it is run.
 Containers and CI can use the same `jq`,
 `curl`
@@ -2130,7 +2452,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   (`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
   byte-identical copies in each crate,
   and `tests/shadow_identity_copies.rs` is one of the copies,
-  so the test task of any of the four packages fails when the copies differ).
+  so a change to the copy in `cargo-shadow`,
+  `mpm-shadow` or `pnpm-shadow` fails all four suites,
+  and a change to `search-shadow`'s copy alone fails `search-shadow`'s suite and no other).
   The lookup skips a candidate that carries it,
   or a launcher whose record leads to one,
   without starting it,
@@ -2330,6 +2654,9 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   download
   or lookup failed,
   or `list` found drift.
+  A recovery whose own publish failed is a warning rather than a failure when the lock is satisfied afterwards
+  (see "What a kill leaves and what the next install does about it"),
+  so that case ends 0.
 - `2`:
   a bad command line,
   or a plan or lock file that cannot be read.

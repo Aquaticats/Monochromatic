@@ -1,4 +1,5 @@
-//! Controls for the route's chosen names, its request reading and its stop switch.
+//! Controls for the route's chosen names,
+//! its request reading and its stop switch.
 
 use super::{
     AddNames,
@@ -40,7 +41,8 @@ fn plan(target: Option<&str>) -> AddPlan {
     };
 }
 
-/// The words an add was given: `worktree add <options> <destination> [<target>]`.
+/// The words an add was given:
+/// `worktree add <options> <destination> [<target>]`.
 fn words(
     options: &[&str],
     target: Option<&str>,

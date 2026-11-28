@@ -6,7 +6,8 @@
 //! Why:
 //!  The sweep of a stopped child's locks reads these two files when Git has just failed,
 //!  so a pipe at either name would hold every wrapped command in such a repository for ever
-//!  (`crate::plain_file`; issue 6415 for the same shape at the wrapper's own records).
+//!  (`crate::plain_file`;
+//! issue 6415 for the same shape at the wrapper's own records).
 
 /// The rules under test.
 use super::{

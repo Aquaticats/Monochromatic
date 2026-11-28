@@ -33,6 +33,7 @@ use super::archive_install_tests::names_of;
 use super::archive_staging::{
     AnOlderVersion,
     COMPLETE_MARKER,
+    CopyRecord,
     FinishedCopy,
     Owner,
     Plant,
@@ -44,6 +45,7 @@ use super::archive_staging::{
     clear_the_plant,
     has_complete_marker,
     hidden_sibling,
+    hidden_siblings,
     moment_in,
     plant_these_steps,
     publish_staged,
@@ -51,6 +53,14 @@ use super::archive_staging::{
     staging_dir_of,
     start_time_of_a_process,
     write_complete_marker,
+};
+/// Imports the reader facts a control forces,
+/// and the question whose answer it checks.
+use super::archive_staging::{
+    ForcedStart,
+    Liveness,
+    ReaderView,
+    read_as,
 };
 /// Imports the rig and the writer of an executable stand-in.
 use super::fakes::{
@@ -63,16 +73,36 @@ use super::layout::tool_directory;
 use super::published_archive::is_finished;
 /// Imports what these tests share with the tests of the newest-only layout.
 use super::published_archive_tests::{
+    A_TEST_SHA256,
     BIN,
     ID,
     context_of,
     finish_archive,
     lock_at,
+    release_digest,
     serve_releases,
     unmarked_archive,
 };
 /// Imports the install itself.
 use super::sync::sync_tools;
+
+/// The control of a publish a second install races between its two renames,
+/// and of the copy an install's own failed publish keeps.
+#[path = "archive_staging_tests/the_publishes_that_fail_or_race_tests.rs"]
+mod the_publishes_that_fail_or_race_tests;
+
+/// The controls of the copies a recovery may not publish:
+/// an older version beside a newer one in either toolchain root,
+/// and a marker that matches the lock's row on some fields but not all.
+#[path = "archive_staging_tests/the_copies_a_recovery_may_not_publish_tests.rs"]
+mod the_copies_a_recovery_may_not_publish_tests;
+
+/// The controls of what a hidden name's boot and its process record decide:
+/// a record `/proc` hides,
+/// a name written by a run that could not read its boot,
+/// and a name of another boot that carries no start time.
+#[path = "archive_staging_tests/the_liveness_of_a_hidden_name_tests.rs"]
+mod the_liveness_of_a_hidden_name_tests;
 
 /// The variable the installer this control kills reads the tool directory of its fixture from.
 const TOOL_DIRECTORY_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_TOOL_DIRECTORY";
@@ -230,7 +260,8 @@ fn the_installer_a_control_kills_between_the_two_renames() {
     // The copy an install publishes: the program inside the folder a release archive unpacks into, and the marker last.
     fs::create_dir_all(&staging).expect("make the staging directory");
     write_executable(&staging.join("release-folder").join(BIN));
-    write_complete_marker(&staging, ID, &version).expect("write the completion marker");
+    write_complete_marker(&staging, ID, &version, &release_digest(&version))
+        .expect("write the completion marker");
     plant_these_steps(Plant {
         refuse_the_exchange: true,
         kill_between_the_two_renames: true,
@@ -277,14 +308,74 @@ impl RunningProgram {
     }
 
     /// The owner of that program,
-    /// as a hidden sibling's name records it.
+    /// as a hidden sibling's name records it,
+    /// in this reader's boot and namespace.
     fn owner(&self) -> Owner {
+        let here: Owner = Owner::here();
         let pid: u32 = self.child.id();
         return Owner {
             pid,
             started: start_time_of_a_process(pid).expect("the system reports the program's start"),
+            boot: here.boot,
+            namespace: here.namespace,
         };
     }
+}
+
+/// What:
+/// The owner of one process this reader can see,
+/// carrying this reader's boot and namespace.
+/// Why:
+/// A control that names a live process needs a name this build can judge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownerOf(pid: number): Owner;
+/// ```
+fn owner_of(pid: u32) -> Owner {
+    let here: Owner = Owner::here();
+    return Owner {
+        pid,
+        started: start_time_of_a_process(pid).expect("the system reports the process's start"),
+        boot: here.boot,
+        namespace: here.namespace,
+    };
+}
+
+/// What:
+/// What a lock's row for one copy records.
+/// Why:
+/// A control that publishes a hidden copy must give the repair the same facts the marker records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aCopyRecord(tool: string, version: string, archiveSha256: string): CopyRecord;
+/// ```
+fn a_copy_record(
+    tool: &str,
+    version: &str,
+    archive_sha256: &str,
+) -> CopyRecord {
+    return CopyRecord {
+        tool: tool.to_string(),
+        version: version.to_string(),
+        archive_sha256: archive_sha256.to_string(),
+    };
+}
+
+/// What:
+/// The record the lock of a control's rig holds for one version of the tool under test,
+/// whose archive digest its marker must carry for a recovery to publish the copy.
+/// Why:
+/// Every control that publishes a hidden copy goes through the vouching check,
+/// and the lock's row is the only record that can satisfy it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theLocksRecord(version: string): CopyRecord;
+/// ```
+fn the_locks_record(version: &str) -> CopyRecord {
+    return a_copy_record(ID, version, &release_digest(version));
 }
 
 /// Ends and reaps the program when the test's body leaves,
@@ -309,11 +400,14 @@ impl Drop for RunningProgram {
 /// function anInstallerThatNoLongerRuns(): Owner { return { pid: 1, started: startTimeOf(1)! + 1 }; }
 /// ```
 fn an_installer_that_no_longer_runs() -> Owner {
+    let here: Owner = Owner::here();
     let started: u64 =
         start_time_of_a_process(1).expect("the system reports the first process's start");
     return Owner {
         pid: 1,
         started: started + 1,
+        boot: here.boot,
+        namespace: here.namespace,
     };
 }
 
@@ -327,7 +421,8 @@ fn a_copy_that_is_there_is_replaced_in_one_exchange_that_no_kill_can_interrupt()
     let staging: PathBuf = staging_dir_of(&version_dir);
     fs::create_dir_all(staging.join("release-folder")).expect("make the staging directory");
     write_executable(&staging.join("release-folder").join(BIN));
-    write_complete_marker(&staging, ID, "0.2.1").expect("write the completion marker");
+    write_complete_marker(&staging, ID, "0.2.1", A_TEST_SHA256)
+        .expect("write the completion marker");
 
     // The instant the two-rename path has is armed, and the exchange never reaches it: this call returns.
     plant_these_steps(Plant {
@@ -358,7 +453,8 @@ fn where_the_file_system_cannot_exchange_the_two_names_the_copy_is_still_replace
     let staging: PathBuf = staging_dir_of(&version_dir);
     fs::create_dir_all(staging.join("release-folder")).expect("make the staging directory");
     write_executable(&staging.join("release-folder").join(BIN));
-    write_complete_marker(&staging, ID, "0.2.1").expect("write the completion marker");
+    write_complete_marker(&staging, ID, "0.2.1", A_TEST_SHA256)
+        .expect("write the completion marker");
 
     plant_these_steps(Plant {
         refuse_the_exchange: true,
@@ -382,7 +478,8 @@ fn a_finished_copy_another_run_installed_is_kept_and_the_staged_one_is_discarded
     let tool_dir: PathBuf = tool_directory(&rig.scope.toolchain_root, ID).expect("a plain name");
     let version_dir: PathBuf = tool_dir.join("0.2.1");
     write_executable(&version_dir.join("release-folder").join(BIN));
-    write_complete_marker(&version_dir, ID, "0.2.1").expect("write the completion marker");
+    write_complete_marker(&version_dir, ID, "0.2.1", A_TEST_SHA256)
+        .expect("write the completion marker");
     let staging: PathBuf = staging_dir_of(&version_dir);
     fs::create_dir_all(&staging).expect("make the staging directory");
     fs::write(staging.join("the other run's copy"), "x").expect("write");
@@ -451,15 +548,7 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
     // The finished version, so the recovery of it has nothing to publish.
     finish_archive(&rig.scope.toolchain_root, "0.2.1");
 
-    let live: PathBuf = hidden_sibling(
-        &version_dir,
-        STAGING_PURPOSE,
-        Owner {
-            pid: 1,
-            started: start_time_of_a_process(1)
-                .expect("the system reports the first process's start"),
-        },
-    );
+    let live: PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, owner_of(1));
     let gone: PathBuf = hidden_sibling(
         &version_dir,
         STAGING_PURPOSE,
@@ -486,10 +575,16 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
     fs::create_dir_all(finished_elsewhere.join("release-folder"))
         .expect("make the hidden directory");
     write_executable(&finished_elsewhere.join("release-folder").join(BIN));
-    write_complete_marker(&finished_elsewhere, ID, "0.2.2").expect("write the completion marker");
+    write_complete_marker(&finished_elsewhere, ID, "0.2.2", A_TEST_SHA256)
+        .expect("write the completion marker");
 
-    let recovered: Recovered =
-        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    let recovered: Recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&a_copy_record(ID, "0.2.1", A_TEST_SHA256)),
+    )
+    .expect("recovered");
     assert!(
         live.is_dir(),
         "an installer that still runs keeps its directory"
@@ -499,7 +594,11 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
         "a name written without a start time cannot be judged, so it stays as it is: {:?}",
         recovered.removed
     );
-    let removed: Vec<&PathBuf> = recovered.removed.iter().collect();
+    let removed: Vec<&PathBuf> = recovered
+        .removed
+        .iter()
+        .map(|leftover| return &leftover.path)
+        .collect();
     assert!(
         removed.contains(&&gone),
         "the number of a process that ended is read as gone: {removed:?}"
@@ -562,12 +661,24 @@ fn a_third_party_archive_tool_also_finishes_the_publish_a_kill_left() {
         an_installer_that_no_longer_runs(),
     );
     fs::create_dir_all(&dead).expect("make the finished copy a killed install left");
-    write_complete_marker(&dead, "node", &rig.tool("node").version).expect("write the marker");
+    write_complete_marker(&dead, "node", &rig.tool("node").version, A_TEST_SHA256)
+        .expect("write the marker");
 
-    let recovered: Recovered =
-        recover_leftovers(&version_dir, "", AnOlderVersion::MayStay).expect("recovered");
+    let version: String = rig.tool("node").version.clone();
+    let recovered: Recovered = recover_leftovers(
+        &version_dir,
+        "",
+        AnOlderVersion::MayStay,
+        Some(&a_copy_record("node", &version, A_TEST_SHA256)),
+    )
+    .expect("recovered");
     assert!(
-        matches!(recovered.finished_copy, FinishedCopy::PublishedHere),
+        matches!(
+            recovered.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ),
         "the finished copy is published: {recovered:?}"
     );
     assert!(
@@ -646,7 +757,8 @@ fn a_copy_a_killed_recovery_had_claimed_is_published_by_the_next_install() {
     );
     fs::create_dir_all(claimed.join("release-folder")).expect("make the claimed copy");
     write_executable(&claimed.join("release-folder").join(BIN));
-    write_complete_marker(&claimed, ID, "0.2.1").expect("write the completion marker");
+    write_complete_marker(&claimed, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
 
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
     assert!(report.failed.is_empty(), "{report:?}");
@@ -700,8 +812,13 @@ fn what_a_kill_between_the_two_renames_leaves(version_dir: &Path) -> (PathBuf, P
     let finished: PathBuf = hidden_sibling(version_dir, STAGING_PURPOSE, dead);
     fs::create_dir_all(finished.join("release-folder")).expect("make the finished copy");
     write_executable(&finished.join("release-folder").join(BIN));
-    write_complete_marker(&finished, ID, &super::util::file_name_text(version_dir))
-        .expect("write the completion marker");
+    write_complete_marker(
+        &finished,
+        ID,
+        &super::util::file_name_text(version_dir),
+        &release_digest(&super::util::file_name_text(version_dir)),
+    )
+    .expect("write the completion marker");
     let aside: PathBuf = the_copy_a_kill_moved_aside(version_dir);
     return (finished, aside);
 }
@@ -841,23 +958,30 @@ fn a_finished_copy_at_the_version_as_another_install(
 ) {
     fs::create_dir_all(final_dir.join("release-folder")).expect("make the version");
     write_executable(&final_dir.join("release-folder").join(BIN));
-    write_complete_marker(final_dir, ID, &super::util::file_name_text(final_dir))
-        .expect("write the completion marker");
+    write_complete_marker(
+        final_dir,
+        ID,
+        &super::util::file_name_text(final_dir),
+        A_TEST_SHA256,
+    )
+    .expect("write the completion marker");
 }
 
 /// What:
 /// This process's hidden sibling under the name it would carry once this process ended:
-/// the same purpose with the pair of an installer that no longer runs.
+/// the purpose it was made for,
+/// with the four facts of an installer that no longer runs.
 /// Why:
 /// A later install claims only a name whose installer the system reports as ended,
 /// and a control cannot end its own test process,
 /// so it renames the leftover to the name a run after this process's end reads.
+/// The purpose is named by the caller:
+/// a hidden name carries the boot and the namespace after the process id and its start time,
+/// so the purpose is not a fixed distance from the end of the name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function asAfterThisProcessEnded(path: string, versionDir: string): string {
-///   const parts = basename(path).split('.');
-///   const purpose = parts[parts.length - 3];
+/// function asAfterThisProcessEnded(path: string, versionDir: string, purpose: string): string {
 ///   const ended = hiddenSibling(versionDir, purpose, anInstallerThatNoLongerRuns());
 ///   renameSync(path, ended);
 ///   return ended;
@@ -866,10 +990,8 @@ fn a_finished_copy_at_the_version_as_another_install(
 fn as_after_this_process_ended(
     path: &Path,
     version_dir: &Path,
+    purpose: &str,
 ) -> PathBuf {
-    let name: String = super::util::file_name_text(path);
-    let parts: Vec<&str> = name.split('.').collect();
-    let purpose: &str = parts[parts.len() - 3];
     let ended: PathBuf = hidden_sibling(version_dir, purpose, an_installer_that_no_longer_runs());
     fs::rename(path, &ended)
         .expect("rename the leftover to the name a later run reads as a dead installer's");
@@ -947,10 +1069,16 @@ fn a_publish_that_fails_with_the_versions_name_absent_keeps_the_finished_copy_fo
         refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     clear_the_plant();
-    let error =
-        recovered.expect_err("the rename that gives an absent name the finished copy failed");
+    let error = recovered
+        .expect_err("the rename that gives an absent name the finished copy failed")
+        .error;
     assert!(
         error
             .message
@@ -972,7 +1100,7 @@ fn a_publish_that_fails_with_the_versions_name_absent_keeps_the_finished_copy_fo
     };
 
     // The run that failed ends, so its claim carries a dead installer's pair, which is what the next install reads.
-    as_after_this_process_ended(&kept, &version_dir);
+    as_after_this_process_ended(&kept, &version_dir, RECOVERED_PURPOSE);
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
     assert!(report.failed.is_empty(), "{report:?}");
     assert!(
@@ -1007,10 +1135,16 @@ fn a_publish_whose_exchange_fails_for_another_reason_keeps_the_finished_copy_and
         answer_the_exchange_with: Some(AN_INPUT_OUTPUT_ERROR),
         ..Plant::default()
     });
-    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     clear_the_plant();
-    let error =
-        recovered.expect_err("the exchange failed with an answer that is not \"cannot exchange\"");
+    let error = recovered
+        .expect_err("the exchange failed with an answer that is not \"cannot exchange\"")
+        .error;
     assert!(
         error.message.contains("that copy is as it was"),
         "the failure says the copy at the version's name is as it was: {error}"
@@ -1048,9 +1182,16 @@ fn a_publish_whose_first_aside_rename_fails_keeps_the_finished_copy() {
         refuse_the_rename: Some((RenameRefused::MovesTheCopyAside, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     clear_the_plant();
-    let error = recovered.expect_err("the rename that moves the copy there aside failed");
+    let error = recovered
+        .expect_err("the rename that moves the copy there aside failed")
+        .error;
     assert!(
         error.message.contains("cannot move the copy at"),
         "the failure names the rename that failed: {error}"
@@ -1088,10 +1229,16 @@ fn a_publish_whose_second_rename_fails_puts_the_copy_back_and_keeps_the_finished
         refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     clear_the_plant();
-    let error =
-        recovered.expect_err("the rename that gives the version's name the finished copy failed");
+    let error = recovered
+        .expect_err("the rename that gives the version's name the finished copy failed")
+        .error;
     assert!(
         error.message.contains("the copy that was there is back at"),
         "the failure says the copy that was there came back: {error}"
@@ -1131,9 +1278,16 @@ fn a_publish_whose_put_back_fails_keeps_the_finished_copy_and_names_the_aside_co
         another_install_acts: Some(put_the_copy_that_was_there_back_as_another_install),
         ..Plant::default()
     });
-    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     clear_the_plant();
-    let error = recovered.expect_err("the rename into the version's name failed");
+    let error = recovered
+        .expect_err("the rename into the version's name failed")
+        .error;
     assert!(
         error.message.contains("could not be put back from"),
         "the failure names the put-back that failed too: {error}"
@@ -1170,12 +1324,21 @@ fn a_publish_that_finds_a_copy_put_back_meanwhile_replaces_it_and_keeps_the_fini
         another_install_acts: Some(put_the_copy_that_was_there_back_as_another_install),
         ..Plant::default()
     });
-    let attempt = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let attempt = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     clear_the_plant();
     let outcome = attempt.expect("the publish replaces the copy that appeared instead of failing");
-    assert_eq!(
-        outcome.finished_copy,
-        FinishedCopy::PublishedHere,
+    assert!(
+        matches!(
+            outcome.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ),
         "{outcome:?}"
     );
     assert!(
@@ -1201,8 +1364,13 @@ fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_cl
     let live_claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, running.owner());
     fs::rename(&finished, &live_claim).expect("the live install claims the finished copy");
 
-    let recovered =
-        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
     assert!(
         !version_dir.exists(),
         "nothing is put at the version's name while a live install holds a claim: {recovered:?}"
@@ -1212,7 +1380,7 @@ fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_cl
         aside.is_dir(),
         "the copy that was there waits for the live install: {recovered:?}"
     );
-    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+    assert!(recovered.left_for_a_live_install.is_some(), "{recovered:?}");
     assert!(!recovered.restored, "{recovered:?}");
 }
 
@@ -1227,8 +1395,13 @@ fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_st
     let live_staging: PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, running.owner());
     fs::rename(&finished, &live_staging).expect("give the live install its staging name");
 
-    let recovered =
-        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
     assert!(
         !version_dir.exists(),
         "nothing is put at the version's name while a live install holds a staging name: {recovered:?}"
@@ -1241,7 +1414,7 @@ fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_st
         aside.is_dir(),
         "the copy that was there waits: {recovered:?}"
     );
-    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+    assert!(recovered.left_for_a_live_install.is_some(), "{recovered:?}");
 }
 
 #[test]
@@ -1257,8 +1430,13 @@ fn a_live_installer_of_another_version_does_not_hold_the_copy_back() {
         hidden_sibling(&tool_dir.join("0.2.2"), STAGING_PURPOSE, running.owner());
     fs::create_dir_all(&elsewhere).expect("make another version's staging name");
 
-    let recovered =
-        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
     assert!(
         recovered.restored,
         "another version's live install is nothing to do with this one: {recovered:?}"
@@ -1288,7 +1466,7 @@ fn the_report_counts_one_hidden_directory_in_the_singular() {
     assert_eq!(
         report.recovered,
         vec![format!(
-            "removed 1 hidden directory that a killed install of {ID} left behind"
+            "removed 1 hidden directory left behind by an install of {ID} that has ended"
         )],
         "{report:?}"
     );
@@ -1304,8 +1482,8 @@ fn the_report_counts_several_hidden_directories_in_the_plural() {
     // The pair beside the one the helper gives: the first process's number with a moment no process carrying it ever
     // started at, so a second dead installer's directory can be made.
     let second: Owner = Owner {
-        pid: first.pid,
         started: first.started + 1,
+        ..first.clone()
     };
     for owner in [first, second] {
         let unpacking: PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, owner);
@@ -1316,7 +1494,7 @@ fn the_report_counts_several_hidden_directories_in_the_plural() {
     assert_eq!(
         report.recovered,
         vec![format!(
-            "removed 2 hidden directories that killed installs of {ID} left behind"
+            "removed 2 hidden directories left behind by installs of {ID} that have ended"
         )],
         "{report:?}"
     );
@@ -1354,7 +1532,7 @@ fn a_recovery_never_publishes_an_older_version_beside_a_newer_installed_one() {
     let root = rig.scope.toolchain_root.clone();
     let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
     let version_dir: PathBuf = tool_dir.join("0.2.1");
-    // A newer finished version is installed, and a killed install left a finished copy of the older locked one.
+    // A newer finished version is installed, and an install that ended left a finished copy of the older locked one.
     finish_archive(&root, "0.2.2");
     what_a_kill_between_the_two_renames_leaves(&version_dir);
 
@@ -1381,6 +1559,50 @@ fn a_recovery_never_publishes_an_older_version_beside_a_newer_installed_one() {
         a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
         "the finished copy stays hidden, since it may be the only one once 0.2.2 is gone: {:?}",
         names_of(&tool_dir)
+    );
+}
+
+#[test]
+fn a_finished_copy_of_an_older_version_that_no_lock_vouches_for_is_removed_beside_a_newer_one() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    finish_archive(&root, "0.2.2");
+    // A dead install whose marker an earlier build wrote: it records no archive digest, so no install can publish it,
+    // whichever version is locked.
+    let dead: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(dead.join("release-folder")).expect("make the hidden copy");
+    write_executable(&dead.join("release-folder").join(BIN));
+    fs::write(dead.join(COMPLETE_MARKER), format!("{ID} 0.2.1\n")).expect("write the marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(!version_dir.exists(), "{report:?}");
+    assert!(
+        !dead.exists(),
+        "a finished copy no install can publish is not kept: {:?}",
+        names_of(&tool_dir)
+    );
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a finished copy of 0.2.1 that this run did not publish, \
+             because 0.2.2 is installed and an older repository tool is never kept; \
+             no finished copy of 0.2.1 is at its name, so that copy is gone"
+        )],
+        "the sentence names the rule that kept the copy out of the version's name: {report:?}"
+    );
+    assert!(
+        !report
+            .recovered
+            .iter()
+            .any(|sentence| return sentence.contains("left the finished copy")),
+        "the report says nothing was left behind: {report:?}"
     );
 }
 
@@ -1474,8 +1696,13 @@ fn the_claim_never_takes_an_unfinished_copy_for_the_version() {
     write_executable(&aside.join("release-folder").join(BIN));
     fs::write(aside.join(WHAT_THE_VERSION_HELD), "the copy that was there").expect("write");
 
-    let recovered =
-        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
     assert!(recovered.restored, "{recovered:?}");
     assert!(
         version_dir.join(WHAT_THE_VERSION_HELD).is_file(),
@@ -1500,7 +1727,7 @@ fn another_versions_finished_copy_is_never_published_under_this_versions_name() 
     );
     fs::create_dir_all(elsewhere.join("release-folder")).expect("make the other version's copy");
     write_executable(&elsewhere.join("release-folder").join(BIN));
-    write_complete_marker(&elsewhere, ID, "0.2.2").expect("write the marker");
+    write_complete_marker(&elsewhere, ID, "0.2.2", A_TEST_SHA256).expect("write the marker");
     let aside: PathBuf = hidden_sibling(
         &version_dir,
         REPLACED_PURPOSE,
@@ -1510,8 +1737,13 @@ fn another_versions_finished_copy_is_never_published_under_this_versions_name() 
     write_executable(&aside.join("release-folder").join(BIN));
     fs::write(aside.join(WHAT_THE_VERSION_HELD), "the copy that was there").expect("write");
 
-    let recovered =
-        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
     assert!(recovered.restored, "{recovered:?}");
     assert!(
         version_dir.join(WHAT_THE_VERSION_HELD).is_file(),
@@ -1526,6 +1758,40 @@ fn another_versions_finished_copy_is_never_published_under_this_versions_name() 
         elsewhere.is_dir(),
         "the other version's finished copy is left for its own install: {recovered:?}"
     );
+
+    // The same answer for a copy of another version whose marker happens to record this version's tool, version and
+    // archive digest: the name it sits under is the fact that decides, never the marker alone.
+    let second_rig = Rig::new();
+    let second_root = second_rig.scope.toolchain_root.clone();
+    let second_tool_dir: PathBuf = tool_directory(&second_root, ID).expect("a plain name");
+    let second_version_dir: PathBuf = second_tool_dir.join("0.2.1");
+    let vouching_elsewhere: PathBuf = hidden_sibling(
+        &second_tool_dir.join("0.2.2"),
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(vouching_elsewhere.join("release-folder"))
+        .expect("make the other version's copy");
+    write_executable(&vouching_elsewhere.join("release-folder").join(BIN));
+    write_complete_marker(&vouching_elsewhere, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the marker");
+
+    let second = recover_leftovers(
+        &second_version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
+    assert!(
+        second.finished_copy == FinishedCopy::NothingToPublish,
+        "a vouched marker under another version's name vouches for nothing here: {second:?}"
+    );
+    assert!(!second_version_dir.exists());
+    assert!(
+        vouching_elsewhere.is_dir(),
+        "the copy stays under its own version's name: {second:?}"
+    );
 }
 
 #[test]
@@ -1538,9 +1804,14 @@ fn a_claim_that_fails_for_another_reason_is_reported() {
     // A directory that refuses writes inside it refuses the claim's rename, and the answer is not "no such file".
     let read_only = ReadOnly::new(&tool_dir);
 
-    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    );
     drop(read_only);
-    let error = recovered.expect_err("the claim's rename was refused");
+    let error = recovered.expect_err("the claim's rename was refused").error;
     assert!(
         error
             .message
@@ -1664,7 +1935,8 @@ fn the_installer_whose_exchange_a_policy_refuses() {
     let staging: PathBuf = staging_dir_of(&version_dir);
     fs::create_dir_all(staging.join("release-folder")).expect("make the staging directory");
     write_executable(&staging.join("release-folder").join(BIN));
-    write_complete_marker(&staging, ID, &version).expect("write the completion marker");
+    write_complete_marker(&staging, ID, &version, A_TEST_SHA256)
+        .expect("write the completion marker");
 
     plant_these_steps(Plant {
         answer_the_exchange_with: Some(refusal.parse().expect("an operating system error number")),
@@ -1672,4 +1944,343 @@ fn the_installer_whose_exchange_a_policy_refuses() {
     });
     publish_staged(&staging, &version_dir, BIN).expect("the two renames publish the copy");
     clear_the_plant();
+}
+
+#[test]
+fn a_boot_another_namespace_and_an_unreadable_record_are_never_read_as_an_installer_that_ended() {
+    let here: Owner = Owner::here();
+    let live: Owner = Owner {
+        pid: here.pid,
+        started: here.started,
+        boot: here.boot.clone(),
+        namespace: here.namespace,
+    };
+    assert_eq!(live.liveness(), Liveness::Running, "this process is here");
+
+    let another_boot: &str = "11111111-1111-1111-1111-111111111111";
+    {
+        let _view = read_as(ReaderView {
+            boot: Some(Some(another_boot.to_string())),
+            namespace: Some(here.namespace),
+            start: Some(ForcedStart::Gone),
+        });
+        assert_eq!(
+            live.liveness(),
+            Liveness::Gone,
+            "a name from another boot is an installer that reboot certainly ended"
+        );
+    }
+    {
+        let elsewhere: Option<u64> = here.namespace.map(|space| return space + 1);
+        let _view = read_as(ReaderView {
+            boot: Some(here.boot.clone()),
+            namespace: Some(elsewhere),
+            start: Some(ForcedStart::Gone),
+        });
+        assert_eq!(
+            live.liveness(),
+            Liveness::Unknown,
+            "a name from another namespace is an installer this reader cannot see"
+        );
+    }
+    {
+        let _view = read_as(ReaderView {
+            boot: Some(here.boot.clone()),
+            namespace: Some(here.namespace),
+            start: Some(ForcedStart::Unreadable),
+        });
+        assert_eq!(
+            live.liveness(),
+            Liveness::Unknown,
+            "an unreadable record is not a dead process"
+        );
+    }
+    {
+        let _view = read_as(ReaderView {
+            boot: Some(here.boot.clone()),
+            namespace: Some(here.namespace),
+            start: Some(ForcedStart::At {
+                moment: here.started,
+            }),
+        });
+        assert_eq!(
+            live.liveness(),
+            Liveness::Running,
+            "the recorded moment is this process's own start"
+        );
+    }
+    {
+        let _view = read_as(ReaderView {
+            boot: Some(here.boot.clone()),
+            namespace: Some(here.namespace),
+            start: Some(ForcedStart::Gone),
+        });
+        assert_eq!(
+            live.liveness(),
+            Liveness::Gone,
+            "a free number in this boot and namespace is ended"
+        );
+    }
+    {
+        let no_moment: Owner = Owner {
+            started: 0,
+            ..live.clone()
+        };
+        let _view = read_as(ReaderView {
+            boot: Some(here.boot.clone()),
+            namespace: Some(here.namespace),
+            start: Some(ForcedStart::Gone),
+        });
+        assert_eq!(
+            no_moment.liveness(),
+            Liveness::Unknown,
+            "a name with no start time is never judged"
+        );
+    }
+}
+
+#[test]
+fn names_written_by_earlier_builds_are_read_and_never_judged() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    fs::create_dir_all(&tool_dir).expect("make the tool directory");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // The shape alpha.13 and earlier wrote: the purpose and the process id alone.
+    let pid_only: PathBuf = tool_dir.join(format!(".0.2.1.{STAGING_PURPOSE}.42"));
+    // The shape alpha.14 wrote: the purpose, the process id and its start time.
+    let start_only: PathBuf = tool_dir.join(format!(".0.2.1.{STAGING_PURPOSE}.42.100"));
+    // The shape this build writes: all four facts.
+    let newest: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    for path in [&pid_only, &start_only, &newest] {
+        fs::create_dir_all(path).expect("make a hidden directory");
+    }
+
+    let found = hidden_siblings(&tool_dir).expect("list the hidden names");
+    let pid_leftover = found
+        .iter()
+        .find(|leftover| return leftover.path == pid_only)
+        .expect("the oldest shape is still read");
+    assert_eq!(pid_leftover.version, "0.2.1");
+    assert_eq!(
+        pid_leftover.liveness(),
+        Liveness::Unknown,
+        "a name with no start time cannot be judged"
+    );
+    let start_leftover = found
+        .iter()
+        .find(|leftover| return leftover.path == start_only)
+        .expect("the middle shape is still read");
+    assert_eq!(start_leftover.version, "0.2.1");
+    assert_eq!(
+        start_leftover.liveness(),
+        Liveness::Unknown,
+        "a start time without a boot and a namespace cannot be judged either"
+    );
+    let newest_leftover = found
+        .iter()
+        .find(|leftover| return leftover.path == newest)
+        .expect("the newest shape is read");
+    assert_eq!(newest_leftover.version, "0.2.1");
+    assert_eq!(
+        newest_leftover.liveness(),
+        Liveness::Gone,
+        "the dead installer of the newest shape is judged"
+    );
+}
+
+#[test]
+fn a_finished_copy_the_lock_does_not_vouch_for_is_never_published() {
+    let cases: [(&str, String); 4] = [
+        (
+            "another tool and version",
+            format!("some-other-tool 9.9.9 sha256:{A_TEST_SHA256}\n"),
+        ),
+        (
+            "another archive",
+            format!("{ID} 0.2.1 sha256:{A_TEST_SHA256}\n"),
+        ),
+        ("an empty marker", String::new()),
+        ("a marker an earlier build wrote", format!("{ID} 0.2.1\n")),
+    ];
+    for (case, marker_text) in cases {
+        let rig = Rig::new();
+        let root = rig.scope.toolchain_root.clone();
+        let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+        let version_dir: PathBuf = tool_dir.join("0.2.1");
+        let dead: PathBuf = hidden_sibling(
+            &version_dir,
+            STAGING_PURPOSE,
+            an_installer_that_no_longer_runs(),
+        );
+        fs::create_dir_all(dead.join("release-folder")).expect("make the hidden copy");
+        write_executable(&dead.join("release-folder").join(BIN));
+        fs::write(dead.join(COMPLETE_MARKER), marker_text).expect("write the marker");
+
+        let recovered = recover_leftovers(
+            &version_dir,
+            BIN,
+            AnOlderVersion::MayStay,
+            Some(&the_locks_record("0.2.1")),
+        )
+        .expect("the leftovers are read");
+        assert!(
+            recovered.finished_copy == FinishedCopy::NothingToPublish,
+            "{case}: a copy the lock does not vouch for is never published: {recovered:?}"
+        );
+        assert!(
+            !is_finished(&version_dir, BIN),
+            "{case}: no version was given that copy"
+        );
+        assert!(
+            !dead.exists(),
+            "{case}: a dead unvouched copy of this version is removed"
+        );
+    }
+}
+
+#[test]
+fn a_marker_whose_program_is_missing_is_never_published() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let dead: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(&dead).expect("make the hidden copy without its program");
+    write_complete_marker(&dead, ID, "0.2.1", &release_digest("0.2.1")).expect("write the marker");
+
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("the leftovers are read");
+    assert!(
+        recovered.finished_copy == FinishedCopy::NothingToPublish,
+        "a marker alone does not show a finished install: {recovered:?}"
+    );
+    assert!(!version_dir.exists());
+    assert!(!dead.exists());
+}
+
+#[test]
+fn a_vouched_finished_copy_of_this_version_is_published_without_a_download() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let dead: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(dead.join("release-folder")).expect("make the hidden copy");
+    write_executable(&dead.join("release-folder").join(BIN));
+    write_complete_marker(&dead, ID, "0.2.1", &release_digest("0.2.1")).expect("write the marker");
+
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("the leftovers are read");
+    assert!(
+        matches!(
+            recovered.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ),
+        "{recovered:?}"
+    );
+    assert!(is_finished(&version_dir, BIN));
+    assert!(!dead.exists());
+}
+
+#[test]
+fn the_copy_a_kill_moved_aside_waits_while_an_installer_this_reader_cannot_judge_may_hold_the_version()
+ {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // Only the copy that was there, under a dead installer's aside name.
+    let aside: PathBuf = the_copy_a_kill_moved_aside(&version_dir);
+    // A name of this boot whose installer this reader cannot see: a live install in another process namespace.
+    let here: Owner = Owner::here();
+    let elsewhere_space: u64 = here
+        .namespace
+        .map(|space| return space + 1)
+        .expect("the kernel reports this process namespace");
+    let unseeable: PathBuf = hidden_sibling(
+        &version_dir,
+        RECOVERED_PURPOSE,
+        Owner {
+            pid: here.pid,
+            started: here.started,
+            boot: here.boot.clone(),
+            namespace: Some(elsewhere_space),
+        },
+    );
+    fs::create_dir_all(&unseeable).expect("make the name this reader cannot judge");
+
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
+    assert!(
+        !version_dir.exists(),
+        "a name that may belong to a live install in another namespace holds the put-back: {recovered:?}"
+    );
+    assert!(
+        aside.is_dir(),
+        "the copy that was there waits where it is: {recovered:?}"
+    );
+    assert!(recovered.left_for_a_live_install.is_some(), "{recovered:?}");
+    assert!(!recovered.restored, "{recovered:?}");
+    assert!(unseeable.is_dir(), "nothing of an unjudged name is touched");
+}
+
+#[test]
+fn a_name_of_an_earlier_build_does_not_hold_the_copy_back() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let aside: PathBuf = the_copy_a_kill_moved_aside(&version_dir);
+    // The shape alpha.14 wrote, which carries no boot and no namespace: no install ever removes it, so waiting for it
+    // would keep the copy aside for ever.
+    let earlier: PathBuf = tool_dir.join(format!(".0.2.1.{STAGING_PURPOSE}.42.100"));
+    fs::create_dir_all(&earlier).expect("make the earlier build's name");
+
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("recovered");
+    assert!(
+        recovered.restored,
+        "the copy that was there comes back rather than waiting for ever: {recovered:?}"
+    );
+    assert!(version_dir.join(WHAT_THE_VERSION_HELD).is_file());
+    assert!(!aside.exists(), "the aside name is gone");
+    assert!(
+        earlier.is_dir(),
+        "the name an earlier build wrote is left where it is: {recovered:?}"
+    );
 }

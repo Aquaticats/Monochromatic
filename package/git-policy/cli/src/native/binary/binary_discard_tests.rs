@@ -575,7 +575,7 @@ fn a_finding_carries_its_hint_beside_an_unchanged_message() {
     );
     let text: String = String::from_utf8_lossy(raw.stdout.as_slice()).into_owned();
     assert!(
-        text.contains("\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing or checking this file"),
+        text.contains("\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing this file, a commit that takes it corrects the ending"),
         "{text}"
     );
     assert!(

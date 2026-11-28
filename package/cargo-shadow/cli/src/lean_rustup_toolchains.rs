@@ -436,3 +436,10 @@ fn judge(
         Err(reason) => ToolchainVerdict::Skip(reason),
     };
 }
+
+/// The tests of the toolchain retirement.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_rustup_toolchains_tests.rs"]
+mod lean_rustup_toolchains_tests;

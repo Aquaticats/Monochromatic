@@ -1,21 +1,33 @@
 //! What:
-//!  The frozen proof: the clone's copied index and every tracked path compared
-//!  with the capture taken just before the snapshot, before any byte of the
+//!  The frozen proof:
+//! the clone's copied index and every tracked path compared
+//!  with the capture taken just before the snapshot,
+//! before any byte of the
 //!  clone is written.
 //! Why:
-//!  The snapshot is one instant; a write between the capture and the snapshot
-//!  moves a file after the capture and before the clone exists, so only the
+//!  The snapshot is one instant;
+//! a write between the capture and the snapshot
+//!  moves a file after the capture and before the clone exists,
+//! so only the
 //!  clone's own bytes can settle it
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-//!  "The frozen proof": D1 to D4).
-//!  D3 and D4 are the digests step 11 adds: the bytes of every path the index's
-//!  stat data cannot vouch for, and of every path in the racy set, which is the
-//!  set a same-tick write can hide in. A path without a digest is one whose
-//!  recorded fields are its own and whose tick had moved on, so D2 is what
+//!  "The frozen proof":
+//! D1 to D4).
+//!  D3 and D4 are the digests step 11 adds:
+//! the bytes of every path the index's
+//!  stat data cannot vouch for,
+//! and of every path in the racy set,
+//! which is the
+//!  set a same-tick write can hide in.
+//! A path without a digest is one whose
+//!  recorded fields are its own and whose tick had moved on,
+//! so D2 is what
 //!  refuses a write there.
-//!  No Git run reads the copied administration: a Git run there would treat the
+//!  No Git run reads the copied administration:
+//! a Git run there would treat the
 //!  copied index as its own and could rewrite it and move the copied refs.
-//!  A difference names the path and the field, so a person reads which write
+//!  A difference names the path and the field,
+//! so a person reads which write
 //!  refused the add.
 //!
 //! In TS you'd write (pseudocode):
@@ -47,8 +59,10 @@ use std::path::{
 /// What:
 ///  Prove one clone against one capture.
 /// Why:
-///  D1 compares the copied index's bytes first, so a staged change or a commit
-///  in the window refuses before any file is read, and D2 compares every
+///  D1 compares the copied index's bytes first,
+/// so a staged change or a commit
+///  in the window refuses before any file is read,
+/// and D2 compares every
 ///  tracked path's own facts.
 ///
 /// # Errors
@@ -91,10 +105,13 @@ pub fn prove_the_clone(
 }
 
 /// What:
-///  D3 and D4: the bytes of one digested path against the capture's digest.
+///  D3 and D4:
+/// the bytes of one digested path against the capture's digest.
 /// Why:
-///  A write in the file's own tick leaves every field of D2 equal, so only the
-///  bytes can refuse it, and the refusal names the path.
+///  A write in the file's own tick leaves every field of D2 equal,
+/// so only the
+///  bytes can refuse it,
+/// and the refusal names the path.
 ///  A regular file is read in one linear pass and a link's target bytes are the
 ///  bytes the capture digested.
 ///

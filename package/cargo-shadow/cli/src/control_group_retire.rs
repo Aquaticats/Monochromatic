@@ -22,8 +22,9 @@
 //! the alpha.12 release pass):
 //! a question to the manager is a program start,
 //! and asking it on every run's end cost a scoped run 15 to 36 ms of the caller's time
-//! (`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
-//! "The cost of the retirement").
+//! (the "The cost,"
+//! paragraph of "What cargo-shadow does now" in
+//! `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`).
 //! So the look answers the question from the kernel alone:
 //! `pids.peak` says whether a process was ever counted in the scope's group,
 //! and only a group that never held one can be the stuck scope this step exists for.
@@ -144,11 +145,100 @@ pub(crate) enum Emptiness {
     /// the manager collected the unit.
     Collected,
     /// Nothing could be read as emptiness,
-    /// and why it could not.
+    /// and why it could not,
+    /// and whether the kernel's `populated 0` line was read before that.
     Unproven {
         /// Why the scope could not be read as empty or gone.
         reason: String,
+        /// Whether an emptiness was read before the reason applied:
+        /// the peak arm reads `populated 0` and then loses the group's directory,
+        /// so the read that failed is not a read of the members.
+        an_empty_line_was_read: bool,
     },
+}
+
+/// What:
+/// `fn the_populated_line(group: &ControlGroup) -> io::Result<bool>` reads the kernel's `populated` line of the group,
+/// or the failure a control arms in its place.
+/// Why:
+/// The read goes through one place,
+/// so a control can answer what a group the kernel is removing answers (`ENODEV`)
+/// at a moment a run cannot time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function thePopulatedLine(group: ControlGroup): boolean  // throws
+/// ```
+fn the_populated_line(group: &ControlGroup) -> io::Result<bool> {
+    // A test makes this read answer the error a group the kernel is removing answers, which a run meets only by chance:
+    // the file has to be opened before the removal takes it away and read after that (`kernfs_seq_start` answers
+    // `ENODEV` for a file whose group was deactivated, `fs/kernfs/file.c:166` at v7.3.5). The same read against a group
+    // that is only gone answers `ENOENT`, before any file in it is opened.
+    #[cfg(test)]
+    if crate::failpoints::retire_reads::fires_populated_read_sees_the_gone_group() {
+        return Err(io::Error::from_raw_os_error(
+            rustix::io::Errno::NODEV.raw_os_error(),
+        ));
+    }
+    return populated_at(group.directory());
+}
+
+/// What:
+/// `fn the_peak_of(group: &ControlGroup) -> io::Result<u64>` reads how many processes have ever been counted in the group,
+/// or the failure a control arms in its place.
+/// Why:
+/// The read goes through one place,
+/// so a control can answer the absence a group the manager removed answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function thePeakOf(group: ControlGroup): number  // throws
+/// ```
+fn the_peak_of(group: &ControlGroup) -> io::Result<u64> {
+    // A test makes this read answer the absence of a group the manager removed, which is the window the look's two reads
+    // can straddle: nothing outside holds that window open.
+    #[cfg(test)]
+    if crate::failpoints::retire_reads::fires_peak_read_sees_the_gone_group() {
+        return Err(io::Error::from_raw_os_error(
+            rustix::io::Errno::NOENT.raw_os_error(),
+        ));
+    }
+    return pids_peak_at(group.directory());
+}
+
+/// What:
+/// `fn the_group_s_directory_is_gone(group: &ControlGroup) -> bool` says whether the group's own directory is not there.
+/// Why:
+/// Both reads of the look can answer an absence,
+/// and only a directory that is gone makes that absence the manager's collection:
+/// a read of a file that is not there inside a directory that is means the kernel has no such file,
+/// not that the group went away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theGroupDirectoryIsGone(group: ControlGroup): boolean
+/// ```
+fn the_group_s_directory_is_gone(group: &ControlGroup) -> bool {
+    // What:     `fs::metadata(group.directory())` examines the directory itself: `Ok` is one that is there (a file counts),
+    //           and `Err` is the reason it could not be examined.
+    // Why:      A read of a file inside the directory cannot tell a missing file from a missing directory, and this is the
+    //           one read that can.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { statSync(group.directory) } catch (error) { return isGone(error) }
+    // ```
+    match fs::metadata(group.directory()) {
+        Ok(_there) => {}
+        Err(error) => return is_the_group_being_gone(&error),
+    }
+    // A test makes this check answer the absence of a group the manager removed between the look's two reads: a directory
+    // that is there answers no such thing.
+    #[cfg(test)]
+    if crate::failpoints::retire_reads::fires_directory_check_sees_the_gone_group() {
+        return true;
+    }
+    return false;
 }
 
 /// What:
@@ -176,8 +266,8 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
     if crate::failpoints::fires(crate::failpoints::Point::RetireSeesStuckScope) {
         return Emptiness::EmptiedWithoutAProcess;
     }
-    // What:     `populated_at(...)` reads the kernel's `populated` line: `Ok(true)` is a member, `Ok(false)` is none, and
-    //           `Err(error)` is a read that failed. `NotFound` and `NODEV` are a group whose directory is gone.
+    // What:     `the_populated_line(...)` reads the kernel's `populated` line: `Ok(true)` is a member, `Ok(false)` is none,
+    //           and `Err(error)` is a read that failed.
     // Why:      A group whose absence cannot be verified is not read as empty, and every other failure is a group that may
     //           still have a member.
     //
@@ -185,10 +275,26 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
     // ```ts
     // try { populated = populatedAt(group.directory) } catch (error) { ... }
     // ```
-    let populated: bool = match populated_at(group.directory()) {
+    let populated: bool = match the_populated_line(group) {
         Ok(found) => found,
-        Err(error) if is_the_group_being_gone(&error) => {
-            // What:     `collected_or_unproven(group)` says whether the absence can be read as emptiness.
+        // What:     `the_absence_is_the_scope_going_away(group, &error)` says whether the failed read is the group going
+        //           away rather than a group that may still have a member.
+        // Why:      `ENODEV` is the kernel taking the group's own files away on its way to removing the group, which it
+        //           does only for a group that holds no task (`kernel/cgroup/cgroup.c:6333` at v7.3.5), so the unit is the
+        //           manager's to free and the step says nothing about it. `ENOENT` is only the absence of a name, so it is
+        //           read as the group's absence when the group's directory is gone as well.
+        //           The directory check is not made for `ENODEV`: measured on this host on 2026-11-27, a group being removed
+        //           is read as `ENODEV` while its directory is still there (300 removals raced by this step's own read:
+        //           24 answered `ENODEV`, and a directory check right after each found the directory there in 20 of them),
+        //           so that check would turn a right silence into a warning about a unit the manager is freeing.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (theAbsenceIsTheScopeGoingAway(group, error)) return collectedOrUnproven(group, false)
+        // ```
+        Err(error) if the_absence_is_the_scope_going_away(group, &error) => {
+            // What:     `collected_or_unproven(group, false)` says whether the absence can be read as emptiness, and that no
+            //           emptiness was read before it.
             // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too: an
             //           absence it cannot verify keeps the unit and says so.
             //
@@ -196,26 +302,27 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
             // ```ts
             // return collectedOrUnproven(group)
             // ```
-            return collected_or_unproven(group);
+            return collected_or_unproven(group, false);
         }
         Err(error) => {
             return Emptiness::Unproven {
                 reason: format!("the scope's `populated` line could not be read ({error})"),
+                an_empty_line_was_read: false,
             };
         }
     };
     if populated {
         return Emptiness::Member;
     }
-    // What:     `pids_peak_at(...)` reads how many processes the group has ever held. `Ok(0)` means none was ever counted in
+    // What:     `the_peak_of(...)` reads how many processes the group has ever held. `Ok(0)` means none was ever counted in
     //           it, which is the stuck scope; any other answer means the manager was told the group emptied.
     // Why:      Asking the manager costs a program start, and this read costs a file read.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return pidsPeakAt(group.directory) > 0 ? 'emptied after a process' : 'emptied without one'
+    // return thePeakOf(group) > 0 ? 'emptied after a process' : 'emptied without one'
     // ```
-    return match pids_peak_at(group.directory()) {
+    return match the_peak_of(group) {
         Ok(peak) if peak > 0 => Emptiness::EmptiedAfterAProcess,
         // What:     `group_gone_at_the_peak(group, &error)` says whether this failure means the group's directory went away
         //           between the two reads, which is a collected unit, or something else.
@@ -239,10 +346,13 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
 }
 
 /// What:
-/// `fn is_the_group_being_gone(error: &io::Error) -> bool` says whether a read of the scope failed because the group's
-/// directory is not there any more.
+/// `fn is_the_group_being_gone(error: &io::Error) -> bool` says whether a read of the scope failed because the group is not
+/// there any more,
+/// either as a name (`ENOENT`) or as a file the kernel has taken away (`ENODEV`).
 /// Why:
-/// A removed group answers `ENOENT` and its files answer `ENODEV` (the stop reads the same two as one thing);
+/// Those two are the only failures that say anything about the group's own existence,
+/// and the stop of a containment reads `ENODEV` the same way
+/// (`populated_through` answers the empty line for it);
 /// every other failure is a group that may still have a member.
 ///
 /// In TS you'd write (pseudocode):
@@ -255,18 +365,97 @@ fn is_the_group_being_gone(error: &io::Error) -> bool {
 }
 
 /// What:
+/// `fn the_kernel_is_removing_the_group(error: &io::Error) -> bool` says whether a read failed because the kernel has already
+/// deactivated the group's own files,
+/// which it does on its way to removing the group.
+/// Why:
+/// `ENODEV` is the kernel's own statement that the group behind the file is being taken apart:
+/// `kernfs_seq_start` answers it where it can no longer take an active reference to the file's node
+/// (`fs/kernfs/file.c:166` at v7.3.5),
+/// and `kernfs_fop_open` answers it where the node was deactivated before the file was opened (`:612`).
+/// That is a stronger fact than `ENOENT`,
+/// which is only the absence of a name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theKernelIsRemovingTheGroup(error: Error): boolean
+/// ```
+fn the_kernel_is_removing_the_group(error: &io::Error) -> bool {
+    return error.raw_os_error() == Some(rustix::io::Errno::NODEV.raw_os_error());
+}
+
+/// What:
+/// `fn the_absence_is_the_scope_going_away(group: &ControlGroup, error: &io::Error) -> bool` says whether a failed read of the
+/// scope is the scope going away,
+/// rather than a read that failed for a reason of its own.
+/// Why:
+/// A group the kernel is removing is empty,
+/// because the kernel refuses to remove a group that still holds a task,
+/// so `ENODEV` alone is the scope's absence and needs no directory check;
+/// and `ENOENT` is that absence only when the group's directory is gone as well,
+/// because a file that is not there inside a directory that is means the kernel has no such file.
+/// The peak read is where that second half is live:
+/// a group whose parent does not enable the pids controller has no `pids.peak` at all
+/// (`README.md`,
+/// "`pids.peak` is a non-root group's file").
+/// It is not live for the `populated` read of a group:
+/// measured on this host on 2026-11-27,
+/// 3090 reads raced against 300 creations never answered `ENOENT` while the directory was there,
+/// and every first sight of a new directory held `cgroup.events`,
+/// in a listing of the directory in 88 of the 300 iterations and in the successful read itself in the other 212.
+/// That is because the control group root is created deactivated
+/// (`KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5),
+/// and `cgroup_mkdir` activates the directory and its files under one lock
+/// (`kernfs_activate` at `:6157` after `css_populate_dir` at `:6146`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theAbsenceIsTheScopeGoingAway(group: ControlGroup, error: Error): boolean
+/// ```
+fn the_absence_is_the_scope_going_away(
+    group: &ControlGroup,
+    error: &io::Error,
+) -> bool {
+    if !is_the_group_being_gone(error) {
+        return false;
+    }
+    // What:     `the_kernel_is_removing_the_group(error)` is the stronger of the two answers, and it needs no directory to
+    //           confirm it.
+    // Why:      The directory is measurably still there while the kernel is removing the group, so asking it would refuse the
+    //           answer the kernel just gave.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (theKernelIsRemovingTheGroup(error)) return true
+    // ```
+    if the_kernel_is_removing_the_group(error) {
+        return true;
+    }
+    // What:     `the_group_s_directory_is_gone(group)` is the check `ENOENT` needs: a name that is not there is the group's
+    //           absence only when the group's own directory is gone too.
+    // Why:      A kernel that has the file and not the directory says nothing about a member, so that state must not be read
+    //           as the manager's collection.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return theGroupDirectoryIsGone(group)
+    // ```
+    return the_group_s_directory_is_gone(group);
+}
+
+/// What:
 /// `fn group_gone_at_the_peak(group: &ControlGroup, error: &io::Error) -> Option<Emptiness>` says what a failed `pids.peak`
 /// read means for the unit,
-/// or `None` when it means nothing about the group's directory.
+/// or `None` when it says nothing about the group's absence.
 /// Why:
-/// The two causes of that failure want different answers:
+/// The causes of that failure want different answers:
 /// a file that is not there in a directory that is means the kernel tells nothing about a process ever counted in the
 /// group,
 /// which only a question to the manager settles;
-/// a directory that went away is a group the manager already collected,
+/// a group that went away or that the kernel is removing is a group the manager is freeing,
 /// which no question settles better.
 /// A control drives both,
-/// because the race this comes from (the manager removing the group between the two reads) cannot be
+/// because the race this comes from (the removal of the group between the two reads) cannot be
 /// staged from outside.
 ///
 /// In TS you'd write (pseudocode):
@@ -277,57 +466,52 @@ fn group_gone_at_the_peak(
     group: &ControlGroup,
     error: &io::Error,
 ) -> Option<Emptiness> {
-    // What:     `if !is_the_group_being_gone(error)` leaves every failure that is not an absence to the caller, which asks the
-    //           manager.
-    // Why:      A read that was refused for another reason says nothing about the group's directory.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (!isTheGroupBeingGone(error)) return undefined
-    // ```
-    if !is_the_group_being_gone(error) {
-        return None;
-    }
-    // What:     `fs::metadata(group.directory())` is the check that tells a file that is not there from a directory that is
-    //           not, and its error is read as an absence only when `is_the_group_being_gone` says the group is gone.
-    // Why:      A directory that is there without `pids.peak` is a kernel that has no such file (before Linux 6.1), or a group
-    //           whose parent does not enable the pids controller, and only the manager can be asked about that.
+    // What:     `if !the_absence_is_the_scope_going_away(group, error)` leaves every failure that is not the scope's absence
+    //           to the caller, which asks the manager.
+    // Why:      A read that was refused for another reason says nothing about the group's existence, and a `pids.peak` that
+    //           is not there in a directory that is means a host without the file (before Linux 6.1, or a group whose parent
+    //           does not enable the pids controller), which only the manager can be asked about.
     //           A directory that cannot be read for another reason is not a directory that went away either: `Path::is_dir`
     //           answers `false` for every failure, so it would read `EACCES` and `EIO` as an absence.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // try { statSync(group.directory) } catch (error) { if (!isTheGroupBeingGone(error)) return undefined }
-    // if (existsSync(group.directory)) return undefined
+    // if (!theAbsenceIsTheScopeGoingAway(group, error)) return undefined
     // ```
-    // `gone_error` is the directory check's own failure, kept apart from the peak read's `error` it answers about.
-    match fs::metadata(group.directory()) {
-        Err(gone_error) if is_the_group_being_gone(&gone_error) => {}
-        _ => return None,
+    if !the_absence_is_the_scope_going_away(group, error) {
+        return None;
     }
-    // What:     `Some(collected_or_unproven(group))` is the answer the absent `populated` read gets.
-    // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen.
+    // What:     `Some(collected_or_unproven(group, true))` is the answer the absent `populated` read gets, and it says that
+    //           an empty `populated` line was read before the peak read.
+    // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen,
+    //           and the sentence built from it may say what the first read showed.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return collectedOrUnproven(group)
+    // return collectedOrUnproven(group, true)
     // ```
-    return Some(collected_or_unproven(group));
+    return Some(collected_or_unproven(group, true));
 }
 
 /// What:
-/// `fn collected_or_unproven(group: &ControlGroup) -> Emptiness` says what a group whose directory is gone means for its unit:
+/// `fn collected_or_unproven(group: &ControlGroup, an_empty_line_was_read: bool) -> Emptiness` says what a group whose
+/// directory is gone means for its unit:
 /// `Collected` when this process still sees the directory the scope was planned in,
-/// and `Unproven` with the reason when it does not.
+/// and `Unproven` with the reason when it does not,
+/// carrying whether an emptiness had been read before the absence.
 /// Why:
 /// Both reads of the group can find it gone,
-/// and an absence the stop accepts as emptiness is the only absence the retirement may read as a free unit.
+/// and an absence the stop accepts as emptiness is the only absence the retirement may read as a free unit;
+/// the warning that follows must not deny an emptiness the same look read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function collectedOrUnproven(group: ControlGroup): Emptiness
+/// function collectedOrUnproven(group: ControlGroup, anEmptyLineWasRead: boolean): Emptiness
 /// ```
-fn collected_or_unproven(group: &ControlGroup) -> Emptiness {
+fn collected_or_unproven(
+    group: &ControlGroup,
+    an_empty_line_was_read: bool,
+) -> Emptiness {
     // What:     `group.absence_is_verified()` asks whether this process still sees the directory the scope was planned in.
     // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too.
     //
@@ -342,6 +526,7 @@ fn collected_or_unproven(group: &ControlGroup) -> Emptiness {
                 "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
                 group.directory().display()
             ),
+            an_empty_line_was_read,
         },
     };
 }
@@ -382,13 +567,33 @@ pub(crate) fn retire(
             )),
         },
         Emptiness::Member => Some(format!(
-            "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, and a stop would kill it; a member that joins after this look is killed by that stop with nothing printed"
+            "the scope unit {unit} of the run that just ended was left loaded: the kernel's `populated 1` line was read for its control group, so this step asked for no stop"
         )),
+        // What:     `an_empty_line_was_read` decides the tail of the warning: the peak arm read `populated 0` before the group's
+        //           directory went away, and the arm that failed to read that line read nothing about the members.
+        // Why:      A warning that ended "so it is not shown that no member is left" would deny the emptiness the same look
+        //           read (`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`, "A `populated 0`
+        //           line is the proof that no member is left"), and a tail that only said an empty line had been read, after a
+        //           clause saying emptiness could not be read, read as both claims at once. So the tail says what was read
+        //           first and what happened after it.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const tail = anEmptyLineWasRead
+        //   ? `the kernel's \`populated 0\` line was read for it, and then ${reason}`
+        //   : `${reason}, so it is not shown that no member is left`
+        // ```
         Emptiness::Unproven {
             reason,
-        } => Some(format!(
-            "the scope unit {unit} of the run that just ended may be left loaded: {reason}, so it is not shown that no member is left"
-        )),
+            an_empty_line_was_read,
+        } => Some(match an_empty_line_was_read {
+            true => format!(
+                "the scope unit {unit} of the run that just ended may be left loaded: the kernel's `populated 0` line was read for it, and then {reason}"
+            ),
+            false => format!(
+                "the scope unit {unit} of the run that just ended may be left loaded: {reason}, so it is not shown that no member is left"
+            ),
+        }),
     };
 }
 
@@ -515,3 +720,11 @@ fn first_line(text: &[u8]) -> String {
 #[cfg(test)]
 #[path = "control_group_retire_tests.rs"]
 mod tests;
+
+/// The control of what a run's last look at its scope answers when the scope's directory was never made,
+/// which is the state a launcher that exits before the manager makes the group leaves.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "control_group_retire_scope_not_made_yet_tests.rs"]
+mod control_group_retire_scope_not_made_yet_tests;

@@ -1858,16 +1858,41 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
 ## Requirements
 
 - Linux with glibc 2.39 or newer.
-  Release archives exist for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` only.
-  They are built on the `ubuntu-latest` runner and link `pidfd_spawnp` and `pidfd_getpid`,
+  Release archives exist for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` only:
+  the release workflow builds those two targets (`gpc-build-binary` in `.github/workflows/cargo-publish.yml`,
+  on the `ubuntu-24.04` and `ubuntu-24.04-arm` runners),
+  and each archive links the glibc of the runner that built it:
+  they link `pidfd_spawnp` and `pidfd_getpid`,
   which glibc added in 2.39
   (measured on the 0.2.2 x86_64 archive with `objdump -T`),
   so they do not start on Debian 12 or Ubuntu 22.04.
-  The crate does not compile for Windows:
-  `cargo check --target x86_64-pc-windows-gnu --lib` fails with 16 errors in
-  eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
-  so the Windows-specific branches in the sources have never run;
+  The crate builds for no other target,
+  and the sources show it before any build starts:
+  331 of the 2,405 Rust sources under `src/native` that are not test files import `std::os::unix`
+  (`rg --files-with-matches 'std::os::unix' src/native --glob '*.rs' --glob '!*_tests.rs' --glob '!tests.rs'`,
+  counted 2026-11-27),
+  and `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
+  (`#[cfg(target_os = "linux")]`),
+  while `worktree/worktree_remove_around.rs`,
+  which carries no gate,
+  imports `finish` from it,
+  so a build for another target names an item the modules of that target do not provide.
+  `rustup target list --installed` answers `x86_64-unknown-linux-gnu` alone on the machine this was written on,
+  so no run here compiles the crate for another target:
+  `native:clippy:windows` is the one task that type-checks another target,
+  and its own comment says it needs `rustup target add x86_64-pc-windows-gnu` on the host,
+  which this machine does not have,
+  so that task was not run.
+  The crate therefore does not compile for Windows,
+  and the Windows-specific branches in the sources have never run;
   each is marked `UNTESTED ON WINDOWS` in the source.
+  One earlier check stands as the record of that:
+  a `cargo check --target x86_64-pc-windows-gnu --lib` on 2026-10-15 reported 16 errors in eight files
+  (commit `bdb1ce4884`),
+  and nothing says which machine ran it or whether that target was installed there;
+  with the target absent here it cannot be run again,
+  so this bullet rests on the imports counted above and on that one record,
+  and on no other run.
   A Windows port is deferred to a later version (owner decision,
   2026-10-15).
 - Real Git on `PATH` after the wrapper,
@@ -2325,6 +2350,20 @@ Every Git command whose paths lie under that repository link,
 its approved root or the renamed old copy is checked the same way first,
 and a link that is not usable stops it with that message and status 128 before Git prints its own error;
 with the file absent the check costs one failed open.
+A file that is there and cannot be used does not stop the command:
+the wrapper says so on standard error,
+once for that command.
+The entry gate and the startup step each read the file and neither reads the other's answer,
+so the reason that was said is kept for the process (`SAID_WHY` in `repository_link_gate.rs`)
+and said again only when a second reading gives a different reason,
+which is a second fault and reads as one.
+A process of the wrapper is one command,
+so once for a process is once for a command.
+The processes here that answer more than one command,
+the commit service and the clone mount handler's modes,
+never say that sentence:
+`main.rs` chooses each of them before the wrapper's entry runs,
+and nothing of them reads the identity file.
 
 The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
  (so `-C`,
@@ -3312,6 +3351,15 @@ a commit that normalization emptied) ends with the hint.
 The rejections that already carry their own alternatives (`require-root`,
 `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
+The `final-newline` finding says what corrects the file where the finding is made:
+an `add` and `git monochromatic-git-policy-cli check` name the commit's correction,
+ which happens while the settings keep `final-newline` on,
+ and `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now;
+a commit whose selection is read-only (`-p`,
+ `-i`,
+ `--include`),
+ a landed commit and a pushed commit say to edit the file,
+ because nothing corrects bytes that are already recorded.
 `src/native/policy/event_hints.rs` holds the texts,
 and its tests fail when a finding code or an engine failure code has no hint.
 
@@ -3429,7 +3477,8 @@ The rule is:
 The guard reads the command Git will run,
 not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
-up to 16 expansions,
+up to 64 expansions,
+and a chain longer than that is left to Git as a command the wrapper could not read,
 the decision is taken on the expansion,
 and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
 `git config --null --list` decides which value Git keeps when both spellings of one alias are set,
@@ -3450,16 +3499,22 @@ and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
 One plain form of it is read,
 only so the guard can decide:
-a value written `!git <words>` whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
-and whose words name no global option of their own.
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
+whose own words name no global option,
+and whose first word after the `!` and any blanks is `git`.
+A blank there is a space or a TAB,
+so `! git reset --hard` and a TAB after `!git` are read as `!git reset --hard` is.
 Git appends your own words to that value,
 so `-c 'alias.wipe=!git' wipe reset --hard` is refused where `git reset --hard` is,
-and so is `-c 'alias.wipe=!git reset --hard' wipe`.
+and so is `-c 'alias.wipe=!git reset --hard' wipe`;
+those words may begin with a global option,
+and a value whose own words name another `!` alias is followed through the
+shells it starts,
+up to four of them.
 Every other shell alias runs as Git runs it,
 with no guard:
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
@@ -4706,7 +4761,8 @@ two edits of different arguments of one call become one call with both edits.
 Nothing either side added is dropped,
 and no line both sides kept is dropped,
 and the parts are listed so you can check them.
-A region both sides only deleted lines from resolves to the lines both sides kept:
+A region both sides only deleted lines from resolves to the lines both sides kept,
+when the base writes each of its lines there once:
 a file that holds one record per line is merged as the union of the two deletions,
 which the word level alone cannot give,
 because it pairs one side's deleted line with the other side's kept line and keeps it
@@ -4725,6 +4781,26 @@ while the other side left it as it was,
 keeps both sides instead,
 so you resolve it;
 a merge that writes only the copies that side still holds is right and resolves.
+An answer that holds more copies of a line than the two sides leave keeps both sides as well,
+at most as many as the side that holds fewer of them holds
+while neither side wrote more copies of that line than the base held,
+which covers a region where one side also wrote a line:
+a copy that side wrote lifts the bound of that one line and no other.
+That bound is the answer's,
+so no resolved file writes back a copy a side removed,
+whether the region it sits in deleted lines only or wrote a line as well.
+A base line written twice is where the word level cannot tell which copy a side deleted,
+so a region both sides only deleted lines from keeps both sides as well
+when its answer would hold its lines in an order one side does not hold them in,
+which no union of the two deletions does.
+That is the shape a file of one record per line reaches when it writes one record more than once:
+the words are merged rather than the records,
+so an answer that writes a record back would land with no marker for you to read.
+Two sides that each wrote more copies of one line than the base held are not judged by that bound:
+no count over the two sides is right there,
+and such a merge resolves as the word pass writes it.
+A file the bound refuses keeps both sides of every region the two sides disagree about,
+so the answer it refused never lands without a marker.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
@@ -5329,6 +5405,9 @@ Listing one with a severity is the only way to turn it on,
   never from the worktree.
   Files below `dist/final/node/` or `bundle/node/` are also exempt,
   as generated output.
+  A commit that may correct the file corrects its ending itself;
+  an `add` and a direct check stage the bytes and warn,
+  so their hint names the commit's correction and the `fix` command.
 - `markdown/autofix`:
    default `warn`.
   Runs the linked `monochromatic-lint` fix engine over staged Markdown inside the commit,

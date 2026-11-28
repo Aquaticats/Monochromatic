@@ -291,11 +291,15 @@ impl StopReport {
     }
 
     /// What:
-    /// `pub(crate) fn headline(&self) -> String` is the opening clause of a refusal of a scope that did not read as empty.
+    /// `pub(crate) fn headline(&self) -> String` is the opening clause of a refusal of a scope that did not read as empty:
+    /// the one fact about the listing that explains the refusal,
+    /// and nothing the sentence after it says again.
     /// Why:
-    /// The clause and the sentence after it are one message,
-    /// and the clause must name only what the listing found (issue 6528's review,
-    /// Medium 1).
+    /// The clause and the sentence are one message a person reads,
+    /// so a fact said in both is a fact the reader has to reconcile (issue 6528's reviews,
+    /// Medium 1 and Low 1).
+    /// The member cases are worded as what was read,
+    /// never as a claim about a scope the read never reached.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -305,24 +309,23 @@ impl StopReport {
         return match self.leftover() {
             Leftover::Writer => "a member of the scope could not be shown stopped".to_string(),
             Leftover::NoWriter => {
-                "the scope did not read as empty, and no member it listed can still write".to_string()
+                "every group of the scope was read, and no member it listed can still write"
+                    .to_string()
             }
             Leftover::Nothing => {
-                "the scope did not read as empty, and it listed no member of the scope or of any group below it"
-                    .to_string()
+                "every group of the scope was read, and none of them listed a member".to_string()
             }
             Leftover::ScopeGone => {
-                "the scope did not read as empty, and its directory was gone when its members were read"
-                    .to_string()
+                "the scope's directory was gone when its members were read".to_string()
             }
             Leftover::Unreadable => match &self.listing {
                 Listing::Unreadable(read, _reason) if !read.is_empty() => {
-                    "the scope did not read as empty, and its members could not all be read".to_string()
+                    "only some of the scope's members could be read".to_string()
                 }
-                _other => "the scope did not read as empty, and its members could not be read".to_string(),
+                _other => "the scope's members could not be read".to_string(),
             },
             Leftover::Cut => format!(
-                "the scope did not read as empty, and its members could not all be read within {LISTING_BOUND:?}"
+                "the listing of the scope's members stopped at its own bound of {LISTING_BOUND:?}"
             ),
         };
     }
@@ -330,7 +333,9 @@ impl StopReport {
     /// What:
     /// `pub(crate) fn sentence(&self, scope: &Path) -> String` is the report as one clause of a refusal.
     /// Why:
-    /// The refusal of a run that cannot be settled must say how long it waited and what it was waiting for,
+    /// The refusal of a run that cannot be settled must say how long it waited for the kernel's word,
+    /// what that word was,
+    /// and what the listing read,
     /// in words that tell an exited member from a live one,
     /// and must not state a wait that was not the wait.
     ///
@@ -360,24 +365,41 @@ impl StopReport {
             Some(false) => "the kernel last reported it empty",
             None => "its group could not be read",
         };
+        // What:     `let listing: String = self.listing_text()` is what the listing read, or nothing when the opening clause says it all.
+        // Why:      A scope that listed no member and a kernel that never reported it empty are the whole story in those two clauses.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const listing = this.listingText();
+        // ```
+        let listing: String = self.listing_text();
+        if listing.is_empty() {
+            return format!(
+                "the stop of {} waited {:?} for the kernel to report it empty; {population}",
+                scope.display(),
+                self.waited
+            );
+        }
         return format!(
-            "the stop of {} waited {:?} for it to be empty; {population}, and {}",
+            "the stop of {} waited {:?} for the kernel to report it empty; {population}, and {listing}",
             scope.display(),
-            self.waited,
-            self.listing_text()
+            self.waited
         );
     }
 
     /// What:
-    /// `fn listing_text(&self) -> String` is what the listing found,
-    /// in the words that follow the kernel's word.
+    /// `fn listing_text(&self) -> String` is what the listing read,
+    /// in the words that follow the kernel's word,
+    /// or nothing when the opening clause already says it.
     /// Why:
     /// Three different findings would otherwise read the same:
     /// no member was left to name,
     /// a listing could not be read,
     /// and a listing was cut at its bound.
-    /// A scope the manager had already removed is the one case where nothing of the run is left to wait for,
-    /// so that clause also says what became of the run's journal and what a run that cannot show what this one left prints next.
+    /// Each of those is said once across the opening clause and this one,
+    /// and a scope the manager had already removed says why the absence it read is not the manager's doing.
+    /// What became of the run's journal is said by the refusal that keeps it (`journal_recover::KEPT_JOURNAL`),
+    /// because a stop of a bare process group keeps the same journal and has no scope to name.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -385,27 +407,20 @@ impl StopReport {
     /// ```
     fn listing_text(&self) -> String {
         return match &self.listing {
-            Listing::Read(members) if members.is_empty() => {
-                "it listed no member of the scope or of any group below it".to_string()
-            }
+            Listing::Read(members) if members.is_empty() => String::new(),
             Listing::Read(members) => named_members(members),
-            Listing::Cut(members) if members.is_empty() => format!(
-                "the listing of its members was cut at its own bound of {LISTING_BOUND:?} before one was read"
-            ),
-            Listing::Cut(members) => format!(
-                "the listing of its members was cut at its own bound of {LISTING_BOUND:?} after {}",
-                named_members(members)
-            ),
+            Listing::Cut(members) if members.is_empty() => "no member was read".to_string(),
+            Listing::Cut(members) => named_members(members),
             Listing::ScopeGone => {
-                "its directory was gone when its members were read, so none of its members was read (the manager removes the directory of a scope its last member has left, so no member of it is left to stop); the journal of this run was kept, and the next run of this workspace settles it by itself once it reads the recorded scope gone; a run that cannot show what this run left says so, names the journal, and prints the `cargo-shadow acknowledge <journal directory>` command to run once every process or worker of this run that can modify the workspace has stopped".to_string()
+                "no member was read (the manager removes the directory of a scope its last member has left, but a directory that is gone also matches a scope that was never made, and the stop did not verify that it still sees the parent as it did when the scope was planned)".to_string()
             }
             Listing::Unreadable(read, reason) if read.is_empty() => {
-                format!("its members could not be read ({reason})")
+                format!("the read failed ({reason})")
             }
             // What: the members the read reached before it failed are named, so a live writer it already found is not lost.
             // Why:  "its members could not be read" with a member it did read would read as a scope that listed nothing.
             Listing::Unreadable(read, reason) => format!(
-                "its members could not all be read ({reason}), and before that {}",
+                "the read failed ({reason}), and before that {}",
                 named_members(read)
             ),
         };

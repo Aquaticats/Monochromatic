@@ -8,11 +8,15 @@
 //!  and every other mode is reached through the words
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
 //!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
-//!  "Choice 1: what selects a root mode").
+//!  "Choice 1:
+//! what selects a root mode").
 //!  A list of forbidden spellings can only be as complete as the spellings
 //!  someone thought of,
 //!  so the module's whole code text is pinned line for line:
-//!  any line added, removed, reordered, reworded or re-spelled fails here.
+//!  any line added,
+//! removed,
+//! reordered,
+//! reworded or re-spelled fails here.
 //!  The four assertions beside the pin hold what a text pin cannot see:
 //!  which file the crate compiles as that module,
 //!  what its declaration stands under,
@@ -35,19 +39,27 @@ use std::path::Path;
 /// The one module allowed to read the name this program was started under.
 const NAMES_SOURCE: &str = include_str!("../worktree_clone_mount_handler/root_mode_names.rs");
 
-/// The file that declares that module, and so decides which file the crate compiles as it.
+/// The file that declares that module,
+/// and so decides which file the crate compiles as it.
 const HANDLER_MODULE_SOURCE: &str = include_str!("../worktree_clone_mount_handler/mod.rs");
 
-/// The crate root, which declares the folder the pinned module lives in.
+/// The crate root,
+/// which declares the folder the pinned module lives in.
 const CRATE_ROOT_SOURCE: &str = include_str!("../lib.rs");
 
-/// The paths module, read as text: its `ZEDLET_INSTALL_PATH` is one of the two spellings this
+/// The paths module,
+/// read as text:
+/// its `ZEDLET_INSTALL_PATH` is one of the two spellings this
 /// guard ties to the pinned start name.
 const INSTALL_PATHS_SOURCE: &str =
     include_str!("../worktree_clone_mount_handler/handler_install_paths.rs");
 
-/// `root_mode_names.rs`'s code text, whole and in order: comments cut, blanks trimmed.
-/// A change to any line here is a change to what the module decides, so the pin and the code
+/// `root_mode_names.rs`'s code text,
+/// whole and in order:
+/// comments cut,
+/// blanks trimmed.
+/// A change to any line here is a change to what the module decides,
+/// so the pin and the code
 /// change in one commit.
 const NAMES_CODE: &[&str] = &[
     "use std::ffi::{",
@@ -119,7 +131,8 @@ const NAMES_CODE: &[&str] = &[
     "}",
 ];
 
-/// The module is the reviewed text, whole.
+/// The module is the reviewed text,
+/// whole.
 #[test]
 fn the_one_start_name_is_written_in_one_place() {
     assert_whole_line_comments_only("root_mode_names.rs", NAMES_SOURCE);
@@ -147,12 +160,17 @@ fn the_one_start_name_is_written_in_one_place() {
 }
 
 /// What a declaration of one module in a source stands under:
-/// whether the file declares it exactly once, and the attribute lines immediately above that
-/// declaration, squeezed.
+/// whether the file declares it exactly once,
+/// and the attribute lines immediately above that
+/// declaration,
+/// squeezed.
 /// Why the attributes are read rather than the whole file:
-///  a `#[path]` beside a declaration makes a different file the compiled module, so the pin above
+///  a `#[path]` beside a declaration makes a different file the compiled module,
+/// so the pin above
 ///  would keep passing the old one;
-///  and the attribute run, not the file, is the thing that decides which file a `mod` names,
+///  and the attribute run,
+/// not the file,
+/// is the thing that decides which file a `mod` names,
 ///  which is why `lib.rs`'s own `#[path]` on another module is allowed to stand.
 fn declaration_run(
     source: &str,
@@ -192,7 +210,8 @@ fn declaration_run(
 }
 
 /// The pinned file is the file the crate compiles as that module,
-/// because a `#[path]`, a `#[cfg_attr]` or a second declaration would make a different file the
+/// because a `#[path]`,
+/// a `#[cfg_attr]` or a second declaration would make a different file the
 /// module while the pin above kept passing the old one.
 #[test]
 fn the_pinned_module_is_the_module_the_crate_compiles() {
@@ -208,7 +227,8 @@ fn the_pinned_module_is_the_module_the_crate_compiles() {
     );
 }
 
-/// The folder itself is declared once, under the one attribute that makes it a Linux build's.
+/// The folder itself is declared once,
+/// under the one attribute that makes it a Linux build's.
 #[test]
 fn the_handler_folder_is_declared_once_and_under_its_one_attribute() {
     let (declarations, run): (usize, String) =
@@ -236,7 +256,9 @@ fn the_words_first_word_is_the_programs_own_name() {
 
 /// The installed ZED path's file name is the one start name the module compares,
 /// so an install and the dispatch cannot drift apart.
-/// The path is read as text, not imported, because the folder it lives in is a Linux build's and
+/// The path is read as text,
+/// not imported,
+/// because the folder it lives in is a Linux build's and
 /// this guard runs on every developer's machine.
 #[test]
 fn the_installed_zedlet_path_carries_the_one_start_name() {

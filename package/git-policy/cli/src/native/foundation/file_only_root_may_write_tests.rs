@@ -9,7 +9,8 @@
 //!  The handler's configuration names the datasets root acts on,
 //!  so each term of the reader is a way an account could choose them;
 //!  every control here is reachable as an ordinary account,
-//!  and the positive control proves the reader can answer, not only refuse
+//!  and the positive control proves the reader can answer,
+//! not only refuse
 //!  (`file_only_root_may_write`).
 //!
 //! In TS you'd write (pseudocode):

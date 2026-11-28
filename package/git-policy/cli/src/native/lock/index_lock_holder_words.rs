@@ -16,6 +16,13 @@ use crate::process_start::{
     ProcessStart,
     resolve_process_start,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 
 /// What:
 ///  The program name of a process,
@@ -54,6 +61,9 @@ fn program_of(pid: i64) -> Option<String> {
 /// start time and the command that ends the process can decide in
 ///  seconds;
 /// the wrapper itself never ends a process or removes a lock whose holder runs.
+///  The program's name is another program's text,
+///  so it is shown escaped for the parentheses around it,
+///  and a name holding an escape or a line break cannot act on the line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +93,11 @@ pub fn holder_way_out(
         ProcessStart::Unknown(_) => String::from("start time unknown"),
     };
     return format!(
-        "The holder is PID {pid} ({program}), {started}; if it is stuck, `kill {pid}` ends it and Git removes its lock, and a commit still waiting then lands.\n"
+        "The holder is PID {pid} ({}), {started}; if it is stuck, `kill {pid}` ends it and Git removes its lock, and a commit still waiting then lands.\n",
+        shown_so_it_cannot_rewrite_the_line(
+            program.as_str(),
+            TheWrappingAroundTheName::Parentheses
+        )
     );
 }
 
@@ -148,3 +162,8 @@ pub fn partial_summary(reasons: &[String]) -> String {
     }
     return parts.join("; ");
 }
+
+/// Controls of the holder sentence stay out of the release executable.
+#[cfg(test)]
+#[path = "index_lock_holder_words_tests.rs"]
+mod tests;

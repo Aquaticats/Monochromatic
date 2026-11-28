@@ -7,6 +7,14 @@ on branch
 from `main` `2939b47565`.
 Not approved and not final.
 
+The paths this record quotes are the ones it was captured with.
+`refactor/cargo-shadow-cli-lib-rs-is-under-the-line-budget-with-room-for-the-modules-to-come` (2026-11-27)
+moved both controls from the crate root beside the modules they test,
+so the same tests are now
+`journal::journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` and
+`journal_recover::journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`,
+and the captured lines below are kept as captured.
+
 ## What failed, and why
 
 `journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory named

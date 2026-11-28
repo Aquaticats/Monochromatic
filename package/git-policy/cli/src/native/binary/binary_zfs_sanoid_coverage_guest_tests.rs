@@ -4,22 +4,27 @@
 //!  an exclusion's section order,
 //!  the `recursive = zfs` control,
 //!  the retention prune,
-//!  each drift's finding and printed correction, and the space guard's scope,
+//!  each drift's finding and printed correction,
+//! and the space guard's scope,
 //!  measured against a real file-backed pool with Sanoid 2.3.0 and the
 //!  Ubuntu package's 2.2.0 beside it.
 //! Why:
 //!  The section-order effect and the exclusion are behaviours of Sanoid
-//!  itself, not of this crate,
+//!  itself,
+//! not of this crate,
 //!  so only a real Sanoid run on a real dataset tree shows them,
 //!  and the project's 2.3.0 measurements needed the 2.2.0 guest's result
 //!  beside them
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 20,
 //!  "VM measurements";
-//!  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`, item 4).
+//!  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`,
+//! item 4).
 //!  The arm prints `SKIP` where `CLI_GIT_ZFS_SANOID_GUEST` does not name the
 //!  guest,
-//!  and it creates every pool, dataset, property and configuration it reads
+//!  and it creates every pool,
+//! dataset,
+//! property and configuration it reads
 //!  under one fixture folder,
 //!  so a run leaves the guest as it found it and this machine is never
 //!  touched.
@@ -200,7 +205,8 @@ struct Pool {
 }
 
 impl Pool {
-    /// A file-backed pool, so no device of the guest is touched.
+    /// A file-backed pool,
+    /// so no device of the guest is touched.
     /// Nothing is destroyed first:
     /// the pool's name and the fixture folder carry the process's number,
     /// so a repeat run in one guest shares no dataset and no configuration.

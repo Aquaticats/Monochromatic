@@ -5,17 +5,22 @@
 //!  a verdict file the helper writes the sentences it failed with,
 //!  and a bounded wait on both.
 //! Why:
-//!  A handler, a signal disposition and a recorded stop belong to a process,
+//!  A handler,
+//! a signal disposition and a recorded stop belong to a process,
 //!  and a crate's tests run as threads of one process,
 //!  so a control that installs one or leaves one set reaches every other control of a threaded run
-//!  (`process/signal_relay_tests.rs`, `service/service_client_interrupted_tests.rs`, issue 6463).
-//!  Written once here, every such control answers the same way:
+//!  (`process/signal_relay_tests.rs`,
+//! `service/service_client_interrupted_tests.rs`,
+//! issue 6463).
+//!  Written once here,
+//! every such control answers the same way:
 //!  the helper reports every check instead of panicking,
 //!  so the verdict always exists and a parent never waits for a file a panic kept from being written,
 //!  and every wait is bounded,
 //!  so a helper that hangs fails its control within the step timeout instead of holding the whole run.
 //! Gotcha:
-//!  The variable holds a directory, so the helper body is entered by the same test function:
+//!  The variable holds a directory,
+//! so the helper body is entered by the same test function:
 //!  `helper_directory` there answers the fixture and the body runs,
 //!  and in the parent it answers nothing and the control starts the helper.
 //!
@@ -60,7 +65,9 @@ const LOOK_EVERY: Duration = Duration::from_millis(10);
 ///  `fn helper_directory(variable: &str) -> Option<PathBuf>` answers the fixture directory when this process is the helper
 ///  `variable` names,
 ///  and nothing in the control that started it.
-///  `Option<PathBuf>` is "a path or nothing" (sibling: `PathBuf`, which needs a second value to say "none").
+///  `Option<PathBuf>` is "a path or nothing" (sibling:
+/// `PathBuf`,
+/// which needs a second value to say "none").
 /// Why:
 ///  The helper body is the same test function as the control,
 ///  so the variable is what tells the two apart,
@@ -78,7 +85,10 @@ pub(crate) fn helper_directory(variable: &str) -> Option<PathBuf> {
 /// What:
 ///  `fn verdict_in_a_helper(directory: &Path, failures: Vec<String>) -> i32` writes the helper's verdict and answers the
 ///  exit status the helper ends with.
-///  `i32` is a 32-bit signed integer (siblings: `u32`, `i64`), which is the shape a process exit status has.
+///  `i32` is a 32-bit signed integer (siblings:
+/// `u32`,
+/// `i64`),
+/// which is the shape a process exit status has.
 /// Why:
 ///  The parent reads the sentences,
 ///  and a status that agrees with them means a parent that read only one of the two still learns the answer.

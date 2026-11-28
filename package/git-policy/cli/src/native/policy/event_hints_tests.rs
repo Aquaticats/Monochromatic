@@ -12,6 +12,7 @@
 //! ```
 
 use super::{
+    CommitCorrection,
     SELF_HINTED,
     finding_hint,
     manual_push_failure_hint,
@@ -34,7 +35,8 @@ use crate::policy_root_context::ROOT_CONTEXT_CODE;
 use crate::rule_add_explicit::BULK_ADD_CODE;
 
 /// Every finding code of every policy has a hint,
-/// or its message carries its own and is listed as self-hinted.
+/// or its message carries its own and is listed as self-hinted,
+///  whatever a commit does with the bytes it names.
 #[test]
 fn every_finding_code_has_a_hint_or_its_own() {
     let hinted: [(&str, &str); 14] = [
@@ -58,29 +60,96 @@ fn every_finding_code_has_a_hint_or_its_own() {
     ];
     for (policy, code) in hinted {
         for fix_available in [false, true] {
-            let hint: &str = finding_hint(policy, code, fix_available)
-                .unwrap_or_else(|| panic!("{policy}/{code} (fix {fix_available}) has no hint"));
-            assert!(hint.starts_with("Hint: "), "{policy}/{code}: {hint}");
+            // What: every answer a finding can carry about a commit, so a new case cannot print nothing.
+            // Why:  the hint is chosen from both facts, and a case without words would leave the person guessing.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // for (const correction of [undefined, 'corrects', 'records']) { /* ... */ }
+            // ```
+            for commit_correction in [
+                None,
+                Some(CommitCorrection::Corrects),
+                Some(CommitCorrection::Records),
+            ] {
+                let hint: &str = finding_hint(policy, code, fix_available, commit_correction)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{policy}/{code} (fix {fix_available}, commit {commit_correction:?}) has no hint"
+                        )
+                    });
+                assert!(hint.starts_with("Hint: "), "{policy}/{code}: {hint}");
+            }
         }
     }
     for (policy, code) in SELF_HINTED {
         assert_eq!(
-            finding_hint(policy, code, false),
+            finding_hint(policy, code, false, None),
             None,
             "{policy}/{code} would get two hints"
         );
     }
-    assert_eq!(finding_hint("final-newline", "unknown", false), None);
+    assert_eq!(finding_hint("final-newline", "unknown", false, None), None);
 }
 
-/// The final-newline hint differs by whether a correction exists,
-/// and names the direct fix only when it does.
+/// The three cases of the final-newline finding say what corrects the file there,
+///  and only the case nothing corrects tells the person to edit it.
 #[test]
-fn the_final_newline_hint_follows_the_availability_of_a_fix() {
-    let with: &str = finding_hint("final-newline", FINAL_NEWLINE_CODE, true).expect("hint");
-    let without: &str = finding_hint("final-newline", FINAL_NEWLINE_CODE, false).expect("hint");
-    assert!(with.contains("git monochromatic-git-policy-cli fix"));
-    assert!(!without.contains("git monochromatic-git-policy-cli fix"));
+fn the_final_newline_hint_says_what_corrects_the_file() {
+    let here: &str = finding_hint(
+        "final-newline",
+        FINAL_NEWLINE_CODE,
+        true,
+        Some(CommitCorrection::Corrects),
+    )
+    .expect("hint");
+    let by_the_commit: &str = finding_hint(
+        "final-newline",
+        FINAL_NEWLINE_CODE,
+        false,
+        Some(CommitCorrection::Corrects),
+    )
+    .expect("hint");
+    let nothing: &str = finding_hint(
+        "final-newline",
+        FINAL_NEWLINE_CODE,
+        false,
+        Some(CommitCorrection::Records),
+    )
+    .expect("hint");
+    // What: a lifecycle that corrects the bytes itself, and one whose bytes a commit corrects, both name the fix.
+    // Why:  those two cases share the promise that a commit fixes the ending, and the second adds the condition
+    //       under which it does.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const hint of [here, byTheCommit]) expect(hint).toContain('git monochromatic-git-policy-cli fix');
+    // ```
+    for hint in [here, by_the_commit] {
+        assert!(
+            hint.contains("git monochromatic-git-policy-cli fix -- <path>"),
+            "{hint}"
+        );
+        assert!(!hint.contains("edit it"), "{hint}");
+    }
+    assert!(here.contains("a commit corrects the ending"), "{here}");
+    assert!(
+        by_the_commit.contains("a commit that takes it corrects the ending"),
+        "{by_the_commit}"
+    );
+    // What: the case nothing corrects is the only one that tells the person to edit the file.
+    // Why:  an `add` was told exactly that about a file the next commit corrected, which is issue 6627.
+    assert!(nothing.contains("edit it"), "{nothing}");
+    assert!(!nothing.contains("corrects the ending"), "{nothing}");
+    // What: the three cases are three different sentences, so nothing printed reads as another case's promise.
+    // Why:  one text reused would tell a person the wrong thing at one of the lifecycles.
+    assert_ne!(here, by_the_commit);
+    assert_ne!(by_the_commit, nothing);
+    assert_ne!(here, nothing);
+    assert_eq!(
+        nothing,
+        finding_hint("final-newline", FINAL_NEWLINE_CODE, false, None).expect("hint")
+    );
 }
 
 /// Every cause of a manual-push discovery failure is listed here,

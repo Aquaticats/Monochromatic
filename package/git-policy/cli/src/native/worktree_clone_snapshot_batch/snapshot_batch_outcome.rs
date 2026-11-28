@@ -1,5 +1,6 @@
 //! What:
-//!  What one snapshot-destroy request did, kept whole:
+//!  What one snapshot-destroy request did,
+//! kept whole:
 //!  every submitted name's
 //!  outcome in request order,
 //! the kernel's per-name list exactly as it answered,
@@ -11,7 +12,8 @@
 //! so both travel together and a caller never reconstructs one
 //!  from the other
 //! (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-//!  "Removal and recovery", step 3;
+//!  "Removal and recovery",
+//! step 3;
 //!  `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 //!  "The states").
 //!

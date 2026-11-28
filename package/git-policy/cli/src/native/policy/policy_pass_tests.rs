@@ -124,6 +124,7 @@ fn not_at_root() -> PolicyEvent {
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
 }
 

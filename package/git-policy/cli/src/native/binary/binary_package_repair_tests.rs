@@ -210,7 +210,9 @@ fn fake_mpm_shadow(fixture: &Fixture) {
 /// Why:
 ///  Every install of this release answers only for the names the worktree's own lock declares,
 ///  so such a record stayed stale on every try:
-///  the relink was retried, given up on, and left a notice telling the person to run an install that answers the same way.
+///  the relink was retried,
+/// given up on,
+/// and left a notice telling the person to run an install that answers the same way.
 ///  The record the lock declares is the one the install rewrote,
 ///  which this control reads to show the copy was not simply the only record there.
 ///
@@ -278,7 +280,8 @@ const PNPM_ATTEMPT_PATIENCE: Duration = Duration::from_secs(30);
 ///  Wait until the tool's record holds `count` lines.
 /// Why:
 ///  A repair whose tool failed is answered with a retry,
-/// and the service tries it again only when the record's claim lease ends (`CLAIM_LEASE`, 120 seconds),
+/// and the service tries it again only when the record's claim lease ends (`CLAIM_LEASE`,
+/// 120 seconds),
 /// for up to `MAX_TRIES` tries.
 /// A control about the hand-over reads the first attempt,
 /// so it waits for that attempt's record and not for the repair to settle.
@@ -476,7 +479,8 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
 /// and a tool that fails is the service's line,
 /// not the add's.
 /// What this control reads is that first run:
-/// a failed tool is answered with a retry the code bounds at the record's claim lease (`CLAIM_LEASE`, 120 seconds) for up to
+/// a failed tool is answered with a retry the code bounds at the record's claim lease (`CLAIM_LEASE`,
+/// 120 seconds) for up to
 /// `MAX_TRIES` tries,
 /// so waiting for the repair to settle would read the retries,
 /// and the control waits for the first attempt's record instead (`wait_for_pnpm_runs`).

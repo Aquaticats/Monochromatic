@@ -91,7 +91,8 @@ const MEBIBYTE: u64 = 1 << 20;
 /// in mebibytes.
 const MOST_MEBIBYTES: u64 = 1 << 16;
 
-/// How long a service may take to end by itself, for the control whose subject is that end.
+/// How long a service may take to end by itself,
+/// for the control whose subject is that end.
 /// Why:
 ///   The service ends within a millisecond of binding where it has no worker to accept on (measured on this host),
 /// so this bound is thousands of those;
@@ -212,7 +213,8 @@ struct Case {
     /// so it holds nothing the recovery's service wrote.
     limited_log: String,
     /// What the service wrote while the recovery ran:
-    /// the log after the recovery, less what the limited attempt's service had written.
+    /// the log after the recovery,
+    /// less what the limited attempt's service had written.
     recovery_log: String,
     /// How the limited service ended,
     /// for the control that says it ended,
@@ -312,11 +314,13 @@ fn commits_of_the_branch(
 }
 
 /// What:
-///  What the fixture's service log holds now, as the file has it:
+///  What the fixture's service log holds now,
+/// as the file has it:
 ///  evidence for a person reading why the case failed,
 ///  and never what a verdict rests on.
 /// Why:
-///  A copy runs on a thread of its own, so the file holds what a service wrote only once that thread has written it,
+///  A copy runs on a thread of its own,
+/// so the file holds what a service wrote only once that thread has written it,
 /// and the end of the copy is an event this control does not need to wait for when it decides nothing.
 ///  Every service of a fixture appends to this one file,
 /// so a read made before the recovery runs holds the limited attempt's words alone,
@@ -329,7 +333,8 @@ fn the_service_log_of(fixture: &Fixture) -> String {
 
 /// What:
 ///  The part of the fixture's service log that the service of the recovery run wrote:
-///  the log after the recovery, less what the limited attempt's service had written.
+///  the log after the recovery,
+/// less what the limited attempt's service had written.
 /// Why:
 ///  Both services append to one file,
 /// so the recovery's successful commit would otherwise be read as the limited attempt's outcome,
@@ -969,7 +974,8 @@ fn a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_
 /// so a failure that keeps it is settled without a rerun,
 /// and the sweep runs
 ///  several cases at once so the inherited stream alone says nothing about which case wrote it.
-///  The copy of that stream runs on a thread of its own, so this control ends the service and waits for the copy's
+///  The copy of that stream runs on a thread of its own,
+/// so this control ends the service and waits for the copy's
 ///  end before it reads:
 ///  the words are then an event and not a race with a thread,
 ///  and a copy that missed its bound fails here by name instead of letting a failure carry nothing.
@@ -995,7 +1001,8 @@ fn a_failure_carries_what_the_fixture_service_logged() {
 }
 
 /// How long one wait for the log's copies is let run in the controls that hold a copy open:
-/// short, because the copy they hold cannot end in it,
+/// short,
+/// because the copy they hold cannot end in it,
 /// and a wait is judged by what it answers and not by how long it waited.
 const A_WAIT_GIVES_UP_AFTER: std::time::Duration = std::time::Duration::from_millis(150);
 
@@ -1011,8 +1018,10 @@ const TWO_WAITS: usize = 2;
 /// `true` says every copy of the service's words has ended,
 /// so a read that decides anything may trust the file.
 ///  A wait that empties the list and gives up would make every later answer `true` for a copy still running,
-/// which is the read of a channel taken for an event again, one level up.
-///  The test holds the writing end of one copy here, so the copy can end only when the test closes it,
+/// which is the read of a channel taken for an event again,
+/// one level up.
+///  The test holds the writing end of one copy here,
+/// so the copy can end only when the test closes it,
 /// and it closes it halfway through.
 #[test]
 fn a_wait_that_gives_up_leaves_the_copy_it_did_not_see_end_to_be_waited_for() {
@@ -1062,12 +1071,15 @@ fn a_wait_that_gives_up_leaves_the_copy_it_did_not_see_end_to_be_waited_for() {
 }
 
 /// What:
-///  Two waits on one fixture, standing at the seam together, never answer that a copy the test holds open ended.
+///  Two waits on one fixture,
+/// standing at the seam together,
+/// never answer that a copy the test holds open ended.
 /// Why:
 ///  A wait that takes every copy out of the fixture and gives up leaves nothing for the other,
 /// so the second answers `true` for a copy still running.
 ///  The two callers are released together by a barrier and not by a sleep,
-/// so whichever reaches the wait first, the answer of the other is the one this control judges.
+/// so whichever reaches the wait first,
+/// the answer of the other is the one this control judges.
 #[test]
 fn two_waits_on_one_fixture_never_answer_that_a_running_copy_ended() {
     let fixture: Fixture = fixture("log-copies-two-waits");
@@ -1139,26 +1151,40 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
 ///  An address space of each size on the wrapper,
 ///  from the smallest under which a commit lands downward (sizes in mebibytes),
 ///  and one limit above that smallest:
-///  a failed allocation ends a Rust program with an abort, whatever it was doing,
+///  a failed allocation ends a Rust program with an abort,
+/// whatever it was doing,
 ///  and the repository recovers after each.
 /// Why:
-///  The sweep's largest limit is the search's own answer, which is a whole mebibyte at most one above the size at which a
+///  The sweep's largest limit is the search's own answer,
+/// which is a whole mebibyte at most one above the size at which a
 ///  commit first lands,
 ///  so on a build whose threshold sits a few kilobytes under that mebibyte the largest case is a coin flip.
 ///  The landing this control needs is therefore asked for once more at
 ///  `mebibytes_of_the_search_step_and_one_thread_pair` above the search's answer,
 ///  where the plan leaves two workers whatever the build's mapped size is
 ///  (`runtime_plan::workers_by_address_space`),
-///  and that case carries the landing: this control asserts that the commit there landed, and not only that some case of
+///  and that case carries the landing:
+/// this control asserts that the commit there landed,
+/// and not only that some case of
 ///  the sweep did,
 ///  because a refused case above the boundary is what this control exists to catch.
-///  Measured on this host at 2026-11-15T08:39-05:00 in a scope held to `CPUQuota=400%`: the commit at the search's answer
-///  and at 1, 4, 5, 6, 7, 8 and 10 mebibytes above it landed every time, three rounds each,
+///  Measured on this host at 2026-11-15T08:39-05:00 in a scope held to `CPUQuota=400%`:
+/// the commit at the search's answer
+///  and at 1,
+/// 4,
+/// 5,
+/// 6,
+/// 7,
+/// 8 and 10 mebibytes above it landed every time,
+/// three rounds each,
 ///  so the room this control adds is one a commit lands at and not a coin flip.
-///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`, by halving over one mebibyte:
+///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`,
+/// by halving over one mebibyte:
 ///  the search answered 50 MiB while a commit first landed at 49 MiB + 180 KiB,
 ///  so the largest case of the sweep stood 180 KiB above the threshold.
-///  What it no longer proves is that the sweep's own largest case lands: the boundary is the boundary, and a case at it
+///  What it no longer proves is that the sweep's own largest case lands:
+/// the boundary is the boundary,
+/// and a case at it
 ///  may refuse on any host.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
@@ -1376,7 +1402,9 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
 
 /// What:
 ///  A service whose address-space limit leaves the runtime plan no worker ends before it accepts a connection:
-/// the limited process itself ends, by itself, with the status the program gives a service that cannot run a task it
+/// the limited process itself ends,
+/// by itself,
+/// with the status the program gives a service that cannot run a task it
 /// cannot serve without,
 /// within `SERVICE_END_BOUND` of the commit's return.
 /// No commit lands through it,
@@ -1394,18 +1422,25 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
 ///  So the search answered 118 MiB and one mebibyte below it still ran in the case's own path,
 ///  where a start whose mapped size was 8 KiB smaller needed one worker less.
 ///  That is what the integration pass of 2026-11-14 measured at its tip (`b7af79961f`):
-///  "a service under 117 MiB cannot run, so no commit can have landed through it" at a tree where the same path first
-///  landed at 117 MiB or lower, with the wrapper right in both runs.
+///  "a service under 117 MiB cannot run,
+/// so no commit can have landed through it" at a tree where the same path first
+///  landed at 117 MiB or lower,
+/// with the wrapper right in both runs.
 ///  This control sets the limit `mebibytes_of_the_search_step_and_one_thread_pair` below the size the search answers,
 ///  which is below the size at which any worker fits whatever the build's mapped size is.
-///  It proves the state it asserts on by the event itself, and not by a line:
+///  It proves the state it asserts on by the event itself,
+/// and not by a line:
 ///  a review of 2026-11-15 replaced the three `std::process::exit` of the no-worker branches with `return`,
-///  and the control passed while the service stayed alive for twenty seconds, because it read the service's own claim
+///  and the control passed while the service stayed alive for twenty seconds,
+/// because it read the service's own claim
 ///  that it ends;
-///  with the copy of the service's stream held for 250 ms it failed a service that had ended, because that claim is
+///  with the copy of the service's stream held for 250 ms it failed a service that had ended,
+/// because that claim is
 ///  copied by a thread nothing waited for.
-///  So the end is the limited process's own exit status, read from the child within the bound,
-///  and what the service wrote is carried only by a failure, to explain it.
+///  So the end is the limited process's own exit status,
+/// read from the child within the bound,
+///  and what the service wrote is carried only by a failure,
+/// to explain it.
 ///  What it no longer proves is where the boundary is:
 ///  the descriptor and address-space sweeps of this module measure the sizes,
 ///  and this control proves what the far side of the boundary does to a repository.
@@ -1464,13 +1499,16 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
 }
 
 /// What:
-///  The room one step of the search and one worker with its blocking-pool partner take, in mebibytes.
+///  The room one step of the search and one worker with its blocking-pool partner take,
+/// in mebibytes.
 /// Why:
-///  A search here answers a whole mebibyte (`MEBIBYTE`), so its answer is at most one mebibyte above the size at which the
+///  A search here answers a whole mebibyte (`MEBIBYTE`),
+/// so its answer is at most one mebibyte above the size at which the
 ///  runtime plan first leaves a worker,
 ///  and one worker and its blocking-pool partner take `THREAD_VIRTUAL_BYTES` twice
 ///  (`runtime_plan::workers_by_address_space`).
-///  A limit this far below an answer fits no worker, and one this far above a landing leaves two,
+///  A limit this far below an answer fits no worker,
+/// and one this far above a landing leaves two,
 ///  whatever the build's own mapped size is,
 ///  because the build moves the search's answer and the limit together.
 ///  So a control that needs one of those states sets its limit by this much and never by the search's step alone,
@@ -1503,16 +1541,22 @@ const BAND_STARTS: usize = 100;
 ///  for each service that had already ended.
 ///  The limit is `mebibytes_of_the_search_step_and_one_thread_pair` below the size the search answers and not one
 ///  mebibyte below it:
-///  one mebibyte below an answer is inside the search's own rounding, a few kilobytes of the build away from the
+///  one mebibyte below an answer is inside the search's own rounding,
+/// a few kilobytes of the build away from the
 ///  threshold.
-///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`, by halving over one mebibyte:
+///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`,
+/// by halving over one mebibyte:
 ///  the search answered 118 MiB while the probe's own path first greeted a client at 117 MiB + 76 KiB,
 ///  so one mebibyte below the answer stood 76 KiB under the threshold,
 ///  and a start whose mapped size was 76 KiB lighter would have greeted and failed this control with the wrapper right.
-///  Below this control's limit the plan fits no worker whatever the build's mapped size is, and the socket is still
-///  bound, because the bind comes before the plan is read.
-///  What it no longer proves is that the one mebibyte the search subtracts is itself in this state: that was the
-///  search's step, not a fact about what the service can do.
+///  Below this control's limit the plan fits no worker whatever the build's mapped size is,
+/// and the socket is still
+///  bound,
+/// because the bind comes before the plan is read.
+///  What it no longer proves is that the one mebibyte the search subtracts is itself in this state:
+/// that was the
+///  search's step,
+/// not a fact about what the service can do.
 #[test]
 fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);

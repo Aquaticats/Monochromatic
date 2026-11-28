@@ -2,7 +2,9 @@
 //!  The names a walk's sentences use and the refusal each step answers:
 //!  the two folder names below the checkout,
 //!  the slot's name as a person reads it,
-//!  and the refusal of a checkout, a component, a folder or a slot name.
+//!  and the refusal of a checkout,
+//! a component,
+//! a folder or a slot name.
 //! Why:
 //!  Every sentence a walk prints names the component it stopped at,
 //!  and the same naming is what lets a person find the folder in their own

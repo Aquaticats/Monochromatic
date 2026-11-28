@@ -90,7 +90,9 @@ fn nonce() -> RequestNonce {
         .expect("the fixture nonce reads");
 }
 
-/// The recipe removes the pointer, every name, the lock last and the directory,
+/// The recipe removes the pointer,
+/// every name,
+/// the lock last and the directory,
 /// and leaves the slot empty.
 #[test]
 fn the_recipe_empties_the_registration_and_the_slot() {

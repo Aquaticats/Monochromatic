@@ -16,7 +16,8 @@
 //!  including a dot name nobody accounted for,
 //!  because that one may be a stranger's file.
 //!  This function is reached from `doctor` alone:
-//!  no command path, handler mode or boot unit calls it.
+//!  no command path,
+//! handler mode or boot unit calls it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -19,12 +19,15 @@
 #![cfg(unix)]
 
 /// The owner a helper process is started with;
-/// this crate keeps no fixtures of its own, so it takes the one file every target takes.
+/// this crate keeps no fixtures of its own,
+/// so it takes the one file every target takes.
 #[path = "../testing/test_process_owner.rs"]
 mod test_process_owner;
 
-/// The one place a test-binary child is started, waited for with a deadline and checked for its one passing test;
-/// the same file the library's own tests use, which this target cannot reach.
+/// The one place a test-binary child is started,
+/// waited for with a deadline and checked for its one passing test;
+/// the same file the library's own tests use,
+/// which this target cannot reach.
 #[path = "../testing/child_test_process.rs"]
 mod child_test_process;
 

@@ -30,7 +30,8 @@
 /// One piece built ahead of its command,
 /// with the text each document carries for it.
 struct ReachPassage {
-    /// What the piece is, named as the release pass named it.
+    /// What the piece is,
+    /// named as the release pass named it.
     topic: &'static str,
     /// The text `SPEC.md` carries for it.
     in_spec: &'static str,

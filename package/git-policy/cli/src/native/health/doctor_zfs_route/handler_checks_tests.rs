@@ -471,7 +471,8 @@ fn a_checkout_the_handler_could_not_read_is_unknown() {
     ));
 }
 
-/// No record at all is a finding: a caller waits for nothing.
+/// No record at all is a finding:
+/// a caller waits for nothing.
 #[test]
 fn no_record_is_a_finding() {
     let facts: ReadinessFacts = ReadinessFacts::Absent {

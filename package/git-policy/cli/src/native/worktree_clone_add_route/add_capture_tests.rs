@@ -24,7 +24,10 @@ use std::path::{
     PathBuf,
 };
 
-/// A repository with a regular file, an executable, a link, and a tracked file
+/// A repository with a regular file,
+/// an executable,
+/// a link,
+/// and a tracked file
 /// the checkout deleted.
 fn a_repository(name: &str) -> PathBuf {
     let root: PathBuf = fixture(name);
@@ -57,7 +60,8 @@ fn a_repository(name: &str) -> PathBuf {
     return root;
 }
 
-/// The capture of one fixture, read fresh.
+/// The capture of one fixture,
+/// read fresh.
 fn capture_of(root: &Path) -> Capture {
     let index: Vec<u8> = std::fs::read(root.join(".git").join("index")).expect("the index");
     let mtime: std::fs::Metadata =
@@ -127,7 +131,8 @@ fn the_capture_reads_every_tracked_kind() {
     remove(root.as_path());
 }
 
-/// The capture of one fixture, with the index file's modification time moved to
+/// The capture of one fixture,
+/// with the index file's modification time moved to
 /// `seconds` so C4's set is decided by state and never by a wait.
 fn capture_with_the_index_at(
     root: &Path,

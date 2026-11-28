@@ -239,7 +239,8 @@ pub use attach_the_clone::{
     attach_the_clone,
     unmount_through_descriptor,
 };
-/// The words one attach speaks in, and the mount it made.
+/// The words one attach speaks in,
+/// and the mount it made.
 pub use attach_the_clones_words::{
     AttachCall,
     AttachRefusal,

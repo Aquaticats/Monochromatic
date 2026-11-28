@@ -2792,3 +2792,98 @@ Scratch does not survive a reboot reliably,
 and none of it is in the repository;
 the counts above are the durable record,
 and `src/native/merge/word_merge_refusals/` holds the two real shapes as controls.
+
+## 2026-11-27T16:51:13-05:00: a hunk one side also wrote a line into reads the copies bound too
+
+Recorded 2026-11-27T16:51:13-05:00.
+Unapproved and non-final:
+only the owner declares work complete.
+
+The alpha.50 release review is a same-vendor second pass over that release
+and not an independent review (rule IRW).
+Its M2 finding:
+the rule issue 6529 added judged a region only when both of its parts were runs of the base's part
+(`writes_past_the_union_of_two_deletions` in `src/native/merge/word_merge_deleted_lines.rs`),
+so a hunk in which one side also wrote a line was read by word
+and resolved as the alpha.49 pass resolved it.
+The smallest case it found
+(`merge2-minimal-with-an-added-line.json`,
+`min3`,
+in that review's scratch folder):
+base `c b b a a a a b`,
+ours `c a a a b`,
+theirs `b b b a b`;
+both releases resolved it to `b a a a b`,
+which holds three `a` where theirs holds one.
+
+### What the review's seeds say
+
+The review's own six seeds (101,
+202,
+303,
+404,
+505 and 606;
+2,300 generated cases) run through this crate's merge entry
+(`merge_by_word`)
+rather than through the released binaries:
+427 answers resolved on `main`,
+and 21 of them held more copies of a line than the two sides leave,
+judged answer by answer.
+After the change 406 resolve and no resolved answer holds more.
+
+### The rule that changed
+
+An answer of the merge holds no more copies of a line the base held than the two sides leave:
+at most as many as the side that holds fewer of them holds while neither side wrote more copies of that
+line than the base held,
+and at most as many as the side that wrote more of them holds while one side did
+(`writes_past_the_copies_the_sides_leave` in the same file).
+That bound is read for every shape,
+a region one side also wrote a line into included,
+because a copy that side wrote lifts the bound of that one line and says nothing about the others.
+A line the base never held and a line both sides wrote more copies of are not judged:
+no count over the two sides is right for either.
+The order bound stays where it was,
+over two sides that only deleted lines
+(`writes_past_what_the_sides_leave` in the same file),
+because a side that wrote a line of its own holds an order the other side does not.
+The count loop that stood beside the order bound is gone:
+for two sides that only deleted lines the order half already refuses every answer the count half refused,
+which 2,300 cases showed by not moving one verdict when the copies bound was read only where the order
+bound cannot be.
+A walk that keeps everything now keeps both sides of every region the two sides disagree about
+and not only of the regions the word pass would have merged:
+a file whose regions one side left as it was can still compose an answer past the bound
+(`del-add-seed202-00045`),
+and a refusal the walk could not carry would leave that answer in the file with no marker in it.
+
+### What it costs
+
+On the review's seeds 21 answers the merge resolved are left to the person now,
+none moves the other way,
+and no answer that moved was inside the bound.
+The shape is synthetic and unusually repetitive,
+so the count says nothing about real files.
+The pass over a file of 120,500 lines with 10,000 parts costs 1.03 times a byte-identical copy of it
+built from `main` (0.97 to 1.10 over five rounds whose arms are interleaved),
+where the two copies of one binary read 1.01 times each other (0.98 to 1.12):
+the added count is below what this host and five rounds resolve.
+
+### The pick, and the way not taken
+
+Pick (the owner's veto is open):
+the copies bound is read for every shape,
+so no answer the pass resolves holds a copy a side deleted.
+Cost:
+21 of the 2,300 seed answers stay conflicts,
+and a file whose answer breaks the bound keeps both sides of every region the two sides disagree about
+where the word pass would have settled them before.
+The other way:
+leave the code as it was and state the exception in `README.md`
+(the `SPEC.md` passage already stated it).
+Cost:
+text a side removed keeps landing with no marker in a file that writes one line twice and has an edit beside it,
+which is the loss issue 6529 exists to prevent,
+and a person cannot see which regions were judged by which rule.
+The shape is 21 of the 427 answers the review's seeds resolved,
+and nothing here measures how often real files meet it.

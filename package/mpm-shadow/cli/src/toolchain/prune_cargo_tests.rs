@@ -311,7 +311,9 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
 }
 
 /// A crate directory goes only when it is empty:
-/// whatever another run left in it, which the scan does not count as a version, is not carried away
+/// whatever another run left in it,
+/// which the scan does not count as a version,
+/// is not carried away
 /// with the directory.
 #[test]
 fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
@@ -390,7 +392,8 @@ fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
     );
 }
 
-/// A crate no lock names loses every version, so its `current` link goes before them:
+/// A crate no lock names loses every version,
+/// so its `current` link goes before them:
 /// a run killed in between leaves no link rather than one naming a version that is deleted.
 #[test]
 fn a_crate_no_lock_names_loses_its_current_link_before_its_versions() {
@@ -635,8 +638,10 @@ fn the_link_already_naming_a_newer_finished_version_is_not_moved_back() {
     );
 }
 
-/// When the version the plan keeps has been retired by another command, the link is settled rather than left:
-/// a link naming a version this run deletes must not survive the link pass, even though the guard above
+/// When the version the plan keeps has been retired by another command,
+/// the link is settled rather than left:
+/// a link naming a version this run deletes must not survive the link pass,
+/// even though the guard above
 /// refused to point it at the vanished version.
 #[test]
 fn the_link_is_settled_when_the_version_the_plan_keeps_has_vanished() {
@@ -738,7 +743,8 @@ fn a_repointing_failure_after_another_link_says_what_was_removed() {
     );
 }
 
-/// A link this run already removed is not nothing: a failure on the next crate says what went,
+/// A link this run already removed is not nothing:
+/// a failure on the next crate says what went,
 /// the way the recursive removals do.
 #[test]
 fn a_link_removal_failure_after_another_link_says_what_was_removed() {
@@ -829,7 +835,8 @@ fn the_link_removal_leaves_a_current_that_names_a_version_installed_meanwhile() 
     assert!(fs::metadata(&link).is_ok(), "and it resolves");
 }
 
-/// Sets a directory's mode, so a read of it can be made to fail.
+/// Sets a directory's mode,
+/// so a read of it can be made to fail.
 fn set_mode(
     path: &std::path::Path,
     mode: u32,
@@ -862,7 +869,8 @@ fn a_crate_directory_the_scan_cannot_read_is_an_error_and_not_an_empty_crate() {
     );
 }
 
-/// A refusal carries what the run has already removed; with nothing removed it says so instead,
+/// A refusal carries what the run has already removed;
+/// with nothing removed it says so instead,
 /// so a failure after a deletion never claims that nothing was deleted.
 #[test]
 fn a_refusal_after_a_removal_names_what_went_and_never_claims_nothing_was_deleted() {

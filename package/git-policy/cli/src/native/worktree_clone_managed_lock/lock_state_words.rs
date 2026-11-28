@@ -4,7 +4,8 @@
 //!  The design fixes the words of S1 to S8,
 //!  and a person reads them on standard error with `doctor`'s exit status unchanged
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-//!  "The states, the checks and the words",
+//!  "The states,
+//! the checks and the words",
 //!  and "Where the code goes").
 //!  The words live beside the states so no caller writes its own,
 //!  and the state S5 is printed after the lock's own line rather than instead of it.

@@ -41,7 +41,9 @@ use crate::worktree_clone_binding_record::record_publication::{
     read_inventory,
 };
 
-/// Take the checkout snapshot, publish its inventory, and move to
+/// Take the checkout snapshot,
+/// publish its inventory,
+/// and move to
 /// `snapshotted`.
 pub fn step_snapshot(
     steps: &Steps<'_>,
@@ -121,7 +123,8 @@ pub fn step_snapshot(
 ///  Take and publish the frozen capture before the snapshot,
 ///  or use the one an earlier run published.
 /// Why:
-///  The capture must predate the snapshot, so a run that finds a snapshot but no
+///  The capture must predate the snapshot,
+/// so a run that finds a snapshot but no
 ///  capture has lost the only proof its clone can be compared with.
 fn write_the_capture(
     steps: &Steps<'_>,

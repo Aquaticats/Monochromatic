@@ -74,6 +74,17 @@ use crate::crates::{
 /// import { PolicyJudge } from 'crate/install';
 /// ```
 use crate::install::PolicyJudge;
+/// The refused run's own words,
+/// so the update and the install refuse one way.
+/// Why:
+/// both keep a journal and say the same thing about it,
+/// and all that differs is the nouns of what the run would have written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { refusalOfWriters } from 'crate/install';
+/// ```
+use crate::install::refusal_of_writers;
 /// What:
 /// `use crate::journal::{KeepAs, QUARANTINE_DIR};` imports the keep rule of a displaced manifest and the folder it is kept in.
 /// Why:
@@ -261,14 +272,12 @@ pub fn update_rust_lockfiles(
         // In TS you'd write (pseudocode):
         // ```ts
         // const shortfall = transaction.writersMayRemainReason() ?? '';
-        // throw new Error(`... could not be stopped, ... ${shortfall ? ` (${shortfall})` : ''} ...`);
+        // throw refusalOfWriters('lockfiles and manifests', shortfall);
         // ```
-        let shortfall: String = match transaction.writers_may_remain_reason() {
-            Some(reason) => format!(": {reason}"),
-            None => String::new(),
-        };
-        return Err(other_text(format!(
-            "a process started by cargo could not be stopped, so it may still write the lockfiles and manifests{shortfall}; they were not rolled back or accepted, the journal of this run was kept and the next run settles it",
+        let shortfall: String = transaction.writers_may_remain_reason().unwrap_or_default();
+        return Err(other_text(refusal_of_writers(
+            "lockfiles and manifests",
+            &shortfall,
         )));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -323,3 +332,21 @@ pub fn update_rust_lockfiles(
     }
     return settle_finish(outcome, finished, recovered, restore_warnings);
 }
+
+/// What:
+/// `#[cfg(test)] mod update_tests;` declares the tests in `src/update_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the catalog update,"
+/// so the behavior of `update` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // update_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "update_tests.rs"]
+mod update_tests;

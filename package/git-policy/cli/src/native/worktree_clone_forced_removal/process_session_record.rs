@@ -15,11 +15,13 @@
 //!  session (`process::process_tree::member_read`),
 //!  so this folder reads the four fields it needs itself and the report names
 //!  the one read a later step should expose
-//!  (`process_session_record` is this folder's own, per a build-ahead round's
+//!  (`process_session_record` is this folder's own,
+//! per a build-ahead round's
 //!  rules).
 //!  A record that could not be read is kept apart from one that has gone,
 //!  because a blind read refuses a forced removal and a task that has gone does
-//!  not: "a task that has gone (`ENOENT`,
+//!  not:
+//! "a task that has gone (`ENOENT`,
 //!  `ESRCH`) is gone,
 //!  not blind;
 //!  a blind spot refuses".
@@ -61,14 +63,19 @@ pub const COMMAND_MAXIMUM_BYTES: usize = 15;
 
 /// What:
 ///  The command name one record carries,
-///  as a value rather than as text a report could concatenate unchecked.
+///  cut to the kernel's own bound and kept as the kernel holds it.
 /// Why:
 ///  The design's refusals print `(<command>)` inside a sentence,
 ///  and a command name is the one field of a record another account can choose
 ///  freely within fourteen bytes,
-///  so it is bounded and every control byte in it is escaped before it reaches a
-///  sentence
-///  (the project's `SYB` and `PRT` rules).
+///  so the record bounds it and a sentence that shows it escapes it
+///  (`AGENTS.md` rule `SYB`:
+///  text crossing a syntax boundary is encoded at its final interpolation).
+///  The escape is deliberately not here:
+///  a name escaped in the record and shown by a sentence that escapes again
+///  would read `\\x0a` where the kernel held a line feed,
+///  and the record is also what a later reader compares with the kernel's own
+///  bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,33 +83,47 @@ pub const COMMAND_MAXIMUM_BYTES: usize = 15;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommandWord {
-    /// The name with every control byte escaped and the bound applied.
+    /// The kernel's name for the process,
+    /// cut to the kernel's own bound.
     text: String,
 }
 
 impl CommandWord {
     /// What:
     ///  The kernel's name for a process,
-    ///  cut to the kernel's own bound and escaped.
+    ///  cut to the kernel's own bound.
     /// Why:
-    ///  A `comm` holding a line feed or an escape sequence would otherwise start a
-    ///  line of its own in the report and in the journal.
+    ///  A `comm` is at most fifteen bytes and a NUL,
+    ///  and a name longer than that would be a name no process can have:
+    ///  so the record keeps the bytes the kernel keeps and no more.
+    ///  The cut falls on a character boundary,
+    ///  so a name of more than one byte per character loses no half character.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const word = CommandWord.of('python3');
     /// ```
     pub fn of(comm: &str) -> CommandWord {
+        // What: the bytes the record keeps, built one character at a time.
+        // Why:  the bound counts bytes, and a character that would cross it is dropped whole.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // let kept = '';
+        // ```
         let mut kept: String = String::with_capacity(COMMAND_MAXIMUM_BYTES);
+        // What: one character of the kernel's name.
+        // Why:  each is added only if it fits, so the bound is never split inside a character.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // for (const character of comm) { if (byteLength(kept) + byteLength(character) > COMMAND_MAXIMUM_BYTES) break; kept += character; }
+        // ```
         for character in comm.chars() {
             if kept.len() + character.len_utf8() > COMMAND_MAXIMUM_BYTES {
                 break;
             }
-            if character.is_control() {
-                kept.push_str(format!("\\x{:02x}", u32::from(character)).as_str());
-            } else {
-                kept.push(character);
-            }
+            kept.push(character);
         }
         return CommandWord {
             text: kept,
@@ -113,7 +134,7 @@ impl CommandWord {
     ///  One of this wrapper's own words,
     ///  kept whole.
     /// Why:
-    ///  The bound and the escaping are for a name another account wrote,
+    ///  The bound is for a name another account wrote,
     ///  and a sentence this build wrote fits a report as it is.
     ///
     /// In TS you'd write (pseudocode):
@@ -126,8 +147,14 @@ impl CommandWord {
         };
     }
 
-    /// The escaped name,
-    /// which a sentence may hold.
+    /// What:
+    ///  The name as the kernel holds it,
+    ///  bounded.
+    /// Why:
+    ///  A sentence that shows this name must take it through
+    ///  `shown_so_it_cannot_rewrite_the_line`,
+    ///  because these bytes are the program's own and can hold an escape,
+    ///  a line feed or the character that ends the sentence's wrapping.
     pub fn text(&self) -> &str {
         return self.text.as_str();
     }
@@ -152,7 +179,11 @@ pub struct ProcessRecord {
     pub pid: i32,
     /// The kernel's name for it.
     pub command: CommandWord,
-    /// Its state letter (`R`, `S`, `D`, `Z`, ...).
+    /// Its state letter (`R`,
+    /// `S`,
+    /// `D`,
+    /// `Z`,
+    /// ...).
     pub state: char,
     /// The parent the kernel records for it.
     pub parent: i32,

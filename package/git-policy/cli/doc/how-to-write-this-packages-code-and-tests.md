@@ -7,22 +7,31 @@ and the debt that left was measured on 2026-11-25:
 two tests shared one fixture folder,
 a test's stand-in child outlived its test and held the run's output open for 45 minutes,
 and a test's signal reached its own test binary.
-The owner, that day: "So pay the debt."
+The owner,
+that day:
+"So pay the debt."
 
 This guide adds to the repository's skill for writing code in a language other than TypeScript,
 `.agents/skills/dum-dum-non-ts/SKILL.md`,
 which sets the code's shape (the simplest constructs)
-and its comments (the What, Why and Gotcha template the crate uses);
-load that skill before your first Rust edit, then write by both.
-What follows is what that skill does not cover: how this crate's tests and children behave.
+and its comments (the What,
+Why and Gotcha template the crate uses);
+load that skill before your first Rust edit,
+then write by both.
+What follows is what that skill does not cover:
+how this crate's tests and children behave.
 
 ## Tests hold as threads of one process
 
-`cargo test --lib` runs a module's tests as threads of one process, and that is how rounds run them on this host.
+`cargo test --lib` runs a module's tests as threads of one process,
+and that is how rounds run them on this host.
 The container gate runs each test in a process of its own,
 so a test that only holds alone passes the gate and fails every threaded run.
-Before you report, run each module you touched threaded
-(`cargo test --locked --offline --lib --features test-only-switches <module> -- --skip guest --skip _arm_tests`, default threads, guest arms skipped)
+Before you report,
+run each module you touched threaded
+(`cargo test --locked --offline --lib --features test-only-switches <module> -- --skip guest --skip _arm_tests`,
+default threads,
+guest arms skipped)
 and name the run's `test result` line.
 The `test-only-switches` feature is what lets a control arm a `CLI_GIT_TEST_ONLY_*` variable,
 which a build without it never reads (`foundation/test_only_switches.rs`);
@@ -32,7 +41,8 @@ and the one control that proves a release ignores the switches,
 runs in a build without it.
 A test that passes alone and fails threaded is a defect of that test until a measurement shows otherwise
 (`AGENTS.md`'s SUF);
-report its cause, never host load.
+report its cause,
+never host load.
 
 No round runs the whole library on this host.
 Measured on 2026-11-25:
@@ -48,9 +58,15 @@ Read the test's own result line before counting such a line as a failure.
 
 ## Nothing a test changes may be process-wide
 
-Threads share the process, so a test never changes the current directory, the environment, the umask,
+Threads share the process,
+so a test never changes the current directory,
+the environment,
+the umask,
 a signal's disposition or a resource limit of its own process.
-Give them to the child it starts instead (`Command::current_dir`, `env`, `env_clear`, a `pre_exec` that only calls
+Give them to the child it starts instead (`Command::current_dir`,
+`env`,
+`env_clear`,
+a `pre_exec` that only calls
 async-signal-safe functions).
 Issue 6454 removed the current-directory changes;
 keep them out.
@@ -122,7 +138,9 @@ so a control that points those handlers' review at a mock gateway hands them a r
 `with_review_runner(&OWN)`,
 and the same guard refuses a control that does not
 (issue 6500:
-two such controls of `landing::service_work`, in one process, answered `1 passed; 1 failed` in each of three runs,
+two such controls of `landing::service_work`,
+in one process,
+answered `1 passed; 1 failed` in each of three runs,
 and `2 passed; 0 failed` after the change).
 
 A control that gives this process room for blocking jobs,
@@ -355,14 +373,16 @@ so a control that names one point twice fails at its own first line instead of i
 A test takes its folder from `testing/test_support.rs`.
 `fixture(name)` names the folder `native-unit-<process id>-<the number this call took>-<name>`,
 so every call gets a folder of its own:
-before the number was there, two tests that passed one name shared one folder in one process,
+before the number was there,
+two tests that passed one name shared one folder in one process,
 and each deleted the other's live folder:
 `lock::index_writer_forward`'s two signal tests did,
 failing with `DirectoryNotEmpty` and with a `create_dir` panic at `test_support.rs:332`.
 The binary test target's own helper names its folders the same way
 (`native-binary-<process id>-<the number this call took>-<name>`,
 `binary/binary_support_fixture_directories.rs`).
-Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
+Never write a fixed path outside the fixture root (no `/tmp`,
+no shared name under the build folder).
 
 A fixture is removed through `test_support::remove`,
 which waits `REMOVAL_TRIES` pauses of `REMOVAL_PAUSE` while the tree still gains entries
@@ -405,6 +425,53 @@ and a control that hands the writing code no place of its own writes the person'
 `testing/test_support_tests.rs`'s `the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture`
 starts that code and refuses a place outside the fixture root.
 
+## A fixture commits through the standing Git, in an environment that names no session place
+
+On this machine the `git` a run's own `PATH` finds is the wrapper,
+which hands a commit to the commit service of the checkout it runs in,
+has this account's user manager start one for that checkout,
+and points the shared program link at itself as it does.
+Measured 2026-11-27 (issue 6620):
+`mise run //package/git-policy/cli:native:ts-checks` committed in four fixture checkouts,
+each at `~/temp/agent/git-policy-gate-main-tip-<random>/repo`,
+through that wrapper;
+the manager started four `monochromatic-git-policy-cli@<instance>` services for them at 14:31:32,
+and the link named release `0.6.1-alpha.44` until another wrapper command pointed it back at 14:33:15.
+The TypeScript unit tests are not a test build:
+they start a released wrapper,
+so the test-only switches the Rust controls read
+(`foundation/session_runtime_directory_and_bus_address.rs`) are in no TypeScript fixture's reach.
+
+The issue's first suggestion,
+a fixture handing its child a runtime directory of its own and no bus address,
+does not carry a commit on its own:
+a released wrapper given those two refuses the commit outright,
+with "This computer cannot start the commit service on demand,
+so this commit was not made"
+(measured the same day with release `0.6.1-alpha.44`),
+because the service is the only writer of a commit.
+So a fixture that commits starts the standing Git and never the wrapper,
+in an environment that names neither `DBUS_SESSION_BUS_ADDRESS` nor `XDG_RUNTIME_DIR`,
+and that gives a runtime directory of the fixture's own where the fixture has one to name.
+`bin/fixture-git-environment-for-tests.ts` is the one place that answers it,
+as `foundation/session_runtime_directory_and_bus_address.rs` is for the controls.
+A wrapper that found its way back onto a fixture's `PATH` then has no route to this account's manager,
+and refuses the commit in the open instead of handing it to a service the manager started for the fixture.
+
+`bin/stand-in-git-that-records-its-environment-for-tests.ts` holds it:
+it records whether a bus address reached it and which runtime directory it was given,
+and then runs the standing Git,
+so the fixture still makes the commits it asked for.
+`bin/native-gate-main-tip.unit.test.ts` gives its fixture and the command it relaunches that environment,
+puts the stand-in first on the fixture's search path,
+and reads that no bus address reached the fixture's `git`,
+that every call was given the fixture's own runtime directory,
+and that a `git --version` of the fixture names no wrapper.
+The stand-in programs of the gate,
+the scope and the install fixtures hand their children
+`environmentAFixtureChildMayInherit()` rather than `process.env`,
+so no child of those fixtures inherits either place.
+
 ## A plan a control plants comes from the removal's writer
 
 A control that needs a removal's destruction plan plants it through
@@ -442,20 +509,27 @@ and for a history that ends `destroyed`.
 
 ## Own every child, end it on every path
 
-A child a test starts is the test's to end, on success, on failure and on a panic:
-start it with `test_support::spawn_owned`, whose child is ended with the test thread's fixtures however the test ends,
+A child a test starts is the test's to end,
+on success,
+on failure and on a panic:
+start it with `test_support::spawn_owned`,
+whose child is ended with the test thread's fixtures however the test ends,
 so a failing assertion cannot leave it running.
 A control that needs a signal sent to the wrapper runs the wrapper in such a helper process
 and signals only `helper.id()`,
 as `process/signal_relay_tests.rs` does:
 `lfs::lfs_upload`'s signal control once sent `libc::kill(libc::getpid(), libc::SIGTERM)`,
-and `getpid()` is the test binary, whose signal handlers are process-wide,
+and `getpid()` is the test binary,
+whose signal handlers are process-wide,
 so it ended every thread of the run (issue 6463).
-Start a stand-in in a process group of its own, and signal only the process or group the test started and proved,
-never a group or session the test binary belongs to, never by name.
+Start a stand-in in a process group of its own,
+and signal only the process or group the test started and proved,
+never a group or session the test binary belongs to,
+never by name.
 A child must not keep the test's standard output or error open after the test:
 close or redirect the streams it does not need.
-`lfs::lfs_upload`'s `git-lfs` stand-in, which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
+`lfs::lfs_upload`'s `git-lfs` stand-in,
+which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
 is the shape that leaked.
 A helper whose state a control reads is one the control ends,
 never one that ends by itself:
@@ -485,7 +559,8 @@ and the container gate counted the test as one that leaks (issue 6501,
 `source_guard/relay_controls_own_the_child_s_group_tests.rs`).
 
 A child that is this test binary running one named test goes through `testing/child_test_process.rs`
-and nowhere else: `ChildTest` is the request (`started` hands back the running child,
+and nowhere else:
+`ChildTest` is the request (`started` hands back the running child,
 `finished` waits with a deadline and reads both pipes once the child is gone,
 `passed` adds the check that exactly one test ran and passed),
 and `testing/test_process_owner.rs` is the ownership it stands on.
@@ -505,8 +580,11 @@ The setters still refuse outside the child and name the starter,
 so a body that reached the wrong process fails at its own first line,
 which is what the two refusals in `testing/no_threads_child_test_support.rs` and
 `subvolume/subvolume_file_write_steps_sync_counts_test_support.rs` are for.
-A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
-and judges the ending itself; a child a control keeps and talks to takes `started`,
+A child whose ending is the assertion,
+such as one that dies by a signal,
+takes `finished`
+and judges the ending itself;
+a child a control keeps and talks to takes `started`,
 and its own waits carry the bounds.
 A fixture's own Git starts one more child outside any test's reach:
 `git commit` starts `git maintenance run --auto` in that repository in the background,
@@ -638,10 +716,15 @@ A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one
 (a thread with three looks in 400 ms never did).
-Code under test bounds its waits too: every read of a file a person or another program controls opens it so it cannot
-block (not a named pipe, not a device; the type checked through the open handle, never by a path check before the open)
+Code under test bounds its waits too:
+every read of a file a person or another program controls opens it so it cannot
+block (not a named pipe,
+not a device;
+the type checked through the open handle,
+never by a path check before the open)
 and has a size bound (issues 6415 and 6433).
-No blocking work runs on the commit's own thread or on the async runtime (`source_guard`'s runtime guard; issue 6421).
+No blocking work runs on the commit's own thread or on the async runtime (`source_guard`'s runtime guard;
+issue 6421).
 
 A control that needs two file times to differ states the difference instead of hoping the clock moved between them
 (issue 6520:
@@ -712,32 +795,132 @@ and 100 ms of delay planted between the start and the arm reproduced it in a run
 ## Write less code
 
 Reuse what `testing/test_support.rs` and the package's modules already have before writing a helper
-(`AGENTS.md`'s UTL), and move a helper you need twice into the shared module instead of copying it.
+(`AGENTS.md`'s UTL),
+and move a helper you need twice into the shared module instead of copying it.
 Return no more than the caller reads (issue 6412).
-Delete code nothing calls, with the text that describes it (`AGENTS.md`'s XSU; issue 6430).
-A file over the linter's `rust/max-lines` splits into sibling modules by role, never by stripping docs (MXL).
-Name files, folders and functions by what they do (MKY, VGW), derive values from named constants (MGN),
-and take no lock where atomic rename, `O_EXCL` or one owner per item will do (NLK).
-A list of names, sites or words is a slice, `const NAMES: &[&str] = &[...]`, never `[&str; 47]`:
+Delete code nothing calls,
+with the text that describes it (`AGENTS.md`'s XSU;
+issue 6430).
+A file over the linter's `rust/max-lines` splits into sibling modules by role,
+never by stripping docs (MXL).
+Name files,
+folders and functions by what they do (MKY,
+VGW),
+derive values from named constants (MGN),
+and take no lock where atomic rename,
+`O_EXCL` or one owner per item will do (NLK).
+A list of names,
+sites or words is a slice,
+`const NAMES: &[&str] = &[...]`,
+never `[&str; 47]`:
 a hand-counted length is a magic number every added entry has to edit
-(found 2026-11-25 in the raw-read guard's list, beside 277 such arrays crate-wide; ledger item 19).
-An array keeps a fixed length only where the length is the meaning, such as a header of a fixed byte width.
+(found 2026-11-25 in the raw-read guard's list,
+beside 277 such arrays crate-wide;
+ledger item 19).
+An array keeps a fixed length only where the length is the meaning,
+such as a header of a fixed byte width.
+
+## A split keeps each item's reach and its platform gate
+
+A split moves code,
+and two facts of every item it moves belong to the split's own diff.
+
+Reach:
+an item a sibling calls inside the crate takes `pub(crate)`,
+`pub(super)` or `pub(in path)`,
+never bare `pub`.
+The library target is a published surface,
+and release `0.6.1-alpha.48` widened it by 31 names a split wrote bare `pub` for,
+seven of them private before the split,
+with no commit that said it published anything
+(`source_guard/nothing_becomes_nameable_from_outside_tests.rs`).
+
+Gate:
+a new `mod` line carries the `#[cfg(...)]` of the file it left,
+and a struct or a trait a split made out of one gated function carries the gate itself where the file also holds an
+ungated neighbour (`AddPlan` and `RemovePlan` in `worktree/worktree_command_facts.rs` are gated while `CopyFacts` in
+the same file is not).
+A gate that goes moves items into the build of a target that never had them,
+and nothing here reports it:
+the gate's Clippy step and the test suite build the host's own target (`bin/test-native-container.ts`),
+and `native:clippy:windows` is the one task that type-checks another target,
+which no gate runs.
+
+The gates do not make a build for another target work either,
+so say only what the source shows:
+`worktree/worktree_remove_around.rs` names `finish`,
+declared in `worktree_remove_clears_the_registration`,
+and that module is `#[cfg(target_os = "linux")]` (`worktree/mod.rs`).
+
+## A published name takes a line in the list beside the surface control
+
+`source_guard/nothing_becomes_nameable_from_outside_tests.rs` holds the library target's published surface to
+`source_guard/items_nameable_from_outside_release.txt`:
+a name another crate can reach without a line fails,
+a line whose name is no longer reachable fails,
+and a `pub use` that publishes a name the `pub mod` chain does not already reach fails without its line.
+
+A line is added only where a release publishes a name on purpose:
+write it as `<module path> <kind> <name>` under a reason of its own that names the commit which added it.
+A name a re-export publishes is written as `<module path> pub use <target>::<published name>` instead.
+A name a split needs only inside the crate takes `pub(crate)`,
+`pub(super)` or `pub(in path)`,
+and no line.
+
+The reader's own top doc states the reading:
+a bare `pub` item at the first column of a file the `pub mod` chain reaches,
+whatever count of qualifiers stands before its kind,
+as `pub async fn`,
+`pub const unsafe fn` and
+`pub extern "C" fn` do;
+a `pub` field,
+a method or an associated constant of a type that chain publishes,
+read in a body that opens its `{` on the declaration's own line or on a later one;
+a `#[macro_export] macro_rules!`;
+and a `pub use` over any number of lines,
+one entry per name it publishes,
+with an `as` rename read as the published name,
+a glob written `pub use <module>::*`,
+and a re-export written without a leading path read from the module that writes it.
+A gate keeps a name out only where it holds only when testing,
+so `#[cfg(test)]` and `#[cfg(all(test, unix))]` keep one out
+and `#[cfg(all(not(test), unix))]` does not.
+
+What the reading still cannot see,
+and why,
+is in that same doc:
+a `pub` field written in a tuple-like struct's parentheses,
+a member of a type published only through a `pub use` facade,
+a `pub trait`'s methods and a `pub enum`'s variants,
+an item inside an inline `mod name { ... }`,
+a glob's own names,
+the second path a re-export adds when it keeps the name it re-exports,
+and a signature or a value that changes under a name that stays.
+So a widening in one of those shapes is one only the diff shows,
+and a changed signature or constant value never shows at all.
 
 ## Show that a guard works
 
 A guard counts once it is shown failing without its code:
-commit the control, take the guarded line out, run, restore (`AGENTS.md`'s GFP).
+commit the control,
+take the guarded line out,
+run,
+restore (`AGENTS.md`'s GFP).
 A green run counts only when its output names the expected tests (TRV).
 
-The two rules above are enforced, not only written down:
+The two rules above are enforced,
+not only written down:
 `source_guard/lists_are_slices_tests.rs` fails on a `const` whose element type names a text reference
 and whose length is a number,
 whatever layout the declaration uses,
 `source_guard/test_children_owned_tests.rs` fails on a test file that starts a child
 which neither `spawn_owned` nor `own_group` owns,
-and on any signal whose target is `getpid()`, `getpgrp()`, `std::process::id()` or `0`.
+and on any signal whose target is `getpid()`,
+`getpgrp()`,
+`std::process::id()` or `0`.
 The sites the tree still holds are one line each in
-`source_guard/test_children_not_yet_owned.txt`, with why each is not moved yet,
+`source_guard/test_children_not_yet_owned.txt`,
+with why each is not moved yet,
 so moving a site means deleting its line there,
 and a new site fails until it is moved or entered with its reason.
 
@@ -747,10 +930,13 @@ Some controls read another module's file with `include_str!` and assert on its t
 and then that file's own module tests are not the ones a change to it breaks:
 `foundation/notice_stream_that_does_not_hold_its_writer_tests.rs` reads
 `landing/service_commit_waiting_notices.rs`,
-and `service/wait_ceilings_tests.rs` and `source_guard/hook_self_invocation_tests.rs` read
-`landing/service_commit.rs`.
-Before a merge, name every file the change touches and run the module of each test that reads it
-(`grep -rn 'include_str!' src/native` lists them),
+and `service/wait_ceilings_tests.rs` reads `landing/service_commit.rs`.
+`source_guard/hook_self_invocation_tests.rs` read that file as well until the alpha.48 splits;
+it reads every release source of the commit path through the shared scan now,
+and the one file it still pins with `include_str!` is `src/native/main.rs`.
+Before a merge,
+name every file the change touches and run the module of each test that reads it
+(`rg 'include_str!' src/native` lists them),
 beside the module of the file you changed.
 The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's notice stream
 and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
@@ -758,8 +944,13 @@ so the whole container gate on `main` at `132843d9d1` failed in a module that fi
 
 The search a merge owes is wider than that grep:
 a control may also read a source file while it runs
-(`std::fs::read_to_string` of a path under `src/native`).
-Four test files outside `source_guard` do that as of 2026-11-27.
+(`std::fs::read_to_string` of a path under `src/native`),
+and the guards that read a part of the tree do it through the shared scan of
+`source_guard/source_scan_banned_lines_tests.rs`,
+or,
+where a guard lists the tree itself,
+through `source_guard/source_scan_tests.rs`.
+`rg 'read_to_string' src/native --glob '*_tests.rs'` lists the ones outside `source_guard`.
 
 A call a control requires belongs to the folder that asks it and not to one file of that folder
 because a split moves the call into a sibling file and leaves behind the file it left.
@@ -781,12 +972,101 @@ and so a scan cannot tell a pin over source from an assertion about a running pr
 The search of 2026-11-27 that guessed from literal needles found 58 places where a required
 literal was absent from the file read and every one of those modules passes.
 Reading the splits of 2026-11-26 and 2026-11-27 against every control that reads a source file
-found one stale control:
-22 test files `include_str!` a source file (65 file-and-needle pairs)
-and 4 more read one at run time outside `source_guard`
-and the rest are in `source_guard` whose whole module runs.
-Each of those 26 modules ran once and threaded
+found one stale control.
+The files that `include_str!` one are what `rg 'include_str!' src/native` prints,
+the files outside `source_guard` that read one at run time are what the search above prints,
+and the rest are in `source_guard`,
+whose whole module runs.
+Every one of those modules ran once and threaded,
 and only the control above was stale.
+
+## A guard over part of the tree states its scope, its excuses and its anchor
+
+`source_guard/source_scan_banned_lines_tests.rs` answers four questions for a ban over part of the release tree:
+which release sources the ban covers,
+which of their code lines hold what it forbids,
+which entries excuse one,
+and whether the scope still reaches the code the ban is about.
+A guard that states its scope as prefixes reads the tree through it
+(`release_sources_under`,
+`release_sources_holding`),
+so a file a split makes inside a scope is covered the day it lands (issue 6599).
+Not every guard does:
+some list the tree themselves with `release_sources_in` or `classified_sources` of
+`source_guard/source_scan_tests.rs`,
+some read a few files with `include_str!`,
+and one walks `src/native` with its own `files_below`
+(`source_guard/no_start_at_login_tests.rs`),
+and each of those says in its own doc what its reading covers.
+
+Scope.
+`release_sources_under(prefixes)` covers a place and names it as a folder (`landing/`) or as the start of a
+file's name;
+`release_sources_holding(words)` covers a lane and names the words a file of that lane says.
+Write in the guard what a file would have to look like to be missed:
+a folder scope misses the file that moves out of the folder,
+a prefix misses a file of the same module named without the prefix,
+and a lane misses a file that does the banned thing without naming its words.
+Where the folder above the files closes that hole,
+name the folder
+(`standards_review/`,
+`worktree_clone_add_route/`);
+where it does not,
+because that folder holds other code that does the same thing for its own reasons,
+the guard's top doc says what a reader has to check.
+
+Excuses.
+`MayHold { file, text, line, why }` names one file,
+one banned text or name,
+the line that one use is written on,
+and the reason it may.
+The line is what an entry names rather than a count of uses:
+a use removed and another of the same text added to the same file is a finding twice over,
+because the line the entry names holds nothing and the new use is excused by nothing,
+where a count would have kept the file excused.
+Each entry covers one finding,
+so a second line written exactly like an excused one needs its own entry.
+A line `rustfmt` reflows makes the entry stale,
+which the guard reports,
+and the entry and the reflow are one commit's work.
+`entries_that_match_nothing` fails an entry no finding took,
+so the list can only shrink.
+
+Anchor.
+`anchors_the_scope_no_longer_holds(sources, anchors)` fails when no file of the scope holds a text that proves
+the scope is still the code the ban is about,
+and a scope that reached nothing would pass every tree.
+
+A banned text is a substring of one line of code,
+and a line whose first characters are `//` is not code.
+A ban on a call is `lines_calling_one_of`,
+which reads the name where the line spells the call:
+the last segment of a path (`fs::symlink`),
+the call (`symlink(`,
+with the whitespace Rust allows before its arguments),
+and the call with its types written out (`symlink::<_, _>(`).
+The name is read only where no byte of a longer name touches it,
+so `link` is a finding and `hard_link`,
+`read_link`,
+`unlink` and `is_symlink` are not.
+That is what makes a rename's import (`use std::os::unix::fs::symlink as make_link;`) and a function taken as a
+value (`let f = std::os::unix::fs::symlink;`) findings:
+the call they then make cannot be told from any other call,
+and the line that brings the name into scope can.
+A `use` list may also write that rename in braces (`use std::os::unix::fs::{symlink as make_link};`),
+where the name follows a brace rather than a path,
+so `name as` is read as a spelling of the call.
+A ban on a name no other use shares is `lines_naming_one_of`,
+which reads it wherever the line writes it,
+so a type in a signature and in a `use` list is a finding too;
+`UnixStream` and `Stderr` are read that way,
+and `link` and `stderr` are not,
+because this crate has a field named `link` and local variables named `stderr`.
+Three spellings no reader of lines sees,
+and each guard whose scope could hold one says so in its top doc:
+a call a macro written outside the scope expands to,
+a name a glob import (`use super::*;`) brings into scope without writing it,
+and a call whose name and `(` a line break separates.
 
 ## Walk the sources through the one walk, never a recursive read
 

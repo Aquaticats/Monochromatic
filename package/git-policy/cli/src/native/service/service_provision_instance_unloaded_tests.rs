@@ -814,10 +814,12 @@ impl Manager for UntilAsked {
 /// (measured twice at 10,016 ms with no record and the service alive).
 /// Both states are reached without a kill:
 /// the first is the unit files as this release writes them with the record
-///  absent, which a record write that failed leaves and a kill between the two leaves;
+///  absent,
+/// which a record write that failed leaves and a kill between the two leaves;
 /// the second is a unit text
 ///  that changed while the service ran,
-/// which another resolution of Git writes (the service unit names it), or another spelling of the runtime directory
+/// which another resolution of Git writes (the service unit names it),
+/// or another spelling of the runtime directory
 ///  (the service unit names the program link under it).
 ///
 /// In TS you'd write (pseudocode):

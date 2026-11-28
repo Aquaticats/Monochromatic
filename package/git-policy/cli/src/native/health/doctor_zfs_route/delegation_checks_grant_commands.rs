@@ -151,7 +151,8 @@ fn scope_flag(inheritance: Inheritance) -> &'static str {
 ///  Each holder kind has its own form and only some take a scope:
 ///  a creation-time permission comes off with `-c`,
 ///  a permission set's member with `-s`,
-///  and a user's, a group's or everyone's with the scope and holder they were
+///  and a user's,
+/// a group's or everyone's with the scope and holder they were
 ///  granted with
 ///  (OpenZFS `zfs-2.4.4`,
 ///  `man/man8/zfs-allow.8`,

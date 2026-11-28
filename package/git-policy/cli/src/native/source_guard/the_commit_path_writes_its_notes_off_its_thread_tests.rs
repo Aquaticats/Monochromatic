@@ -23,19 +23,33 @@
 //! so the split that moved `write_stderr` out of `commit/commit_command.rs` into
 //! `commit/commit_command_words.rs` covered the receiver the day it landed
 //! (issue 6599).
-//! Two files of the lane talk to the shared handle for reasons that are not a note,
-//! and `MAY_HOLD` records each of those.
+//! The lane is the vocabulary a file names,
+//! so a file that writes the shared handle without naming any of its words is one this guard does not read;
+//! `THE_NOTE_FILES` fails a file that leaves the lane,
+//! and a reader asks whether every file of the commit path that writes a note still names one of the three words.
+//! Three files of the lane talk to the shared handle for reasons that are not a note,
+//! and `MAY_HOLD` records each use by the line it is written on:
+//! two arms of the measured stream,
+//! and the sentence a refused summary leaves.
+//! The handle is banned by its name where a line spells the call or the path (`std::io::stderr(`,
+//! `io::stderr(`,
+//! `use std::io::stderr as say;`,
+//! `use std::io::{stderr as say};`) and where a type position names it (`Stderr`).
+//! What this ban does not see is a call a macro of another file expands to,
+//! and a name a glob import (`use super::*;`) brings into scope;
+//! a reader checks each of those in a file that adds one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(releaseSourcesHolding(NOTE_LANE).flatMap(([file, text]) => linesNoEntryExcuses(linesHoldingOneOf(file, text, THE_SHARED_HANDLE).filter((line) => !line.includes(THE_ONE_ALLOWED)), MAY_HOLD))).toEqual([]);
+//! expect(releaseSourcesHolding(NOTE_LANE).flatMap(([file, text]) => linesNoEntryExcuses([...linesCallingOneOf([[file, text]], THE_SHARED_HANDLE_CALLS), ...linesNamingOneOf([[file, text]], THE_SHARED_HANDLE_TYPES)], MAY_HOLD))).toEqual([]);
 //! ```
 
 use super::{
     HoldingLine,
     MayHold,
     entries_that_match_nothing,
-    lines_holding_one_of,
+    lines_calling_one_of,
+    lines_naming_one_of,
     lines_no_entry_excuses,
     release_sources_holding,
 };
@@ -61,35 +75,34 @@ const NOTE_LANE: &[&str] = &[
 ];
 
 /// What:
-///  `THE_SHARED_HANDLE` is the shapes that ask for this process's shared standard error rather than a stream of
-///  their own.
+///  `THE_SHARED_HANDLE_CALLS` is the call that asks for this process's shared standard error rather than a stream of
+///  its own.
 /// Why:
 ///  A note written through the shared handle waits for the reader where the command stands,
-///  and it is also one lock for the whole process;
-///  `std::io::Stderr` is the type a file names when it keeps the handle in a value (the counted
-///  stream a measured write is made through),
-///  so both shapes are the same mistake.
+///  and it is also one lock for the whole process.
+///  The call is read by its name where a line spells it as a call or as a path's last segment,
+///  so `std::io::stderr(`,
+///  `io::stderr(` and the import a rename is made from are findings,
+///  while a local variable named `stderr` and the field `output.stderr` are not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_SHARED_HANDLE = ['std::io::stderr(', 'std::io::Stderr'];
+/// const THE_SHARED_HANDLE_CALLS = ['stderr'];
 /// ```
-const THE_SHARED_HANDLE: &[&str] = &["std::io::stderr(", "std::io::Stderr"];
+const THE_SHARED_HANDLE_CALLS: &[&str] = &["stderr"];
 
 /// What:
-///  `THE_ONE_ALLOWED` is the one write a note file may still make on the command's own thread:
-///  the sentence a commit says when its standard output refused the summary it had to print.
+///  `THE_SHARED_HANDLE_TYPES` is the type a file names when it keeps the shared handle in a value (the counted stream a
+///  measured write is made through).
 /// Why:
-///  A commit that cannot say its summary ends as Git does,
-///  with `fatal: write error` on standard error and status 128,
-///  and that sentence is the whole of what a person gets there;
-///  it is not a note the command can live without.
+///  The type is named in a `use` list and in a signature as well as at a call,
+///  so it is read wherever a line writes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_ONE_ALLOWED = 'fatal: write error';
+/// const THE_SHARED_HANDLE_TYPES = ['Stderr'];
 /// ```
-const THE_ONE_ALLOWED: &str = "fatal: write error";
+const THE_SHARED_HANDLE_TYPES: &[&str] = &["Stderr"];
 
 /// What:
 ///  `THE_NOTE_FILES` is every file `main` says a note of the commit path from.
@@ -114,28 +127,42 @@ const THE_NOTE_FILES: &[&str] = &[
 ];
 
 /// What:
-///  `MAY_HOLD` is the one note file that keeps the shared handle,
-///  and the reason it does.
+///  `MAY_HOLD` is every use of the shared handle a note file may keep,
+///  each entry naming the line it is written on and the reason it may.
 /// Why:
 ///  The measured stream is built over any stream,
 ///  and the shared one is the other arm of that measurement rather than a note of the commit path;
-///  an entry whose line went fails here instead of excusing the file for ever.
+///  the sentence a commit says when its summary could not be printed is the whole of what a person gets there,
+///  and it is not a note the command can live without.
+///  An entry whose line went fails here instead of excusing the file for ever,
+///  and a second use of either text in that file fails,
+///  because the entry names one line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'foundation/time_spent_outside_the_phases.rs', text: 'std::io::stderr(', why: '...' }];
+/// const MAY_HOLD = [{ file: 'foundation/time_spent_outside_the_phases.rs', text: 'stderr', line: '...', why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[
     MayHold {
         file: "foundation/time_spent_outside_the_phases.rs",
-        text: "std::io::stderr(",
+        text: "stderr",
+        line: "inner: std::io::stderr(),",
         why: "the measured stream's other arm is built over this process's own standard error, which is what the \
               timing record counts; it says no note of the commit path",
     },
     MayHold {
         file: "foundation/time_spent_outside_the_phases.rs",
-        text: "std::io::Stderr",
+        text: "Stderr",
+        line: "impl MeasuredStandardError<std::io::Stderr> {",
         why: "the same arm, named as the type the measured stream is built over",
+    },
+    MayHold {
+        file: "landing/service_commit_input_notes_and_embedded_commit.rs",
+        text: "stderr",
+        line: "let _reported = writeln!(std::io::stderr(), \"fatal: write error: {error}\");",
+        why: "a commit that cannot say its summary ends as Git does, with `fatal: write error` on standard error and \
+              status 128, and that sentence is the whole of what a person gets there; the entry goes when the \
+              summary is printed another way",
     },
 ];
 
@@ -155,24 +182,21 @@ fn note_files() -> Vec<(String, String)> {
 }
 
 /// What:
-///  `writes_where_the_command_stands(sources)` is every code line of a note file that asks for the shared handle,
-///  with the one sentence a refused summary leaves taken out.
+///  `writes_where_the_command_stands(sources)` is every code line of a note file that asks for the shared handle.
 /// Why:
-///  The sentence is the whole of what a person gets when the commit's summary could not be printed,
-///  so it is no finding,
-///  and the line is dropped before the list is asked whether an entry still excuses anything.
+///  The two shapes are the same mistake,
+///  and the sentence a refused summary leaves is excused by the line `MAY_HOLD` names rather than by the words it
+///  holds,
+///  so no line is dropped before the list is asked what it excuses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writesWhereTheCommandStands = (sources) => linesHoldingOneOf(sources, THE_SHARED_HANDLE).filter((held) => !held.line.includes(THE_ONE_ALLOWED));
+/// const writesWhereTheCommandStands = (sources) => [...linesCallingOneOf(sources, THE_SHARED_HANDLE_CALLS), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_TYPES)];
 /// ```
 fn writes_where_the_command_stands(sources: &[(String, String)]) -> Vec<HoldingLine> {
-    return lines_holding_one_of(sources, THE_SHARED_HANDLE)
-        .into_iter()
-        .filter(|held| {
-            return !held.line.contains(THE_ONE_ALLOWED);
-        })
-        .collect();
+    let mut holding: Vec<HoldingLine> = lines_calling_one_of(sources, THE_SHARED_HANDLE_CALLS);
+    holding.extend(lines_naming_one_of(sources, THE_SHARED_HANDLE_TYPES));
+    return holding;
 }
 
 /// What:
@@ -226,7 +250,7 @@ fn every_entry_of_the_list_still_excuses_a_line() {
     );
     assert!(
         stale.is_empty(),
-        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        "an entry names a line that no longer holds its text, so the list can only shrink:\n{}",
         stale.join("\n")
     );
 }
@@ -244,43 +268,126 @@ fn the_lane_still_reads_every_file_that_says_a_note() {
     );
 }
 
-/// The scan fails on a note file that asks for the shared standard error.
+/// What:
+///  Every spelling of a note file's ask for the shared handle:
+///  the path the standard library spells,
+///  the path of an
+///  `io` import,
+///  the import a rename is made from,
+///  and the type kept in a value.
+/// Why:
+///  The review of release 0.6.1-alpha.50 found that `use std::io; io::stderr().write_all(..)` held neither text the
+///  ban read (issue 6613).
+const SPELLINGS_OF_THE_SHARED_HANDLE: &[&str] = &[
+    "let _ = writeln!(std::io::stderr(), \"one\");",
+    "let _ = io::stderr().write_all(b\"one\");",
+    "use std::io::stderr as say;",
+    "fn kept(handle: std::io::Stderr) {}",
+];
+
+/// What:
+///  The lines a note file may still write:
+///  a stream of its own,
+///  and a variable or a field that says `stderr`.
+/// Why:
+///  The name is read where the line spells the call,
+///  so a local variable and a field that say the word are no ask for the shared handle.
+const NO_ASK_FOR_THE_SHARED_HANDLE: &[&str] = &[
+    "let mut stderr: String = String::new();",
+    "let _ = stderr.push_str(line);",
+    "let _ = refusal.write_all(output.stderr.as_slice());",
+    "let _ = write_stderr(line);",
+];
+
+/// The scan fails on a note file that asks for the shared standard error,
+/// in every spelling,
+/// and it fails on a second use in the file an entry excuses,
+/// because that entry names one line.
 #[test]
 fn the_check_fails_on_a_note_file_that_takes_the_shared_standard_error() {
-    let planted: Vec<(String, String)> = vec![(
-        String::from("landing/a_note.rs"),
+    for spelling in SPELLINGS_OF_THE_SHARED_HANDLE {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("landing/a_note.rs"),
+            format!("fn say(line: &str) {{\n    {spelling}\n}}\n"),
+        )];
+        let found: Vec<String> = lines_no_entry_excuses(
+            writes_where_the_command_stands(planted.as_slice()).as_slice(),
+            MAY_HOLD,
+        );
+        assert_eq!(
+            found.len(),
+            1,
+            "{spelling} asks for the shared handle: {found:?}"
+        );
+    }
+    for fine in NO_ASK_FOR_THE_SHARED_HANDLE {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("landing/a_note.rs"),
+            format!("fn say(line: &str) {{\n    {fine}\n}}\n"),
+        )];
+        assert!(
+            lines_no_entry_excuses(
+                writes_where_the_command_stands(planted.as_slice()).as_slice(),
+                MAY_HOLD
+            )
+            .is_empty(),
+            "{fine} asks for no shared handle"
+        );
+    }
+    let excused_file: Vec<(String, String)> = vec![(
+        String::from("foundation/time_spent_outside_the_phases.rs"),
         String::from(
-            "use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;\nfn say(line: &str) { let _ = writeln!(std::io::stderr(), \"{line}\"); }\n",
+            "use crate::standard_error_off_the_calling_thread::MeasuredStandardError;\nfn say() { let _ = writeln!(std::io::stderr(), \"one\"); }\nfn also() { let _ = writeln!(std::io::stderr(), \"two\"); }\n",
         ),
     )];
-    let found: Vec<String> = lines_no_entry_excuses(
-        writes_where_the_command_stands(planted.as_slice()).as_slice(),
+    let excused: Vec<String> = lines_no_entry_excuses(
+        writes_where_the_command_stands(excused_file.as_slice()).as_slice(),
         MAY_HOLD,
     );
-    assert!(
-        found
-            .iter()
-            .any(|sentence| return sentence.contains("std::io::stderr(")),
-        "a note file that writes standard error where the command stands is a finding: {found:?}"
+    assert_eq!(
+        excused.len(),
+        2,
+        "a second write in the file the entry excuses fails, because the entry names one line: {excused:?}"
     );
 }
 
-/// The scan answers nothing for the one sentence a refused summary leaves.
+/// What:
+///  The sentence a refused summary leaves is excused where `MAY_HOLD` names its line,
+///  and the same sentence in another file is a finding.
+/// Why:
+///  An exemption that named only the words excused every note file that said them,
+///  with no file and no use,
+///  which is the hole the review found (issue 6613).
 #[test]
-fn the_check_allows_the_sentence_a_refused_summary_leaves() {
-    let allowed: Vec<(String, String)> = vec![(
-        String::from("landing/a_note.rs"),
+fn the_check_excuses_the_refused_summary_in_the_file_the_entry_names() {
+    let named: Vec<(String, String)> = vec![(
+        String::from("landing/service_commit_input_notes_and_embedded_commit.rs"),
         String::from(
-            "use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;\nfn print_summary() { let _ = writeln!(std::io::stderr(), \"fatal: write error: {error}\"); }\n",
+            "fn print_summary() {\n    let _reported = writeln!(std::io::stderr(), \"fatal: write error: {error}\");\n}\n",
         ),
     )];
     assert_eq!(
         lines_no_entry_excuses(
-            writes_where_the_command_stands(allowed.as_slice()).as_slice(),
-            MAY_HOLD,
+            writes_where_the_command_stands(named.as_slice()).as_slice(),
+            MAY_HOLD
         ),
         Vec::<String>::new(),
-        "the sentence a commit says when its summary could not be printed is no finding"
+        "the sentence a commit says when its summary could not be printed is the use the entry names"
+    );
+    let elsewhere: Vec<(String, String)> = vec![(
+        String::from("landing/another_note.rs"),
+        String::from(
+            "fn print_summary() {\n    let _reported = writeln!(std::io::stderr(), \"fatal: write error: {error}\");\n}\n",
+        ),
+    )];
+    assert_eq!(
+        lines_no_entry_excuses(
+            writes_where_the_command_stands(elsewhere.as_slice()).as_slice(),
+            MAY_HOLD
+        )
+        .len(),
+        1,
+        "the sentence in a file no entry names is a finding"
     );
 }
 

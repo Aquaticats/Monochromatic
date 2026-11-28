@@ -103,7 +103,13 @@ pub struct HostResources {
     /// The threads the process may run at once (a container's CPU quota included).
     pub parallelism: usize,
     /// The bytes that can still be given out without pushing others out,
-    /// or nothing when the host does not say.
+    /// or nothing when this machine's reading failed.
+    ///  Nothing lifts the memory bound rather than tightening it:
+    /// `worker_budget` then applies no bound of its own,
+    /// while a failed thread count answers one thread.
+    ///  No record decides which side the memory failure belongs on,
+    /// and a bound there would hold every batch of every caller to one item at a time;
+    /// the question and what each answer costs wait in `doc/handover/questions-for-the-owner.md`.
     pub memory_available: Option<u64>,
 }
 
@@ -143,6 +149,12 @@ impl HostResources {
     /// Why:
     ///   The memory figure that matters is the one the kernel would enforce,
     /// which a quota can make smaller than the host's.
+    ///  The thread count fails closed and the memory figure fails open:
+    /// a count this process cannot read answers one thread,
+    /// and a memory reading that failed answers nothing,
+    /// which the budget reads as no memory bound at all.
+    ///  That difference is no decision of this file's
+    /// (`doc/handover/questions-for-the-owner.md`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -176,7 +188,11 @@ impl HostResources {
 ///  lost that room,
 ///  which asks the kernel to kill one of them.
 ///  The batch's own reading is taken where the width is decided,
-///  so the figure is the room of that moment.
+///  so the figure is the room the host had when the batch started.
+///  The width is decided once for a batch,
+///  and every wave of it runs on that figure:
+///  the reading belongs to the start of a batch and to no wave after it,
+///  which is the staleness a batch of trashes that takes minutes still carries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,6 +279,10 @@ pub(crate) fn machine_reads_for_a_control() -> usize {
 ///  this process runs in and the groups above it,
 /// from the published `sysinfo` crate;
 /// nothing when the crate cannot start.
+///  Nothing is what a failed reading answers,
+///  and `worker_budget` reads it as no memory bound:
+///  the failure lifts the bound instead of tightening it,
+///  which the field's own documentation says and no record decides.
 /// Why:
 ///  The owner's ruling of 2026-11-07 ("Memory headroom:
 /// sysinfo") replaces the wrapper's own readers of `/proc/meminfo` and of the

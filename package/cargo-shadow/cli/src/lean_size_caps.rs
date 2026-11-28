@@ -138,3 +138,10 @@ impl Planner for SizeCap {
         return removals;
     }
 }
+
+/// The tests of the size cap.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_size_caps_tests.rs"]
+mod lean_size_caps_tests;

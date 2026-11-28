@@ -11,6 +11,7 @@ use mpm_shadow::cli::{
     declared_verbs,
 };
 use mpm_shadow::constants::USAGE_EXIT_CODE;
+use mpm_shadow::toolchain::archive_staging::COMPLETE_MARKER;
 use mpm_shadow::toolchain::lock::{
     parse_lock,
     render_lock,
@@ -654,6 +655,237 @@ fn global_config(fixture: &Fixture) -> PathBuf {
         .join(".config")
         .join("monochromatic-dev")
         .join("toolchain");
+}
+
+/// The machine-global toolchain root under a fixture's disposable home,
+/// where the hidden names of a killed install sit inside each tool's directory.
+fn global_toolchain_root(fixture: &Fixture) -> PathBuf {
+    return fixture
+        .directory
+        .path()
+        .join("home")
+        .join(".local")
+        .join("share")
+        .join("monochromatic-dev")
+        .join("toolchain-global");
+}
+
+#[test]
+fn the_prune_says_which_hidden_directory_it_cannot_judge_holds_a_finished_copy() {
+    let fixture = Fixture::new();
+    let tool_directory = global_toolchain_root(&fixture).join("bin");
+    fs::create_dir_all(&tool_directory).expect("make the tool directory");
+    // The name the release before this one wrote: the purpose, the process id and its start time, and no boot or
+    // namespace, so no run can judge its installer. Its marker records a digest, so the install behind it finished.
+    let finished = tool_directory.join(".0.2.1.staging.42.100");
+    fs::create_dir_all(&finished).expect("make the hidden directory");
+    fs::write(
+        finished.join(COMPLETE_MARKER),
+        "bin 0.2.1 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+    )
+    .expect("write the completion marker");
+    // The same shape with nothing in it: an unpacking that a kill cut short.
+    let unfinished = tool_directory.join(".0.2.2.staging.43.100");
+    fs::create_dir_all(&unfinished).expect("make the hidden directory");
+
+    let output = fixture.run(&["prune", "--toolchain", "--global", "--dry-run"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    // No known lock names this tool, so no program name is known either: the marker is all this run read.
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds a completion marker, but no known lock names the program that would finish a copy of bin 0.2.1, \
+             so deleting it by hand loses whatever that name holds, \
+             which nothing publishes while its installer cannot be judged",
+            finished.display()
+        )),
+        "the line says what the run read and what deleting it costs: {stderr}"
+    );
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds no completion marker, so deleting it by hand loses no finished copy, \
+             once no install uses it",
+            unfinished.display()
+        )),
+        "the line says there is no finished copy to lose: {stderr}"
+    );
+    assert!(finished.is_dir(), "a dry run removes nothing: {stderr}");
+    assert!(unfinished.is_dir(), "a dry run removes nothing: {stderr}");
+}
+
+/// Writes a program a completed install holds,
+/// with its execute bits set where the platform has them.
+fn write_program(path: &Path) {
+    fs::create_dir_all(path.parent().expect("a parent directory"))
+        .expect("make the program's folder");
+    fs::write(path, "#!/bin/sh\n").expect("write the program");
+    #[cfg(unix)]
+    {
+        /// Imports `PermissionsExt` from `std::os::unix::fs`.
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(path)
+            .expect("the program's metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions).expect("set the program's execute bits");
+    }
+}
+
+/// Writes the lock that names `fixtool` and the program that finishes its install,
+/// so a `prune --toolchain` run is told about the tool as a known lock tells it.
+fn a_lock_that_names_fixtool(fixture: &Fixture) -> PathBuf {
+    let lock = fixture.directory.path().join("fixtool.lock.json");
+    fs::write(
+        &lock,
+        r#"{"schemaVersion":1,"tools":{"fixtool":{"request":"github:example/fixtool@latest","version":"1.0.0","route":"archive","bins":["fixtool"],"env":{},"options":{},"artifacts":{}}}}"#,
+    )
+    .expect("write the lock that names the tool");
+    return lock;
+}
+
+#[test]
+fn the_prune_says_whether_the_version_stands_finished_beside_a_name_it_cannot_judge() {
+    let fixture = Fixture::new();
+    // A lock this run is told about names the tool and the program that finishes its install.
+    let lock = a_lock_that_names_fixtool(&fixture);
+    let tool_directory = global_toolchain_root(&fixture).join("fixtool");
+    // The version at its own name, and its program cut to twelve bytes under its marker: the read is a completion
+    // marker and a program found, so this run reads the version as finished while a start of it fails.
+    let version_directory = tool_directory.join("1.0.0");
+    write_program(&version_directory.join("release-folder").join("fixtool"));
+    fs::write(
+        version_directory.join("release-folder").join("fixtool"),
+        "#!/bin/sh\nec",
+    )
+    .expect("cut the program at the version's name short");
+    fs::write(
+        version_directory.join(COMPLETE_MARKER),
+        "fixtool 1.0.0 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+    )
+    .expect("write the version's completion marker");
+    // A second finished copy of that same version under a name no run can judge.
+    let second = tool_directory.join(".1.0.0.staging.42.100");
+    write_program(&second.join("release-folder").join("fixtool"));
+    fs::write(
+        second.join(COMPLETE_MARKER),
+        "fixtool 1.0.0 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+    )
+    .expect("write the hidden copy's completion marker");
+
+    let output = fixture.run(&[
+        "prune",
+        "--toolchain",
+        "--global",
+        "--dry-run",
+        "--lock",
+        lock.to_str().expect("utf-8"),
+    ]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    // The version's own name reads as finished by the same test the hidden one is read by: a completion marker and a
+    // program found, no size and no digest, so a program cut short under its marker still reads as finished.
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds a second finished copy of fixtool 1.0.0, \
+             because 1.0.0 holds its completion marker and its program at its name, \
+             and deleting it by hand loses that second copy",
+            second.display()
+        )),
+        "the line says what it read at the version's name and what deleting it costs: {stderr}"
+    );
+    assert!(
+        !stderr.contains("loses only that second copy"),
+        "the line draws no conclusion about the copy the version keeps: {stderr}"
+    );
+    assert!(
+        !stderr.contains("is finished at its name"),
+        "the line names the read, not a finished version: {stderr}"
+    );
+    assert!(second.is_dir(), "a dry run removes nothing: {stderr}");
+}
+
+#[test]
+fn the_prune_says_a_finished_copy_at_a_name_it_cannot_judge_is_the_versions_only_one_here() {
+    let fixture = Fixture::new();
+    let lock = a_lock_that_names_fixtool(&fixture);
+    let tool_directory = global_toolchain_root(&fixture).join("fixtool");
+    // A finished copy of the version under a name no run can judge, and no version directory at all: what a kill after
+    // the marker leaves when the unpacking had not yet given the version its name.
+    let only: PathBuf = tool_directory.join(".1.0.0.staging.42.100");
+    write_program(&only.join("release-folder").join("fixtool"));
+    fs::write(
+        only.join(COMPLETE_MARKER),
+        "fixtool 1.0.0 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+    )
+    .expect("write the hidden copy's completion marker");
+
+    let output = fixture.run(&[
+        "prune",
+        "--toolchain",
+        "--global",
+        "--dry-run",
+        "--lock",
+        lock.to_str().expect("utf-8"),
+    ]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds a finished copy of fixtool 1.0.0, \
+             and deleting it by hand loses that copy, \
+             which nothing publishes while its installer cannot be judged",
+            only.display()
+        )),
+        "the line says the copy is the version's only one here: {stderr}"
+    );
+    assert!(
+        !stderr.contains("second finished copy"),
+        "nothing is at the version's name, so nothing makes this a second copy: {stderr}"
+    );
+    assert!(only.is_dir(), "a dry run removes nothing: {stderr}");
+}
+
+#[test]
+fn the_prune_says_a_name_it_cannot_judge_that_holds_no_finished_copy_loses_nothing() {
+    let fixture = Fixture::new();
+    let lock = a_lock_that_names_fixtool(&fixture);
+    let tool_directory = global_toolchain_root(&fixture).join("fixtool");
+    // The program and no completion marker: an unpacking a kill cut short, under a name no run can judge.
+    let unfinished: PathBuf = tool_directory.join(".1.0.0.staging.42.100");
+    write_program(&unfinished.join("release-folder").join("fixtool"));
+
+    let output = fixture.run(&[
+        "prune",
+        "--toolchain",
+        "--global",
+        "--dry-run",
+        "--lock",
+        lock.to_str().expect("utf-8"),
+    ]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds no finished copy, so deleting it by hand loses no finished copy, \
+             once no install uses it",
+            unfinished.display()
+        )),
+        "the line says no finished copy is there to lose: {stderr}"
+    );
+    assert!(
+        !stderr.contains("loses that copy"),
+        "the line names no copy the directory does not hold: {stderr}"
+    );
+    assert!(
+        !stderr.contains("completion marker,"),
+        "a known lock names the program, so the marker alone is not the whole read: {stderr}"
+    );
+    assert!(unfinished.is_dir(), "a dry run removes nothing: {stderr}");
 }
 
 #[test]

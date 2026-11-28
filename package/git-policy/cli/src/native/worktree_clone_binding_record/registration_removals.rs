@@ -1,6 +1,7 @@
 //! What:
 //!  The removals the recipe makes below held descriptors:
-//!  a file or a tree, the ref store's files before its folders,
+//!  a file or a tree,
+//! the ref store's files before its folders,
 //!  every entry a listing shows,
 //!  the names one run works from,
 //!  and why a run stopped.
@@ -8,7 +9,8 @@
 //!  Every call is descriptor-relative and treats `ENOENT` as the step's own success,
 //!  so one run serves every row the table clears
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//!  "The recipe that clears rows 1 to 5, 7 and 8").
+//!  "The recipe that clears rows 1 to 5,
+//! 7 and 8").
 //!  Kept apart from the order so both stay under the file limit,
 //!  and the names and the refusal sit here rather than beside the order,
 //!  so the recipe's two files use each other in one direction only

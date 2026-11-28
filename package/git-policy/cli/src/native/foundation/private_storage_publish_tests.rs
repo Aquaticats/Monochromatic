@@ -1,12 +1,18 @@
 //! Controls for publishing a staged record at its final name,
 //!  each in its own disposable directory.
+//! The ban on a link of the module's own reads each call by its name,
+//! and it does not see a call a macro of another file expands to or a name a glob import (`use super::*;`)
+//! brings in;
+//! a reader checks each of those in a file that adds one.
 
 use super::*;
 #[cfg(unix)]
 use crate::a_record_made_durable_with_a_sync::settle_directory_sync;
 use crate::source_guard::{
+    HoldingLine,
     MayHold,
     anchors_the_scope_no_longer_holds,
+    lines_calling_one_of,
     lines_holding_one_of,
     lines_no_entry_excuses,
     release_sources_under,
@@ -200,7 +206,7 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
 /// What:
 ///  `THE_MODULE` names the release sources of the private-record module:
 ///  the publish itself,
-///  the three files `private_storage.rs` re-exports from,
+///  the files `private_storage.rs` re-exports from,
 ///  the publish over a taken name,
 ///  and the folder whose entries a private read lists.
 /// Why:
@@ -209,6 +215,13 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
 ///  so the scope is stated as prefixes rather than as the one file it used to be:
 ///  a file a later split makes beside them is covered without anyone remembering it
 ///  (issue 6599).
+///  A file of the module named without one of these prefixes is one this ban does not read,
+///  and no folder closes that:
+///  the folder they live in (`foundation/`) holds other files that link and name a random identifier for their own
+///  work,
+///  so the folder would be a ban on code that is no record writer;
+///  `SCOPE_ANCHORS` is what fails when these prefixes stop reaching the module's publish,
+///  and a reader checks the name of a new file of this module against these prefixes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,17 +234,43 @@ const THE_MODULE: &[&str] = &[
 ];
 
 /// What:
-///  `THE_TEMPFILE_CRATES` is the work the module does not do itself:
-///  the staging file and the exclusive publish.
+///  `THE_TEMPFILE_CRATES` is every name of the work the module does not do itself:
+///  the link the exclusive publish is made through,
+///  and the random name a staging file is given.
 /// Why:
 ///  The owner's answer put them in the `tempfile` crate,
-///  so a file of this module that grows its own link or its own staging name is the finding.
+///  so a file of this module that grows its own link is the finding,
+///  and a link is read by its name where a line spells it as a call,
+///  as a path's last segment,
+///  or with its types written out.
+///  Another crate's name for the same system call is banned too (`rustix::fs::linkat`,
+///  `libc::link`),
+///  which is why the list names the calls and not one library's path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_TEMPFILE_CRATES = ['hard_link', 'random_uuid', 'fn staging_path'];
+/// const THE_TEMPFILE_CRATES = ['hard_link', 'link', 'linkat', 'symlink', 'symlinkat', 'random_uuid'];
 /// ```
-const THE_TEMPFILE_CRATES: &[&str] = &["hard_link", "random_uuid", "fn staging_path"];
+const THE_TEMPFILE_CRATES: &[&str] = &[
+    "hard_link",
+    "link",
+    "linkat",
+    "symlink",
+    "symlinkat",
+    "random_uuid",
+];
+
+/// What:
+///  `THE_STAGING_NAME` is how a file of this module would build a staging name of its own.
+/// Why:
+///  The staging file's name belongs to the `tempfile` crate as well,
+///  and `fn staging_path` is how a file of the module would take it back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_STAGING_NAME = ['fn staging_path'];
+/// ```
+const THE_STAGING_NAME: &[&str] = &["fn staging_path"];
 
 /// What:
 ///  `MAY_HOLD` is empty:
@@ -262,6 +301,23 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
     "no release file of the private-record module publishes through the tempfile crate any more, so this ban reaches nothing",
 )];
 
+/// What:
+///  `lines_the_module_may_not_hold(sources)` is every code line of those sources that spells one of
+///  `THE_TEMPFILE_CRATES` or writes `THE_STAGING_NAME`.
+/// Why:
+///  The ban is one list of findings over one scope,
+///  so the two readings are joined here rather than in each control that asks what the ban found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesTheModuleMayNotHold = (sources) => [...linesCallingOneOf(sources, THE_TEMPFILE_CRATES), ...linesHoldingOneOf(sources, THE_STAGING_NAME)];
+/// ```
+fn lines_the_module_may_not_hold(sources: &[(String, String)]) -> Vec<HoldingLine> {
+    let mut holding: Vec<HoldingLine> = lines_calling_one_of(sources, THE_TEMPFILE_CRATES);
+    holding.extend(lines_holding_one_of(sources, THE_STAGING_NAME));
+    return holding;
+}
+
 /// The owner's rulings of 2026-11-07 ("safe-file-saving shouldn't be something we own at all",
 /// and the answer "Keep the
 ///  fallback (Recommended)" on a filesystem that has neither `renameat2` with `RENAME_NOREPLACE` nor hard links) put the exclusive
@@ -281,7 +337,7 @@ fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
         "the scope reached no file holding what this ban is about:\n{}",
         abandoned.join("\n")
     );
-    let holding = lines_holding_one_of(sources.as_slice(), THE_TEMPFILE_CRATES);
+    let holding = lines_the_module_may_not_hold(sources.as_slice());
     let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
     assert!(
         unexplained.is_empty(),
@@ -290,24 +346,74 @@ fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
     );
 }
 
+/// What:
+///  Every spelling of a link a file of the module could write:
+///  the standard library's calls,
+///  the same system call
+///  through another crate,
+///  a path taken as a value,
+///  and a rename's import.
+/// Why:
+///  The review of release 0.6.1-alpha.50 found that `rustix::fs::linkat` and `libc::link` are the same link through
+///  another name and held none of the three texts the ban read (issue 6613).
+const SPELLINGS_OF_A_LINK: &[&str] = &[
+    "let _ = std::fs::hard_link(from, to);",
+    "let _ = std::os::unix::fs::symlink(from, to);",
+    "let _ = libc::link(from, to);",
+    "let _ = libc::linkat(from, to, at);",
+    "let _ = std::os::unix::fs::hard_link::<_, _>(from, to);",
+    "let f = std::fs::hard_link;",
+    "use std::fs::hard_link as make_link;",
+    "use std::fs::{hard_link as make_link};",
+    "let _ = rustix::fs::linkat(rustix::fs::CWD, from, rustix::fs::CWD, to, rustix::fs::AtFlags::empty());",
+];
+
+/// What:
+///  The names that end in a link's name,
+///  and the publish the module makes instead.
+/// Why:
+///  `private_storage.rs` holds `fn link_file`,
+///  which names a link and makes none,
+///  and the crate's own publish is `persist_noclobber`.
+const READINGS_OF_A_NAME: &[&str] = &[
+    "fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {",
+    "let _ = kind.is_symlink();",
+    "let _ = std::fs::read_link(path);",
+    "let _ = std::fs::symlink_metadata(path);",
+    "let _ = staged.persist_noclobber(path);",
+];
+
 /// The scan flags a link a split carried into a receiver,
+/// in every spelling of the call,
 /// and reads the publish's own call as no finding.
 #[test]
 fn the_scan_flags_a_link_in_a_receiver_file() {
-    let planted: Vec<(String, String)> = vec![(
-        String::from("foundation/a_record_planted.rs"),
-        String::from(
-            "fn planted(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {\n    return std::fs::hard_link(from, to);\n}\n",
-        ),
-    )];
-    let holding = lines_holding_one_of(planted.as_slice(), THE_TEMPFILE_CRATES);
-    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
-    assert!(
-        unexplained
-            .iter()
-            .any(|sentence| return sentence.contains("hard_link")),
-        "a link in a file the module's split made is a finding: {unexplained:?}"
-    );
+    for spelling in SPELLINGS_OF_A_LINK {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("foundation/a_record_planted.rs"),
+            format!(
+                "fn planted(from: &std::path::Path, to: &std::path::Path) {{\n    {spelling}\n}}\n"
+            ),
+        )];
+        let holding: Vec<HoldingLine> = lines_the_module_may_not_hold(planted.as_slice());
+        let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+        assert_eq!(
+            unexplained.len(),
+            1,
+            "{spelling} makes one link and is {} finding(s): {unexplained:?}",
+            unexplained.len()
+        );
+    }
+    for reading in READINGS_OF_A_NAME {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("foundation/private_storage.rs"),
+            format!("fn planted() {{\n    {reading}\n}}\n"),
+        )];
+        assert!(
+            lines_the_module_may_not_hold(planted.as_slice()).is_empty(),
+            "{reading} makes no link"
+        );
+    }
     let publish: Vec<(String, String)> = vec![(
         String::from("foundation/private_storage.rs"),
         String::from(
@@ -315,7 +421,7 @@ fn the_scan_flags_a_link_in_a_receiver_file() {
         ),
     )];
     assert!(
-        lines_holding_one_of(publish.as_slice(), THE_TEMPFILE_CRATES).is_empty(),
+        lines_the_module_may_not_hold(publish.as_slice()).is_empty(),
         "the crate's own publish is no link and no staging name"
     );
 }

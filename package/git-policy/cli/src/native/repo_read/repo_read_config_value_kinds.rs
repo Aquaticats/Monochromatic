@@ -86,7 +86,8 @@ pub(crate) enum Kind {
     /// a false word,
     /// an empty value,
     /// or a number from the shortest abbreviation up.
-    /// A spelling that stands for zero is a number out of range to Git, not a false word,
+    /// A spelling that stands for zero is a number out of range to Git,
+    /// not a false word,
     /// so it is left to Git.
     Abbreviation,
     /// `core.commentChar` and `core.commentString`:

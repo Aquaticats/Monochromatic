@@ -200,6 +200,24 @@ pub fn split_alias_command(value: &[u8]) -> Option<Vec<Vec<u8>>> {
 }
 
 /// What:
+///  Whether a byte separates two words for the shell Git starts a `!` alias in.
+///  The blanks are a space and a TAB;
+///  a line feed ends the command and starts another,
+///  and a carriage return is an ordinary byte of a word,
+///  which is why neither is a blank here.
+/// Why:
+///   A separator read too widely joins two commands into one word,
+///  and the reading then decides about a command nobody runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => byte === 0x20 || byte === 0x09
+/// ```
+fn is_shell_blank(byte: u8) -> bool {
+    return matches!(byte, b' ' | b'\t');
+}
+
+/// What:
 ///  The words after `!git` in an alias value,
 ///  when the value is exactly one plain `git` command;
 ///  no word at all when the value names `git` and nothing else,
@@ -211,21 +229,30 @@ pub fn split_alias_command(value: &[u8]) -> Option<Vec<Vec<u8>>> {
 ///  anything the shell would expand,
 ///  quote or separate
 ///  is left unread rather than guessed at.
+///  Git hands the shell the value's bytes after the `!` (`git.c:401` to `git.c:402`),
+///  and the shell reads a run of blanks there as one separator,
+///  so `! git <words>` and a TAB after `!git` run the command `!git <words>` runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function shellGitWords(value: string): string[] | undefined;
 /// ```
 pub(crate) fn shell_git_words(value: &[u8]) -> Option<Vec<Vec<u8>>> {
-    let remainder: &[u8] = value.strip_prefix(b"!git")?;
-    // `!gitk` names another program, so only a space or the end of the value may follow.
-    if !remainder.is_empty() && remainder.first() != Some(&b' ') {
+    let after_the_bang: &[u8] = value.strip_prefix(b"!")?;
+    // `mut` allows the scan to pass the blanks between `!` and the command.
+    let mut at: usize = 0;
+    while at < after_the_bang.len() && is_shell_blank(after_the_bang[at]) {
+        at += 1;
+    }
+    let remainder: &[u8] = after_the_bang[at..].strip_prefix(b"git")?;
+    // `!gitk` names another program, so only a blank or the end of the value may follow.
+    if !remainder.is_empty() && !is_shell_blank(remainder[0]) {
         return None;
     }
     let mut words: Vec<Vec<u8>> = Vec::new();
     let mut current: Vec<u8> = Vec::new();
     for &byte in remainder {
-        if byte == b' ' {
+        if is_shell_blank(byte) {
             if !current.is_empty() {
                 words.push(std::mem::take(&mut current));
             }

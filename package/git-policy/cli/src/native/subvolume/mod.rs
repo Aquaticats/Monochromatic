@@ -495,7 +495,8 @@ pub mod subvolume_remove;
 /// The look that finds every volume below a tree without changing it.
 pub mod subvolume_remove_around_look;
 
-/// The look that finds every volume below a tree without changing it, and the pass that empties a tree around
+/// The look that finds every volume below a tree without changing it,
+/// and the pass that empties a tree around
 /// each one it did not make.
 pub mod subvolume_remove_around;
 
@@ -505,7 +506,8 @@ pub mod subvolume_remove_walk_boundary_and_refusal;
 
 pub mod subvolume_remove_walk;
 
-/// The moment a removal has read a directory's entries and not yet removed them, for a control that acts there.
+/// The moment a removal has read a directory's entries and not yet removed them,
+/// for a control that acts there.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_remove_listing_test_support;
 

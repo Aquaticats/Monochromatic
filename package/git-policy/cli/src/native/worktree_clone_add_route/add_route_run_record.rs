@@ -1,11 +1,17 @@
 //! What:
-//!  The add's durable record: the generation its claim took, a standing record
-//!  proved to be this add's continuation, the record's first version, and the
+//!  The add's durable record:
+//! the generation its claim took,
+//! a standing record
+//!  proved to be this add's continuation,
+//! the record's first version,
+//! and the
 //!  slot identity every later step relies on.
 //! Why:
-//!  A failed or killed add keeps the claim, the slot and the locked registration,
+//!  A failed or killed add keeps the claim,
+//! the slot and the locked registration,
 //!  and the next add at the slot reads the record's phase and continues from it
-//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, A0 to A12 and
+//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+//! A0 to A12 and
 //!  W5 and W6 of the fourth check),
 //!  so the record is written before any mutation beyond the claim and every
 //!  field a resume depends on is proved here rather than read again later.

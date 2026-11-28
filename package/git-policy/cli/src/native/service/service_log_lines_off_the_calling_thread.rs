@@ -52,7 +52,8 @@
 //! hand(`${stamped}\n`); // false: dropped and counted
 //! ```
 
-/// The bounded queue, its thread and its control hooks,
+/// The bounded queue,
+/// its thread and its control hooks,
 /// which this file gives the service's log words and rules.
 use crate::lines_written_by_a_thread::{
     QueuePolicy,
@@ -127,7 +128,8 @@ pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = std::time::Duration::from_m
 /// a handful of syscalls at the very end of a process and none during its work.
 pub const THE_END_ASKS_AGAIN_EVERY: std::time::Duration = std::time::Duration::from_millis(5);
 
-/// What a gap in the log says, built from the count.
+/// What a gap in the log says,
+/// built from the count.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +148,8 @@ fn dropped_notice(dropped: u64) -> Vec<u8> {
 }
 
 /// The stream the lines go to when no control gave one:
-/// this process's standard error, which is the journal under the service's unit.
+/// this process's standard error,
+/// which is the journal under the service's unit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

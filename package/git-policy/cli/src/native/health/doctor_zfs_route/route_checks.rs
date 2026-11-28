@@ -150,7 +150,10 @@ use super::zfs_checks::{
 ///  Every removal-side fact one managed clone's checks read,
 ///  gathered once.
 /// Why:
-///  One clone's state, records, snapshots, origin and holders belong to one
+///  One clone's state,
+/// records,
+/// snapshots,
+/// origin and holders belong to one
 ///  value,
 ///  so no line can describe one clone's plan beside another clone's pool answer,
 ///  and a control changes one field and sees exactly one answer move.
@@ -160,13 +163,16 @@ use super::zfs_checks::{
 /// type CloneFacts = { state; registration; plan; snapshots; origin; retention; blocked };
 /// ```
 pub struct CloneFacts {
-    /// What the slot is, and every live staging row the state is read with.
+    /// What the slot is,
+    /// and every live staging row the state is read with.
     pub state: CloneStateFacts,
     /// The Git registration the record names and what stands there.
     pub registration: RegistrationFacts,
-    /// The managed Git lock that registration holds, in step 13's state.
+    /// The managed Git lock that registration holds,
+    /// in step 13's state.
     pub lock: ManagedLockFacts,
-    /// The destruction plan that names this clone, when one stands.
+    /// The destruction plan that names this clone,
+    /// when one stands.
     pub plan: RemovalPlanFacts,
     /// The clone's own snapshots beside the plan's states.
     pub snapshots: CloneSnapshotFacts,
@@ -355,7 +361,8 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
 ///  in the order a person reads one clone's removal state.
 /// Why:
 ///  A repository can hold several managed clones,
-///  and a plan, a registration or a holder belongs to one of them,
+///  and a plan,
+/// a registration or a holder belongs to one of them,
 ///  so the lines are grouped per clone rather than mixed by check.
 ///
 /// In TS you'd write (pseudocode):

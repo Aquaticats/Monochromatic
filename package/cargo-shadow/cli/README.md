@@ -452,6 +452,8 @@ Each flag maps to the nearest pnpm behavior:
   run,
   report,
   restore every lockfile.
+  A kept journal is settled first,
+  so a dry run keeps or replaces the lockfile an interrupted or refused run left.
 - `-w`,
   `--workspace` is `pnpm install`:
   the install step.
@@ -495,9 +497,9 @@ Each flag maps to the nearest pnpm behavior:
 cargo-shadow install                       # every first-party Cargo.lock; frozen in CI
 cargo-shadow install --frozen-lockfile     # fail naming the stale roots, write nothing
 cargo-shadow install --no-frozen-lockfile  # update stale lockfiles even in CI
-cargo-shadow install --dry-run             # report which lockfiles are stale, then restore every Cargo.lock
+cargo-shadow install --dry-run             # report which lockfiles are stale, then restore every Cargo.lock; settles a kept journal first
 cargo-shadow update                        # pnpm update for every first-party Cargo.lock under the policy
-cargo-shadow update --dry-run              # report what would change, then restore every Cargo.lock
+cargo-shadow update --dry-run              # report what would change, then restore every Cargo.lock; settles a kept journal first
 ```
 
 The commands that were the mise tasks `rust:install`,
@@ -597,8 +599,12 @@ Every shadow program (`cargo-shadow`,
 `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
 (`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
 byte-identical copies in each crate,
-and `tests/shadow_identity_copies.rs` is one of the copies,
-so the test task of any of the four packages fails when the copies differ).
+and `tests/shadow_identity_copies.rs` is one of the copies;
+every crate's copy of that test compares its own files with `cargo-shadow`'s,
+`mpm-shadow`'s and `pnpm-shadow`'s,
+so a change to the copy in `cargo-shadow`,
+`mpm-shadow` or `pnpm-shadow` fails all four suites,
+and a change to `search-shadow`'s copies alone fails `search-shadow`'s suite and no other).
 The lookup skips a candidate that carries it,
 or a launcher whose record leads to one,
 without starting it,
@@ -842,7 +848,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   the run makes one last look at the unit it started
   (`src/control_group_retire.rs`),
   on every path that ends a run,
-  and it asks the manager to stop that unit only when the group never held a process:
+  and it asks the manager to stop that unit only when the group never held a process,
+  or when its peak read cannot tell what the group held:
   a scope whose process was already exiting when the manager wrote its id into the scope's
   `cgroup.procs` never becomes populated,
   so the kernel sends no empty notification and the unit would stay `active (running)` with no member
@@ -861,8 +868,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   A group that held one changed its `populated` line,
   which is the change the manager watches and ends the unit on,
   so that run asks the manager nothing;
-  a group that is gone was collected,
-  and asks nothing either.
+  a group the manager removed was collected,
+  and asks nothing either;
+  but an absent directory is the same answer for a group that was never made,
+  which is left loaded with nothing printed
+  (the troubleshooting file's section on a directory that was never made).
   The notification the ordinary run relies on can be lost,
   and then a scope that has held a process stays loaded with no member and no warning.
   The three paths that lose it are in the manager this host runs (systemd 262.2,
@@ -885,13 +895,20 @@ and an HTTP 429 is retried after its `Retry-After`.
   So a scope whose catch-up read saw it populated,
   and that empties before its watch is added again,
   changes its `populated` line with no event queued for it,
-  and this path never ends that unit:
-  what this step buys is the ordinary case,
+  and this path never ends that unit.
+  None of those three paths has been reproduced here:
+  they were read in the manager's own source,
+  at the lines cited,
+  and what this step buys is the ordinary case,
   never a promise that the manager always ends an empty scope.
   Only a group that never held a process is the leftover this step exists for,
-  and only that run asks the manager,
+  and that run asks the manager,
   once:
   `systemctl --user --no-ask-password stop <name>.scope`.
+  A `pids.peak` read that fails for any other reason than the group's directory going away takes the same question:
+  the file is not there,
+  or it cannot be read or parsed,
+  and the safe side of a file this run could not read is one program start.
   The answer is the manager's exit status,
   and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
   which is a collected unit and not a refusal,
@@ -907,10 +924,46 @@ and an HTTP 429 is retried after its `Retry-After`.
   the look cannot tell a group that never held a process from one it cannot see,
   so every scoped run asks the manager once,
   and a manager that hangs costs that run up to `RETIRE_BOUND`.
-  A `pids.peak` read that fails because the group's directory went away is not that case:
-  the directory is checked,
+  A `pids.peak` read that fails because the group is gone is not that case:
   the group is the manager's to free,
   and nothing is asked.
+  `ENODEV` says that by itself:
+  the kernel has already taken the group's own files away,
+  which it does only for a group that holds no task,
+  on its way to removing the group.
+  `ENOENT` needs the group's directory to be gone as well,
+  and that is where the directory check stays live:
+  a group whose parent does not enable the pids controller has no `pids.peak` at all,
+  so that read is a name that is not there inside a directory that is,
+  and the question goes to the manager.
+  The `populated` read cannot meet that second state on this host.
+  Measured 2026-11-27,
+  in a delegated scope of its own on kernel 7.3.5-2-cachyos,
+  three hundred iterations an arm:
+  of 3090 reads raced against 300 group creations,
+  none answered `ENOENT` while the directory was there,
+  and every first sight of a new directory held `cgroup.events`
+  (a listing of the directory in 88 of the 300 iterations,
+  and the successful read itself in the other 212).
+  The control group root is created deactivated
+  (`KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5,
+  the stable release this host's kernel is built from),
+  and a new group's directory and its files become visible together
+  (`kernfs_activate` at `:6157`,
+  after the base files at `:6146`).
+  A directory that is there without its `cgroup.events` is still read as a scope nothing was read from,
+  and keeps its unit:
+  that is the answer for a kernel that shows the state,
+  and this one is not seen to.
+  What the `populated` read does answer is the removal,
+  and that is the live row:
+  300 removals raced by that read answered `ENODEV` 24 times,
+  the files being taken before the directory in the same removal
+  (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`,
+  `kernfs_remove` at `:6362`),
+  and a check of the directory made right after the read found it there in 20 of the 24.
+  So that row is read as the collected unit it is,
+  and nothing is printed about a unit the manager is freeing.
   The question keeps one bound (`RETIRE_BOUND`,
   five seconds),
   and a request the bound kills is given a measured grace to be reaped before the warning is built.
@@ -920,10 +973,16 @@ and an HTTP 429 is retried after its `Retry-After`.
   after it,
   none,
   and the call cannot be told from alpha.11's release binary:
-  its ratio (0.874,
-  0.518 to 2.115) is inside the control's own spread (0.993,
+  its ratio to alpha.11 (0.874,
+  0.518 to 2.115) and the control's (0.993,
   0.916 to 1.271)
-  in the table of the troubleshooting file.
+  in the table of the troubleshooting file overlap,
+  with the control's whole range inside the arm's,
+  so the gap between those two medians (0.119) is smaller than the control's own range,
+  0.355 wide.
+  That is the resolution of those four arms and six rounds,
+  and what leaves alpha.14 indistinguishable from alpha.11 there;
+  a null result at that resolution is no promise that the two cost the same.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
@@ -1059,7 +1118,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   so such a manifest was skipped as absent (or another file under the spellable name was synced in its place)
   and the journal was removed while the live manifest had never been made durable.
   The control is
-  `journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`:
+  `journal_recover::journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`:
   it arms the manifest's own data barrier and holds a file under the spellable name beside it,
   and on alpha.10's code it fails here:
 
@@ -1194,14 +1253,46 @@ and an HTTP 429 is retried after its `Retry-After`.
   issue 6528;
   `doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
   so a `git` left as a zombie does not fail an install.
-  A later run settles the journal such a refusal kept:
-  the leftover lockfile is kept when its new versions pass the policy
-  (otherwise it is saved as `Cargo.lock.refused` and the snapshot put back),
-  the journal is removed,
-  and that run goes on to its own check
-  (`the_next_run_settles_the_journal_of_a_run_that_could_not_be_settled`,
-  measured 2026-11-27,
-  issue 6528).
+  A later run settles the journal such a refusal kept,
+  and which runs those are is a rule rather than a list of kinds:
+  a run that checks or updates a lockfile of the catalog repository
+  reads the kept journal before it does anything else,
+  keeps the leftover lockfile when its new versions pass the policy
+  (otherwise it saves it as `Cargo.lock.refused` and puts the snapshot back),
+  removes the journal,
+  and goes on to its own work.
+  Measured 2026-11-27 at a refusal staged on a test build:
+  `cargo check`,
+  `cargo metadata`,
+  `cargo update`,
+  `cargo-shadow install`,
+  `cargo-shadow update`,
+  `install --dry-run` and `update --dry-run` settle it
+  (`refusal_journal_next_runs_tests`).
+  The journal belongs to the catalog repository's root and not to the crate the refused run was made in,
+  so any of those runs anywhere in the repository settles it.
+  A command that resolves nothing (`cargo fmt`,
+  `cargo --version`),
+  a run that is frozen (`--locked`,
+  `--frozen`,
+  `CI`,
+  or `install --frozen-lockfile`),
+  a run whose lockfile and remembered policy pass are already fresh (the fast path),
+  and a run outside the catalog repository
+  never read that journal,
+  so they leave it for one of those runs and print nothing about it
+  (`a_pass_through_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_frozen_run_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_frozen_install_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_run_on_the_fast_path_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_run_outside_every_catalog_repository_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  measured 2026-11-27).
+  Both `--dry-run` forms settle it before they look:
+  each keeps or replaces the leftover lockfile,
+  then restores what it snapshotted.
+  No run reminds the person of a kept journal it leaves:
+  that would be a change of what those runs print,
+  which nobody has decided.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
   Two runs of one process do not wait for each other and share no lock:
@@ -1713,7 +1804,15 @@ mise run //package/cargo-shadow/cli:test
 mise run //package/cargo-shadow/cli:lint:clippy
 ```
 
-Unit tests sit beside the modules as `*_tests.rs`;
+Unit tests sit beside the modules as `*_tests.rs`,
+declared by the module they test:
+`#[cfg(test)] #[path = "<name>_tests.rs"] mod <name>_tests;`.
+So `src/lib.rs` lists subjects,
+not controls,
+and a module that brings its own tests costs it one line rather than three.
+A test file that belongs to no single module (a round's suite,
+the fixtures several test files share)
+is declared in `src/lib.rs`.
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
 
@@ -1847,6 +1946,51 @@ on such a host fails instead of passing quietly:
 cargo-shadow tests: not run [bounded_contain_tests::nested_transactions_keep_their_own_records]: this host cannot give it a delegated control group (...)
 ```
 
+A control that fails in about ten milliseconds has not failed at anything it measures:
+it failed at that question,
+and the words after `not run [<the test>]` say which ask of the manager answered no.
+The question is put five times,
+two hundred milliseconds apart,
+before an answer of no is taken for this host's answer
+(`ASKING_AGAIN_ATTEMPTS` and `ASKING_AGAIN_PAUSE` in `src/control_group_route_discovery.rs`),
+because one `systemctl` that failed to run is not a host without a control group.
+On 2026-11-27 a whole run of this suite failed ten such controls in about ten milliseconds each,
+and a `systemctl` that refuses the first ask of each control reproduces exactly that
+(`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`).
+A run of the ten beside another round's scope tests does not produce it.
+Those five attempts span 0.800 s,
+which is the longest reexec of a user manager measured across which asks fail
+(0.588 s in a container of its own,
+0.393 s in a guest,
+2026-11-27,
+Linux 7.3.5 and 6.8,
+systemd 262 and 255),
+not the second after one,
+where no ask failed and the ten of that run did.
+Where a manager answers,
+the asking again costs nothing unless an ask fails,
+and that span is spent there and nowhere else.
+Where no user manager can be reached at all,
+the question is asked once:
+the discovery reads in its own process that nothing on this host could carry an ask
+(`src/control_group_route_manager_reach.rs`),
+and the first failed ask is that host's whole answer.
+Measured 2026-11-27 in a container with no user manager,
+in both ways of having none,
+nine rounds of this branch's binary beside `0.1.5-alpha.15` and a byte-identical copy of each:
+every call made one ask,
+and this branch's call no longer than the released binary's by more than the rounds themselves vary,
+**1.01 to 1.28 times it per round where neither variable is set (median 1.11)**
+and **0.87 to 1.05 times it where the runtime directory holds no socket (median 1.00)**,
+with a byte-identical copy of each moving by as much (0.83 to 1.43 and 0.87 to 1.15),
+about 40 ms a call for both binaries where the round before this one measured about 43 ms,
+and every call took the weaker path and exited 0.
+Before this change the same harness measured 12.9 to 29.7 times as long (median 20.6),
+which is what five asks cost a call there.
+The task keeps the whole output of a failing run in `target/test-runs` under this package,
+which `.gitignore` excludes,
+and its last lines name the file.
+
 Before it starts the suite,
 the task asks that question alone,
 through `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope`,
@@ -1881,7 +2025,7 @@ so there is nothing cheaper than the first run,
 and the cost is one more pass over the suite on a host that cannot delegate.
 
 The same line is used by a control that needs more than a scope.
-`journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
+`journal::journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
 and the test fixture root (three levels above the test binary,
 so `test-scratch` in the crate's build folder) may sit on a dataset that refuses such a name under `utf8only=on`,
 answering `EILSEQ`;

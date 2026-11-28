@@ -52,11 +52,31 @@ function bJi(e){let n=nb(e);if(n.length===0)return!0;let o=n[0]?.trim().split(/\
 `bJi` splits the command into subcommands with `nb`,
 takes the first word of the first one,
 and answers `false` when that word is `sleep`.
-`nb` was not located in the bundle under that name,
-so its splitting rules are known only from the probes under "Verification":
-it splits on `;` and `&&`,
-it skips a whole comment line,
-and it does not see inside `{ ...; }` or `( ... )`.
+An earlier version of this record said `nb` was not in the bundle;
+the second-pass review of 2026-11-27 found it at byte 336021739:
+
+```js
+// claude 2.1.332 bundle
+function nb(e){if(!e)return[];if(e.length>pP)return[e];let t=Qy().parse(e);if(!t)return[e];let r=[],n=(i)=>{if(w.has(i.type)||i.type==="comment")return;if(i.type==="redirected_statement"){for(let s of i.children)if(!s.type.endsWith("_redirect"))n(s);return}if(E.has(i.type)){for(let s of i.children)n(s);return}r.push(i.text)};return n(t.type==="ERROR"&&t.children[0]?.type==="program"?t.children[0]:t),r}
+```
+
+It parses the command with Claude Code's own shell parser (`Qy().parse`),
+skips operator tokens and `comment` nodes,
+descends through lists and pipelines,
+drops the redirections of a redirected statement,
+and keeps the text of the first other node.
+A statement made only of redirections (`> log`) therefore yields nothing,
+and the statement after it counts as first.
+The review also read the parser's blank skipper,
+which treats a backslash-newline as blank.
+A command over `pP` characters,
+or one that does not parse,
+counts as one whole text.
+The probes under "Verification" agree:
+`;` splits,
+a comment line is skipped,
+`{ ...; }` and `( ... )` are single nodes,
+and a redirection-only first line or a leading backslash-newline leaves the `sleep` first.
 
 ### Where the check decides the outcome
 
@@ -115,7 +135,7 @@ while "A local session you work in from a terminal,
 the desktop app,
 or the VS Code extension has no time limit on background commands."
 
-### A neighbouring check keyed on the same subcommand
+### A refusal keyed on the same subcommand
 
 Byte 345978774:
 
@@ -124,8 +144,24 @@ Byte 345978774:
 function EJi(e){let n=TJi(e);if(n===null||n.seconds<Dws)return null;return n.rest?`sleep ${n.seconds} followed by: ${n.rest}`:`standalone sleep ${n.seconds}`}
 ```
 
-It reads the same first subcommand,
-so anything that hides a leading `sleep` from `bJi` hides it from this description too.
+An earlier version of this record called `EJi` a description;
+the second-pass review traced it to the Bash tool's input validation,
+which refuses the call with a message ending
+"Do not chain shorter sleeps to work around this block"
+(that text is at byte 172157804)
+when the first statement is `sleep N` with N at least `Dws`,
+which the review read as 25.
+The review traced that validation to the input as the model sent it,
+before the `PreToolUse` hooks run,
+so a hook's prefix does not get such a call past it.
+A live probe at 2026-11-27T13:19 -05:00 agrees,
+with the guard's flag `tengu_amber_sentinel` cached as `true`:
+`sleep 30 && printf g1-done > g1.out` was refused in 13 ms with "Blocked: sleep 30 followed by: printf g1-done"
+and never reached the `PreToolUse` logger placed first in the hook list,
+while `sleep 20 && printf g2-done > g2.out` reached it,
+was prefixed by this repository's hook,
+and moved at 2156 ms.
+`doc/troubleshooting/claude-code-foreground-sleep-block.md` records the guard itself.
 
 ## Verification
 
@@ -183,6 +219,24 @@ Same settings:
   moved at 2133 ms;
   written.
 
+### Shapes the review found,
+live on 2026-11-27 at about 13:12 -05:00
+
+Each with `timeout: 3480000`,
+one session per hook bundle:
+
+- `> r1.log` on one line,
+  then `sleep 5 && printf r1-done > r1.out`:
+  under the bundle without the redirection rule,
+  exit 143 at 1118 ms and no `r1.out`;
+  under the fixed bundle,
+  moved at 2179 ms and `r1.out` written.
+- A backslash-newline,
+  then `sleep 5 && printf r2-done > r2.out`:
+  exit 143 at 1045 ms and no `r2.out`;
+  under the fixed bundle,
+  moved at 2089 ms and `r2.out` written.
+
 ### Timeout zero
 
 `node -e "setTimeout(function(){},8000)" > c3.out` with `timeout: 0`
@@ -211,12 +265,16 @@ This repository's hook applies it to main-session commands it does not wrap,
 in `withSleepPrefix` in
 `package/claude-code-plugin/source/src/handler/bash-output-filter/blocking-timeout.ts`,
 and the hook's own filter wrapper (`set -o pipefail && ...`) has the same effect on the commands it wraps.
+This repository's hook also prefixes a command whose first statement starts with a redirection,
+because `nb` skips a redirection-only statement.
 Tradeoffs:
 the transcript shows the prefixed text;
-Claude Code's sleep-specific descriptions (`EJi`) no longer see the `sleep`;
+after a prefixed `sleep N &`,
+`$!` names the background subshell rather than the `sleep`;
 and the workaround depends on `bJi` reading only the first word,
-so a release that read further would stop prefixed sleeps,
-which is why the probes in "Verification" are re-run after each Claude Code upgrade.
+so a release that read further would stop prefixed sleeps.
+No automated check covers that;
+re-run the probes in "Verification" after a Claude Code upgrade.
 
 ### The main-agent cap variable
 

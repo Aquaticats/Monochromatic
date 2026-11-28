@@ -72,32 +72,36 @@ pub fn shown(
 }
 
 /// What:
-///  A name with the whitespace a reader cannot see spelled as its code point.
+///  A name with the whitespace a reader cannot see spelled as its code point,
+///  and the characters that print as nothing wherever they stand.
 /// Why:
 ///  A message names a folder, a file or an entry so its reader can find it,
 ///  and a tab, a no-break space or a space at either end of a name prints as nothing a reader can see:
 ///  a message that showed `src/a` for a folder named `src/a ` would send its reader to a name the package does hold.
+///  A byte order mark, a zero-width space or a soft hyphen prints as nothing wherever it stands,
+///  and a name holding one is no name the reader can compare with the names on disk,
+///  so each is spelled too.
 ///  A space between two words stays a space, because the message already reads as words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spelledWhitespace = (name) => [...name]
+/// const spelledUnreadable = (name) => [...name]
 ///   .map((letter, index) =>
-///     letter.isWhitespace() && (letter !== ' ' || index === 0 || index === name.length - 1)
+///     isFormat(letter) || (letter.isWhitespace() && (letter !== ' ' || index === 0 || index === name.length - 1))
 ///       ? `\\u{${letter.codePointAt(0)}}`
 ///       : letter)
 ///   .join('')
 /// ```
-pub(crate) fn spelled_whitespace(name: &str) -> String {
+pub(crate) fn spelled_unreadable(name: &str) -> String {
     // What: the position of the name's last character, which is an end like the first one is.
     // Why: a space at either end is invisible in a message, where a space between two words is not.
     let last: usize = name.chars().count().saturating_sub(1);
     let mut spelled: String = String::with_capacity(name.len());
     for (index, letter) in name.chars().enumerate() {
         // What: whether this character prints as nothing a reader could measure.
-        // Why: every whitespace character but a space between two words disappears into the line it stands in.
-        let invisible: bool =
-            letter.is_whitespace() && (letter != ' ' || index == 0 || index == last);
+        // Why: every whitespace character but a space between two words disappears into the line it stands in, and a format character disappears wherever it stands.
+        let invisible: bool = prints_as_nothing(letter)
+            || (letter.is_whitespace() && (letter != ' ' || index == 0 || index == last));
         if !invisible {
             spelled.push(letter);
             continue;
@@ -105,6 +109,119 @@ pub(crate) fn spelled_whitespace(name: &str) -> String {
         spelled.push_str(format!("\\u{{{:x}}}", letter as u32).as_str());
     }
     return spelled;
+}
+
+/// What:
+///  The phrase a message calls one character a reader cannot see:
+///  its plain name where this crate has one, and the character's code point either way.
+/// Why:
+///  A reader told only that a character cannot be seen has nothing to search for,
+///  and a character with no common name is still found by its code point in the line.
+///  The two spellings differ, so the phrase keeps the name where one exists and never invents one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const phrase = (letter) =>
+///   unseenCharacterName(letter) ?? `a character a reader cannot see (\`\\u{${letter.codePointAt(0)!.toString(16)}}\`)`
+/// ```
+pub(crate) fn unseen_character_phrase(letter: char) -> String {
+    return match unseen_character_name(letter) {
+        Some(name) => String::from(name),
+        None => format!(
+            "a character a reader cannot see (`\\u{{{:x}}}`)",
+            letter as u32
+        ),
+    };
+}
+
+/// What:
+///  Whether a character prints as nothing wherever it stands,
+///  so a name holding one is no name a reader can see.
+/// Why:
+///  A byte order mark before a line's first word makes that word `\u{feff}uses`,
+///  which is no word the reader knows, a zero-width space inside a name is no separator it reads,
+///  and a right-to-left override reorders every character after it on a terminal that draws bidirectional text;
+///  each is a character a person cannot see, so a message about one must spell it.
+///  Which characters those are is `layout_unseen_characters`'s answer,
+///  which takes the format and control categories from the Unicode tables this crate links
+///  and the rest of Unicode's `Default_Ignorable_Code_Point` from the data file it names:
+///  a list written here by hand missed the marks, the embeddings and the overrides a copied line carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const printsAsNothing = (letter) => !/\s/u.test(letter) && (/[\p{Cf}\p{Cc}]/u.test(letter) || isDefaultIgnorable(letter))
+/// ```
+pub(crate) fn prints_as_nothing(letter: char) -> bool {
+    return crate::layout_unseen_characters::prints_as_nothing(letter);
+}
+
+/// What:
+///  The plain name of a character a reader cannot see, with its code point,
+///  or nothing when this crate has no plain name for it.
+/// Why:
+///  A sentence that called a byte order mark "a character a reader cannot see" would leave its reader no way to tell it from a zero-width space,
+///  and the two need different edits: a byte order mark at the start of a line is taken out, a zero-width space where a separator belongs is replaced by one.
+///  The name given covers the characters a copied line carries:
+///  what a word processor and a web page put in front of, inside and around a word,
+///  which is where such a line comes from.
+///  A character with no name here is still spelled with its code point by the message,
+///  so its reader can find it even though the sentence cannot call it anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unseenName = (letter) => ({ '\u{feff}': 'a byte order mark', '\u{200b}': 'a zero-width space', ... })[letter]
+/// ```
+pub(crate) fn unseen_character_name(letter: char) -> Option<&'static str> {
+    return match letter {
+        '\u{feff}' => Some("a byte order mark or zero-width no-break space (`\\u{feff}`)"),
+        '\u{200b}' => Some("a zero-width space (`\\u{200b}`)"),
+        '\u{200c}' => Some("a zero-width non-joiner (`\\u{200c}`)"),
+        '\u{200d}' => Some("a zero-width joiner (`\\u{200d}`)"),
+        '\u{2060}' => Some("a word joiner (`\\u{2060}`)"),
+        '\u{ad}' => Some("a soft hyphen (`\\u{ad}`)"),
+        '\u{200e}' => Some("a left-to-right mark (`\\u{200e}`)"),
+        '\u{200f}' => Some("a right-to-left mark (`\\u{200f}`)"),
+        '\u{202a}' => Some("a left-to-right embedding (`\\u{202a}`)"),
+        '\u{202b}' => Some("a right-to-left embedding (`\\u{202b}`)"),
+        '\u{202c}' => Some("a pop directional formatting (`\\u{202c}`)"),
+        '\u{202d}' => Some("a left-to-right override (`\\u{202d}`)"),
+        '\u{202e}' => Some("a right-to-left override (`\\u{202e}`)"),
+        '\u{2066}' => Some("a left-to-right isolate (`\\u{2066}`)"),
+        '\u{2067}' => Some("a right-to-left isolate (`\\u{2067}`)"),
+        '\u{2068}' => Some("a first strong isolate (`\\u{2068}`)"),
+        '\u{2069}' => Some("a pop directional isolate (`\\u{2069}`)"),
+        '\u{61c}' => Some("an arabic letter mark (`\\u{61c}`)"),
+        '\u{180e}' => Some("a mongolian vowel separator (`\\u{180e}`)"),
+        '\u{34f}' => Some("a combining grapheme joiner (`\\u{34f}`)"),
+        '\u{7f}' => Some("a delete character (`\\u{7f}`)"),
+        _ => None,
+    };
+}
+
+/// What:
+///  The first character of a text that a reader cannot see, with its one-based position among the text's characters,
+///  or nothing when every character of the text is one a reader can see.
+/// Why:
+///  A message that names such a character must say where it stands,
+///  because the line's words look right without it and its reader has to know which character to take out.
+///  The position counts characters rather than bytes,
+///  because a byte offset names a place no person can count, and an editor may show a tab as several cells or a letter as more than one byte:
+///  `usés` holds five characters and six bytes, and a byte offset would name a place the file does not hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const firstUnseen = (text) => {
+///   const at = [...text].findIndex(printsAsNothing)
+///   return at === -1 ? undefined : [text[at], at + 1]
+/// }
+/// ```
+pub(crate) fn first_unseen_character(text: &str) -> Option<(char, usize)> {
+    for (index, letter) in text.chars().enumerate() {
+        if prints_as_nothing(letter) {
+            return Some((letter, index + 1));
+        }
+    }
+    return None;
 }
 
 /// What:

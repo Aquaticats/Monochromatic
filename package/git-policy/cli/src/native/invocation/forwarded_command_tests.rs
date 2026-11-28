@@ -16,10 +16,14 @@ use crate::test_support::{
     remove,
 };
 use crate::transaction_git::GitContext;
+/// `OsStr` is borrowed operating-system text of raw bytes.
+use std::ffi::OsStr;
 use std::path::{
     Path,
     PathBuf,
 };
+/// The finished child each real Git fixture run is.
+use std::process::Output;
 
 /// A context whose only aliases are the given name and value pairs,
 ///  read by real Git.
@@ -644,17 +648,390 @@ fn a_shell_alias_the_reading_cannot_follow_is_left_unread() {
         assert_eq!(resolved.shell_command, None, "{value} must stay unread");
         assert_eq!(resolved.arguments, args(&["fixtureshell"]), "{value}");
     }
-    // One shell is read, so a shell alias that names another shell alias is left unread rather than followed twice.
+}
+
+/// What:
+///  The bytes the shell reads as they are:
+///  the letters,
+///  the digits,
+///  the ten bytes of ordinary arguments,
+///  and the two blanks,
+///  which separate two words rather than standing in one.
+///  Written out here rather than read from the reader,
+///  so a widening of that list is a row that fails.
+/// Why:
+///  The table below is the whole alphabet,
+///  and a set taken from `is_plain_shell_byte` would agree with whatever that function says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const READ = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.:/=@+, \t';
+/// ```
+const BYTES_THE_SHELL_READS: &[u8] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.:/=@+, \t";
+
+/// What:
+///  One `!git` value that holds the byte inside its second word,
+///  where the shell would keep the byte in that word if it passed the byte through.
+/// Why:
+///  A byte at the end of a value would leave it unread for the value's shape and not for the byte,
+///  so the row would pass whatever the byte meant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const valueHolding = (byte) => new TextEncoder().encode(`!git reset --har${String.fromCharCode(byte)}d`);
+/// ```
+fn a_git_value_holding(byte: u8) -> Vec<u8> {
+    let mut value: Vec<u8> = b"!git reset --har".to_vec();
+    value.push(byte);
+    value.extend_from_slice(b"d");
+    return value;
+}
+
+/// What:
+///  Every byte of the alphabet is read or left unread as the shell would read it:
+///  the letters,
+/// digits and the ten bytes of ordinary arguments are read,
+///  and every other byte leaves the value unread.
+/// Why:
+///  `is_plain_shell_byte` is the one list of bytes the shell-alias reading trusts,
+///  so a widening by any byte decides about a command nobody runs:
+///  a quote,
+/// a backslash,
+/// a brace,
+/// a parenthesis,
+/// `~`,
+/// `#`,
+/// a carriage return or a line feed
+///  left the old controls green (the alpha.50 review's L3).
+///  This table names every byte,
+///  so a widening shows as the rows whose byte is now read and a narrowing as the row that is
+///  no longer read:
+///  with one byte widened into the list,
+/// that byte's row fails and no other row does.
+///  A blank byte splits the value into two words rather than standing in one,
+///  and the value is read either way,
+///  which `a_shell_alias_is_read_in_every_form_the_shell_passes_through` holds for the two
+///  blanks the shell separates on.
+#[test]
+fn every_byte_the_shell_does_not_pass_through_leaves_a_git_value_unread() {
+    // Every offending byte is collected before the claim is made, so one widening reports each byte
+    //  it read and the table it broke, rather than stopping at the first.
+    let mut read_through: Vec<u8> = Vec::new();
+    let mut left_unread: Vec<u8> = Vec::new();
+    for byte in 0..=u8::MAX {
+        let value: Vec<u8> = a_git_value_holding(byte);
+        let read: bool = crate::alias_value::shell_git_words(value.as_slice()).is_some();
+        if read && !BYTES_THE_SHELL_READS.contains(&byte) {
+            read_through.push(byte);
+        }
+        if !read && BYTES_THE_SHELL_READS.contains(&byte) {
+            left_unread.push(byte);
+        }
+    }
+    assert!(
+        read_through.is_empty(),
+        "each of these bytes means something to the shell, so a value holding one stays unread: {read_through:?}"
+    );
+    assert!(
+        left_unread.is_empty(),
+        "each of these bytes is read as it is, so a value holding one is read: {left_unread:?}"
+    );
+}
+
+/// What:
+///  Every spelling made only of forms the shell passes through is read as Git runs
+///  it,
+///  and real Git is asked the same shape beside each reading.
+/// Why:
+///  The alpha.49 release pass found five such spellings unread:
+///  a `!` alias whose value names another `!` alias,
+///  a value written `! git`,
+///  a TAB after `!git`,
+///  a bare `!git` whose caller's own words begin with a global option,
+///  and a chain of aliases longer than the reading followed.
+///  Git answers each shape with its version inside the shell,
+///  so a reading that answered no command would be wrong about the command Git
+///  runs;
+///  the chain case beside them shows the count the reading does keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const { value, caller, command, run } of readable) {
+///   expect(realGitVerbose(value, caller)).toContain('git version');
+///   expect(resolved(value, caller).shellCommand).toEqual(command);
+/// }
+/// ```
+#[test]
+fn a_shell_alias_is_read_in_every_form_the_shell_passes_through() {
+    // What: One spelling: the value the reading reads, the caller's own words, the command the shell of that
+    //  value runs, and the same shape written so Git prints its version instead of running a command.
+    // Why:  One row answers both questions, so a reading that drifts from Git's own shell fails here.
+    let readable: Vec<(&str, Vec<&str>, Vec<&str>, &str, Vec<&str>)> = vec![
+        // A blank between `!` and `git` is one separator to the shell.
+        (
+            "! git reset --hard",
+            vec![],
+            vec!["reset", "--hard"],
+            "! git --version",
+            vec![],
+        ),
+        // A TAB separates the words of a shell command as a space does.
+        (
+            "!git\treset --hard",
+            vec![],
+            vec!["reset", "--hard"],
+            "!git\t--version",
+            vec![],
+        ),
+        // A run of blanks, spaces and TABs, is still one separator.
+        (
+            "!  git \t reset --hard",
+            vec![],
+            vec!["reset", "--hard"],
+            "!  git \t --version",
+            vec![],
+        ),
+        // A value of `!git` alone leaves the command to the caller's own words, which may begin with a global.
+        (
+            "!git",
+            vec!["--no-pager", "reset", "--hard"],
+            vec!["--no-pager", "reset", "--hard"],
+            "!git",
+            vec!["--no-pager", "--version"],
+        ),
+    ];
+    for (value, caller, command, run, run_caller) in &readable {
+        let context: GitContext = context_with_aliases(&[("fixtureshell", value)]);
+        let mut words: Vec<&str> = vec!["fixtureshell"];
+        words.extend(caller.iter().copied());
+        let resolved: ResolvedCommand = resolved_from(
+            &context,
+            no_environment().as_slice(),
+            &args(words.as_slice()),
+        );
+        assert_eq!(resolved.route, Route::ShellAlias, "{value}");
+        assert_eq!(
+            resolved.shell_command.as_deref(),
+            Some(args(command).as_slice()),
+            "{value} is read as the shell runs it"
+        );
+        // What: The same shape in real Git, asking the version so the probe writes nothing.
+        // Why:  The answer comes from the `git` inside the shell, which is the command this reading follows.
+        let asked: String = format!("alias.fixtureshell={run}");
+        let mut invocation: Vec<&str> = vec!["-c", asked.as_str(), "fixtureshell"];
+        invocation.extend(run_caller.iter().copied());
+        let stdout: String = real_git_stdout(
+            outside_every_repository(),
+            "/usr/bin:/bin",
+            invocation.as_slice(),
+        );
+        assert!(
+            stdout.contains("git version"),
+            "{value}: Git did not run the command the reading follows: {stdout}"
+        );
+    }
+    // The shell alias that names another shell alias: the outer shell runs the inner alias, whose own
+    //  shell runs the command Git finally runs.
     let doubled: GitContext = context_with_aliases(&[
         ("fixtureshell", "!git fixturesecond"),
         ("fixturesecond", "!git reset --hard"),
     ]);
-    let resolved: ResolvedCommand = resolved_from(
+    let followed: ResolvedCommand = resolved_from(
         &doubled,
         no_environment().as_slice(),
         &args(&["fixtureshell"]),
     );
-    assert_eq!(resolved.shell_command, None, "a second shell is not read");
+    assert_eq!(followed.route, Route::ShellAlias);
+    assert_eq!(followed.shell_command, Some(args(&["reset", "--hard"])));
+    let stdout: String = real_git_stdout(
+        outside_every_repository(),
+        "/usr/bin:/bin",
+        &[
+            "-c",
+            "alias.fixtureshell=!git fixturesecond",
+            "-c",
+            "alias.fixturesecond=!git --version",
+            "fixtureshell",
+        ],
+    );
+    assert!(
+        stdout.contains("git version"),
+        "Git did not run the second shell the reading follows: {stdout}"
+    );
+}
+
+/// The chain of 17 links the second pass over alpha.49 found unread,
+///  one link more than the count was then,
+///  so a control reads the depth that pass named as a gap.
+const A_CHAIN_PAST_THE_COUNT_THE_PASS_FOUND: usize = 17;
+
+/// The chain of 30 links real Git ran while that pass measured it,
+///  which no count Git keeps would stop.
+const A_CHAIN_REAL_GIT_RAN: usize = 30;
+
+/// What:
+///  One chain of `links` aliases,
+///  each naming the next,
+///  whose last runs `status --short`,
+///  and the name of the first.
+/// Why:
+///  A chain is read one link at a time,
+///  so a control needs a chain of an exact depth on both sides of the reading and
+///  in real Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [pairs, first, words] = alias_chain(17);
+/// ```
+fn alias_chain(links: usize) -> (Vec<(String, String)>, OsString, Vec<OsString>) {
+    let mut names: Vec<String> = Vec::new();
+    for index in 0..links {
+        names.push(format!("fixturealischain{index}"));
+    }
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    let mut words: Vec<OsString> = Vec::new();
+    for index in 0..links {
+        let target: String = if index + 1 < links {
+            names[index + 1].clone()
+        } else {
+            String::from("status --short")
+        };
+        pairs.push((names[index].clone(), target));
+        words.push(OsString::from("-c"));
+        words.push(OsString::from(format!(
+            "alias.{}={}",
+            names[index], pairs[index].1
+        )));
+    }
+    words.push(OsString::from(names[0].as_str()));
+    return (pairs, OsString::from(names[0].as_str()), words);
+}
+
+/// What:
+///  A chain of ordinary aliases is read as deep as real Git runs it,
+///  so the count the reader keeps bounds its own work and not Git.
+/// Why:
+///  The pass over alpha.49 found a chain of 17 links unread,
+///  and Git has no count at all:
+///  it ends a chain by reaching a name it has already expanded.
+///  This control reads the depth that pass named,
+///  the depth it measured real Git running,
+///  and the count the reader keeps,
+///  and has real Git run each of them beside the reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const links of [17, 30, MAX_ALIAS_EXPANSIONS]) {
+///   expect(realGit(aliasChain(links))).toBe('');
+///   expect(resolved(aliasChain(links)).word()).toBe('status');
+/// }
+/// ```
+#[test]
+fn an_alias_chain_is_read_as_deep_as_git_runs_it() {
+    let root: PathBuf = fixture("alias-chain-depth");
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--initial-branch=main", "."],
+    );
+    for links in [
+        A_CHAIN_PAST_THE_COUNT_THE_PASS_FOUND,
+        A_CHAIN_REAL_GIT_RAN,
+        MAX_ALIAS_EXPANSIONS,
+    ] {
+        let (pairs, first, words): (Vec<(String, String)>, OsString, Vec<OsString>) =
+            alias_chain(links);
+        let mut borrowed: Vec<(&str, &str)> = Vec::new();
+        for (name, value) in &pairs {
+            borrowed.push((name.as_str(), value.as_str()));
+        }
+        let context: GitContext = context_with_aliases(borrowed.as_slice());
+        let resolved: ResolvedCommand =
+            resolved_from(&context, no_environment().as_slice(), &[first]);
+        assert_eq!(resolved.route, Route::Alias, "{links} links");
+        assert_eq!(resolved.word(), b"status", "{links} links are read");
+        // The same chain in real Git, in a repository it can answer `status` in: an empty output
+        //  is a clean tree, and a failure is Git not reaching the command at all.
+        let asked: Vec<&OsStr> = words.iter().map(OsStr::new).collect();
+        let output: Output = git_output(root.as_path(), asked.as_slice());
+        assert!(
+            output.status.success(),
+            "{links} links: Git did not run the alias chain: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A chain of `length` shell aliases,
+///  each naming the next with `!git <name>`,
+///  the last running `!git reset --hard`,
+///  and the name of the first.
+/// Why:
+///  Every shell in the chain starts another `git`,
+///  so the reading follows them one at a time and has to stop somewhere;
+///  this fixture puts both sides of that depth in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [context, first] = shellChainContext(MAX_SHELL_ALIAS_DEPTH);
+/// ```
+fn shell_chain_context(length: usize) -> (GitContext, OsString) {
+    let mut names: Vec<String> = Vec::new();
+    for index in 0..length {
+        names.push(format!("fixtureshellchain{index}"));
+    }
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    for index in 0..length {
+        let target: String = if index + 1 < length {
+            format!("!git {}", names[index + 1])
+        } else {
+            String::from("!git reset --hard")
+        };
+        pairs.push((names[index].clone(), target));
+    }
+    let mut pair_refs: Vec<(&str, &str)> = Vec::new();
+    for (name, target) in &pairs {
+        pair_refs.push((name.as_str(), target.as_str()));
+    }
+    let first: OsString = OsString::from(names[0].as_str());
+    return (context_with_aliases(pair_refs.as_slice()), first);
+}
+
+/// What:
+///  A chain of shell aliases as deep as the reading follows is read to the command
+///  Git runs,
+///  and one shell deeper is read as no command at all.
+/// Why:
+///  The depth is what stops a value that names itself from starting shells without
+///  end,
+///  so both sides of it are pinned:
+///  the deepest chain read still answers the command,
+///  and a chain past it answers no command rather than a wrong one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// resolved(shellChain(MAX_SHELL_ALIAS_DEPTH)).shellCommand // ['reset', '--hard']
+/// resolved(shellChain(MAX_SHELL_ALIAS_DEPTH + 1)).shellCommand // undefined
+/// ```
+#[test]
+fn a_shell_alias_chain_deeper_than_the_reading_follows_is_unread() {
+    let (within, first): (GitContext, OsString) = shell_chain_context(MAX_SHELL_ALIAS_DEPTH);
+    let followed: ResolvedCommand = resolved_from(&within, no_environment().as_slice(), &[first]);
+    assert_eq!(followed.route, Route::ShellAlias);
+    assert_eq!(
+        followed.shell_command,
+        Some(args(&["reset", "--hard"])),
+        "the deepest chain the reading follows reaches the command"
+    );
+    let (past, first_of_past): (GitContext, OsString) =
+        shell_chain_context(MAX_SHELL_ALIAS_DEPTH + 1);
+    let unread: ResolvedCommand =
+        resolved_from(&past, no_environment().as_slice(), &[first_of_past]);
+    assert_eq!(unread.route, Route::ShellAlias);
+    assert_eq!(unread.shell_command, None, "a shell deeper is not read");
+    assert_eq!(the_command_git_runs(&unread), None);
 }
 
 /// A built-in named directly is resolved without an alias lookup and keeps its global options.
@@ -830,13 +1207,26 @@ fn the_expansion_limit_reaches_the_builtin() {
     assert_eq!(resolved.word(), b"commit");
 }
 
-/// One chained alias more than the limit allows and the command stays unresolved.
+/// What:
+///  One chained alias more than the reading follows,
+///  and the answer is that these words are no command at all:
+///  no subcommand,
+///  nothing the guard or the slot refusals can read.
+/// Why:
+///  The chain stopped one link before its end,
+///  so a word of the half-expanded vector is an alias's name and not the command
+///  Git runs;
+///  a vector whose word happened to be `worktree` would otherwise let a planner
+///  serve a removal the wrapper never read.
 #[test]
-fn one_expansion_past_the_limit_is_unresolved() {
+fn one_expansion_past_the_limit_is_unread() {
     let (context, first): (GitContext, OsString) = chain_context(MAX_ALIAS_EXPANSIONS + 1);
     let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &[first]);
-    assert_eq!(resolved.route, Route::Unresolved);
+    assert_eq!(resolved.route, Route::Unread);
+    assert_eq!(resolved.word(), b"");
+    assert_eq!(resolved.subcommand, None);
     assert!(!resolved.is_builtin());
+    assert_eq!(the_command_git_runs(&resolved), None);
 }
 
 /// Only `worktree add` creates a linked worktree;

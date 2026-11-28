@@ -78,6 +78,7 @@ fn only_a_top_level_context_file_entering_the_index_is_forbidden() {
         path: Some(EventPath::from_git_bytes("CONTEXT.md".as_bytes())),
         location: None,
         fix_available: false,
+        commit_correction: None,
     }]);
     let nothing: PolicyOutcome = PolicyOutcome::Findings(Vec::new());
     std::fs::write(repo.join("CONTEXT.md"), b"context\n").expect("context");

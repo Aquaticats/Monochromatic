@@ -72,7 +72,8 @@ use crate::doctor_zfs_route::{
 ///  whose fallback the build deferred;
 ///  `super::add_route_run`,
 ///  "the fallback that finishes a failed add with Git's own checkout is step
-///  11's, so this release refuses nothing it cannot resume";
+///  11's,
+/// so this release refuses nothing it cannot resume";
 ///  `super::add_source_the_restore_cannot_prove`,
 ///  "the settle that destroys them is plan step 14's").
 ///  Choice 3C moves the two `destroy` grants into this table at the step that
@@ -325,7 +326,8 @@ pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<Str
 /// Why:
 ///  The add goes on past those permissions,
 ///  and the rest of the delegation still has to be the decided one:
-///  a wider grant, a grant to everyone or an unproved one refuses on its own.
+///  a wider grant,
+/// a grant to everyone or an unproved one refuses on its own.
 fn with_the_removals_granted(
     facts: &DelegationFacts,
     missing: &[RequiredGrant],

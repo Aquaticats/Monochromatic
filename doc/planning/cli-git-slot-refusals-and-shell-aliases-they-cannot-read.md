@@ -3,7 +3,9 @@
 Status:
 unapproved and non-final,
 a proposal for the owner and not a decision.
-Written on 2026-11-27 for the alpha.48 release pass.
+Written on 2026-11-27 for the alpha.48 release pass,
+and measured again on 2026-11-27 after alpha.49's second pass
+(`What was measured after the alpha.49 pass` below).
 What was done:
 the slot refusals now read the same command the destructive-command guard reads,
 so a `!git <words>` alias reaches the removal,
@@ -26,19 +28,20 @@ and only the owner declares it complete.
 of a slot whose record proves a whole worktree
 "whatever options the command carries:
 every spelling Git accepts is read for the worktree it names".
-The guard's own passage (lines 24163 to 24198) reads one plain shell-alias form,
-`!git <words>`,
-whose bytes hold no quote,
+The guard's own passage (its "`git by the word Git will run`" boundary,
+lines 24163 to 24198 at `dcb2bcd6a5`,
+wider since the pass below) reads one plain shell-alias form:
+a value whose bytes hold no quote,
 backslash,
 `$`,
 backtick,
 glob,
 brace or separator,
-and whose words name no global option of their own;
+whose own words name no global option,
+and whose first word after the `!` and any blanks is `git`;
 "`git by the word Git will run` is the boundary of this guard".
 Every other shell alias,
-`!sh -c 'git worktree remove -f -f one'` and
-`!git -C <directory> worktree remove` included,
+`!sh -c 'git worktree remove -f -f one'` included,
 "runs as Git runs it:
 through real Git,
 with no guard and no index-writer coordination".
@@ -51,6 +54,274 @@ The release pass measured that the unreadable form still removes a bound slot:
 folder and its registration in alpha.47 and alpha.48.
 That is a deliberate spelling of an alias the wrapper cannot follow,
 and it is outside every passage the project has recorded so far.
+
+## What was measured after the alpha.49 pass
+
+A second pass over alpha.49's behaviour merges,
+run on 2026-11-27 and unapproved,
+found five spellings that are made only of forms this file and the guard's
+passage call readable and that were read as no command at all.
+Its transcripts are scratch and are deleted within a day of that pass,
+so every claim below rests on the controls this repository now holds and on the
+Git commands they run.
+Each of the five is read now,
+and each control asks real Git the same shape beside the reading,
+because a reading that answered no command would be wrong about the command Git
+runs:
+
+- a `!` alias whose value names another `!` alias:
+  read through the shells it starts, to four of them;
+  `a_bound_slots_removal_is_refused_behind_every_shell_alias` and its move and
+  prune siblings carry the spelling,
+  `a_shell_alias_is_read_in_every_form_the_shell_passes_through` reads it, and
+  `a_shell_alias_chain_deeper_than_the_reading_follows_is_unread` holds the depth.
+- a value written `! git <words>`, and a TAB after `!git`:
+  read as `!git <words>` is,
+  because the shell reads a run of blanks there as one separator.
+- a value of exactly `!git` whose caller's own words begin with a global option:
+  read, because Git hands those words to the same nested Git;
+  a global option among the value's own words is still left to Git.
+- a chain of ordinary aliases longer than 16:
+  the count is 64 now (`MAX_ALIAS_EXPANSIONS`),
+  and real Git runs a chain of 30.
+
+Still unread, and reaching Git unchanged as option C describes:
+`!sh -c '...'`,
+a value holding a byte the shell gives a meaning of its own,
+which the reader keeps as the allow-list of the bytes it reads:
+letters,
+digits,
+the ten bytes `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+and the two blanks,
+so a quote,
+a backslash,
+a `$`,
+a backtick,
+a glob,
+a brace,
+a parenthesis,
+`~`,
+`#`,
+a redirection,
+a separator and every non-ASCII byte leave the value unread,
+a value whose own words name a global option,
+a chain of ordinary aliases past 64 links,
+and a chain of `!` aliases past four shells.
+A chain past either count answers no command at all rather than a command the
+wrapper read,
+so no planner acts on the words the reading stopped on;
+that is a change of classification and not a refusal,
+and option A or B is what would turn it into one.
+
+The removal and the move have a second rule the reader does not share:
+`parse_removal_target` and `parse_move_source` resolve an operand against the
+directory Git runs the command in.
+A shell alias's operand was read from the directory the wrapper was started in,
+with the caller's `-C` dropped,
+so
+`git -C checkouts/repo -c 'alias.rmwt=!git worktree remove --force' rmwt ../slot-one`
+removed a bound slot's registration with no refusal.
+The wrapper's own `require-root` policy refuses a command whose directory is
+below the top of its repository before any slot refusal runs,
+which is why the control reads the `-C` spelling and why a person who bypasses
+that policy is the one the slot refusal protects;
+`a_command_below_the_top_is_refused_before_the_slot_reading` holds that limit.
+Both now read the operand from the top of the working tree,
+which Git changes to before it starts the shell (`git.c` `:388` to `:407`),
+and `a_bound_slots_removal_reads_its_operand_where_git_runs_the_alias` and its
+move sibling hold it;
+`git worktree prune` reads no operand, so no directory moves its pass,
+which `a_prune_behind_a_shell_alias_from_a_subdirectory_restores_the_pointer`
+shows.
+
+## What the issue 6621 round measured
+
+Written on 2026-11-27,
+unapproved and non-final.
+The limit above is covered now for the three ways a command typed below the top
+of its repository gets past the wrapper's own root rule:
+`policies.require-root` at `off`,
+`policies.require-root` at `warn`,
+and the wrapper's own `--no-enforce-require-root`.
+Six controls in `entry_slot_refusals_read_every_spelling_tests.rs`
+start a removal and a move in a subdirectory of a fixture repository behind a
+`!git worktree ...` alias,
+one pair for each of the three ways,
+and each expects the bound-slot refusal and names the slot the refusal read.
+Every one of the six was shown red with the planning handed the typed directory
+in place of the top,
+which names no worktree at all,
+so all three spellings are refused by the slot reading as it stands and no
+release code changed.
+At `warn` the rule's finding and its warn-unsafe line are printed before a
+removal's refusal,
+and the move's refusal carried its own sentence alone:
+the move's refusal was built without the text the planning had already printed
+(`entry_zfs_slot_commands::move_refusal_of`).
+The round left that difference as it found it and wrote it into `SPEC.md`'s
+"Removal of a ZFS worktree clone" passage.
+The alpha.50 release pass answered it (issue 6624) and the section below says how.
+
+## What the alpha.50 release pass measured and changed
+
+A third pass over `0.6.1-alpha.50` (release commit `3458afd18e`) against
+`0.6.1-alpha.49`,
+run on 2026-11-27,
+unapproved,
+by another agent of the same vendor,
+so a second pass and not an independent review.
+What this file asks for is unchanged:
+a shell alias the wrapper cannot read still reaches Git,
+and the choice among the three options below is still the owner's.
+Four things beside that choice were measured and are settled here.
+Every claim below rests on the controls this repository now holds.
+
+A bare `!git` whose caller's words carry `-C`,
+`--git-dir` or `--work-tree` is judged for the worktree and the repository those
+words name.
+Git hands the caller's own words to the same nested Git
+(`git.c:401` to `git.c:402`),
+and the guard and the slot refusals judged the caller's own worktree:
+from a clean linked worktree,
+`-c alias.x=!git x -C <main> reset --hard` reset a dirty main checkout while the
+direct spelling was refused,
+and from the main checkout `-C <linked worktree>` was refused where Git would
+have reset the clean linked worktree.
+`GuardedForwarded` now carries the globals that place the command Git runs,
+`global_arguments::names_the_place_the_command_acts` is the one reading of which
+globals name a place,
+and `entry` builds every repository fact from those globals,
+so the guard and the slot refusals judge the same worktree and read the same
+repository's slot records.
+`entry_shell_alias_judged_where_its_words_point_tests` compares every guarded
+command behind the alias with the direct spelling of the same target,
+in both directions of that finding,
+for the plain `-C` spelling and for `--git-dir`/`--work-tree` separated and
+attached.
+
+A removal,
+a move or a prune behind a `!` alias whose shell's directory Git could not be
+asked for is refused,
+naming what could not be read,
+and never forwarded in silence.
+That is the reading the coordinating session took of the owner's four answers of
+2026-11-26 and the owner may veto:
+`alias_run_directory` answered nothing,
+the slot's start was nothing,
+and the removal reached Git with no refusal read at all.
+The other way is to forward it and print a line saying the directory could not be
+asked,
+which costs the same person the same protection and leaves a bound slot's
+registration to Git.
+A shell alias the wrapper cannot read at all is untouched by this and stays as it
+is on `main`.
+
+The bytes the reading trusts are stated as the allow-list the code reads,
+in `SPEC.md` twice and `README.md` once,
+rather than as a list of the bytes it leaves unread,
+which named fewer bytes than `is_plain_shell_byte` refuses
+(`invocation/alias_value.rs`).
+`every_byte_the_shell_does_not_pass_through_leaves_a_git_value_unread` names every
+byte of the alphabet,
+so a widening of that list is a row that fails.
+
+A refused `git worktree move` now prints what the policy stage printed before it,
+in the order a removal prints it (#6624),
+and so do the prune's refusal and every other ending of
+`invocation/entry_zfs_slot_commands.rs` and its siblings that was built from a
+sentence alone:
+`failure_after` and the configuration ending of
+`invocation/entry_forward_action_planning.rs` carry those lines too.
+
+## What the issue 6625 round measured
+
+A fourth pass over `0.6.1-alpha.50` and the branch that answers issue 6625,
+run on 2026-11-27,
+unapproved and non-final.
+What this file asks for is unchanged:
+a shell alias the wrapper cannot read still reaches Git,
+and the choice among the three options below is still the owner's.
+This section answers the two questions issue 6625 left open.
+
+Where real Git runs the shell of a `!` alias,
+measured with Git 2.56.1 in a fixture repository and in a bare one,
+each with a folder inside it,
+by an alias whose shell prints its own directory:
+`git -c 'alias.where=!pwd -P' where`,
+which Git runs through a shell because a space is one of the bytes
+`prepare_shell_cmd` reads as "run this through the shell"
+(`run-command.c:293` to `run-command.c:305`);
+a value of `!pwd` alone is exec'd as a program and starts no shell at all.
+
+- At the top of a worktree: the top.
+- Below that top: the top,
+  because discovery walked up to it.
+- In a repository's Git directory: that Git directory.
+- In a folder inside that Git directory: that folder.
+- In a bare repository: the bare repository.
+- In a folder inside the bare repository: that folder.
+
+Git names no top of a working tree in the last four,
+and `rev-parse --path-format=absolute --show-toplevel --show-prefix`,
+the one question `alias_run_directory` asks,
+fails there with `fatal: this operation must be run in a work tree`,
+which is the branch that answers the directory the command's own `-C` options
+left it in.
+Every one of the six answers equals what the reading answered in the same place,
+which two controls in
+`package/git-policy/cli/src/native/invocation/external_git_command_tests.rs` hold:
+`a_shell_alias_runs_where_the_reader_answers_in_a_git_directory_and_a_bare_repository`,
+and
+`git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository`,
+which pins what `--show-toplevel`,
+`--git-dir` and
+`--is-bare-repository` answer in each place.
+So the sentence the code carried about these two shapes was what Git does,
+and no release code changed for it.
+
+The slot refusals answer in both shapes as they do at the top of a worktree.
+Twelve controls in
+`package/git-policy/cli/src/native/invocation/entry_slot_refusals_read_every_spelling_tests.rs`
+put a bound slot in each shape,
+one removal,
+one move and
+one prune,
+direct and behind a `!git worktree ...` alias,
+and read the refusal the spelling at the top of the slot's own worktree gets:
+the removal and the move controls compare that report word for word,
+and the prune's two compare the shape's own two spellings,
+for the reason the next paragraph gives.
+Each operand is a relative path that ends in `../<slot>`,
+which no registered path ends with,
+so Git's own match by the last components of a registered path picks nothing and
+the directory reading alone decides which worktree is named.
+Every control was shown red once by a plant that was never committed:
+the six Git-directory controls by `common_dir`'s fallback to the directory a
+command outside every worktree stands in
+(`invocation/entry_forward_action_planning.rs`),
+the six bare-repository controls by the bare arm of `common_directory`
+(`worktree/worktree_identity.rs`),
+and the alias spelling of each by `shell_run_directory` answering the directory
+the wrapper was started in instead of the one Git puts the shell in
+(`invocation/forwarded_command.rs`).
+No shape was found in which a slot command is forwarded.
+
+A prune typed at the top of the slot's own worktree cannot stand beside the two
+shapes as their comparison.
+The state the pass refuses in is a pointer that no longer resolves to its
+registration,
+and that same state is what makes the slot's own directory stop being a worktree:
+`-C <slot> worktree prune` then names no repository at all and is forwarded,
+which was measured on 2026-11-27 and is why the prune's controls compare the
+shape's two spellings with each other.
+
+What `SPEC.md` says now,
+in "Removal of a ZFS worktree clone":
+a bare repository's records are the ones in its own directory,
+Git names no top of a working tree in either shape,
+a `!` alias's shell runs where the command's options left it,
+a removal's or a move's operand is read from there,
+and a prune typed in either shape reads that repository's records.
 
 ## Options
 

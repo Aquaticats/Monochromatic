@@ -2,7 +2,8 @@
 //!  The notice a relink leaves for the person when the commit service gives the record up,
 //!  and the lines a later command in that worktree shows of it.
 //! Why:
-//!  The relinking runs in the service, after the command that added the worktree returned,
+//!  The relinking runs in the service,
+//! after the command that added the worktree returned,
 //!  so a command that never finishes the job has nothing attached to it that could say so.
 //!  A work record that reached `failed` is scanned by nothing:
 //!  without a notice the person keeps a worktree whose package links name the checkout it was copied from,
@@ -87,7 +88,9 @@ fn commands_for(
 ///   and the words a second telling writes over the first must say what the first said.
 ///   A record with no kept answer does not claim the service stopped or that no tool ran,
 ///   because either may have happened:
-///   it says what is true, that no answer was kept, and where the rest is.
+///   it says what is true,
+/// that no answer was kept,
+/// and where the rest is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,10 +136,13 @@ pub fn words_for(
 ///   The pointer of a removed worktree does not resolve,
 ///   and then nothing will run in it again and nothing is owed.
 ///   The pointer is read the way every other `.git` reader of this crate reads one:
-///   the open takes the type from the handle, without following a link and without waiting,
+///   the open takes the type from the handle,
+/// without following a link and without waiting,
 ///   and a file past `GIT_FILE_LIMIT` is refused rather than read into this process's memory.
-///   A pointer is one line, and a give-up pass may not be the thing that exhausts the host
-///   (a 2 GiB pointer file was read whole before this: 523 MB peak and the rest in swap).
+///   A pointer is one line,
+/// and a give-up pass may not be the thing that exhausts the host
+///   (a 2 GiB pointer file was read whole before this:
+/// 523 MB peak and the rest in swap).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -174,9 +180,11 @@ pub fn git_dir_of_a_worktree(worktree: &Path) -> Option<PathBuf> {
 ///   The pointer alone proves nothing:
 ///   an interrupted removal leaves a checkout whose pointer names a directory that is gone,
 ///   and a notice written into a directory made again there is one no command in that checkout can read
-///   (Git refuses the worktree: `gitfile does not point to a valid repository`).
+///   (Git refuses the worktree:
+/// `gitfile does not point to a valid repository`).
 ///   The registration's own `gitdir` and `commondir` back-links are what a working Git directory of this repository
-///   holds, so the words go where a command reads them or somewhere the caller can be sure of.
+///   holds,
+/// so the words go where a command reads them or somewhere the caller can be sure of.
 ///   A registration made after the record was queued is another worktree at the same path:
 ///   the administrative directory is named after the path,
 ///   so a later worktree would otherwise show words about an earlier one,
@@ -219,7 +227,8 @@ pub fn notice_target_of_a_worktree(
 ///  `moment` in whole milliseconds since the Unix epoch,
 ///  the resolution a record's own stamp is written with.
 /// Why:
-///   A file's moment is finer than a millisecond, so comparing the two as they are would call a `.git` written inside
+///   A file's moment is finer than a millisecond,
+/// so comparing the two as they are would call a `.git` written inside
 ///   the record's own millisecond a later registration and hold the words back from the worktree they are about.
 ///
 /// In TS you'd write (pseudocode):
@@ -249,7 +258,8 @@ fn milliseconds_of(moment: std::time::SystemTime) -> u128 {
 ///   Words that could not replace the first would hold the record unsettled for ever,
 ///   because the recovery settles nothing while the person cannot be told.
 ///   A Git directory that is not there refuses them,
-///   rather than being made again for them: a directory made again is one no command in the worktree reads,
+///   rather than being made again for them:
+/// a directory made again is one no command in the worktree reads,
 ///   and the caller has somewhere a command does read.
 ///
 /// In TS you'd write (pseudocode):

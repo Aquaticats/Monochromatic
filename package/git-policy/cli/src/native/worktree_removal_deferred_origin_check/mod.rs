@@ -15,9 +15,11 @@
 //!  destroy,
 //!  and added a look before the unmount
 //!  (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
-//!  This folder is plan step 15's piece, built ahead of the plan's order and called by no
+//!  This folder is plan step 15's piece,
+//! built ahead of the plan's order and called by no
 //!  person's command yet:
-//!  its own step wires it in, and its tests and its guest arm are its only callers
+//!  its own step wires it in,
+//! and its tests and its guest arm are its only callers
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
 //!  "Building later pieces ahead of the plan's order").
 //!
@@ -43,7 +45,9 @@
 //!   its object,
 //!   its field and the mark's two counts.
 //! - `origin_verdict.rs`:
-//!   the check at both call sites, the look before the unmount, and the three reads.
+//!   the check at both call sites,
+//!   the look before the unmount,
+//!   and the three reads.
 //! - `removal_history.rs`:
 //!   the loss a plan already records and the one sentence a refusal prints from it.
 //! - `origin_refusal_words.rs`:
@@ -63,22 +67,30 @@
 //! if (verdict.kind === 'refused') throw new Error(verdict.cause.message(history));
 //! ```
 
-/// The mark's property, its states and the one read of it.
+/// The mark's property,
+/// its states and the one read of it.
 pub mod origin_mark;
 
 /// The loss a plan records and the sentence a refusal prints from it.
 pub mod removal_history;
 
-/// The fields a plan must carry, the objects and forms a message names, and what a refusal leaves.
+/// The fields a plan must carry,
+/// the objects and forms a message names,
+/// and what a refusal leaves.
 pub mod origin_refusals;
 
-/// The identities a removal planned, each cause a check refuses with, and the refusal of a plan that lacks one.
+/// The identities a removal planned,
+/// each cause a check refuses with,
+/// and the refusal of a plan that lacks one.
 pub mod planned_origin;
 
-/// The refusal's name, re-exported from the file that holds it.
+/// The refusal's name,
+/// re-exported from the file that holds it.
 pub mod origin_refusal;
 
-/// Each cause's step word, form, record rule and message.
+/// Each cause's step word,
+/// form,
+/// record rule and message.
 pub mod origin_refusal_answers;
 
 /// Each cause's own name and the step word a record files it under.
@@ -87,16 +99,19 @@ pub mod origin_refusal_answers_receipt_words;
 /// The clone and the slot a refusal names.
 pub mod origin_refusal_answers_named_object;
 
-/// The cause sentence a message prints, with the mark's two counts.
+/// The cause sentence a message prints,
+/// with the mark's two counts.
 pub mod origin_refusal_causes;
 
 /// The three forms of message and the ways forward.
 pub mod origin_refusal_words;
 
-/// The check, the look and the three reads.
+/// The check,
+/// the look and the three reads.
 pub mod origin_verdict;
 
-/// The mark as a reply carries it, and the one read a caller outside this folder makes.
+/// The mark as a reply carries it,
+/// and the one read a caller outside this folder makes.
 pub use origin_mark::{
     DEFER_DESTROY_PROPERTY,
     MARK_OFF,
@@ -107,9 +122,13 @@ pub use origin_mark::{
     mark_of_reply,
     origin_mark,
 };
-/// One cause, with the word, the form and the record rule it answers.
+/// One cause,
+/// with the word,
+/// the form and the record rule it answers.
 pub use origin_refusal::OriginRefusal;
-/// The fields, objects, forms and record rule a refusal's message rests on.
+/// The fields,
+/// objects,
+/// forms and record rule a refusal's message rests on.
 pub use origin_refusals::{
     JudgedObject,
     PlanField,
@@ -117,7 +136,8 @@ pub use origin_refusals::{
     RefusalPoint,
     WhatARefusalLeaves,
 };
-/// The check, the look and the verdict they answer.
+/// The check,
+/// the look and the verdict they answer.
 pub use origin_verdict::{
     Verdict,
     check_planned_origin,
@@ -132,7 +152,8 @@ pub use planned_origin::{
 /// The loss a plan records.
 pub use removal_history::RemovalHistory;
 
-/// The scripted pool every control of this folder drives. Never part of the release executable.
+/// The scripted pool every control of this folder drives.
+/// Never part of the release executable.
 #[cfg(test)]
 #[path = "origin_fixtures_tests.rs"]
 pub(crate) mod fixtures;

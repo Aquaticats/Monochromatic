@@ -128,7 +128,8 @@ pub struct CloneRetentionFacts {
 ///  One field's number,
 ///  or the sentence that says why this line cannot report it.
 /// Why:
-///  A field that is absent, textual or unreadable is no measurement,
+///  A field that is absent,
+/// textual or unreadable is no measurement,
 ///  and printing it as zero would tell a person the object holds no blocks
 ///  when nobody read the number.
 ///
