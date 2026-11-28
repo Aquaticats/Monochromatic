@@ -498,37 +498,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it reversed them,
   and the main checkout shows only the files other sessions modified.
 - the guest drivers.
-  Issue 6612's round is merged (`98996296fb`) and the issue is closed:
-  the three sets of shared guest-step helpers are one,
-  `bin/mvm-guest-*.ts`,
-  with `bin/guest-route-*` and `e2e/guest-host/` deleted and every case their tests held restated against the survivor.
-  A stand-in `mvm` and `node` recorded every step of the eleven drivers on `main` and on the branch:
-  of 44 recordings 41 are identical line for line,
-  and three differ on purpose.
-  The managed-lock driver builds only the target its arm runs
-  (11m 31s where it took 22m 22s,
-  and a guest peak of 2.83 GiB where it was 6.70 GiB),
-  and two drivers build the library's test binary at one job,
-  since two left under half a gibibyte available in a guest of 8 GiB.
-  Every driver's main step ran in a guest and passed with its own lines,
-  and the start probe's three arms nobody had run after the rewrite ran once each and passed.
-  The merged tree passed `lint:types`,
-  oxlint and the package's unit suite (177 suites) in a worktree of its own before the merge.
-  Three rounds followed it from one list.
-  Issue 6639's is merged (`5d91792960`) and the issue is closed:
-  the start probe's guest build runs as a detached script,
-  the host learns its end from the log's own `DONE=<status>` line and pulls the log,
-  and no guest command's return carries the result.
-  In one guest `probe-dataset` exited 0 and `green` built and ran its arm in 7m 11s;
-  a stand-in `mvm` shows the steps that do not build unchanged line for line,
-  and the script the guest runs the same text on both sides.
-  A build that fails is reported with its own status and the tail of its own log,
-  shown against a stand-in and held by unit tests.
-  The round listed every other plain guest command bounded past five minutes
-  (`package/git-policy/cli/e2e/README.md`,
-  "Guest work that runs longer than the agent's safe length")
-  and changed none.
-  Its four open points wait in `doc/handover/questions-for-the-owner.md`.
+  Four points issue 6639's round left wait in `doc/handover/questions-for-the-owner.md`.
   Issue 6638's is merged (`1471bdf6ad`) and the issue is closed.
   Measured in the recipe's own guest before any edit,
   a second `prepare` alone exits 0;
