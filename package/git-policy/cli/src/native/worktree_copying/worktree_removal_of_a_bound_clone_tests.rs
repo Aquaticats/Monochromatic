@@ -25,6 +25,10 @@ use crate::testing::mounted_dataset_table::{
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::IntentReading;
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
     CLONE_CREATETXG,
@@ -33,6 +37,8 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     ORIGIN_DATASET,
     ORIGIN_SNAPSHOT,
     ORIGIN_SNAPSHOT_GUID,
+    OWN_CREATETXG,
+    OWN_GUID,
     OWN_SNAPSHOT,
     POOL,
     POOL_GUID,
@@ -363,6 +369,81 @@ fn every_other_slot_stays_gits() {
     assert!(refusal_of_or_none(&facts_of(&adding)).is_none());
     remove(unrecorded.root.as_path());
     remove(adding.root.as_path());
+}
+
+/// What:
+///  A slot a destruction plan names is the removal's own,
+///  and the lines it prints say what that run resumes.
+/// Why:
+///  The design's rule is that a removal reads the plan and then the live pinned
+///  parent and that no other fact decides its path
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "Which resume path a removal takes"),
+///  and the slot state calls such a slot a pending removal whatever its binding's
+///  phase says,
+///  so the entry took only a mounted or an unmounted clone and left this one to
+///  Git.
+///  Git's own removal there drops the registration and the slot folder while the
+///  plan and the clone stand,
+///  which is the state the slot report warns about.
+#[test]
+fn a_slot_a_destruction_plan_names_is_the_removals_own() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-a-pending-removal");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let plan: PathBuf = fixture.plant_a_plan(
+        HeadWord::Present,
+        vec![fixture.a_line_of_the_plan(
+            OWN_SNAPSHOT,
+            OWN_GUID,
+            OWN_CREATETXG,
+            0,
+            SnapshotOutcome::Planned,
+        )],
+    );
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let answer: Option<BoundSlotRemovalAnswer> = the_removal_with(
+        fixture.slot_path.as_path(),
+        fixture.common_dir.as_path(),
+        RemovalReads::Scripted(&pool),
+        &sources,
+    );
+    let answer: BoundSlotRemovalAnswer = answer.expect(
+        "a slot a destruction plan names is the removal's own, and Git's own removal would drop the registration while the clone stands",
+    );
+    assert_eq!(
+        answer.code, REFUSED_EXIT_CODE,
+        "a control's own pool answer reports what a removal would do rather than removing"
+    );
+    assert!(
+        answer.stderr.contains("state: pending removal"),
+        "{}",
+        answer.stderr
+    );
+    assert!(
+        answer
+            .stderr
+            .contains("stands, so this run resumes it: it reads the plan, proves every name the plan records again, sends no request for a name the plan records as destroyed, carries the loss forward and ends the plan with the removal's own records"),
+        "{}",
+        answer.stderr
+    );
+    assert!(
+        answer
+            .stderr
+            .contains(format!("A removal's destruction plan at {}", plan.display()).as_str()),
+        "the sentence names the plan's own file: {}",
+        answer.stderr
+    );
+    assert_eq!(
+        the_tree(fixture.common()),
+        before,
+        "the answer wrote nothing, the plan it read included"
+    );
 }
 
 /// What:

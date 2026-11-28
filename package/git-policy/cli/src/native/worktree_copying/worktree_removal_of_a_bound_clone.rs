@@ -14,8 +14,17 @@
 //!  "Unmounted,
 //! pruned or moved worktrees";
 //!  plan step 12).
-//!  Only the two states that prove a whole worktree take that path:
-//!  a pending add's removal is the add's own way forward,
+//!  Only the three states that prove a whole worktree take that path:
+//!  a clone mounted at its slot,
+//!  one unmounted from it,
+//!  and a slot a destruction plan names,
+//!  which the removal resumes: the plan is the record of what an earlier run
+//!  destroyed,
+//!  and its removal reads it,
+//!  proves every name again and ends it
+//!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+//!  "Which resume path a removal takes").
+//!  A pending add's removal is the add's own way forward,
 //!  and a slot nothing proves stays Git's unless the reading is the mount no
 //!  record names,
 //!  the record of another path,
@@ -300,22 +309,36 @@ pub fn the_removal_with(
     }
     let whole_clone: bool = matches!(
         at.state,
-        SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }
+        SlotRouteState::MountedManagedClone { .. }
+            | SlotRouteState::KnownUnmountedClone { .. }
+            | SlotRouteState::PendingRemoval { .. }
     );
     if !whole_clone {
         return None;
     }
+    // A standing plan is the record of what an earlier run destroyed, so the removal this spelling runs is the one
+    //  that resumes it rather than a fresh one that would write a second plan beside it.
+    let resuming: String = match &at.state {
+        SlotRouteState::PendingRemoval {
+            plan,
+            ..
+        } => format!(
+            " A removal's destruction plan at {} stands, so this run resumes it: it reads the plan, proves every name the plan records again, sends no request for a name the plan records as destroyed, carries the loss forward and ends the plan with the removal's own records.",
+            plan.display()
+        ),
+        _ => String::new(),
+    };
     // The slot holds a whole managed clone, so the wrapper removes it rather than Git. The slot's own report is printed
     //  first either way, because it is what proves the step is about this clone; the removal's report or the control's
     //  reading follows it.
     let mut stderr: String = match reads {
         RemovalReads::Live => format!(
-            "the removal of `{}` runs here: a whole managed clone is bound to this slot, and {}. Git does not run, and this release's removal ends no holder and forces nothing, so `-f -f` and every other spelling take this path.\n",
+            "the removal of `{}` runs here: a whole managed clone is bound to this slot, and {}.{resuming} Git does not run, and this release's removal ends no holder and forces nothing, so `-f -f` and every other spelling take this path.\n",
             target.display(),
             crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
         ),
         _ => format!(
-            "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}. The pool here is the caller's own answer and not this machine's device, which the whole removal needs, so nothing was removed and Git did not run; the lines after this one say what a removal would prove and lose.\n",
+            "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}.{resuming} The pool here is the caller's own answer and not this machine's device, which the whole removal needs, so nothing was removed and Git did not run; the lines after this one say what a removal would prove and lose.\n",
             target.display(),
             crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
         ),
