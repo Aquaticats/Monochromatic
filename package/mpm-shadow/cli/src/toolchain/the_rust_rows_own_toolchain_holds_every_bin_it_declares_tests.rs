@@ -50,6 +50,24 @@ use std::path::{
 };
 
 // What:
+// `use serde_json::{Map, Value}` imports the two JSON types the fixture's plan document is built
+// from: a map of keys to values, and a value of any JSON shape.
+// Why:
+// A `list` control writes the plan file the command reads,
+// and building it from the same types the program's own writer uses keeps the shapes equal.
+// The siblings a reader might expect are a typed struct (`serde`'s derive), which cannot carry an
+// arbitrary field list, and a `String` written by hand, which could disagree with the decoder.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { Map, Value } from './json.ts';
+// ```
+use serde_json::{
+    Map,
+    Value,
+};
+
+// What:
 // `use super::fakes::{Rig, write_executable}` imports the test rig,
 // which holds a disposable scope and the two fakes,
 // and the writer of the stand-in program a fixture toolchain holds.
@@ -76,6 +94,35 @@ use super::fakes::{
 // import { parseLock } from './lock.ts';
 // ```
 use super::lock::parse_lock;
+// What:
+// `use super::lock::{Lock, render_lock}` imports the lock document and the writer of its text.
+// Why:
+// A `list` control reads the plan and the lock from the fixture's disk,
+// so the fixture has to write a lock holding exactly the row under test.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { type Lock, renderLock } from './lock.ts';
+// ```
+use super::lock::{
+    Lock,
+    render_lock,
+};
+// What:
+// `use super::model_encode::{lock_entry_value, render_pretty_json}` imports the encoder of one lock
+// row and the JSON printer the plan's text is built with.
+// Why:
+// The plan entry of the fixture's one row is the lock row without `version` and `artifacts`,
+// which is the shape the program's own encoder writes.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { lockEntryValue, renderPrettyJson } from './model-encode.ts';
+// ```
+use super::model_encode::{
+    lock_entry_value,
+    render_pretty_json,
+};
 // What:
 // `use super::model::LockedTool` imports the type of one lock row:
 // a declaration, a resolved version and the artifacts of that version.
@@ -109,6 +156,17 @@ use super::runner::RunRequest;
 // import { LOCK_FILE_NAME } from './scope.ts';
 // ```
 use super::scope::LOCK_FILE_NAME;
+// What:
+// `use super::status_cmd::run_status` imports the `list` command's own report.
+// Why:
+// The controls below read the lines a person reads,
+// not an intermediate record.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { runStatus } from './status-cmd.ts';
+// ```
+use super::status_cmd::run_status;
 // What:
 // `use super::sync::sync_tools` imports the install of every tool a lock holds.
 // Why:
@@ -1160,6 +1218,44 @@ fn answer_the_listings_of_the_installed_toolchain(
 ) {
     let row: LockedTool = the_repository_rust_row();
     // What:
+    // `let mut targets: Vec<String> = vec![...]` is the target listing a toolchain of this row
+    // holds: the host triple first, then each target the row declares.
+    // Why:
+    // `x86_64-unknown-linux-gnu`, `aarch64-linux-android` and `x86_64-linux-android` are the three
+    // lines `rustup target list --installed` prints on the toolchain this machine holds
+    // (captured on 2026-11-27T17:35:46-05:00, `keep/rustup-queries-2026-11-27.txt`),
+    // and a machine that follows the plan holds exactly them.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const targets = [theFixtureHostTriple, ...theTargetsTheRowDeclares(row)];
+    // ```
+    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    targets.extend(the_targets_the_row_declares(&row));
+    answer_the_listings_of_a_toolchain_holding(rig, held, &targets);
+}
+
+// What:
+// `fn answer_the_listings_of_a_toolchain_holding(rig: &Rig, held: &[String], targets: &[String])`
+// makes the fake runner answer what a real rustup answers about one toolchain:
+// the channel's compiler,
+// those targets as installed,
+// and those components as installed.
+// Why:
+// The two listings are what `install` reconciles and what `list` now reads,
+// so a control about a part the toolchain lacks needs to choose each listing on its own.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function answerTheListingsOfAToolchainHolding(rig: Rig, held: string[], targets: string[]): void
+// ```
+fn answer_the_listings_of_a_toolchain_holding(
+    rig: &Rig,
+    held: &[String],
+    targets: &[String],
+) {
+    let row: LockedTool = the_repository_rust_row();
+    // What:
     // the text `rustup component list --installed` prints for those components:
     // one line each from `the_component_listing_of`, joined with newlines and ended by one.
     // Why:
@@ -1205,24 +1301,24 @@ fn answer_the_listings_of_the_installed_toolchain(
         0,
     );
     // What:
-    // `x86_64-unknown-linux-gnu`, `aarch64-linux-android` and `x86_64-linux-android` are one line
-    // each of `rustup target list --installed` on the toolchain this machine holds
-    // (captured on 2026-11-27T17:35:46-05:00,
-    // `keep/rustup-queries-2026-11-27.txt`).
+    // the text `rustup target list --installed` prints: one target per line, ended by a newline.
     // Why:
-    // The host target's spelling is what lets a component listed as `clippy-<triple>` count as the
-    // declared `clippy`, and the two Android targets are the ones the row declares,
-    // so answering them installs nothing.
+    // Both `install`'s reconciler and `list` read it line by line,
+    // the host target's spelling is what lets a component listed as `clippy-<triple>` count as the
+    // declared `clippy`,
+    // and a real listing ends each line.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // rig.runner.answer('rustup target list --installed', 'x86_64-unknown-linux-gnu\naarch64-linux-android\nx86_64-linux-android\n', 0);
+    // rig.runner.answer('rustup target list --installed', targets.map((target) => `${target}\n`).join(''), 0);
     // ```
-    rig.runner.answer(
-        "rustup target list --installed",
-        "x86_64-unknown-linux-gnu\naarch64-linux-android\nx86_64-linux-android\n",
-        0,
-    );
+    let mut listed_targets: String = String::new();
+    for target in targets {
+        listed_targets.push_str(target);
+        listed_targets.push('\n');
+    }
+    rig.runner
+        .answer("rustup target list --installed", &listed_targets, 0);
 }
 
 // What:
@@ -1918,5 +2014,309 @@ fn an_install_removes_the_farm_link_no_row_declares_and_names_it() {
                 && line.contains(A_FILE_A_PERSON_PUT_IN_THE_FARM);
         }),
         "the report never says it removed a person's file; {text}"
+    );
+}
+
+// What:
+// `const A_COMPONENT_LISTING_OF_THREE_QUESTIONS: usize = 3` is how many `rustup` questions a `list`
+// on a machine that is in sync asks about this row.
+// The integer siblings a reader might expect are `u32` and `i32`;
+// `usize` is the width `Vec::len` answers, so the comparison needs no cast.
+// Why:
+// Issue 6634's Low point 5 prices the extra question:
+// `list` asked one (`rustup which`), and asking the two listings makes three.
+// The number is written here so a run that asks more or fewer fails loudly.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aComponentListingOfThreeQuestions = 3;
+// ```
+const THE_QUESTIONS_A_LIST_ASKS: usize = 3;
+
+// What:
+// `fn write_a_plan_and_lock_of_the_rows_rust_row(rig: &Rig, row: &LockedTool)` writes the fixture's
+// `toolchain.plan.jsonc` and `toolchain.lock.json` so both hold the repository's rust row alone.
+// Why:
+// `list` reads the two files from the scope,
+// while `install` takes the rig's in-memory lock,
+// so a control about `list` has to write what a person's tree holds.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function writeAPlanAndLockOfTheRowsRustRow(rig: Rig, row: LockedTool): void
+// ```
+fn write_a_plan_and_lock_of_the_rows_rust_row(
+    rig: &Rig,
+    row: &LockedTool,
+) {
+    // What:
+    // the row as the plan writes it: the lock's own entry without `version` and `artifacts`,
+    // which are not plan fields.
+    // Why:
+    // One encoder writes both files, so the plan the fixture writes is the shape the program's own
+    // writer produces.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const entry = lockEntryValue(row);
+    // delete entry.version; delete entry.artifacts;
+    // ```
+    let mut entry: Value = lock_entry_value(row);
+    if let Value::Object(members) = &mut entry {
+        members.remove("version");
+        members.remove("artifacts");
+    }
+    // What:
+    // the document's `tools` record, holding this one row under its id.
+    // Why:
+    // A plan is a record of rows by id, and the fixture holds one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const tools = { [row.declaration.id]: entry };
+    // ```
+    let mut tools: Map<String, Value> = Map::new();
+    tools.insert(row.declaration.id.clone(), entry);
+    // What:
+    // the whole plan document, whose `schemaVersion` is the one field every plan carries.
+    // Why:
+    // The decoder refuses a plan without it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const document = { schemaVersion: 1, tools };
+    // ```
+    let mut document: Map<String, Value> = Map::new();
+    document.insert("schemaVersion".to_string(), Value::from(1));
+    document.insert("tools".to_string(), Value::Object(tools));
+    // What:
+    // the files themselves: the plan's text, then the lock's text for a lock holding this row.
+    // Why:
+    // `list` loads both from the scope and refuses when they disagree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(pathJoin(rig.scope.root, PLAN_FILE_NAME), renderPrettyJson(document) + '\n');
+    // writeFileSync(pathJoin(rig.scope.root, LOCK_FILE_NAME), renderLock({ tools: [row] }));
+    // ```
+    fs::write(
+        &rig.scope.plan_file,
+        format!("{}\n", render_pretty_json(&Value::Object(document))),
+    )
+    .expect("write the fixture's plan");
+    let lock: Lock = Lock {
+        tools: vec![row.clone()],
+    };
+    fs::write(&rig.scope.lock_file, render_lock(&lock)).expect("write the fixture's lock");
+}
+
+// What:
+// `fn the_questions_a_list_asks(rig: &Rig) -> Vec<String>` is every `rustup` request the run
+// recorded, in order.
+// Why:
+// Issue 6634's Low point 5 asks what the extra question costs,
+// and the record is where a run's own questions are counted.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theQuestionsAListAsks(rig: Rig): string[]
+// ```
+fn the_questions_a_list_asks(rig: &Rig) -> Vec<String> {
+    // What:
+    // the recorded requests filtered to those whose program is `rustup`.
+    // Why:
+    // A `list` on this row starts nothing else,
+    // and naming the program keeps another tool's question from being counted here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return rig.runner.lines().filter((line) => line.startsWith('rustup '));
+    // ```
+    let mut asked: Vec<String> = Vec::new();
+    for line in rig.runner.lines() {
+        if line.starts_with("rustup ") {
+            asked.push(line);
+        }
+    }
+    return asked;
+}
+
+// What:
+// `#[test] fn list_calls_a_toolchain_that_lacks_a_declared_component_drift_and_names_it()`
+// runs `list` against a toolchain holding every declared component but the formatter one,
+// and reads the lines a person reads.
+// Why:
+// Issue 6634's Low point 5:
+// `list` printed `ok      rust  nightly-2026-11-16` and `1 tools in sync` while the declared
+// `rustfmt` component was missing, and only the next `install` added it.
+// `list` says what `install` would do, so the missing part is drift and is named.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('list calls a toolchain that lacks a declared component drift and names it', () => { ... });
+// ```
+#[test]
+fn list_calls_a_toolchain_that_lacks_a_declared_component_drift_and_names_it() {
+    let row: LockedTool = the_repository_rust_row();
+    // What:
+    // the components such a toolchain holds: every one the row's toolchain has, less the formatter.
+    // Why:
+    // The missing component is the whole difference from the state the install leaves behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const held = theComponentsAToolchainOfThisRowHolds(row).filter((name) => name !== theComponentThisIssueDeclares);
+    // ```
+    let mut held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    held.retain(|name| return name != THE_COMPONENT_THIS_ISSUE_DECLARES);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
+    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    targets.extend(the_targets_the_row_declares(&row));
+    answer_the_listings_of_a_toolchain_holding(&rig, &held, &targets);
+    let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
+    let text: String = report.text.clone();
+    assert!(report.drifted, "{text}");
+    // What:
+    // the `drift` line for this row, naming the component the toolchain lacks.
+    // Why:
+    // A person acting on the line has to find which part the next `install` would add.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(text.split('\n').some((line) => line.startsWith('drift   rust ') && line.includes(theComponentThisIssueDeclares))).toBe(true);
+    // ```
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with("drift   rust ") && line.contains(THE_COMPONENT_THIS_ISSUE_DECLARES);
+        }),
+        "the drift line names the component the toolchain lacks; {text}"
+    );
+    assert!(
+        !text.contains("ok      rust"),
+        "a toolchain missing a declared component is not in sync; {text}"
+    );
+}
+
+// What:
+// `#[test] fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it()`
+// runs `list` against a toolchain holding every declared component and only the host's own target,
+// and reads the lines a person reads.
+// Why:
+// The row's `rustTargets` are parts an `install` adds the same way components are,
+// so a toolchain without one is drift and the line names which target.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('list calls a toolchain that lacks a declared target drift and names it', () => { ... });
+// ```
+#[test]
+fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
+    let declared: Vec<String> = the_targets_the_row_declares(&row);
+    assert!(
+        !declared.is_empty(),
+        "the repository's row declares a target, or this control has no subject"
+    );
+    // What:
+    // the targets such a toolchain holds: the host's own, and none of the declared ones.
+    // Why:
+    // That is the state a machine reaches when it never ran `rustup target add` for the row.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const heldTargets = [theFixtureHostTriple];
+    // ```
+    let held_targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    answer_the_listings_of_a_toolchain_holding(&rig, &held, &held_targets);
+    let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
+    let text: String = report.text.clone();
+    assert!(report.drifted, "{text}");
+    // What:
+    // the `drift` line for this row, naming each declared target the toolchain lacks.
+    // Why:
+    // The line has to say which target the next `install` would add.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const target of declared) { expect(text).toContain(target); }
+    // ```
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with("drift   rust ")
+                && declared.iter().all(|target| return line.contains(target));
+        }),
+        "the drift line names every declared target the toolchain lacks; {text}"
+    );
+}
+
+// What:
+// `#[test] fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_questions()`
+// runs `list` against a toolchain holding everything the row declares and counts the `rustup`
+// requests the run made.
+// Why:
+// Issue 6634's Low point 5 asks what the extra question costs a machine that is in sync:
+// before the change `list` asked one question (`rustup which`), after it three,
+// and this control is the measurement.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('list on a toolchain that holds every declared part asks the manager three questions', () => { ... });
+// ```
+#[test]
+fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_questions() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
+    let text: String = report.text.clone();
+    assert!(!report.drifted, "a machine holding every declared part is in sync; {text}");
+    // What:
+    // every `rustup` request the run made, which is what the extra question costs.
+    // Why:
+    // The count is the whole of what Low point 5 asks this control to show,
+    // and the lines themselves say which questions they are.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const asked = theQuestionsAListAsks(rig);
+    // expect(asked.length).toBe(3);
+    // ```
+    let asked: Vec<String> = the_questions_a_list_asks(&rig);
+    assert_eq!(
+        asked.len(),
+        THE_QUESTIONS_A_LIST_ASKS,
+        "a `list` on a machine in sync asks three questions: which toolchain, its components and its targets; {asked:?}"
+    );
+    // What:
+    // the three questions by their own words: the channel's compiler, the components, the targets.
+    // Why:
+    // The count alone would pass for three questions about nothing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(asked[0]).toBe(`rustup which --toolchain ${row.rustupChannel()} rustc`);
+    // expect(asked[1]).toBe(`rustup component list --installed --toolchain ${row.rustupChannel()}`);
+    // expect(asked[2]).toBe(`rustup target list --installed --toolchain ${row.rustupChannel()}`);
+    // ```
+    assert_eq!(
+        asked,
+        vec![
+            format!("rustup which --toolchain {} rustc", row.rustup_channel()),
+            format!(
+                "rustup target list --installed --toolchain {}",
+                row.rustup_channel()
+            ),
+            format!(
+                "rustup component list --installed --toolchain {}",
+                row.rustup_channel()
+            ),
+        ],
+        "{text}"
     );
 }
