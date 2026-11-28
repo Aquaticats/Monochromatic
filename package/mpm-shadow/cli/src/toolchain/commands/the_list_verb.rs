@@ -46,7 +46,7 @@ pub(super) fn list_verb(
 ) -> i32 {
     return match run_status(scope, env, &ProcessRunner, &Host::current()) {
         Ok(status_report) => {
-            print!("{}", status_report.text);
+            crate::notices::report(&status_report.text);
             i32::from(status_report.drifted)
         }
         Err(error) => report(&error),

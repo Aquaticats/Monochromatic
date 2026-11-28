@@ -69,8 +69,11 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 # `RENAME_EXCHANGE`, which publishes a version in one step so a kill cannot leave the version's name absent between two
 # renames (issue 6600). `process` gives the `kill` that ends an installer at that step for a control; the feature is
 # enabled in every build, but the only call to it is compiled out of a build that is not a test, so the release binary
-# holds none (src/toolchain/archive_staging/a_control_plants_these_steps.rs).
-rustix = { workspace = true, features = ["fs", "process"] }
+# holds none (src/toolchain/archive_staging/a_control_plants_these_steps.rs). `pipe` gives the controls of the writer
+# a real pipe (`src/notices.rs`): one filled by another process only to its capacity, and one left non-blocking, which a
+# socket pair cannot stand in for because a stream socket answers a short write where a pipe refuses the whole write.
+# Every feature costs compile time in release builds and nothing at run time.
+rustix = { workspace = true, features = ["fs", "pipe", "process"] }
 # SHA-256 of downloaded archives and the lock's digest.
 sha2 = { workspace = true }
 # A current-thread runtime inside the HTTP client only; the rest of the crate stays synchronous.

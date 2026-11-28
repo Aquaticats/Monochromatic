@@ -50,7 +50,7 @@ pub fn run_prune_command(matches: &ArgMatches) -> i32 {
     let scope: Scope = match resolve_scope(matches.get_flag("global"), &start, &env) {
         Ok(found) => found,
         Err(error) => {
-            eprintln!("mpm-shadow: {error}");
+            crate::notices::say(&format!("mpm-shadow: {error}"));
             return error.exit_code();
         }
     };
@@ -65,19 +65,19 @@ pub fn run_prune_command(matches: &ArgMatches) -> i32 {
         Ok(removed) => {
             let verb: &str = if dry_run { "would delete" } else { "deleted" };
             for path in &removed {
-                println!("{verb} {}", path.display());
+                crate::notices::report_line(&format!("{verb} {}", path.display()));
             }
             if removed.is_empty() {
-                println!(
+                crate::notices::report_line(&format!(
                     "nothing to delete under {}: every cargo version there is named by a known lock, \
                      and no release archive of this repository is older than its newest finished version",
                     scope.toolchain_root.display()
-                );
+                ));
             }
             0
         }
         Err(error) => {
-            eprintln!("mpm-shadow: {error}");
+            crate::notices::say(&format!("mpm-shadow: {error}"));
             error.exit_code()
         }
     };

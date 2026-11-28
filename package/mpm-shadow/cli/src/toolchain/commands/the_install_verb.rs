@@ -125,19 +125,19 @@ pub(super) fn install_verb(
                 Err(error) => return report(&error),
             };
         for declaration in &additions.added {
-            println!(
+            crate::notices::report_line(&format!(
                 "toolchain install: added {} to {}: request {}, route {}, bins {}",
                 declaration.id,
                 scope.plan_file.display(),
                 declaration.request.text(),
                 declaration.route.as_str(),
                 declaration.bins.join(", ")
-            );
-            println!(
+            ));
+            crate::notices::report_line(&format!(
                 "toolchain install: no comment says why {} is there; write one beside its entry in {}",
                 declaration.id,
                 scope.plan_file.display()
-            );
+            ));
         }
         named = additions.added_ids();
     }
@@ -152,21 +152,21 @@ pub(super) fn install_verb(
         return match run_lockfile_only(scope, env, &ProcessRunner, http.as_ref(), &host, policy) {
             Ok(prepared) => {
                 for (id, version) in &prepared.resolved {
-                    print!("{}", locked_line(id, version));
+                    crate::notices::report(&locked_line(id, version));
                 }
                 for description in &prepared.rewritten {
-                    print!("{}", rewritten_line(description));
+                    crate::notices::report(&rewritten_line(description));
                 }
                 if prepared.resolved.is_empty() && prepared.rewritten.is_empty() {
-                    println!(
+                    crate::notices::report_line(&format!(
                         "toolchain lock already current: {}",
                         scope.lock_file.display()
-                    );
+                    ));
                 } else {
-                    println!(
+                    crate::notices::report_line(&format!(
                         "toolchain install: wrote {}; nothing was installed",
                         scope.lock_file.display()
-                    );
+                    ));
                 }
                 warn_older_locks("install", scope);
                 0
@@ -184,13 +184,13 @@ pub(super) fn install_verb(
         &named,
     ) {
         Ok(sync_report) => {
-            println!(
+            crate::notices::report_line(&format!(
                 "toolchain install: platform {}, root {}, exposure {}",
                 host.platform,
                 scope.toolchain_root.display(),
                 scope.exposure_dir.display()
-            );
-            print!("{}", format_sync_report(&sync_report));
+            ));
+            crate::notices::report(&format_sync_report(&sync_report));
             i32::from(!sync_report.failed.is_empty())
         }
         Err(error) => report(&error),

@@ -58,7 +58,7 @@ pub(super) fn bin_verb(
 ) -> i32 {
     // Plain output is what `pnpm bin` prints: the directory the executables are linked into.
     if !matches.get_flag("json") {
-        println!("{}", scope.exposure_dir.display());
+        crate::notices::report_line(&scope.exposure_dir.display().to_string());
         warn_older_locks("bin", scope);
         return 0;
     }
@@ -69,7 +69,7 @@ pub(super) fn bin_verb(
     };
     return match outcome {
         Ok(document) => {
-            print!("{}", render_bin_paths(&document));
+            crate::notices::report(&render_bin_paths(&document));
             warn_older_locks("bin", scope);
             0
         }

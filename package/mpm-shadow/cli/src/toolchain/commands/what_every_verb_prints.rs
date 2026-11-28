@@ -44,7 +44,7 @@ use super::super::scope::Scope;
 
 /// Prints a success line to standard output.
 pub(super) fn print_line(line: &str) {
-    println!("{line}");
+    crate::notices::report_line(line);
 }
 
 /// Prints the result of a `run_lock` call the way every lock-only mode does and returns the exit code.
@@ -65,7 +65,7 @@ pub(super) fn print_lock_outcome(
 
 /// Prints an error to standard error and returns its exit code.
 pub(super) fn report(error: &ToolchainError) -> i32 {
-    eprintln!("mpm-shadow: {error}");
+    crate::notices::say(&format!("mpm-shadow: {error}"));
     return error.exit_code();
 }
 

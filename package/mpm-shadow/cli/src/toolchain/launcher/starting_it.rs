@@ -291,7 +291,7 @@ pub fn run_launcher(
     if let Ok(own) = std::env::current_exe()
         && let Some(problem) = chain_problem(&own, &launch.program)
     {
-        eprintln!("mpm-shadow: {problem}");
+        crate::notices::say(&format!("mpm-shadow: {problem}"));
         return EXEC_FAILED_EXIT_CODE;
     }
     if let Err(error) = refresh_stale_record(record, &launch.program) {
@@ -309,11 +309,11 @@ pub fn run_launcher(
     //           as a permanent fault when the same command works a moment later.
     if error.kind() == std::io::ErrorKind::ExecutableFileBusy {
         let (cause, remedy) = being_written_cause_and_remedy(&launch.program, &error);
-        eprintln!(
+        crate::notices::say(&format!(
             "mpm-shadow: could not start {}: {cause}",
             launch.program.display()
-        );
-        eprintln!("mpm-shadow: what to do: {remedy}");
+        ));
+        crate::notices::say(&format!("mpm-shadow: what to do: {remedy}"));
         return EXEC_FAILED_EXIT_CODE;
     }
     if error.kind() == std::io::ErrorKind::NotFound {
@@ -323,17 +323,17 @@ pub fn run_launcher(
         // Why:      The program passed the check a moment ago, so "no file exists there" would be false here,
         //           and a sentence about a first line would be false for a compiled program, which has none.
         let (cause, remedy) = missing_lines(record, &launch.program, &error);
-        eprintln!(
+        crate::notices::say(&format!(
             "mpm-shadow: could not start {}: {cause}",
             launch.program.display()
-        );
-        eprintln!("mpm-shadow: what to do: {remedy}");
+        ));
+        crate::notices::say(&format!("mpm-shadow: what to do: {remedy}"));
         return NOT_FOUND_EXIT_CODE;
     }
-    eprintln!(
+    crate::notices::say(&format!(
         "mpm-shadow: could not start {}: {error}",
         launch.program.display()
-    );
+    ));
     return EXEC_FAILED_EXIT_CODE;
 }
 
@@ -371,11 +371,11 @@ fn report_program_not_found(
     program: &Path,
     lock_text: Option<&str>,
 ) -> i32 {
-    eprintln!(
+    crate::notices::say(&format!(
         "mpm-shadow: not starting {}: no file exists there",
         program.display()
-    );
-    eprintln!("mpm-shadow: {}", advice_for(record, lock_text));
+    ));
+    crate::notices::say(&format!("mpm-shadow: {}", advice_for(record, lock_text)));
     return NOT_FOUND_EXIT_CODE;
 }
 

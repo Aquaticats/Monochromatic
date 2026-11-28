@@ -253,18 +253,18 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
 /// ```
 fn prune_now() -> i32 {
     let Some(directory) = cargo_home(env::var("CARGO_HOME").ok(), env::var("HOME").ok()) else {
-        eprintln!(
-            "mpm-shadow: neither CARGO_HOME nor HOME is set, so cargo's home cannot be found"
+        crate::notices::say(
+            "mpm-shadow: neither CARGO_HOME nor HOME is set, so cargo's home cannot be found",
         );
         return 1;
     };
     let roots: Vec<PathBuf> = toolchain_roots(&EnvMap::from_process());
     let deleted = prune_stale_own_crates(&directory, &roots);
     for path in &deleted {
-        println!("deleted stale {}", path.display());
+        crate::notices::report_line(&format!("deleted stale {}", path.display()));
     }
     if deleted.is_empty() {
-        println!("nothing stale under {}", directory.display());
+        crate::notices::report_line(&format!("nothing stale under {}", directory.display()));
     }
     return 0;
 }

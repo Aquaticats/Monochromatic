@@ -72,7 +72,7 @@ pub(super) fn update_verbs(
         &names,
     ) {
         Ok(update_report) => {
-            print!("{}", format_update_report(&update_report, check));
+            crate::notices::report(&format_update_report(&update_report, check));
             warn_older_locks(name, scope);
             i32::from(update_report.has_failures() || (check && update_report.has_movement()))
         }

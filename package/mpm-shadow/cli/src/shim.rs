@@ -45,10 +45,6 @@ use std::ffi::OsString;
 /// Imports the file-system module (resolves the shadow's own path).
 use std::fs;
 
-/// Imports `Write`,
-/// the trait that adds `write_all` to standard output.
-use std::io::Write;
-
 /// What:
 /// `use std::os::unix::process::ExitStatusExt;` imports a trait that adds `.signal()` to a process's exit
 ///           status.
@@ -431,8 +427,10 @@ fn print_shadow_notice(
         TopLevelRequest::Help => help_section(real_mpm),
         TopLevelRequest::Other => return,
     };
-    // `let _ =` discards the write result on purpose.
-    let _ = std::io::stdout().write_all(text.as_bytes());
+    // The shadow's own line or section goes through the crate's report writer, which drops a write the
+    // stream refuses: the real mpm's output already went out, so a full or broken standard output must not
+    // end this run.
+    crate::notices::report(&text);
 }
 
 /// What:
@@ -473,7 +471,7 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // The arrival stop comes before anything else: a shadow that a shadow started as its real mpm does nothing and says so in one line
     // (`shadow_identity.rs`), whatever the nesting count below would have said.
     if let Some(arrival) = arrival_at_this_process() {
-        eprintln!("{}", arrival_line(SHADOWED_NAME, &arrival));
+        crate::notices::say(&arrival_line(SHADOWED_NAME, &arrival));
         return ARRIVAL_EXIT_CODE;
     }
     let path_variable: String = env::var("PATH").unwrap_or_default();
@@ -494,17 +492,19 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         None => {
             // What:     The whole message, the cause and the remedy, is one text built where the words live.
             // Why:      A person who sees only one line and no remedy has to guess whether mpm is missing or out of order on PATH.
-            eprintln!("{}", describe_missing_real_mpm(&lookup));
+            crate::notices::say(&describe_missing_real_mpm(&lookup));
             return NOT_FOUND_EXIT_CODE;
         }
     };
 
     let depth: u32 = nesting_depth(env::var(NESTING_ENV).ok().as_deref());
     if must_refuse(depth) {
-        eprintln!(
-            "{}",
-            describe_nesting_refusal(&arguments, &program, depth, &lookup)
-        );
+        crate::notices::say(&describe_nesting_refusal(
+            &arguments,
+            &program,
+            depth,
+            &lookup,
+        ));
         return EXEC_FAILED_EXIT_CODE;
     }
 
@@ -533,17 +533,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
                 depth,
                 lookup: &lookup,
             };
-            eprintln!("{}", describe_start_failure(&failure));
+            crate::notices::say(&describe_start_failure(&failure));
             return EXEC_FAILED_EXIT_CODE;
         }
         ProgramRun::WaitFailed {
             error,
         } => {
-            eprintln!(
+            crate::notices::say(&format!(
                 "mpm-shadow: started {} for `{}` but waiting for it failed ({error}); whether the command finished is unknown, and the post-run cleanup did not run",
                 program.display(),
                 command_line(&arguments)
-            );
+            ));
             return EXEC_FAILED_EXIT_CODE;
         }
     }
