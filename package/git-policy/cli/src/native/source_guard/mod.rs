@@ -237,7 +237,8 @@ mod no_release_read_of_a_test_only_switch_tests;
 mod no_release_read_of_the_session_places_tests;
 
 /// The ban on the event filter opening anything and on the merge device opening the ZFS device:
-/// the filter decides on two strings alone, and the device decides only how many passes run.
+/// the filter decides on two strings alone,
+/// and the device decides only how many passes run.
 #[cfg(test)]
 #[path = "event_filter_opens_nothing_tests.rs"]
 mod event_filter_opens_nothing_tests;

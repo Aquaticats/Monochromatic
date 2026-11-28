@@ -8,7 +8,8 @@
 //!  the design puts it before the gate for exactly that reason,
 //!  so a drop costs the fork ZED already paid and no device open
 //!  (`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
-//!  "The event filter, in brief",
+//!  "The event filter,
+//!  in brief",
 //!  and veto entry V2).
 //!  The merge device is cost and never safety:
 //!  it reads and writes three files under `/run`,

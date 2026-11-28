@@ -1354,14 +1354,17 @@ it reads the request the driver wrote under `/opt/lost-events`,
 because the sweep that reads a clone's intent property is plan step 8's.
 Everything else is the product's:
 the filter's rule and words,
-the device's folder under `/run`, its claim and its mark,
+the device's folder under `/run`,
+its claim and its mark,
 and the receipt writer.
 
 The fixture is the guest's own file-backed pool `zfsr9`:
-a clone parent, one clone under it,
+a clone parent,
+one clone under it,
 and a dataset outside the parent whose property change is the event the filter
 drops.
-The cases change only the guest's `/etc/zfs/zed.d`, its `zfs-zed.service` and its
+The cases change only the guest's `/etc/zfs/zed.d`,
+its `zfs-zed.service` and its
 `/run`.
 
 ```sh
