@@ -371,10 +371,8 @@ fn each_route_searches_its_own_directories() {
     );
     assert_eq!(
         bin_search_dirs(&sample_tool("rust"), &scope, &env, &[]),
-        vec![
-            PathBuf::from("/h/.cargo/bin"),
-            PathBuf::from("/h/.rustup/toolchains")
-        ]
+        vec![PathBuf::from("/h/.cargo/bin")],
+        "a rustup-toolchain row searches the cargo bin directory and the toolchain the row names, and `/h` holds none"
     );
     let android = bin_search_dirs(&sample_tool("android-sdk"), &scope, &env, &[]);
     assert_eq!(
@@ -388,6 +386,45 @@ fn each_route_searches_its_own_directories() {
     assert_eq!(
         android[1],
         root.join("android-sdk").join("23.0").join("platform-tools")
+    );
+}
+
+#[test]
+fn a_rustup_toolchain_row_searches_only_the_directory_of_the_toolchain_it_names() {
+    let directory = scratch();
+    let home = directory.path().join("home");
+    let env = EnvMap::from_pairs(&[("HOME", home.to_str().expect("utf-8"))]);
+    let scope = repo_scope(&directory.path().join("work"), &env).expect("a scope");
+    let toolchains = home.join(".rustup").join("toolchains");
+    let pinned = toolchains.join("nightly-2026-11-16-x86_64-unknown-linux-gnu");
+    let older = toolchains.join("nightly-2026-11-11-x86_64-unknown-linux-gnu");
+    fs::create_dir_all(pinned.join("bin")).expect("make the pin's bin");
+    write_executable(&older.join("bin").join("rustc"));
+    assert_eq!(
+        bin_search_dirs(&sample_tool("rust"), &scope, &env, &[]),
+        vec![home.join(".cargo").join("bin")],
+        "the row's channel is `nightly-2026-10-30` in the sample lock, so neither directory here is the row's and no toolchain's bin is searched"
+    );
+    let mut row = sample_tool("rust");
+    row.declaration.package_id = Some("nightly-2026-11-16".to_string());
+    assert_eq!(
+        bin_search_dirs(&row, &scope, &env, &[]),
+        vec![home.join(".cargo").join("bin"), pinned.join("bin")],
+        "the pin's own bin directory, and never the older toolchain's though its name sorts first"
+    );
+    let mut moving = sample_tool("rust");
+    moving.declaration.package_id = Some("nightly".to_string());
+    let dated = toolchains.join("nightly-2026-11-11-x86_64-unknown-linux-gnu").join("bin");
+    let moving_dir = toolchains.join("nightly-x86_64-unknown-linux-gnu").join("bin");
+    fs::create_dir_all(&moving_dir).expect("make the moving channel's bin");
+    assert_eq!(
+        bin_search_dirs(&moving, &scope, &env, &[]),
+        vec![home.join(".cargo").join("bin"), moving_dir],
+        "a bare channel is installed as the channel plus a host triple, and a dated toolchain beside it is another toolchain"
+    );
+    assert!(
+        !bin_search_dirs(&moving, &scope, &env, &[]).contains(&dated),
+        "the dated toolchain's directory never answers for the moving channel"
     );
 }
 
