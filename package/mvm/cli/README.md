@@ -119,6 +119,27 @@ mise run //package/mvm/cli:run -- create --image fedora build-box
 mise run //package/mvm/cli:run -- create --image windows win-box
 ```
 
+## What the `mvm` command runs
+
+`mvm` runs this package's TypeScript source,
+`src/cli.ts`,
+and Node strips the types on the way in.
+No build output stands between the command and its code,
+so a change that lands in the source reaches the next run,
+and no worktree runs a build older than the source beside it (issue 6655).
+`mise run //package/mvm/cli:run` runs the same file.
+
+`dist/final/node/cli.mjs` is a launcher for that source,
+never a copy of the program:
+a `node_modules/.bin/mvm` shim written by an install older than this manifest names that path,
+so the build writes a file there that runs the source beside it.
+`pnpm install` in a checkout writes a shim naming the source directly,
+and `mise run //package/mvm/cli:build` refreshes the launcher in a worktree whose build is
+older than this change.
+The ways weighed,
+their costs and the measurements:
+[`doc/what-the-mvm-command-runs.md`](doc/what-the-mvm-command-runs.md).
+
 ## Host tools
 
 The libvirt backend runs two host commands,
