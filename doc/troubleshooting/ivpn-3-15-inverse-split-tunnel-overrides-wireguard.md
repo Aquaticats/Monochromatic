@@ -390,7 +390,7 @@ which sends every name to that link's server.
 `resolve call failed: 'github.com' does not have any RR of the requested type`,
 while the same query with `--interface=<wireless link>` returned an address.
 
-### Ordinary traffic was outside the tunnel the whole time
+### Ordinary traffic was outside the tunnel when it was measured
 
 Measured after lookups came back,
 with the link's own counter `/sys/class/net/<tunnel link>/statistics/rx_bytes`:
@@ -400,6 +400,14 @@ So inverse mode kept the program's traffic off the tunnel,
 as "IVPN intentionally bypasses VPNs for ordinary applications" describes,
 and only its name lookups depended on the tunnel:
 the port `53` returns that precede the mark rule keep every program's DNS on the tunnel's path.
+
+That measurement was made after lookups came back.
+During the failure itself the tunnel link's counters read under 1 MiB received and under 1 MiB sent,
+`ping` to a public address lost no packet,
+and the agent rounds that already held connections to their model providers kept writing.
+That fits traffic outside the tunnel then too,
+and it is not the same proof,
+because the link's counters start when the link is made and nobody read when that was.
 
 During the failure an unmarked `ip route get` printed the tunnel link for the same destinations.
 "Patterns that fail" names that reading as no proof of where a program's packets leave,
