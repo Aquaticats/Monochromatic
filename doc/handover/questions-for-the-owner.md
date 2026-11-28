@@ -4008,3 +4008,150 @@ Ranking,
 the round's:
 leave them > group them,
 because the room is enough for 99 more modules.
+
+## Veto open: what the rounds read on the evening of 2026-11-27 chose or left (recorded 2026-11-27T19:13:58-05:00)
+
+Each entry is a choice the coordinating session made,
+or one a round's report left,
+with the way not taken.
+None holds work:
+each stands unless the owner says otherwise.
+
+### `mpm-shadow`: where the Rust row's programs come from
+
+The Claude Sonnet second pass of `0.2.7-alpha.17` found that the folder of links (`.cache/toolchain-bin`)
+takes each program of the Rust row from the first toolchain in name order that holds it,
+not from the pinned one
+(issue 6634).
+This machine's folder points at the pin today,
+because the pin's name sorts first;
+it stops doing so when the pin moves to a later date while the older toolchain stays.
+The fix round was given these picks as its own to show wrong:
+
+- the row's programs come from the toolchain the row names and from no other;
+- the rebuild removes a symbolic link the folder holds for a name no row declares,
+  never a regular file,
+  and the install's report says which it removed;
+- `list` reports a declared component or target the toolchain lacks as drift,
+  since `install` would act on it.
+
+The way not taken for the second pick is today's:
+the rebuild only ever adds links,
+so nothing in the folder is deleted,
+at the cost of a link that dangles or serves a program no row asks for.
+The round lists what the rebuild would remove from a folder like this machine's,
+and that list is read before `0.2.7-alpha.18` is installed here.
+
+### `mpm-shadow`: what a warning and a `prune` line may say
+
+The same pass found a warning that promises a publish the next run does not make,
+and two sentences that call a version whose program is cut short the holder of "a second copy".
+The picks given to that round:
+each warning says what the next run does for the kind of failure that reached it;
+the rule for a finished version
+(a marker and a program found,
+with no size or digest)
+stays,
+as the round before priced it,
+and the two sentences end at what the run read.
+The way not taken:
+check a program's size or digest before calling a version finished,
+which costs every install a read of every program.
+
+### The store fixture: what the round of issue 6410 left
+
+- The branch's history holds merge commits with no `Refs` line,
+  and commits that repeat one tree,
+  made by the pusher before a message was amended.
+  Pick:
+  leave them,
+  since removing them rewrites pushed history.
+- The default deadline of 2,000 ms.
+  It failed four calls falsely under a small cap,
+  and a recorded disk stall on this machine is 2,564 ms.
+  Pick:
+  size it from a measurement under the caps its users run in,
+  which a round is doing now;
+  the way not taken is to keep 2,000 ms and call the small cap the fault.
+- The tool runs in a process group of its own,
+  so that a helper it leaves behind stops with it at the deadline.
+  The cost:
+  an interrupt typed at a terminal no longer reaches the tool,
+  which then runs to the deadline.
+  Pick:
+  keep the group.
+- A helper that moves itself out of the group,
+  and the moment between the leader's exit and the signal in which its number is free to be reused:
+  nothing reaches either.
+  Left as written in the package's README.
+- A call that succeeds does not stop a helper the tool left running.
+  Pick:
+  leave it,
+  since stopping there widens what a passing call signals.
+
+### The scanner's workflow: what the round of issue 6633 left
+
+- A link to a file is read through,
+  and its stored target text is not scanned;
+  a link to a folder now has its text scanned.
+  Ranking:
+  scan it > leave it,
+  because a forbidden string can sit in a link's target text whatever the link points at,
+  and the cost is a second finding under another label when the file behind it matches too.
+  No round runs on it.
+- The whole-tree arm (`--all`) inspects neither a link's name nor its target text.
+  Ranking:
+  list the index's links there too > leave it,
+  because the whole-tree arm is the one that runs when no baseline exists;
+  the cost is every link inspected on each such run.
+  No round runs on it.
+- A name that holds a line break fails the gate whether or not it holds a forbidden string,
+  because the released scanner counts its `unsupported pathname line break` answer.
+  Left:
+  it is the scanner's behaviour,
+  and changing it needs a release that is not an alpha.
+
+### The linter: what the alpha.22 fix round chose
+
+- Where one text is the line for two folders,
+  the raw reading wins,
+  so the line names the folder whose own name begins with the character it wrote.
+  Not taken:
+  the joined reading first,
+  which names a folder the line was not written for.
+- The second reading takes the whole run of whitespace before the file,
+  then the leading run one character at a time.
+  Not taken:
+  trimming both runs whole,
+  which loses a name's own leading whitespace.
+- A dead line that holds an unseen character is told to be deleted,
+  and the sentence still names the character and its place.
+  Not taken:
+  a bare "Delete this line",
+  which leaves the README's promise that every message names it false.
+- A key line whose edited text would still not read as a list line is told to be deleted.
+  Not taken:
+  the advice to take the character out,
+  which the next run contradicts.
+- A line of more than five words whose first folder word is absolute or holds a backslash
+  is refused for that cause before its word count.
+- A six-word line refused for a spaced folder is not told that it would read as a `file-uses` line.
+- The help of a dead `uses` line spells the folder's name in the sentence that says what the name holds,
+  so the name appears twice.
+
+### The driver: a round's edits landed in the main checkout
+
+Rounds of 2026-11-27 wrote edits into the main checkout
+(issue 6636;
+the handover's Next list has what was done).
+The coordinating session put three files of the main checkout back at what `main` holds,
+after saving their differences as a patch,
+with the wrapper's `--no-enforce-worktree`.
+That is a restore in the main checkout made without asking:
+the files were this session's own round's,
+by their content,
+and an edit left there blocks merges.
+Pick for the cure:
+the driver refuses an edit or write call on a main-checkout path > the brief's wording alone,
+because the wording failed twice in one day.
+A round for it starts after the wrapper's release is dispatched.
