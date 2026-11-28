@@ -83,10 +83,16 @@ const PUBLIC_KEY_COMMENT_START = '#';
  started, with 11 and 29 other Pi runs and two Claude runs in the process list.
 
  Fifteen seconds is 3.3 times that slowest capped call and 29 times the slowest
- call at 1000%, so a stalled disk fits inside it: a 4 KiB write-and-sync probe
- saw 2564 ms on 2026-11-17. It equals `SOPS_TIMEOUT_MS`, the deadline the reader
- gives the same sops child, so no call the reader would wait out can fail a
- fixture.
+ call at 1000%, and the 2564 ms stall a 4 KiB write-and-sync probe saw on
+ 2026-11-17 fits inside it. It is no stricter than `SOPS_TIMEOUT_MS`, the
+ deadline the reader gives the same sops child, because a fixture that failed a
+ call the reader waits out would report a fault the reader does not have. One
+ run per cap is the whole evidence: this bounds a hang, it does not prove no
+ host will ever make a call slower than fifteen seconds.
+
+ The figures this replaces measured a quiet host on 2026-11-27T18:30:20-05:00,
+ where the slowest whole `createSopsFixture` call took 18.7 ms: they measured
+ speed, not the caps the fixture's users run under.
  */
 export const FIXTURE_COMMAND_TIMEOUT_MS = 15_000;
 

@@ -244,10 +244,12 @@ the subagent driver's unit suite at the caps a test run gets:
 at a `CPUQuota` of 400 percent of one processor
 one run made 36 calls,
 median 104.2 ms and slowest 4597.5 ms,
-on 2026-11-27T19:16:30-05:00,
-and the same suite at 1000 percent was slowest at 513.7 ms.
-It equals the reader's own `SOPS_TIMEOUT_MS`,
-so a call the shipped reader would wait out cannot fail a fixture.
+between 2026-11-27T19:16:30-05:00 and 2026-11-27T19:19:03-05:00,
+and the same suite at 1000 percent was slowest at 513.7 ms,
+between 2026-11-27T19:20:18-05:00 and 2026-11-27T19:21:57-05:00.
+The 2,564 ms stall a 4 KiB write-and-sync probe saw on 2026-11-17 fits inside it,
+and it is no stricter than the reader's own `SOPS_TIMEOUT_MS`,
+so a fixture never fails a call the shipped reader waits out.
 Tests can override it with `runCommand`'s `timeoutMilliseconds` option.
 On expiry the runner closes its ends of the output streams and signals the tool's whole process group.
 The tool runs in a group of its own,

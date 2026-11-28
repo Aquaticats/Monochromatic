@@ -356,6 +356,22 @@ async function standInChildFailure({
 }
 
 /**
+ Delay one call asked a replaced timer for, and that call.
+ */
+type CallUnderImmediateDeadline = {
+  /**
+   Delay the runner asked its deadline timer for, in milliseconds, and how many
+   timers it asked for, so the test reads the one timer a call arms.
+   */
+  readonly armed: { calls: number; delayMilliseconds: number; };
+
+  /**
+   Pending fixture call.
+   */
+  readonly pending: Promise<unknown>;
+};
+
+/**
  Runs one fixture command with the deadline timer replaced for the call's own
  synchronous part, and reports the delay the runner armed.
 
@@ -381,6 +397,9 @@ async function failureUnderImmediateDeadline(
   catch (error) {
     if (!(error instanceof FixtureCommandError))
       throw error;
+    // One call arms one deadline. A second timer would make the delay below the
+    // wrong one, so the count is part of what the control proves.
+    expect(armed.calls,).toBe(1,);
     return {
       delayMilliseconds: armed.delayMilliseconds,
       message: error.message,
@@ -388,21 +407,6 @@ async function failureUnderImmediateDeadline(
   }
   throw new Error(`Expected fixture command ${options.command} to reject, but it returned normally.`,);
 }
-
-/**
- Delay one call asked a replaced timer for, and that call.
- */
-type CallUnderImmediateDeadline = {
-  /**
-   Delay the runner asked its deadline timer for, in milliseconds.
-   */
-  readonly armed: { delayMilliseconds: number; };
-
-  /**
-   Pending fixture call.
-   */
-  readonly pending: Promise<unknown>;
-};
 
 /**
  Starts one fixture command with the deadline timer replaced, and puts the
@@ -420,7 +424,10 @@ function startUnderImmediateDeadline(
    was taken in.
    */
   const realSetTimeout = globalThis.setTimeout;
-  const armed = { delayMilliseconds: Number.NaN, };
+  const armed = {
+    calls: 0,
+    delayMilliseconds: Number.NaN,
+  };
   using _putTheTimerBack = {
     [Symbol.dispose]: function putTheTimerBack(): void {
       globalThis.setTimeout = realSetTimeout;
@@ -430,6 +437,7 @@ function startUnderImmediateDeadline(
     callback: () => void,
     milliseconds?: number,
   ): ReturnType<typeof setImmediate> {
+    armed.calls += 1;
     armed.delayMilliseconds = milliseconds ?? Number.NaN;
     return setImmediate(callback,);
   } as unknown as typeof globalThis.setTimeout;
