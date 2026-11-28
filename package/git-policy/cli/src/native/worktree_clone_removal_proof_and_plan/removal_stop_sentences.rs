@@ -17,6 +17,7 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
+use crate::worktree_clone_removal_proof_and_plan::removal_force_refusal_sentences::forced_refusal_sentence;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 
 impl RemovalStop {
@@ -33,6 +34,10 @@ impl RemovalStop {
     /// stop.message();
     /// ```
     pub fn message(&self) -> String {
+        // The refusals a force count decides print from their own file, so this one holds the stops that no force changes.
+        if let Some(sentence) = forced_refusal_sentence(self) {
+            return sentence;
+        }
         return match self {
             RemovalStop::NoBinding {
                 slot,
@@ -164,10 +169,6 @@ impl RemovalStop {
                 "a removal's destruction plan for the slot `{slot}` stands at {}, and this entry writes a plan only when none stands. Nothing was destroyed, every snapshot and bookmark stands, and the registration stands. Ways forward: the removal that wrote this plan continues from it, and a resumed removal reads its lines so a snapshot it already recorded is proved rather than requested again.",
                 path.display()
             ),
-            RemovalStop::PlanUnreadable {
-                path,
-                refusal,
-            } => refusal.message(path.as_path()),
             RemovalStop::NoRunNonce {
                 reason,
             } => format!(
@@ -252,12 +253,6 @@ impl RemovalStop {
             } => format!(
                 "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan's file in the wrapper's plan folder and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
             ),
-            RemovalStop::TheLocksWordsAreNotThisAdds {
-                slot,
-                cause,
-            } => format!(
-                "the Git registration of the slot `{slot}` holds a lock this add cannot attribute to itself ({cause}), so a person's lock may stand there and this removal stops before its first write. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: run `git worktree unlock {slot}` to remove the lock, then run the removal again; every spelling of `git worktree remove` refuses here, `-f -f` among them, because this removal destroys the clone and its own snapshots whereas Git's own two forces would only drop the registration."
-            ),
             RemovalStop::TheSettleRefused {
                 step,
                 said,
@@ -301,6 +296,9 @@ impl RemovalStop {
             } => format!(
                 "{stop}, so the removal asked to put the clone back at its slot and could not: {said}. Nothing of the clone's own history was destroyed by a stop that came before a delete, and the plan keeps every line it had. Ways forward: read what refused, then run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` to finish putting the clone back, or run the removal again once the request can be answered."
             ),
+            // The five stops a force count decides print from `removal_force_refusal_sentences.rs`, which `message` asks
+            //  first; this arm keeps the match whole rather than pretending no such stop exists.
+            other => other.message(),
         };
     }
 }

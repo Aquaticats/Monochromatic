@@ -89,6 +89,7 @@ fn a_fixture(name: &str) -> (PathBuf, CopyFacts) {
         add_plan: Some(plan),
         remove_plan: None,
         removal_target: None,
+        removal_force: 0,
         quiet: false,
     };
     return (root, facts);

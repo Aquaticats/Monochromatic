@@ -149,8 +149,14 @@
 //!   what becomes of the destination a refused `git worktree add` left:
 //!   the empty folder this command made is removed,
 //!   and one it left with something in it is named on the command's output.
+//! - `the_slots_cleanliness.rs`:
+//!   Git's own reading of the files at a slot a removal without force refuses to
+//!   take,
+//!   as the seam a host control answers.
 //! - `worktree_removal_of_a_bound_clone.rs`:
-//!   the refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
+//!   what a `git worktree remove` of a slot a whole managed clone is bound to does:
+//!   the removal,
+//!   or the refusal of a state nothing proves,
 //!   with the slot's state printed beside it.
 //! - `worktree_copy_owed_taking.rs`:
 //!   the marker one command takes in the journal root before it stages an owed copy,
@@ -724,7 +730,11 @@ pub mod worktree_copy_unreadable_record_aside;
 #[cfg(unix)]
 pub mod worktree_copy_unreadable_record_words;
 
-/// The refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
+/// Git's own reading of the files at a slot a removal without force refuses to take.
+#[cfg(unix)]
+pub mod the_slots_cleanliness;
+
+/// What a `git worktree remove` of a slot a whole managed clone is bound to does,
 /// with the slot's state printed beside it.
 #[cfg(unix)]
 pub mod worktree_removal_of_a_bound_clone;

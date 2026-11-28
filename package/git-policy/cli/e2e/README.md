@@ -1219,6 +1219,83 @@ and the sweep ignores it
 step 8,
 "Where the checkout and the datasets are found").
 
+## The checkout-propagation step's arm and the trigger measurement
+
+`propagation-step-guest.ts` runs plan step 19's private-propagation step
+(`package/git-policy/cli/src/native/checkout_propagation/`,
+and `SPEC.md`'s passage of the same name)
+in a guest of the adoption driver's recipe:
+one file-backed pool,
+a checkout dataset mounted at `/root/propagation-checkout`,
+and one phase per state the kernel can hand the step.
+
+The step's kernel half is what no control on a person's machine may run,
+because it changes a mount and reads the kernel's own answer about it,
+and no root mode reaches the step in this release:
+its call at the head of `boot-reconcile` and of the default sweep is plan step
+19's wiring,
+which is not built.
+So the arm calls the step itself,
+as root,
+through `run_the_step(places, resolution, TheKernelsCalls)`.
+
+The phases:
+
+- `shared`:
+  the dataset mounted under the guest's shared `/root`,
+  which comes up shared;
+  the step sets it private and the record says `applied`.
+- `shared+slave`:
+  `/root` made a slave first,
+  so the mount receives that master,
+  and then made shared again,
+  which is the set a machine inside a container has;
+  the step sets it private,
+  records the master it detached,
+  and the line says the checkout stops receiving that master's mounts.
+- `private`:
+  reported as `already-private`,
+  and the setter is never called.
+- `slave` and `unbindable`:
+  reported as `left`,
+  which is the state the project decided to leave and report.
+- `refused=source`:
+  another dataset mounted at the checkout path refuses at the source check,
+  changes nothing,
+  and files no receipt.
+
+Every phase runs in a mount namespace of its own,
+which is what makes a mount die with its phase,
+and each one compares the record's set with `findmnt`'s answer and the mount's
+unique number before and after,
+so a set that changed another instance fails the arm.
+
+The same arm carries the accepted design's measurement of the provisional
+systemd trigger
+(`doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`,
+"The trigger the route adds,
+and what it must show").
+It writes the gate and the propagation pair the release code builds,
+with a stand-in gate whose `ExecStart` does nothing and whose `ExecReload`
+appends one line,
+because this release's gate does not call the step;
+then it replaces the checkout mount at a person's pace
+(the count is fixed in the arm before the run),
+reads whether the mount unit's activation started the propagation service once
+and the gate once inside the reading window,
+waits a quiet interval for a loop,
+and finally bursts replacements to read where the three limits sit.
+The two rules turn those readings into "the trigger stays" or "is dropped";
+the numbers are in
+`doc/planning/cli-git-zfs-private-propagation-guest-measurements.md`.
+
+Its build and its arm both run detached through
+`bin/mvm-guest-detached-script.ts`'s helpers,
+so the driver holds no plain long command at all and is not in the list below.
+
+```sh
+# package/git-policy/cli: one throwaway guest for the whole arm and its measurement
+node e2e/propagation-step-guest.ts all --name zfs-r6-propagation --log-dir /home/user/temp/agent/zfs-private-propagation-step-built-ahead-unwired-scratch/keep/propagation-guest
 ## The ZFS shutdown pass's arm
 
 `shutdown-unmount-guest.ts` runs plan step 19's shutdown pass end to end,
