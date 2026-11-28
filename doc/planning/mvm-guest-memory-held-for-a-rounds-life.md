@@ -2153,34 +2153,41 @@ What it stores for good:
 one artifacts tarball per driver per commit,
 in the run's log folder.
 What it gives up:
-nothing yet on libvirt,
-but the transfer itself is a libvirt arrangement:
-an OVHcloud guest has no `/mnt/shared`,
-`mvm push` there writes the absolute path it is given over `scp`,
-and every arm script's log copy would have to name that folder instead.
-That is a change to the arm scripts and their log names,
-and it is the part of this design that the new backend decision makes mandatory
-rather than optional.
+nothing on either backend,
+because the shared folder the arm scripts name is made where no share is mounted
+(`package/git-policy/cli/bin/mvm-guest-shared-folder.ts`),
+and `mvm push` there writes that path over `scp`.
+Measured on the rented machine:
+35,041,511 bytes pushed in 13.2 s,
+the two tarballs unpacked at the crate path in 6.7 s,
+and the arm's log pulled back the same way
+(`gb-o1-outside-lock-steps.txt`).
+
 
 **What `mvm` must offer for a smaller guest.**
-A memory size (and,
-for the same reason,
-a vCPU count) per guest:
-`mvm create --memory <MiB> [--vcpus <n>]`,
-stored in the guest's own `meta.json` so a later step reads it back,
-with `DEFAULT_MEMORY_MIB` staying 8,192 for a guest that names neither.
-This round made its one guest at the default because no such flag exists:
-a smaller one would be made by copying the built dist and changing one constant,
-`DEFAULT_MEMORY_MIB=8192` to `DEFAULT_MEMORY_MIB=4096`,
-which is exactly the change the flag would carry.
-What it stores for good:
-one field in `meta.json`,
-one flag,
-and each driver's choice of size.
-What it gives up:
-the single default every driver relies on today,
+A memory size and a vCPU count per guest,
+as floors the provider's own sizes satisfy,
+recorded in the guest's own `meta.json` and readable from `mvm list`.
+`main` has them now
+(`package/mvm/cli/src/backend/size-request.ts`,
+`package/mvm/cli/src/vm-sizes.ts`,
+`mvm create --memory <GiB> --vcpus <n>`),
+so this part of the design is already built and owes nothing.
+This round used neither:
+its libvirt guest was made at the default,
+because the round began before the floors landed,
+and its rented machine was sized by the flavour the environment names,
+`MVM_OVH_FLAVOR=d2-4`,
+which is 2 vCPUs and 4 GiB.
+What those flags store for good:
+one field in `meta.json` and each driver's choice of size.
+What they give up:
+the single default every driver relied on,
 and the guarantee that a guest is big enough for whatever a driver builds in it,
 since nothing checks a guest's size against its work.
+The design's remaining `mvm` need is therefore none,
+and the size a guest gets becomes the drivers' choice rather than `mvm`'s.
+
 
 #### What this round did not measure
 
@@ -2320,32 +2327,18 @@ because the flag carries exactly the change this round measured,
 presets hide the number a report needs,
 and nothing leaves every future guest at 8 GiB for no reason a measurement gives.
 
-**Question five:
-how do the binaries reach an OVHcloud guest?**
-The backend decision makes every guest an OVHcloud instance,
-and that guest has no `/mnt/shared`,
-so the push and the log copies this route relies on must change before any arm runs there.
-- Read a folder from the environment in every arm script (`CLI_GIT_GUEST_FOLDER`),
-  pushed to by `mvm push` over `scp` at an absolute path,
-  and copy logs back from it:
-  one variable and a default that keeps libvirt's `/mnt/shared`,
-  at the price of touching every arm script that names the folder,
-  and of a push that copies bytes over the network instead of into a local folder.
-- The nextest archive route,
-`cargo nextest archive` then `run --archive-file --workspace-remap`:
-  it moves the binaries and their test metadata in one artifact and needs no shared folder,
-  at the price of the crate's 42 `env!` path sites being changed to reads at run time,
-  and of the guest holding the source at the same revision.
-- Keep the arms on libvirt until the transfer route exists:
-  no change,
-  at the price of every arm being unrunnable from 2026-11-28,
-  which is the state the round this section comes from found itself in.
+The transfer to an OVHcloud guest is no longer a question.
+The shared folder the arm scripts name is made where no share is mounted,
+`mvm push` writes it over `scp`,
+and this round's outside arm pushed 35,041,511 bytes in 13.2 s there,
+unpacked them at the crate path in 6.7 s,
+ran the arm and pulled its log back
+(`gb-o1-outside-lock-steps.txt`).
+The nextest archive route of the section "What can place them where the guest finds them"
+stays a separate decision:
+it would need the crate's 42 `env!` path sites changed,
+and nothing here measured it.
 
-Ranking:
-the environment-variable folder > the nextest archive > keeping the arms on libvirt,
-because the variable is the smallest change that makes the arms run on the new backend,
-the archive is a larger change with a code-wide edit this document cannot verify,
-and keeping the arms on libvirt blocks every guest arm the project now has.
 
 Question one,
 ready to paste:
