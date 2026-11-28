@@ -22,6 +22,7 @@ import {
   listMvmInstances,
   mvmInstances,
   publicIpv4,
+  runningTimeoutMessage,
   waitUntilRunning,
   type OvhInstance,
 } from '../../../dist/final/node/index.mjs';
@@ -173,6 +174,28 @@ await describe({
 
     //region Waiting
 
+    it({
+      name: 'runningTimeoutMessage names the instance and the last status it showed',
+      fn: async () => {
+        const message = runningTimeoutMessage({
+          lastStatus: 'BUILD',
+          name: 'dev-01',
+        },);
+        expect(message,).toContain('dev-01',);
+        expect(message,).toContain('its last status was BUILD',);
+      },
+    },),
+    it({
+      name: 'runningTimeoutMessage says so when no status was read',
+      fn: async () => {
+        expect(
+          runningTimeoutMessage({
+            lastStatus: '',
+            name: 'dev-01',
+          },),
+        ).toContain('no status was read',);
+      },
+    },),
     it({
       name: 'waitUntilRunning polls until the instance reports ACTIVE',
       fn: async () => {
