@@ -5491,6 +5491,21 @@ so a refusal skips none of them,
 and a command started inside a repository's Git directory reads that directory's
 records,
 which Git still names although the command stands in no worktree.
+A bare repository is the other shape no worktree names:
+a command started in one,
+or in a folder inside it,
+reads the records kept in the bare repository's own directory,
+which Git names as that repository's common directory.
+Git names no top of a working tree in either shape,
+so the shell of a `!` alias runs where the command's own `-C` options left it,
+which is the directory the command was typed in when it carries none,
+and a removal's or a move's operand is read from there as it is at the top:
+`git -C <repository>/.git worktree remove -f -f ../../<slot>` names the worktree
+Git would remove,
+typed in the repository's Git directory,
+and the records a removal,
+a move or a prune reads in either shape are the records the spelling at the top
+reads.
 Only the ladder's own steps keep the shorter list of globals they serve
 ("Cheap worktree creation and removal on btrfs,
 XFS,
@@ -5553,7 +5568,10 @@ starts,
 four of them;
 and an ordinary alias chain is expanded to 64 links.
 `git worktree prune` needs no operand,
-so no directory changes what its pass reads.
+so no directory changes what its pass reads,
+and a prune typed in a repository's Git directory or in a bare repository reads
+that repository's records,
+as a removal's and a move's refusals do.
 Everything else,
 `!sh -c 'git worktree remove -f -f <slot>'` included,
 is left to Git as the guard leaves it,

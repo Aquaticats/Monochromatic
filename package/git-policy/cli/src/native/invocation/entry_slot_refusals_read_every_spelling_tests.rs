@@ -2901,3 +2901,567 @@ fn a_slot_command_the_wrapper_could_not_place_is_refused_at_the_command() {
         },
     );
 }
+
+/// What:
+///  One fixture bare repository with one real registration of one slot beside it,
+///  made the way an add makes one:
+///  a commit in a clone source,
+///  a bare clone of it,
+///  and `git worktree add` from that bare repository.
+/// Why:
+///  Issue 6625 names a bare repository as a shape no control stood in.
+///  Its records live in the bare repository's own directory,
+///  which Git names as that repository's common directory although no worktree
+///  of it is named that way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bare = aBoundSlotInABareRepository('name'); // repository, common, slot, registration, pointer
+/// ```
+fn a_bound_slot_in_a_bare_repository(name: &str) -> RegisteredSlot {
+    let root: PathBuf = fixture(name);
+    // The repository the bare one is cloned from holds the commit `worktree add` needs.
+    let source: PathBuf = repository(root.as_path(), "source");
+    let bare: PathBuf = root.join("bare.git");
+    crate::test_support::git(
+        root.as_path(),
+        &[
+            "clone",
+            "--bare",
+            "--quiet",
+            source.to_str().expect("the fixture's path is UTF-8"),
+            bare.to_str().expect("the fixture's path is UTF-8"),
+        ],
+    );
+    let slot: PathBuf = root.join("one");
+    crate::test_support::git(
+        bare.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            slot.to_str().expect("the fixture's path is UTF-8"),
+            "HEAD",
+        ],
+    );
+    // `.expect(...)` unwraps the read or panics with this sentence, which is the control's own failure to see.
+    let pointer: Vec<u8> = std::fs::read(slot.join(".git")).expect("the pointer Git wrote reads");
+    let registration: PathBuf = bare.join("worktrees").join("one");
+    return RegisteredSlot {
+        root,
+        repository: bare.clone(),
+        common: bare,
+        slot,
+        registration,
+        pointer,
+    };
+}
+
+/// One bare fixture whose slot a readable binding record binds,
+///  which is the state every refusal below is about.
+fn a_bare_slot_bound_to_a_clone(name: &str) -> RegisteredSlot {
+    let bound: RegisteredSlot = a_bound_slot_in_a_bare_repository(name);
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    return bound;
+}
+
+/// What:
+///  One fixture whose bound slot stands in a shape no worktree names,
+///  as the fixture maker that builds it.
+/// Why:
+///  The Git directory of a repository and a bare repository differ only in which
+///  directory holds the records,
+///  so one control body serves both and each maker says how its repository is
+///  made.
+type ASlotApartFromATop = fn(&str) -> RegisteredSlot;
+
+/// What:
+///  One way a control types a slot command apart from the top of a worktree.
+/// Why:
+///  The two spellings reach the command by different readings:
+///  the direct one runs in the directory the caller's options reach,
+///  and the alias one runs in the shell Git starts,
+///  whose directory is a second question Git answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TypedApartFromATop = 'direct' | 'behind-a-shell-alias';
+/// ```
+#[derive(Clone, Copy, Debug)]
+enum TypedApartFromATop {
+    /// The command as Git receives it.
+    Direct,
+    /// The command the shell of a `!` alias runs.
+    BehindAShellAlias,
+}
+
+/// What:
+///  The words one slot command is typed with in `typed_in`,
+///  apart from the top of a worktree:
+///  the command's own words for the direct spelling,
+///  and the `-c` value that names the command for the alias spelling.
+///  `command` and `operands` borrow the command's words and the words after it.
+/// Why:
+///  The two spellings must name the same worktree from the directory Git runs the
+///  command in,
+///  so only the directory reading can change which worktree is named.
+///  A `!` alias's value already holds the command
+///  (`alias.rmwt=!git worktree remove`),
+///  and Git appends the caller's own words after it,
+///  so the alias spelling adds the operands alone and never the command twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = typedApartFromATop(typedIn, 'behind-a-shell-alias', ['worktree', 'remove'], alias, 'rmwt', ['-f', '-f', operand]);
+/// ```
+fn typed_apart_from_a_top(
+    typed_in: &Path,
+    typed: TypedApartFromATop,
+    command: &[&str],
+    alias: &str,
+    alias_name: &str,
+    operands: &[&str],
+) -> Vec<OsString> {
+    // `mut` lets each spelling build its own words before the operands are added.
+    let mut words: Vec<&str> = Vec::new();
+    match typed {
+        TypedApartFromATop::Direct => words.extend(command),
+        TypedApartFromATop::BehindAShellAlias => {
+            words.push("-c");
+            words.push(alias);
+            words.push(alias_name);
+        }
+    }
+    words.extend(operands);
+    return started_in(typed_in, words.as_slice());
+}
+
+/// What:
+///  The operand a command typed in `typed_in` names the fixture's slot by:
+///  one `..` for each folder `typed_in` stands below `root`,
+/// then the slot's name.
+/// Why:
+///  A relative operand is what makes the start directory decide which worktree is
+///  named,
+///  and a path that ends in `../one` is no suffix of the slot's registered path,
+///  so Git's own match by the last components of a registered path picks nothing
+///  and the directory alone decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const operand = theSlotsPathFrom(typedIn, root); // '../../one' for a Git directory
+/// ```
+fn the_slots_path_from(
+    typed_in: &Path,
+    root: &Path,
+    last_name: &str,
+) -> String {
+    let below: &Path = typed_in
+        .strip_prefix(root)
+        .expect("the typed directory stands under the fixture root");
+    // `String::new()` is an empty owned string, which the loop below appends steps to.
+    let mut operand: String = String::new();
+    for _ in below.components() {
+        operand.push_str("../");
+    }
+    operand.push_str(last_name);
+    return operand;
+}
+
+/// What:
+///  The report of the removal of the fixture's bound slot,
+///  read from the words a control hands it.
+/// Why:
+///  The planning and the settled run both have to agree that the slot is named,
+///  so a control reads the plan first and then the refusal the run prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = theRefusalOfTheRemoval(words, bound); // the report a person reads
+/// ```
+fn the_refusal_of_the_removal(
+    words: &[OsString],
+    bound: &RegisteredSlot,
+) -> String {
+    let facts: CopyFacts =
+        settled_facts(plan_invocation(words, &[], &inputs(bound.root.as_path())));
+    assert_eq!(
+        facts.common_dir.as_deref(),
+        Some(bound.common.as_path()),
+        "the refusal reads the records of the repository the command stands in for {words:?}"
+    );
+    // `.expect(...)` unwraps the canonical path or fails with this sentence.
+    let slot_as_read: PathBuf =
+        std::fs::canonicalize(bound.slot.as_path()).expect("the slot's path reads");
+    assert_eq!(
+        facts.removal_target.as_deref(),
+        Some(slot_as_read.as_path()),
+        "the reading names the bound slot for {words:?}"
+    );
+    return the_refusals_report(run_the_removal(&facts, words));
+}
+
+/// What:
+///  The refusal one removal typed at the top of the slot's own worktree gets,
+///  which is the answer every spelling below must reach.
+/// Why:
+///  A shape's refusal is the same refusal only when the same words come out of
+///  it,
+///  so the control reads the words rather than a sentence of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const expected = theRemovalRefusalAtTheTop(bound);
+/// ```
+fn the_removal_refusal_at_the_top(bound: &RegisteredSlot) -> String {
+    let words: Vec<OsString> = started_in(
+        bound.slot.as_path(),
+        &["worktree", "remove", "-f", "-f", "../one"],
+    );
+    return the_refusal_of_the_removal(words.as_slice(), bound);
+}
+
+/// What:
+///  The stop one move answers with,
+/// as the status and the report a person reads.
+/// Why:
+///  The move's refusal ends the command rather than settling a run around Git,
+///  so its two answers come from the planning itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [code, reported] = theStopOfTheMove(words, bound);
+/// ```
+fn the_stop_of_the_move(
+    words: &[OsString],
+    bound: &RegisteredSlot,
+) -> (i32, String) {
+    return stopped(plan_invocation(words, &[], &inputs(bound.root.as_path())));
+}
+
+/// What:
+///  A bound slot's removal typed in a Git directory or in a bare repository is
+///  refused with the words the same removal gets at the top of the slot's own
+///  worktree.
+/// Why:
+///  Issue 6625:
+/// no control stood in either shape,
+///  and the plant that reddened the controls below the top of a worktree changes
+///  nothing here,
+///  because the reading those shapes need is the records' own directory rather
+///  than a top of a working tree.
+///  Every operand here is a path rather than the slot's last name,
+///  so the registry's own match reads none of them and the directory alone
+///  decides which worktree is named.
+fn a_removals_refusal_is_reached_apart_from_a_top(
+    name: &str,
+    make: ASlotApartFromATop,
+    typed: TypedApartFromATop,
+) {
+    let bound: RegisteredSlot = make(name);
+    let typed_in: PathBuf = bound.common.clone();
+    let operand: String = the_slots_path_from(typed_in.as_path(), bound.root.as_path(), "one");
+    let words: Vec<OsString> = typed_apart_from_a_top(
+        typed_in.as_path(),
+        typed,
+        &["worktree", "remove"],
+        ALIAS_REMOVES,
+        "rmwt",
+        &["-f", "-f", operand.as_str()],
+    );
+    let expected: String = the_removal_refusal_at_the_top(&bound);
+    let report: String = the_refusal_of_the_removal(words.as_slice(), &bound);
+    assert_eq!(
+        report,
+        expected,
+        "the removal typed in {} is refused with the words the top gets, tried as {typed:?}",
+        typed_in.display()
+    );
+    assert!(
+        report.contains("a whole managed clone is bound to this slot"),
+        "the refusal names the slot's clone: {report}"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    assert!(bound.registration.is_dir(), "the registration stands");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A bound slot's move typed in a Git directory or in a bare repository is
+///  refused with the words the same move gets at the top of the slot's own
+///  worktree.
+/// Why:
+///  The move's source operand is resolved against the directory Git runs the
+///  command in,
+///  so the two shapes reach the refusal only when the records' directory and the
+///  source's directory are both read.
+fn a_moves_refusal_is_reached_apart_from_a_top(
+    name: &str,
+    make: ASlotApartFromATop,
+    typed: TypedApartFromATop,
+) {
+    let bound: RegisteredSlot = make(name);
+    let typed_in: PathBuf = bound.common.clone();
+    let operand: String = the_slots_path_from(typed_in.as_path(), bound.root.as_path(), "one");
+    let elsewhere: String = the_slots_path_from(typed_in.as_path(), bound.root.as_path(), "moved");
+    let words: Vec<OsString> = typed_apart_from_a_top(
+        typed_in.as_path(),
+        typed,
+        &["worktree", "move"],
+        ALIAS_MOVES,
+        "mvwt",
+        &[operand.as_str(), elsewhere.as_str()],
+    );
+    let at_the_top: Vec<OsString> = started_in(
+        bound.slot.as_path(),
+        &["worktree", "move", "../one", "../moved"],
+    );
+    let expected: (i32, String) = the_stop_of_the_move(at_the_top.as_slice(), &bound);
+    let reported: (i32, String) = the_stop_of_the_move(words.as_slice(), &bound);
+    assert_eq!(
+        reported,
+        expected,
+        "the move typed in {} is refused with the words the top gets, tried as {typed:?}",
+        typed_in.display()
+    );
+    assert_eq!(
+        reported.0,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the refusal is the wrapper's own status: {}",
+        reported.1
+    );
+    assert!(
+        reported.1.contains("`git worktree move` is refused"),
+        "the move's own sentence: {}",
+        reported.1
+    );
+    assert!(bound.slot.is_dir(), "nothing was moved");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A link stands where the slot's pointer was,
+///  which is the state the prune's pass cannot restore and therefore refuses.
+/// Why:
+///  A deleted pointer is put back from the record and the prune goes on,
+///  so only a pointer nothing restores stops it before Git runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unlink(slot + '/.git'); symlink(root + '/elsewhere', slot + '/.git');
+/// ```
+fn a_link_stands_where_the_pointer_was(bound: &RegisteredSlot) {
+    let at: PathBuf = bound.slot.join(".git");
+    // `if ... .is_ok()` removes whatever stands there, so a second call plants the same state again.
+    if std::fs::symlink_metadata(at.as_path()).is_ok() {
+        std::fs::remove_file(at.as_path()).expect("the pointer or the link goes");
+    }
+    std::os::unix::fs::symlink(bound.root.join("elsewhere"), at.as_path())
+        .expect("a link stands where the pointer was");
+}
+
+/// What:
+///  A bound slot's prune typed in a Git directory or in a bare repository is
+///  refused,
+///  with the pass's own report,
+///  and nothing was written.
+/// Why:
+///  The prune's pass reads the records of the repository the command names and
+///  no operand,
+///  so a prune typed in either shape reads that repository's records.
+///  The same prune typed at the top of the slot's own worktree cannot stand
+///  beside these two as a comparison:
+///  a pointer that no longer resolves to its registration is exactly what makes
+///  the slot's own directory stop being a worktree,
+///  so the top of that worktree cannot be stood in while the plant is in place
+///  (measured 2026-11-27:
+///  `-C <slot> worktree prune` with a link at the pointer resolves no repository
+///  at all and is forwarded).
+///  Both spellings in the shape must therefore agree with each other.
+fn a_prunes_refusal_is_reached_apart_from_a_top(
+    name: &str,
+    make: ASlotApartFromATop,
+    typed: TypedApartFromATop,
+) {
+    let bound: RegisteredSlot = make(name);
+    let typed_in: PathBuf = bound.common.clone();
+    a_link_stands_where_the_pointer_was(&bound);
+    let words: Vec<OsString> = typed_apart_from_a_top(
+        typed_in.as_path(),
+        typed,
+        &["worktree", "prune"],
+        ALIAS_PRUNES,
+        "prwt",
+        &[],
+    );
+    // The other spelling of the same command in the same shape, which must answer the same.
+    let other: TypedApartFromATop = match typed {
+        TypedApartFromATop::Direct => TypedApartFromATop::BehindAShellAlias,
+        TypedApartFromATop::BehindAShellAlias => TypedApartFromATop::Direct,
+    };
+    let others_words: Vec<OsString> = typed_apart_from_a_top(
+        typed_in.as_path(),
+        other,
+        &["worktree", "prune"],
+        ALIAS_PRUNES,
+        "prwt",
+        &[],
+    );
+    let refused: (i32, String) = the_stop_of_the_move(words.as_slice(), &bound);
+    assert_eq!(
+        refused.0,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the prune typed in {} is refused as {typed:?}: {}",
+        typed_in.display(),
+        refused.1
+    );
+    assert!(
+        refused.1.contains("nothing was pruned"),
+        "the pass's own report: {}",
+        refused.1
+    );
+    assert_eq!(
+        refused,
+        the_stop_of_the_move(others_words.as_slice(), &bound),
+        "the other spelling of the same prune in the same shape answers the same"
+    );
+    assert!(
+        std::fs::symlink_metadata(bound.slot.join(".git"))
+            .expect("the pointer's name reads")
+            .file_type()
+            .is_symlink(),
+        "the refusal wrote nothing, so the planted link still stands"
+    );
+    assert!(bound.registration.is_dir(), "the registration stands");
+    remove(bound.root.as_path());
+}
+
+/// A removal typed in a repository's Git directory is refused as at the top.
+#[test]
+fn a_removal_in_a_git_directory_is_refused_as_at_the_top() {
+    a_removals_refusal_is_reached_apart_from_a_top(
+        "entry-slot-git-directory-removal",
+        a_bound_slot_for_a_shell_alias,
+        TypedApartFromATop::Direct,
+    );
+}
+
+/// A removal behind a shell alias in a repository's Git directory is refused as at the top.
+#[test]
+fn a_removal_behind_a_shell_alias_in_a_git_directory_is_refused_as_at_the_top() {
+    a_removals_refusal_is_reached_apart_from_a_top(
+        "entry-slot-git-directory-removal-alias",
+        a_bound_slot_for_a_shell_alias,
+        TypedApartFromATop::BehindAShellAlias,
+    );
+}
+
+/// A move typed in a repository's Git directory is refused as at the top.
+#[test]
+fn a_move_in_a_git_directory_is_refused_as_at_the_top() {
+    a_moves_refusal_is_reached_apart_from_a_top(
+        "entry-slot-git-directory-move",
+        a_bound_slot_for_a_shell_alias,
+        TypedApartFromATop::Direct,
+    );
+}
+
+/// A move behind a shell alias in a repository's Git directory is refused as at the top.
+#[test]
+fn a_move_behind_a_shell_alias_in_a_git_directory_is_refused_as_at_the_top() {
+    a_moves_refusal_is_reached_apart_from_a_top(
+        "entry-slot-git-directory-move-alias",
+        a_bound_slot_for_a_shell_alias,
+        TypedApartFromATop::BehindAShellAlias,
+    );
+}
+
+/// A prune typed in a repository's Git directory is refused.
+#[test]
+fn a_prune_in_a_git_directory_is_refused() {
+    a_prunes_refusal_is_reached_apart_from_a_top(
+        "entry-slot-git-directory-prune",
+        a_bound_slot_for_a_shell_alias,
+        TypedApartFromATop::Direct,
+    );
+}
+
+/// A prune behind a shell alias in a repository's Git directory is refused.
+#[test]
+fn a_prune_behind_a_shell_alias_in_a_git_directory_is_refused() {
+    a_prunes_refusal_is_reached_apart_from_a_top(
+        "entry-slot-git-directory-prune-alias",
+        a_bound_slot_for_a_shell_alias,
+        TypedApartFromATop::BehindAShellAlias,
+    );
+}
+
+/// A removal typed in a bare repository is refused as at the top.
+#[test]
+fn a_removal_in_a_bare_repository_is_refused_as_at_the_top() {
+    a_removals_refusal_is_reached_apart_from_a_top(
+        "entry-slot-bare-removal",
+        a_bare_slot_bound_to_a_clone,
+        TypedApartFromATop::Direct,
+    );
+}
+
+/// A removal behind a shell alias in a bare repository is refused as at the top.
+#[test]
+fn a_removal_behind_a_shell_alias_in_a_bare_repository_is_refused_as_at_the_top() {
+    a_removals_refusal_is_reached_apart_from_a_top(
+        "entry-slot-bare-removal-alias",
+        a_bare_slot_bound_to_a_clone,
+        TypedApartFromATop::BehindAShellAlias,
+    );
+}
+
+/// A move typed in a bare repository is refused as at the top.
+#[test]
+fn a_move_in_a_bare_repository_is_refused_as_at_the_top() {
+    a_moves_refusal_is_reached_apart_from_a_top(
+        "entry-slot-bare-move",
+        a_bare_slot_bound_to_a_clone,
+        TypedApartFromATop::Direct,
+    );
+}
+
+/// A move behind a shell alias in a bare repository is refused as at the top.
+#[test]
+fn a_move_behind_a_shell_alias_in_a_bare_repository_is_refused_as_at_the_top() {
+    a_moves_refusal_is_reached_apart_from_a_top(
+        "entry-slot-bare-move-alias",
+        a_bare_slot_bound_to_a_clone,
+        TypedApartFromATop::BehindAShellAlias,
+    );
+}
+
+/// A prune typed in a bare repository is refused.
+#[test]
+fn a_prune_in_a_bare_repository_is_refused() {
+    a_prunes_refusal_is_reached_apart_from_a_top(
+        "entry-slot-bare-prune",
+        a_bare_slot_bound_to_a_clone,
+        TypedApartFromATop::Direct,
+    );
+}
+
+/// A prune behind a shell alias in a bare repository is refused.
+#[test]
+fn a_prune_behind_a_shell_alias_in_a_bare_repository_is_refused() {
+    a_prunes_refusal_is_reached_apart_from_a_top(
+        "entry-slot-bare-prune-alias",
+        a_bare_slot_bound_to_a_clone,
+        TypedApartFromATop::BehindAShellAlias,
+    );
+}
