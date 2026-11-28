@@ -31,8 +31,9 @@ import {
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
 import {
-  guest,
-} from '../bin/mvm-guest-script.ts';
+  awaitDetachedGuestScript,
+  startDetachedGuestScript,
+} from '../bin/mvm-guest-detached-script.ts';
 import {
   guestDriverOptions,
   type GuestDriverOptions,
@@ -99,13 +100,29 @@ const REMOVAL_PREFIX = '/opt/openzfs-2.4.4';
  */
 const REMOVAL_ROOT = '/home/zfs-doctor-removal-fixture';
 /**
+ The swap file the guest's build and arm make before they start: the image has none, and a kernel that ends the
+ largest process of a command also ends the guest agent whose table holds that command's result
+ (`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`, "The fix, and what it cannot do").
+ */
+const SWAP_STEPS: readonly string[] = [
+  'if ! swapon --show | grep --quiet /swapfile; then fallocate --length 4G /swapfile && chmod 600 /swapfile && mkswap --quiet /swapfile && swapon /swapfile; fi',
+];
+/**
  Milliseconds the guest's crate build may take.
  */
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
 /**
+ Milliseconds the host waits past the build's own bound before it stops asking whether the detached script ended.
+ */
+const BUILD_FINISH_MARGIN_MS = 120_000;
+/**
  Milliseconds one arm may take.
  */
-const ARM_TIMEOUT_MS = 900_000;
+const ARM_TIMEOUT_MS = 1_800_000;
+/**
+ Milliseconds the host waits past the arm's own bound before it stops asking whether the detached script ended.
+ */
+const ARM_FINISH_MARGIN_MS = 120_000;
 /**
  The lines a green arm must print, one per claim it makes.
  */
@@ -252,6 +269,7 @@ async function build(chosen: GuestDriverOptions,): Promise<void> {
    */
   const script = [
     'set -eu',
+    ...SWAP_STEPS,
     'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
@@ -266,11 +284,17 @@ async function build(chosen: GuestDriverOptions,): Promise<void> {
     'tail --lines=3 /root/doctor-route-build.log',
   ]
     .join('\n',);
-  await guest({
+  await startDetachedGuestScript({
     chosen,
     script,
-    log: 'guest-crate-build.log',
+    log: 'doctor-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+    nameCheck: 'none',
+  },);
+  await awaitDetachedGuestScript({
+    chosen,
+    log: 'doctor-crate-build.log',
+    finishTimeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + BUILD_FINISH_MARGIN_MS,
   },);
 }
 
@@ -287,6 +311,7 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
    */
   const script = [
     'set -eu',
+    ...SWAP_STEPS,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
@@ -304,14 +329,20 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
     'exit $removal',
   ]
     .join('\n',);
-  /**
-   Everything the arm printed, read back from the guest's log.
-   */
-  const pulled = await guest({
+  await startDetachedGuestScript({
     chosen,
     script,
-    log: 'guest-arm.log',
+    log: 'doctor-arm.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
+    nameCheck: 'none',
+  },);
+  /**
+   Everything the arm printed, which the detached script left in the guest's shared folder and the host pulled.
+   */
+  const pulled = await awaitDetachedGuestScript({
+    chosen,
+    log: 'doctor-arm.log',
+    finishTimeoutMilliseconds: ARM_TIMEOUT_MS + ARM_FINISH_MARGIN_MS,
   },);
   if (holdsLineStartingWith({
     text: pulled,
