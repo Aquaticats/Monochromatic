@@ -227,7 +227,7 @@ pub fn check_removal_plan(facts: &RemovalPlanFacts) -> CheckOutcome {
             return finding(
                 "plan",
                 format!(
-                    "a destruction plan for `{clone}` stands at {}: started {}, written by {}, {head}, {snapshots}. A name's state is the outcome on its highest attempt number, so a name the plan calls `destroyed` is gone and cannot be restored, and a name it calls `planned`, `intact` or `unknown` may still stand on the pool. The removal that wrote this plan is the one that resumes from it, and no command of this release runs that removal while the plan stands: a `git worktree remove` of this slot is Git's own removal, which drops the registration and the slot folder while the clone stands, so do not run it.",
+                    "a destruction plan for `{clone}` stands at {}: started {}, written by {}, {head}, {snapshots}. A name's state is the outcome on its highest attempt number, so a name the plan calls `destroyed` is gone and cannot be restored, and a name it calls `planned`, `intact` or `unknown` may still stand on the pool. The removal that wrote this plan is the one that resumes from it, and a `git worktree remove` of this slot runs it: it reads the plan, proves every name the plan records again, sends no request for a name the plan records as destroyed, carries the loss forward and ends the plan with the removal's own records.",
                     path.display(),
                     plan.facts.started,
                     plan.facts.owner

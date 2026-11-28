@@ -6,7 +6,6 @@
 //!  and the one next safe action,
 //!  plus the lines a command prints.
 
-use crate::worktree_clone_binding_record::add_state_commands::THE_REMOVALS_WORDS;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_mounts::{
     MountRows,
@@ -187,7 +186,7 @@ fn a_pending_removal_reports_the_plan() {
     assert!(
         report
             .next_safe_action
-            .contains("resumes from the plan and ends it"),
+            .contains("reads the plan, proves every name the plan records again"),
         "{}",
         report.next_safe_action
     );
@@ -199,8 +198,15 @@ fn a_pending_removal_reports_the_plan() {
         report.next_safe_action
     );
     assert!(
-        !report.next_safe_action.contains(THE_REMOVALS_WORDS),
-        "and names no removal this release runs at a slot whose plan stands: {}",
+        report
+            .next_safe_action
+            .contains("runs the wrapper's own removal"),
+        "and names the removal that resumes the plan: {}",
+        report.next_safe_action
+    );
+    assert!(
+        !report.next_safe_action.contains("is Git's own removal"),
+        "and never leaves the slot to Git: {}",
         report.next_safe_action
     );
 }

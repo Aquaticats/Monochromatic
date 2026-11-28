@@ -202,7 +202,7 @@ pub fn next_safe_action(
             plan,
             ..
         } => format!(
-            "do not run Git in this folder, do not add here and do not run `git worktree remove`: a removal's destruction plan at {} names this clone, so a removal is in flight or was killed. The removal that wrote it is the one that resumes from the plan and ends it, and no command of this release runs that removal while the plan stands: a `git worktree remove` of this slot now is Git's own removal, which drops the registration and the slot folder while the plan and the clone stand. Read the plan's own file for the names it records as destroyed. {}",
+            "do not run Git in this folder and do not add here: a removal's destruction plan at {} names this clone, so a removal is in flight or was killed. A `git worktree remove` of this slot runs the wrapper's own removal, which reads the plan, proves every name the plan records again, sends no request for a name the plan records as destroyed, carries the loss forward and ends the plan with the removal's own records; every spelling takes that path, `-f -f` among them, and an add here is refused while the plan stands. Read the plan's own file for the names it records as destroyed. {}",
             plan.display(),
             registration_sentence(readings.registration_stands)
         ),
