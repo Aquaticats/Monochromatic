@@ -489,3 +489,8 @@ fn plan_removal_target(
 fn configuration_needed(writes_index: bool) -> bool {
     return writes_index;
 }
+
+/// The two failures that print the policy stage's lines first.
+#[cfg(test)]
+#[path = "entry_forward_action_planning_tests.rs"]
+mod tests;

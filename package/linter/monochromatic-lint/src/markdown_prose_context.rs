@@ -143,6 +143,67 @@ pub(crate) fn continuation_prefix(
     return prefix;
 }
 
+/// The line ending that opens each paragraph line,
+///  as the offset of its first byte and its own length.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lineEnding(source: string, from: number, end: number): [number, number] | undefined;
+/// ```
+pub(crate) fn line_ending(
+    source: &str,
+    from: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    let suffix: &str = source.get(from..end)?;
+    let index: usize = from + suffix.find(['\n', '\r'])?;
+    let length: usize = if source[index..].starts_with("\r\n") {
+        "\r\n".len()
+    } else {
+        "\n".len()
+    };
+    return Some((index, length));
+}
+
+/// What:
+///  The prefix a line the fix inserts under a paragraph is written with:
+///  the paragraph's container depth and the indent its first continuation line carries.
+/// Why:
+///  A paragraph the old hard wrap wrote keeps its deeper indent on the lines the author wrote,
+///  so a line inserted without it stands beside them written at another depth;
+///  copying an indent the paragraph already carries can only raise that line's depth,
+///  which keeps every other line of a rustdoc run projected as it was,
+///  where removing the deepest indent of the run would re-project all of them.
+///  A marker or a shorter line than the paragraph's own depth is written again from the paragraph,
+///  because only the spacing past that depth is a line's own indent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function continuationIndent(context, paragraph): string;
+/// ```
+pub(crate) fn continuation_indent(
+    context: &MarkdownSource,
+    paragraph: u32,
+) -> String {
+    let base: String = continuation_prefix(context, paragraph);
+    let (start, end): (usize, usize) = context.offsets(paragraph);
+    let source: &str = context.source.as_str();
+    let Some((ending, length)): Option<(usize, usize)> = line_ending(source, start, end) else {
+        return base;
+    };
+    let rest: &str = &source[ending + length..end];
+    let indentation: usize = rest.len() - rest.trim_start_matches([' ', '\t']).len();
+    let written: &str = &rest[..indentation];
+    // A quote or list marker is written again by the paragraph's own depth, never copied from a later line.
+    if !base.chars().all(|character| character == ' ') {
+        return base;
+    }
+    let Some(own): Option<&str> = written.strip_prefix(base.as_str()) else {
+        return base;
+    };
+    return format!("{base}{own}");
+}
+
 /// Container-prefix and paragraph-ancestry controls are test-only.
 #[cfg(test)]
 #[path = "markdown_prose_context_tests.rs"]

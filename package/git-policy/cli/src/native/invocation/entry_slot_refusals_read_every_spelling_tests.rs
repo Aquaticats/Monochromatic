@@ -3465,3 +3465,105 @@ fn a_prune_behind_a_shell_alias_in_a_bare_repository_is_refused() {
         TypedApartFromATop::BehindAShellAlias,
     );
 }
+
+/// What:
+///  A bound slot's removal behind a `!` alias whose caller named the repository before the alias name
+///  reads that repository's records and is refused,
+///  though the alias's own words name another directory.
+/// Why:
+///  Issue 6641's first class,
+///  on the slot refusals:
+///  `git --git-dir=<repository>/.git g -C <another repository> worktree remove -f -f one`
+///  runs its nested Git with the caller's Git directory and the other directory's files,
+///  so it deletes the bound slot's registration out of the repository the caller named.
+///  A reading that dropped the options before the alias name asked the other directory's repository,
+///  found no records there and forwarded the removal;
+///  the round that fixed the guard argued this row from `entry.rs:376` and
+///  `the_refusals_report` below is where it is run.
+///  The row without those options is beside it as the control that the difference is the option and not the alias.
+#[test]
+fn a_bound_slots_removal_behind_a_place_the_caller_named_before_the_alias_is_refused() {
+    let bound: RegisteredSlot =
+        a_bound_slot_for_a_shell_alias("entry-slot-removal-place-before-the-alias");
+    let elsewhere: PathBuf = crate::test_support::repository(bound.root.as_path(), "elsewhere");
+    let the_git_directory: &str = bound.common.to_str().expect("the fixture's path is UTF-8");
+    let the_other_place: &str = elsewhere.to_str().expect("the fixture's path is UTF-8");
+    // The words the finding names: the repository before the alias, another directory after it.
+    let words: Vec<OsString> = text(&[
+        "-c",
+        "alias.prealias=!git",
+        "--git-dir",
+        the_git_directory,
+        "prealias",
+        "-C",
+        the_other_place,
+        "worktree",
+        "remove",
+        "-f",
+        "-f",
+        "one",
+    ]);
+    let facts: CopyFacts = settled_facts(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        facts.common_dir.as_deref(),
+        Some(bound.common.as_path()),
+        "the refusal reads the records of the repository the caller named"
+    );
+    let stderr: String = the_refusals_report(run_the_removal(&facts, words.as_slice()));
+    assert!(
+        stderr.contains("a whole managed clone is bound to this slot"),
+        "{words:?}: {stderr}"
+    );
+    // The direct spelling of the same words is refused as well.
+    let directly: Vec<OsString> = text(&[
+        "--git-dir",
+        the_git_directory,
+        "-C",
+        the_other_place,
+        "worktree",
+        "remove",
+        "-f",
+        "-f",
+        "one",
+    ]);
+    let direct_facts: CopyFacts = settled_facts(plan_invocation(
+        directly.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        direct_facts.common_dir.as_deref(),
+        Some(bound.common.as_path()),
+        "the direct spelling reads the same repository"
+    );
+    // Without the option before the alias name the words name the other repository alone, which holds no record.
+    let without_the_option: Vec<OsString> = text(&[
+        "-c",
+        "alias.prealias=!git",
+        "prealias",
+        "-C",
+        the_other_place,
+        "worktree",
+        "remove",
+        "-f",
+        "-f",
+        "one",
+    ]);
+    assert!(
+        matches!(
+            plan_invocation(
+                without_the_option.as_slice(),
+                &[],
+                &inputs(bound.root.as_path()),
+            ),
+            Action::Forward { .. }
+        ),
+        "the other repository holds no record, so that spelling is forwarded: this is the row the option changes"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    remove(bound.root.as_path());
+}
