@@ -32,10 +32,7 @@
 #![cfg(target_os = "linux")]
 
 use super::zfs_step_21_guest_fixture::Fixture;
-use super::zfs_step_21_guest_layout::{
-    guest,
-    mounted_at,
-};
+use super::zfs_step_21_guest_layout::guest;
 use super::zfs_step_21_launcher_arm::the_launcher_arm;
 use super::zfs_step_21_pnpm_and_cargo_arms::{
     the_cargo_arm,
@@ -43,6 +40,7 @@ use super::zfs_step_21_pnpm_and_cargo_arms::{
 };
 use super::zfs_step_21_queued_arm::the_queued_and_inline_arms;
 use super::zfs_step_21_watch_arm::the_watch_arm;
+use super::zfs_sweep_guest::mount_row;
 
 /// What:
 ///  Run every arm of the plan's step 21 in the guest the driver prepared.
@@ -73,9 +71,12 @@ fn the_step_21_guest_arms() {
     the_cargo_arm(&fixture);
     the_launcher_arm(&fixture);
     the_watch_arm(&fixture);
+    // The checkout root is the checkout dataset's own mount, so what an arm could leave there is another dataset over it.
+    let row: Option<String> = mount_row(fixture.root());
     assert!(
-        !mounted_at(fixture.root()),
-        "the arms left a mount over the checkout root"
+        row.as_deref()
+            .is_some_and(|line| return line.contains(fixture.checkout.as_str())),
+        "the checkout root does not stand on its own dataset: {row:?}"
     );
     println!("STEP21 done");
 }
