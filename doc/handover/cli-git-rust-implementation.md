@@ -1617,47 +1617,6 @@ The raw characters in the linter's other messages wait for the owner,
 because a command a person copies must hold the name raw
 (`doc/handover/questions-for-the-owner.md`).
 
-What the wrapper's alpha.49 structure pass found
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`),
-on the two merges that claim to change no behaviour (`02d0a6e8e6` and `97d9afb21c`):
-no High finding,
-two Medium and four Low,
-and no change of behaviour on Linux from either merge.
-A Linux release build differs through `02d0a6e8e6` in two ways only,
-argued from the source text and not from a build:
-one unused constant leaves it,
-and one tag constant goes from 141 copies to 123 with every value the same.
-Every file `97d9afb21c` changed compiles only in a test build.
-Of 61 commands run through alpha.48,
-alpha.49 and alpha.49 again as the control,
-57 were identical and the control differed in none;
-the four that differed are the merge pass's intended change.
-Its Medium findings,
-each with a round:
-the control that fails when a name becomes nameable from outside the crate cannot see a function with `async` before `fn`
-(154 of 155 such published names have no line in its list),
-a name another listed item already has,
-a field,
-a method,
-or a `pub use` written over several lines;
-and the guards that now read the folders the splits made gained scope and lost two things:
-the hook ban no longer fails on `libc::symlink(` or on an imported bare `symlink(`,
-and an excuse covers every use of a text in its file.
-Both rest on Python ports of the Rust controls' text,
-not on runs of the controls,
-so each round first plants the shapes against the Rust controls.
-Its Low findings:
-the merge restored seven platform gates
-(seven such attributes in its diff outside tests,
-counted again by the coordinator),
-where the commit says 29 items and this file said 28;
-two merges outside both passes' lists change release code
-(`1cda665610` and `0dda4eccb7`),
-and the behaviour pass read both as identity changes;
-nothing shows that the crate builds on a target other than Linux,
-and the README does not say which targets build;
-and the package guide records none of the rules the two merges brought.
-
 Beyond their findings,
 the two reads name changes that no merge's description carried.
 `cd62517318` made the refusal of a removal behind an unknown global option need a slot record in the record folder,
