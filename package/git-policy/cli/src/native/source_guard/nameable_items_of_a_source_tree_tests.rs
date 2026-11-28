@@ -81,7 +81,10 @@ use super::modules_a_library_root_reaches_tests::{
     chain_the_target_reaches,
     read_the_tree,
 };
-use crate::source_scan_tests::declaration::is_test_gate;
+use crate::source_scan_tests::declaration::{
+    is_test_gate,
+    leading_attributes,
+};
 use std::collections::{
     BTreeMap,
     BTreeSet,
@@ -280,62 +283,6 @@ fn declaration_after_pub(rest: &str) -> Option<(String, String)> {
         name_index += 1;
     }
     return Some((String::from(kind), String::from(*words.get(name_index)?)));
-}
-
-/// What:
-///  `fn leading_attributes(line: &str) -> (Vec<&str>, &str)` splits the attributes a first-column line starts
-///  with from the declaration written after them on the same line.
-///  `Vec<&str>` is a growable list of borrowed views of the line (sibling: `String`, owned).
-/// Why:
-///  An attribute may stand on the declaration's own line (`#[inline] pub fn inlined() {}`),
-///  and a reader that took such a line for an attribute alone published nothing of it
-///  (the alpha.52 read's L1).
-///  An attribute's `]` is found with its square brackets counted and its string literals skipped,
-///  so `#[cfg(all(not(test), unix))]` and a value that holds a bracket end where the attribute ends.
-/// Gotcha:
-///  A line whose attribute is not closed answers the whole line as one attribute and no declaration,
-///  which is the reading this scan gave a line starting with `#[` before.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function leadingAttributes(line: string): [string[], string]
-/// ```
-fn leading_attributes(line: &str) -> (Vec<&str>, &str) {
-    let bytes: &[u8] = line.as_bytes();
-    let mut found: Vec<&str> = Vec::new();
-    let mut at: usize = 0;
-    while line[at..].starts_with("#[") {
-        let start: usize = at;
-        let mut depth: usize = 1;
-        let mut index: usize = at + "#[".len();
-        while index < bytes.len() && depth > 0 {
-            match bytes[index] {
-                b'"' => {
-                    index += 1;
-                    while index < bytes.len() && bytes[index] != b'"' {
-                        if bytes[index] == b'\\' {
-                            index += 1;
-                        }
-                        index += 1;
-                    }
-                }
-                b'[' => depth += 1,
-                b']' => depth -= 1,
-                _ => {}
-            }
-            index += 1;
-        }
-        if depth > 0 {
-            found.push(line.trim_end());
-            return (found, "");
-        }
-        found.push(&line[start..index]);
-        at = index;
-        while at < bytes.len() && bytes[at] == b' ' {
-            at += 1;
-        }
-    }
-    return (found, &line[at..]);
 }
 
 /// What:
