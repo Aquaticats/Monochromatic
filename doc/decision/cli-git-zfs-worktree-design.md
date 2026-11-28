@@ -111,6 +111,22 @@ the half that ends holders and unmounts (the kernel calls) is not,
 and its waits stay unset until plan step 22 sizes them
 (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
 
+State at the forced arm's kernel-call merge
+(`3ebc78c3dc`,
+2026-11-26T00:11:52-05:00):
+that half is built and its guest arm proves it,
+by `descriptor_calls.rs`,
+`mount_namespace_child.rs`,
+`the_copy_taken_out_of_a_namespace.rs`,
+`the_acts_journal_lines.rs` and
+`the_forced_act_guest_arms_tests.rs` under
+`package/git-policy/cli/src/native/worktree_clone_forced_removal/`.
+The waits still have no value
+(`TERMINATION_WAIT`,
+`HEARTBEAT_PERIOD` and `STOP_WAIT` in `forced_arm_numbers.rs`,
+each an `Option` that is `None`),
+so no person's command reaches the arm.
+
 [owed]: ../planning/cli-git-zfs-worktree-design-proposal.md#forced-removal-and-deferred-origins
 
 ## Moved from the old handover
