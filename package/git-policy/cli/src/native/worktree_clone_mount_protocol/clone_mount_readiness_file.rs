@@ -18,7 +18,9 @@
 //!  and the record is a cache that a caller compares with live facts.
 //!  This file holds the directory and the record's own name,
 //!  and the refusals,
-//!  the write and the read each sit in the file named for the job they do,
+//!  the write,
+//!  the read and the withdrawal each sit in the file named for the job they
+//!  do,
 //!  so a reader can hold one job at a time.
 //!
 //! In TS you'd write (pseudocode):
@@ -67,6 +69,18 @@ use self::clone_mount_readiness_file_read::read_the_record;
 /// The refusal the directory,
 /// the write and the read answer with.
 pub use self::clone_mount_readiness_file_refusals::ReadinessFileRefusal;
+/// The withdrawal of one whole record,
+/// behind the directory already proved.
+pub(crate) use self::clone_mount_readiness_file_withdraw::{
+    RecordStood,
+    WithdrawRefusal,
+    Withdrawal,
+    withdraw_the_record,
+};
+/// The withdrawal's one record: what stood, the removal and the proof that
+/// nothing answers after it.
+#[path = "clone_mount_readiness_file_withdraw.rs"]
+mod clone_mount_readiness_file_withdraw;
 
 /// What:
 ///  Where one boot's readiness lives and which account must own it.
