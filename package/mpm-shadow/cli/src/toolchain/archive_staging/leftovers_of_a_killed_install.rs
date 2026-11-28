@@ -68,7 +68,8 @@
 //!
 //! A publish that fails keeps the copy it claimed:
 //! the copy stays under this process's `.recovered` name,
-//! which a later install finds dead and claims,
+//! which a later install in this process namespace finds dead and claims while the version's name holds no finished copy,
+//! and removes as a second finished copy once that name holds one,
 //! so no failure here costs the finished copy an offline machine needs.
 //! The copy that was there is put back only when no installer that may still run holds a claim or a
 //! staging name for that version:
@@ -148,6 +149,11 @@ pub(crate) use self::what_a_recovery_answers::{
     holds_of,
     may_be_published,
 };
+
+/// Re-exports which copy a failed recovery named,
+/// which the module above re-exports for the controls that read it.
+#[cfg(test)]
+pub(crate) use self::what_a_recovery_answers::WhatTheFailureNamed;
 
 /// Imports `fs` from `std`.
 use std::fs;
@@ -572,7 +578,7 @@ pub(crate) fn recover_leftovers(
     } else if !is_finished(version_dir, first_bin) {
         if let Some(claimed) =
             claim_the_finished_copy(version_dir, &of_this_version, first_bin, expected)
-                .map_err(ARecoveryThatFailed::a_copy_it_named)?
+                .map_err(ARecoveryThatFailed::a_finished_copy_it_named)?
         {
             // What: the publish is the one step whose failure name the warning may follow with the copy's fate.
             // Why: it keeps the finished copy this run holds, and a run that then installs the version makes it a second one.
@@ -614,7 +620,7 @@ pub(crate) fn recover_leftovers(
                 .find(|sibling| return sibling.holds == Holds::ReplacedCopy);
             if let Some(copy_that_was_there) = moved_aside {
                 outcome.restored = put_back_the_copy(version_dir, &copy_that_was_there.path)
-                    .map_err(ARecoveryThatFailed::a_copy_it_named)?;
+                    .map_err(ARecoveryThatFailed::the_copy_that_was_moved_aside_it_named)?;
             }
         }
     }
