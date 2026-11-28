@@ -18,116 +18,7 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Open: what a ZFS removal does at a person's lock, at a plan it cannot read and at a staged clone, with one pick beside them (recorded 2026-11-28T05:17:09-05:00)
-
-The round that answered the lock question merged on 2026-11-28 as `2d5f167ae9`.
-Its control showed that on `main` a `git worktree remove` of a ZFS slot under a lock a person wrote
-sent the clone's snapshot request,
-the head destroy and the origin snapshot's request,
-and only then met the lock.
-The removal now reads the lock before its first write.
-What it built and measured is in `package/git-policy/cli/SPEC.md`,
-"Removal of a ZFS worktree clone".
-
-### Two forces at a person's lock
-
-A person ran `git worktree lock --reason 'keep this' <slot>` on a ZFS worktree,
-and someone then runs `git worktree remove --force --force <slot>`.
-In Git alone two forces drop a locked registration and leave the files.
-Here the removal destroys the clone and its own snapshots.
-
-- 1:
-  every spelling refuses,
-  two forces among them,
-  and the sentence names `git worktree unlock <slot>` as the way on.
-  The wrapper reads the lock file before it claims the slot,
-  compares its words with the sentence this add wrote,
-  and stops when they differ;
-  nothing is unmounted,
-  destroyed or written.
-  A person who means it types `git worktree unlock <slot>` and then the removal:
-  two commands.
-  This is what is built.
-- 2:
-  two forces pass.
-  The wrapper deletes the person's lock file itself and then destroys the clone.
-  One command,
-  with Git's own meaning of two forces;
-  the lock's one confirmation is gone,
-  and the function that never removes a lock it cannot attribute to this add would have to.
-- 3:
-  a spelling of the wrapper's own,
-  `--no-enforce-…`,
-  that says "and the lock too".
-  The wrapper would read that option,
-  delete the lock and destroy the clone.
-  One command;
-  it adds an option to a Git command whose grammar is Git's,
-  where `git worktree unlock` already says the same.
-
-Ranking:
-1 > 3 > 2.
-1 over 3:
-both keep a person's lock from being passed by habit,
-and 1 does it with a command Git already has.
-3 over 2:
-3 asks for a spelling nobody types by reflex,
-and 2 gives the destruction to the spelling Git's own refusal suggests.
-
-### A slot whose destruction plan does not read
-
-A removal was killed part way and its plan file is damaged.
-Today such a slot is left to Git:
-`git worktree remove` drops the registration and the slot folder,
-and the clone and the damaged plan stay.
-The owner's answer of 2026-11-26 named three refusals "and no more",
-and this is not one of them.
-
-- 1:
-  leave it to Git,
-  as now.
-  The wrapper classes the slot as a reading it cannot prove and answers nothing.
-  A clone stays on the pool with no registration,
-  which `doctor` reports.
-- 2:
-  refuse the removal there too,
-  naming the plan file and `git monochromatic-git-policy-cli settle-worktree-clone-record`.
-  The wrapper would add this reading to the ones that refuse.
-  Nothing is dropped until a person has settled the plan;
-  it is a fourth refusal beside the three the owner named.
-
-Ranking:
-2 > 1.
-Both destroy nothing;
-2 keeps the registration that says where the clone belongs,
-and 1 leaves a clone nothing points at.
-
-### A clone mounted at the staging folder, with no plan
-
-- 1:
-  leave it to Git,
-  as now:
-  the registration and the slot folder go,
-  and the clone stays mounted at the staging folder.
-- 2:
-  refuse the removal,
-  naming `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
-  which is the command the cancellation design gives for putting the mount back.
-- 3:
-  take the slot and let the removal's own unmount request run.
-  No record says what that request does to a clone already at the staging folder,
-  so this one needs a guest measurement before it could be built.
-
-Ranking:
-2 > 1 > 3.
-2 over 1:
-2 names the command that repairs the state,
-and 1 leaves it for `doctor` to find.
-1 over 3:
-3 could destroy snapshots while the mount still stands,
-and nothing has measured it.
-
-### The pick the session made, with the veto open
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
 
 The check before a command is wired with the nudge's switch off
 (`fcaea34f36`),
@@ -370,8 +261,10 @@ its moment and that it is said once,
 and was shown red by a plant.
 The folder's three file-loop lines left the allow list,
 and `lines_written_by_a_thread.rs` is split in three.
-A veto would be against that shape;
-ways 1 and 2 would each still need the words in a file of their own and the split.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
