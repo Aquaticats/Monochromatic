@@ -213,16 +213,93 @@ fn a_break_in_a_quotation_keeps_the_marker_of_every_depth() {
 ///  those get the paragraph's own depth,
 ///  while a line the author already wrote stays byte for byte as written,
 ///  so the fix still replaces nothing but the separating space at the break point.
+///  The tail holds three words so the join of a fragment the old wrap cut does not also apply here.
 #[test]
 fn inserted_lines_take_the_paragraph_depth_and_existing_lines_keep_their_bytes() {
-    let source: &str = "> > deep, words here\nlazy, line here.\n";
+    let source: &str = "> > deep, words here now\nlazy, line here.\n";
     let output: String = fixed(source);
-    assert_eq!(output, "> > deep,\n> > words here\nlazy,\n> > line here.\n");
+    assert_eq!(
+        output,
+        "> > deep,\n> > words here now\nlazy,\n> > line here.\n"
+    );
     assert_eq!(
         placements(output.as_str()),
         placements(source),
         "{output:?}"
     );
+}
+
+/// A fragment the old wrap cut off the end of a line joins the line that continues its clause,
+///  so the article that ended an old line does not stand alone.
+#[test]
+fn a_fragment_the_old_wrap_cut_joins_the_clause_that_continues_it() {
+    assert_eq!(
+        fixed("Owns the record family, the\nmanaged lock's words, the finder.\n"),
+        "Owns the record family,\nthe managed lock's words,\nthe finder.\n"
+    );
+    assert_eq!(
+        fixed("It naps. It\nwakes by the door.\n"),
+        "It naps.\nIt wakes by the door.\n"
+    );
+}
+
+/// A fragment inside a list item joins the line that continues the same item,
+///  at the column the item's content starts at.
+#[test]
+fn a_fragment_in_a_list_item_joins_within_its_item() {
+    assert_eq!(
+        fixed("- first, the\n  managed words here.\n"),
+        "- first,\n  the managed words here.\n"
+    );
+}
+
+/// A line the rule itself wants to end at a break-point character stays alone,
+///  because joining it would only have the rule break it again.
+#[test]
+fn a_fragment_ending_at_a_break_point_stays_and_the_fix_settles() {
+    let source: &str = "The counts were\n4,\n5,\nheld,\nfor the pass.\n";
+    assert_eq!(fixed(source), source);
+    let broken: &str = "The counts were the words, 4,\n5,\nheld,\nfor the pass.\n";
+    let output: String = fixed(broken);
+    assert_eq!(
+        output,
+        "The counts were the words,\n4,\n5,\nheld,\nfor the pass.\n"
+    );
+    assert!(check(output.as_str()).is_empty(), "{output}");
+}
+
+/// A line the fix writes carries the indent the paragraph's first continuation line already has,
+///  so the lines of one paragraph are written at one depth.
+#[test]
+fn a_line_the_fix_writes_takes_the_paragraphs_own_indent() {
+    let source: &str = "Owns the record family, the managed lock's words and the finder of\n the pass, and the recipe too.\n";
+    assert_eq!(
+        fixed(source),
+        "Owns the record family,\n the managed lock's words and the finder of\n the pass,\n and the recipe too.\n"
+    );
+}
+
+/// A following line that carries a quote marker is a token a whitespace-only fix may not delete,
+///  so the marker and the line stand as they are.
+#[test]
+fn a_quoted_line_keeps_its_marker_and_its_line() {
+    assert_eq!(
+        fixed("> first, the\n> managed words here.\n"),
+        "> first,\n> the\n> managed words here.\n"
+    );
+}
+
+/// A fragment that would join a fenced block's opening line stays where it is,
+///  because the fence marker is not whitespace.
+#[test]
+fn a_fence_beside_a_fragment_keeps_its_bytes() {
+    let source: &str = "Owns the record family, the\n```js\nconst a = 1;\n```\n";
+    let output: String = fixed(source);
+    assert_eq!(
+        output,
+        "Owns the record family,\nthe\n```js\nconst a = 1;\n```\n"
+    );
+    assert!(output.contains("```js\nconst a = 1;\n```"), "{output}");
 }
 
 /// A break inside a partially marked lazy line takes the paragraph's full depth,
@@ -329,7 +406,9 @@ fn a_continuation_carrying_the_older_stray_space_stays_as_it_is() {
     }
     assert_eq!(
         fixed("Old shape,\n with the stray space. And more."),
-        "Old shape,\n with the stray space.\nAnd more."
+        // The inserted line takes the indent the paragraph's first continuation line carries,
+        // so the paragraph's lines are written at one depth.
+        "Old shape,\n with the stray space.\n And more."
     );
 }
 
