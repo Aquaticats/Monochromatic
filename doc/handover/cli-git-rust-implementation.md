@@ -2827,11 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- Medium:
-  a shell alias still takes a slot removal or a prune past the refusals,
-  in alpha.47 and alpha.48 alike
-  (`git -c 'alias.x=!git worktree remove' x -f -f <slot>`),
-  because the planner reads the alias's name where the destructive-command guard reads its resolved command.
 - Medium,
   a regression:
   since `6ea539bc91` a notice is handed to the stream that writes off the command's thread,
