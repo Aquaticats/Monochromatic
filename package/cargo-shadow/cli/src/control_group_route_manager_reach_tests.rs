@@ -463,6 +463,56 @@ fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directo
     asked_again(&settings, &log);
 }
 
+/// The control of the address a runtime directory does not replace:
+/// a runtime directory that holds nothing, and a bus address naming a socket with nothing listening on it,
+/// keeps the asking again,
+/// because an ask can be carried over the address.
+/// Why it is a control and not a comment:
+/// with `$XDG_RUNTIME_DIR` set,
+/// systemd 262 takes `$XDG_RUNTIME_DIR/systemd/private` alone,
+/// so a read that counted the address only where no runtime directory is set would end the asking on a host where a
+/// systemd 255 can still reach a manager there
+/// (`src/shared/bus-util.c:244` and `:260` at v255).
+/// Measured 2026-11-27 by a same-vendor second read of this release,
+/// which named that edit and the state it changes: 5 asks in both releases, and 1 under the edit.
+#[test]
+fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_a_runtime_directory_is_set() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    // The runtime directory this control names: made, and holding nothing at all.
+    let runtime_directory: PathBuf = directory.path().join("a-runtime-directory-holding-nothing");
+    fs::create_dir_all(&runtime_directory).expect("make the runtime directory");
+    // The socket the address names, with nothing listening on it.
+    let bus_socket: PathBuf = directory.path().join("a-bus-socket-with-nothing-listening");
+    // What:     `a_socket_node(&bus_socket)` plants the socket the address names.
+    // Why:      The read judges the transport by the file's kind, and an address naming a socket is one it keeps the asking for.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // aSocketNode(busSocket)
+    // ```
+    a_socket_node(&bus_socket);
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (
+                RUNTIME_DIRECTORY_VARIABLE.to_string(),
+                Some(runtime_directory.display().to_string()),
+            ),
+            (
+                SESSION_BUS_VARIABLE.to_string(),
+                Some(format!("unix:path={}", bus_socket.display())),
+            ),
+        ],
+        ..RouteSettings::default()
+    };
+
+    asked_again(&settings, &log);
+}
+
 /// The control of a transport the read no longer counts:
 /// the user bus's socket beside a bus address,
 /// which no systemd met here takes,
