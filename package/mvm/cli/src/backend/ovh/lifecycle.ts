@@ -41,9 +41,11 @@ import {
 import { safeDeleteSnapshot, } from './discarding.ts';
 import { resolveFlavor, } from './flavors.ts';
 import {
+  assertNameIsNotDeleting,
   findMvmInstance,
   listMvmInstances,
   waitForSnapshotReady,
+  waitUntilDeleted,
 } from './instances.ts';
 import {
   provisionInstance,
@@ -183,6 +185,7 @@ export async function ovhClone({
     tag: ovhClone.name,
     l,
   },);
+  await assertNameIsNotDeleting({ name: destination, },);
   /**
    Source instance, resolved prefix-scoped and exact so a foreign instance is never snapshotted.
    */
@@ -244,11 +247,13 @@ export async function ovhClone({
 
 /**
  Destroys one mvm-owned instance by name. A stopped instance still bills, so this
- is the only operation that ends a machine's cost.
+ is the only operation that ends a machine's cost, and it returns only once the
+ project's listing has let the machine go.
  
  @param name - VM name without the mvm- prefix
  
- @throws Error when no single owned instance has that name
+ @throws Error when no single owned instance has that name, or when the project
+ still lists it after {@link DELETE_TIMEOUT_MS}
  
  @example
  ```ts
@@ -274,15 +279,31 @@ export async function ovhDestroy({
   const instance = await findMvmInstance({ name, },);
   rl.info(`destroying ${name} (id ${instance.id})`,);
   await deleteInstance({ instanceId: instance.id, },);
-  rl.info(`VM ${name} destroyed`,);
+  rl.info(
+    `OVHcloud accepted the delete of ${name}; waiting for the project's listing to let it go`,
+  );
+  await waitUntilDeleted({
+    instances: [
+      {
+        id: instance.id,
+        name,
+      },
+    ],
+  },);
+  rl.info(`VM ${name} destroyed and gone from the project's listing`,);
 }
 
 /**
  Destroys every mvm-owned instance, then every snapshot whose name carries the
  tool's prefix, so an interrupted clone cannot leave one billing per GB per month.
  Both passes are scoped by the name prefix, never by region.
+
+ Every delete is sent before any of them is waited on, so the machines delete
+ in parallel and the wait reads the project's listing once per interval rather
+ than once per machine.
  
- @throws Error when a delete fails
+ @throws Error when a delete fails, or when the project still lists a deleted
+ machine after {@link DELETE_TIMEOUT_MS}
  
  @example
  ```ts
@@ -310,6 +331,18 @@ export async function ovhDestroyAll(): Promise<void> {
       // oxlint-disable-next-line no-await-in-loop -- sequential to avoid hammering the API
       await deleteInstance({ instanceId: instance.id, },);
     }
+    rl.info(
+      `OVHcloud accepted every delete; waiting for the project's listing to let them go`,
+    );
+    await waitUntilDeleted({
+      instances: instances.map(function awaitingDeletion(instance,) {
+        return {
+          id: instance.id,
+          name: instance.name
+            .slice(VM_PREFIX.length,),
+        };
+      },),
+    },);
   }
   /**
    Snapshots carrying the tool's prefix; swept so an interrupted clone cannot leak one.
