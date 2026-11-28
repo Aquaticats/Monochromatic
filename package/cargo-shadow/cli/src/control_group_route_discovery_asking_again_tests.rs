@@ -162,6 +162,33 @@ fn real_systemctl() -> String {
     panic!("no systemctl is on PATH, so this host has no user manager to ask");
 }
 
+/// What:
+/// `fn the_slice_the_manager_reports(real: &str) -> String` is the control group the real manager reports for the slice the
+/// ordinary settings name, or nothing where it reports none.
+/// Why:
+/// A control that plays an answer carrying a path needs a path this host really has,
+/// because the discovery checks it as a directory of the cgroup file system with `cgroup.kill`;
+/// reading it here keeps that read out of the stand-ins themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theSliceTheManagerReports(real: string): string
+/// ```
+fn the_slice_the_manager_reports(real: &str) -> String {
+    let slice: String = RouteSettings::default().slice;
+    let answered = std::process::Command::new(real)
+        .args([
+            "--user",
+            "show",
+            &slice,
+            "--property=ControlGroup",
+            "--value",
+        ])
+        .output()
+        .expect("the manager answers where its slice is");
+    return String::from_utf8_lossy(&answered.stdout).trim().to_string();
+}
+
 /// The control of a question that failed once:
 /// the stand-in refuses its first ask and runs the real manager for every ask after it,
 /// so a discovery that puts the question again finds the real route.
@@ -453,22 +480,36 @@ fn an_answer_that_is_not_a_path_ends_the_asking() {
 /// The control of a failed start whose reply was lost:
 /// the stand-in answers the first ask with no control group,
 /// fails the start with the words an in-flight request gives when the manager goes away under it,
-/// and hands every ask after that to the real manager.
-/// The start really ran,
-/// so the ask after it answers the path the slice has,
-/// and that path is the route.
+/// and answers the ask after it with the path the real manager reports for the slice and no job queued on it.
+/// The start in that state really ran,
+/// so that path is the route,
+/// and the control plays the answer it left behind
+/// (the state itself was measured 2026-11-27 in a container: the start ran and the ask after it answered the path).
 #[test]
 fn a_path_the_ask_after_a_failed_start_reports_is_the_route() {
     this_test_needs_a_delegated_scope();
     let directory = scratch();
     let log: PathBuf = directory.path().join("calls");
+    let real: String = real_systemctl();
+    let path: String = the_slice_the_manager_reports(&real);
+    if path.is_empty() {
+        println!(
+            "{NOT_RUN_PREFIX}{}]: {} has no control group on this host, so a stand-in here cannot report the path a lost reply leaves",
+            std::thread::current()
+                .name()
+                .unwrap_or("a_path_the_ask_after_a_failed_start_reports_is_the_route"),
+            RouteSettings::default().slice
+        );
+        return;
+    }
     let program: PathBuf = a_program(
         directory.path(),
         "systemctl-with-a-lost-start-reply",
         &format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nasked=$(wc --lines < '{log}')\nif [ \"$asked\" -eq 1 ]; then\n  exit 0\nfi\nif [ \"$asked\" -eq 2 ]; then\n  echo \"Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status app.slice' for details.\" >&2\n  exit 1\nfi\nexec '{real}' \"$@\"\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nasked=$(wc --lines < '{log}')\nif [ \"$asked\" -eq 1 ]; then\n  exit 0\nfi\nif [ \"$asked\" -eq 2 ]; then\n  echo \"Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status app.slice' for details.\" >&2\n  exit 1\nfi\nif [ \"$asked\" -eq 3 ]; then\n  printf 'ControlGroup=%s\\nJob=\\n' '{path}'\n  exit 0\nfi\nexec '{real}' \"$@\"\n",
             log = log.display(),
-            real = real_systemctl()
+            path = path,
+            real = real
         ),
     );
     let settings: RouteSettings = RouteSettings {
@@ -532,10 +573,10 @@ fn a_start_that_never_reached_the_manager_is_put_again() {
         "the discovery did not find the slice the settings name"
     );
     let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
-    // Three asks of the attempt that met the moment, and one more ask, which is the whole question put again.
-    assert_eq!(
-        calls.lines().count(),
-        4,
+    // More than the three asks of the attempt that met the moment: the whole question was put again. How many asks the
+    // second attempt takes depends on whether the slice has a control group by then, so it is not pinned here.
+    assert!(
+        calls.lines().count() > 3,
         "a start that never reached the manager ended the asking, so a moment was read as the manager's refusal: {calls:?}"
     );
 }
@@ -573,9 +614,8 @@ fn a_start_that_failed_and_the_ask_after_it_failing_too_is_put_again() {
         "the discovery did not find the slice the settings name"
     );
     let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
-    assert_eq!(
-        calls.lines().count(),
-        4,
+    assert!(
+        calls.lines().count() > 3,
         "a failed start followed by a failed ask ended the asking: {calls:?}"
     );
 }
@@ -591,17 +631,7 @@ fn a_stop_job_queued_on_the_slice_is_asked_through_before_the_route_is_taken() {
     let directory = scratch();
     let log: PathBuf = directory.path().join("calls");
     let real: String = real_systemctl();
-    let known = std::process::Command::new(&real)
-        .args([
-            "--user",
-            "show",
-            "app.slice",
-            "--property=ControlGroup",
-            "--value",
-        ])
-        .output()
-        .expect("the manager answers where its slice is");
-    let reported: String = String::from_utf8_lossy(&known.stdout).trim().to_string();
+    let reported: String = the_slice_the_manager_reports(&real);
     if reported.is_empty() {
         println!(
             "{NOT_RUN_PREFIX}{}]: app.slice has no control group on this host, so a stand-in here cannot plant a slice that holds a path and a queued job at once",
