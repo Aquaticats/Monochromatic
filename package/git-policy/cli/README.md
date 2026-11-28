@@ -2504,6 +2504,7 @@ and a kill leaves a line saying a removal was running.
 A terminal that refuses the line does not keep the removal from running.
 The removal then takes the slot's per-slot claim,
 proves the lineage,
+makes the folder the handler's unmount binds,
 files the `unmount` request and waits for its verified answer,
 writes the destruction plan,
 and sends the clone's own snapshots in requests split by one 64 KiB budget,
@@ -2515,6 +2516,17 @@ Its report says what was destroyed,
 what went with the head,
 what the origin cleanup did and what a person still has to do,
 in the same invocation.
+That folder is one `monochromatic-git-policy-cli-staging-<guid>` directory under your
+`~/.cache`,
+mode `0700`,
+made only after the `user-cache` pin check,
+and this release's removal leaves it there once its unmount succeeded,
+because removing it needs the staging claim beside it and no release code writes one yet;
+`doctor` prints what stands.
+A second removal of the same clone goes on with the folder it finds rather than making
+another.
+A removal that cancels itself and puts its clone back keeps the folder too,
+and its report says no staging claim stands to prove the wrapper made it.
 A promoted clone,
 or a clone whose recorded identities the pool no longer answers,
 is refused with the check that stopped it and the object it named,

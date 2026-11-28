@@ -3,6 +3,8 @@
 The first part is the round of 2026-11-27 over `0.6.1-alpha.48`.
 The part about the alpha.52 second pass is the round of 2026-11-28
 over `0.6.1-alpha.52`.
+The last part is the round of 2026-11-28 that fixed a removal no real pool could
+finish in `0.6.1-alpha.53` and `0.6.1-alpha.54`.
 Each part is unapproved and non-final.
 
 ## The alpha.48 release passes
@@ -1619,3 +1621,170 @@ own>`.
   used `sudo` or started a service manager.
 - No whole container gate,
   no mutation campaign and no independent review.
+
+## The removal two releases shipped that no real pool could finish
+
+Round of 2026-11-28,
+unapproved and non-final.
+It fixes issue 6669,
+which the round that restructured the slot-state guest arm found in two guests
+(a local one and an OVHcloud one) and reported with its evidence.
+The releases `0.6.1-alpha.53` and `0.6.1-alpha.54`,
+and `main` before this round,
+carried both causes.
+
+### What a person met
+
+`git worktree remove <slot>` of a whole managed clone ran the wrapper's own
+removal,
+and the removal stopped before its first destroy with:
+
+```text
+the origin cleanup record at startedAt could not be written (2026-11-28T13:36:41.207Z), so this removal refused before its first destroy. Nothing was destroyed and the clone stands unmounted with the plan and the intent kept. ...
+```
+
+Read in the guest afterwards:
+the clone answered the pool,
+the registration,
+the binding,
+the inventory and the claim stood,
+and no removal finished.
+Nothing was lost,
+which is why no invariant of the container gate and no guest arm asserted
+otherwise.
+
+### Cause A: the removal's own moment was one its record's reader refuses
+
+`src/native/worktree_clone_removal_proof_and_plan/removal_command_path.rs` read
+`foundation::iso_time::now_iso()`,
+a millisecond stamp ending `Z`,
+and handed it to the origin cleanup record as `startedAt` and,
+on a blocked attempt,
+as `attemptedAt`.
+`src/native/worktree_clone_origin_cleanup/origin_cleanup_parse.rs` accepts both
+only through `started_moment::is_seconds_with_offset`:
+whole seconds with a machine offset.
+The record's design says the same:
+"`startedAt` is when the writing command first wrote the record",
+and its own example reads `2026-11-22T18:28:41-05:00`
+(`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`).
+So the writer refused the record its own caller built,
+and every removal stopped at that write.
+
+One read fed both fields,
+so one change fixed both:
+the command path now reads `started_moment::now_with_offset`,
+the function the plan's `started=` header already writes through.
+
+### Cause B: nothing in release code made the folder the unmount binds
+
+The handler's unmount turn opens
+`<the account's cache>/monochromatic-git-policy-cli-staging-<guid>` first and
+answers `cancelled` at `staging-folder` when it is absent.
+The accepted staging design gives that folder's creation to the wrapper
+(`doc/decision/cli-git-zfs-staging-under-cache.md`,
+"The wrapper creates one folder per removal"),
+`SPEC.md` says it is made "with mode `0700` only after the `user-cache` pin
+check",
+and `src/native/worktree_clone_unmount/staging_cleanup.rs` held
+`create_the_staging_folder` for it with no release caller.
+So a removal that reached its unmount met a folder nothing had made,
+the handler kept the clone where it was,
+and the removal cancelled itself.
+
+The order makes that folder now,
+at the step the records give: before the removal intent and the unmount
+request,
+on both ways into the order (a fresh entry and an adopted plan),
+through the seam
+`worktree_clone_removal_proof_and_plan::removal_staging_folder`,
+whose release answer reads this account's passwd home and the root-written pin.
+A folder that already stands is no second folder,
+which is what `SPEC.md` already said,
+and a refused home,
+pin or entry stops the removal before it asks for anything,
+in a sentence naming the step.
+
+### The third finding, in the words
+
+`removal_origin_step::refusal_field` built the stop's path out of the refused
+field's name,
+so the sentence promised a path and printed a field:
+"the origin cleanup record at startedAt could not be written".
+Every refusal of that record now names the record's own file,
+and the refused field travels in the record's own words,
+`not-canonical on `startedAt`: <value>`.
+
+### Why no host test and no gate saw either cause
+
+Read from the controls:
+
+- Every host control of a whole removal plants the moment itself:
+  `removal_completion_fixtures::NOW` is `2026-11-25T09:12:44-05:00`,
+  the offset form already,
+  and `RemovalCompletion::now` is a `&str` the control states.
+  So each control agreed with the record's reader whatever the command path's
+  own clock wrote,
+  and the one value the release reads was never handed to that reader on this
+  host.
+- The command path itself (`complete_the_bound_clones_removal`) runs only in a
+  live removal.
+  A control answers the pool itself instead,
+  so no host test entered the function that reads the clock.
+- The staging folder had the same shape of gap:
+  the arm's fixture made it,
+  and no control asked the order whether a folder stood at the unmount,
+  so the missing call was invisible.
+- The container gate runs `nextest` and `clippy` over the same controls,
+  so it could see neither:
+  the controls were green and the release was not.
+
+The controls that would have caught both are the two this round added,
+and the guest arm is what did catch them.
+
+### What now holds it
+
+- `removal_command_path_tests.rs` reads the moment through the same function the
+  command calls and puts it through the origin record's writer, its reader and a
+  read back,
+  for `startedAt` and for a blocked attempt's `attemptedAt`.
+  A later change of that clock fails here.
+- `removal_staging_folder_tests.rs` runs a whole removal over a fixture cache and
+  a pin built from that cache's own mount facts,
+  with the release's own creation behind the seam,
+  and asserts that the folder stood at mode `0700` when the unmount was asked
+  for,
+  that a second call makes no second folder,
+  and that a pin of another dataset makes nothing.
+- `removal_origin_step_tests.rs` asserts the words of a refused record's stop:
+  the record's file and the field the reader refused.
+- `e2e:zfs-slot-state` runs both spellings of the removal in a guest with no
+  fixture making the folder,
+  so the handler's own turn is what the release's folder has to satisfy.
+
+### What is open
+
+- No release code writes the `user-cache` pin
+  (`/var/lib/monochromatic-git-policy-cli/user-cache-pin`).
+  The one-time setup that writes it is plan step 19's and is not built,
+  so on a machine that never ran it a removal now stops before its unmount with
+  the staging sentence,
+  naming the pin,
+  where before it stopped at the handler's `cancelled`.
+  The guest arm writes the pin through the producer's own writer.
+- No release code writes the staging claim beside the folder,
+  and the wrapper's cleanup reads one.
+  So this release's removal leaves one empty `0700` folder per removed clone
+  under the account's `.cache`,
+  and a removal that cancels itself finds no claim,
+  keeps the folder and says so.
+  The design's own rule for a folder that is not the account's
+  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+  "the wrapper's creation refuses `EEXIST` and it reports the entry as one it did
+  not make")
+  needs that claim to tell the wrapper's own leftover from an entry the account
+  put there,
+  so it is not implemented here.
+- The arms for force on a removal are another round's
+  (`zfs-removal-that-reads-force-guest-arms-against-a-real-pool`),
+  and they wait for this fix.

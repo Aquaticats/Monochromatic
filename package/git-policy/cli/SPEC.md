@@ -5830,7 +5830,25 @@ and the slot's per-slot claim is its first step and its last:
    carries its GUID and group,
    and every other bookmark refuses the whole removal and is named.
    Nothing in this route destroys a bookmark.
-5. The removal intent,
+5. The folder the handler's unmount binds,
+   made here before anything is asked:
+   `<the pinned account's .cache>/monochromatic-git-policy-cli-staging-<guid>`,
+   at mode `0700`,
+   only after the `user-cache` pin check,
+   through
+   `worktree_clone_unmount::staging_cleanup::create_the_staging_folder`
+   and the seam
+   `worktree_clone_removal_proof_and_plan::removal_staging_folder`,
+   which both ways into this order call
+   (a fresh entry and an adopted plan).
+   A folder that already stands for the same clone is no second folder and no
+   refusal,
+   because only the removal that made it meets it there;
+   an entry in its name that is not a folder this route may use,
+   a pin this release cannot read and a `.cache` whose mount is not the pinned
+   dataset each stop the removal before it asks for anything,
+   in a sentence naming that step.
+   Then the removal intent,
    the durable `unmount` property on the clone under a fresh nonce,
    and the answer verified against the request.
 6. The destruction plan,
@@ -5883,6 +5901,17 @@ and the slot's per-slot claim is its first step and its last:
 11. The origin cleanup record,
    published before step 8's first request and read again by step 12,
    so a removal whose record cannot be written destroys nothing.
+   The moment that record carries,
+   and the moment the plan's header carries,
+   are read once per run as
+   `worktree_clone_removal_proof_and_plan::started_moment::now_with_offset`
+   writes it:
+   an ISO 8601 whole second with this machine's own UTC offset,
+   which is the one spelling both readers accept,
+   so a removal never hands a record a moment its own reader refuses.
+   A record the reader refuses stops the removal before its first destroy,
+   and the sentence names the record's file and the field that refused,
+   in the reader's own words.
 12. The origin attempt:
    the record read,
    the origin dataset and snapshot proved by GUID and group,
@@ -9273,6 +9302,21 @@ and neither deletes a folder.
 
 The wrapper creates the folder with mode `0700` only after the `user-cache` pin check,
 and it makes no second folder while one stands for the same GUID.
+`worktree_clone_removal_proof_and_plan::removal_staging_folder` is that creation's
+seam,
+and the removal's own step 5 is its one release caller:
+it makes the folder before it files the `unmount` request,
+on both ways into the order,
+so the handler's turn finds what it binds.
+This release's removal does not remove the folder after a clear receipt:
+that cleanup needs the staging claim beside the folder,
+which no release code writes yet,
+so an empty `0700` folder per removed clone stays under the account's `.cache`,
+and `doctor` prints what stands there.
+A removal that cancels itself reads the same cleanup,
+finds no claim,
+and keeps the folder,
+its report saying that nothing proves the wrapper made it.
 Its cleanup reads the repository's claim,
 proves the owner dead,
 compares the folder's identity with the claim,
