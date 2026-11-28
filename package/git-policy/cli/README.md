@@ -7648,6 +7648,9 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   at the commit `main` points at now,
   then starts a gate there labelled `<worktree name minus gate->-on-<sha>`,
   so the log names the commit it tested.
+  The worktree has to exist already:
+  the task moves it and never makes one,
+  so a checkout without one fails before a gate starts.
   It prints `gate worktree at <sha>` and `launch status <n>`,
   and a worktree holding uncommitted work is not moved:
   the status is printed and the command exits 2,

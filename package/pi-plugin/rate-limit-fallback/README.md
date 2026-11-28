@@ -396,6 +396,10 @@ taken from that pair,
 so a writer or reviewer run may fill the head member's window,
 1,000,000 tokens over the four members this package asks,
 before Pi compacts.
+A run started after the built copy was rebuilt on 2026-11-27T17:28:33-05:00 recorded a context window of
+1,000,000 tokens in its `summary.json`,
+with no retry and no rate-limit error,
+which is the advertised pair reaching a real run.
 Before a
 session binds,
 both carry Pi's own fallback for a model that declares no window,
@@ -441,6 +445,7 @@ In the 35,773 requests of sessions Pi never compacted or edited,
 98.0% of estimates stood within 1% of the reported count
 and 99.4% within 5%;
 the fifth percentile was 0.999 of the reported count and the ninety-fifth 1.002.
+Over all 48,805 requests the estimate against the reported count had a median of 1.000.
 The members that reported were qwen's member (13,158 requests),
 NeuralWatt's flex lane (12,182),
 NeuralWatt's standard lane (12,064),

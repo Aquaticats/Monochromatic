@@ -7996,6 +7996,23 @@ in order:
     with 10 such lines.
     Nothing is reordered here;
     the note records what a brief for that round has to say.
+    Note of 2026-11-27,
+    from the alpha.50 round on a bare shell alias
+    (merged `461d441ef7`):
+    it made one file of `invocation/` to keep another under the line budget,
+    `entry_zfs_slot_commands_the_unread_place.rs`,
+    with one `group-file` line for it in `layout-allow-list/folder-rule.txt`,
+    and left two more files of that folder over the budget,
+    `entry_forward_action_planning.rs` and
+    `global_arguments.rs`,
+    at 313 and 305 code lines,
+    so nine files of the folder are over it now,
+    and their splits run after the crate's move as the note above says.
+    Whether that line stays is the owner's
+    (`doc/handover/questions-for-the-owner.md`,
+    "The wrapper:
+    one more line in the folder rule's allow list,
+    and two more files over the line budget").
 3.  `refactor/git-policy-cli-split-loop-breaks`:
     step 3,
     one commit per loop of the list above,

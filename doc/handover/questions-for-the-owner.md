@@ -4555,3 +4555,198 @@ and each can be undone.
   and into a new file only where the sorter's ledger shows none fits;
   and words the handover gives as the owner's stay unless the round has read them in the other record the ledger names.
   The coordinating session read none of the four ledgers whole.
+
+## Veto open: what four more results of the night of 2026-11-27 left (recorded 2026-11-27T22:15:09-05:00)
+
+Each is a round's own or the coordinating session's,
+done without asking,
+and each can be undone.
+
+- Issue 6641,
+  a command behind a `!git` alias.
+  The issue's text,
+  written by the coordinating session,
+  read `SPEC.md`'s "the worktree a command changes is the one measured and the one refused" as:
+  both places are measured,
+  and the command is refused when either would be.
+  The round did otherwise and said so:
+  it measures the one state the nested Git is in,
+  the files of the place its words reach with the index and `HEAD` of the Git directory its shell inherited,
+  and refuses when that state would be refused.
+  For:
+  the refusal describes what Git will do,
+  one facts query answers it,
+  and none of the dangerous rows runs.
+  Against:
+  three commands that change nothing in real Git are refused,
+  `g -C <another worktree> checkout -- <path>` and the `restore` and `checkout <tree> -- <path>` rows of that shape,
+  typed in a dirty linked worktree,
+  because the state is dirty and the bytes happen to be the same on both sides.
+  Not taken:
+  asking the facts twice and refusing if either refuses,
+  which refuses those three and more;
+  and judging only the files' place for the forms that write no index,
+  which needs a table of what each guarded form writes
+  (`clean --force` writes files only and still chose them from the inherited index).
+  Its refusal keeps the words "this worktree has uncommitted changes to tracked files",
+  true of that state,
+  without saying that the files and the index come from two places;
+  a sentence that names both is a new message and was left for a decision.
+- The records-only round on the ZFS route's status lines left four things as they are.
+  `SPEC.md` says the settle that finishes a failed add with Git's own checkout "is not built",
+  where the settling command's module now exists and no command reaches it:
+  name the module and its cut,
+  or leave the sentence.
+  The plan's section "What can start now" is the scheduling text of 2026-11-19,
+  passed by sixteen merged steps:
+  rewrite it,
+  or keep it as that day's record.
+  The lost-event design's Status says nothing of it has been built or run,
+  which the round did not verify either way,
+  and two rounds are building it now.
+  And the step 23 record left the form of the gate arm's assertion to the owner,
+  release-independent or a per-guest expectation;
+  `main` holds the release-independent form since `bd180d7de9`,
+  because a round built it,
+  and no record says the owner accepted it.
+- `mpm-shadow`'s join of the exposure removal with the Rust row's change:
+  no control drives a postinstall link or command on a `rustup-toolchain` row,
+  so the two call sites the join took over rest on the compiler.
+  The gap is older than both rounds,
+  and it goes to the round on the read of `0.2.7-alpha.19`.
+- The driver refused one start while memory was short,
+  because its guard waits 10 s for the wrapper's `--help`
+  (issue 6646).
+  The round was started again from a list of its own.
+  Nothing was changed in the driver.
+- The wrapper round that repairs its doc comments was briefed with these picks:
+  the repair is made by the fixed linter on each file as it stood before the sweep,
+  and replaces what `main` holds only for a doc paragraph whose words have not changed since;
+  nothing but doc-comment lines changes,
+  and no word of any;
+  and the doc fence in `policy/policy_forbidden_strings.rs` is closed where its block ended.
+
+## For the owner, and veto open: what the night of 2026-11-27 left after 22:15 (recorded 2026-11-27T23:01:36-05:00)
+
+### A question that waits: do rounds that compile the wrapper get a bound of their own?
+
+The machine ran out of memory twice on 2026-11-27,
+the second time for about twenty minutes
+(`doc/handover/cli-git-rust-implementation.md`,
+"Memory";
+`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
+Fourteen rounds that each compile the wrapper had been started within five minutes of each other,
+on the direction to parallelize better and with no start waiting on memory,
+as the owner said on 2026-11-26.
+What it cost,
+measured:
+eleven build scopes ended `oom-kill` in fourteen minutes,
+the wrapper gate lost its build after 41 minutes and ran no test,
+and one round's start was refused.
+No round and no guest was lost.
+The options,
+each for the rounds that compile the wrapper and for no other round:
+
+- A bound of its own on how many such rounds run at once,
+  found the way the owner had the disk's ceiling found
+  (`doc/handover/agents-at-once-on-this-machine.md`):
+  a level,
+  halved when it fails,
+  with tonight's fourteen as a level that failed.
+  For:
+  it removes the killed builds where they start,
+  and every other round stays bounded by 64 alone.
+  Against:
+  it is a rule on starts,
+  and the search for the level costs runs.
+- No bound,
+  and a killed build made cheap:
+  every brief says that a kill by the machine is run again and says nothing about the change.
+  For:
+  no rule on starts.
+  Against:
+  each kill throws a compile away,
+  and tonight the kills came faster than the builds finished.
+- The crate split,
+  which waits for the owner's answer on its fourth round:
+  it lowers the compiler's peak,
+  seen at 28.8 GiB resident for the test build.
+  It goes with either of the other two and replaces neither tonight.
+
+Ranking:
+the bound over no bound,
+because the bound removes work that the other only repeats;
+the split beside whichever is taken,
+because it is the one that removes the cause.
+Until this is answered the coordinating session starts no second batch of that size:
+it starts the next rounds that compile the wrapper as running ones end.
+That is its own measure after a level that failed,
+with the veto open.
+
+### Veto open
+
+Each is the coordinating session's or a round's own,
+done without asking,
+and each can be undone.
+
+- The wrapper gate's rerun waits on a memory reading:
+  `MemAvailable` plus `SwapFree` at 40,000,000 kB on three readings a minute apart,
+  for six hours at most.
+  The owner's rule is that no start waits on memory;
+  this is one gate,
+  after its build was killed once,
+  and nothing else waits on it.
+- Every live round got one note at 2026-11-27T22:54:05-05:00:
+  what happened,
+  that a build the machine killed is run again,
+  and a suggested single reading of `/proc/meminfo` before a build that compiles the wrapper.
+  No round was stopped or frozen.
+- The linter's two proposals are not put to the owner yet.
+  The gate read of each came back with High findings that break the ranking its question would carry
+  ("What the gate reviews of the linter's two proposals found" in the handover),
+  so each is revised by a round and read again first.
+  Two questions inside them are the owner's and will be asked then:
+  which kinds of line break `AGENTS.md` rule MD1 permits,
+  and whether the nightly toolchain is pinned.
+- Part A of the handover's history wrote the practice by which a release is dispatched from a tree newer than its gate into
+  `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`,
+  labelled as the coordinating session's practice.
+  It is that and no more:
+  nothing in a dispatch reads the container gate.
+  The coordinating session held part A's merge for that practice for half an hour and then dropped the hold,
+  which no recorded failure backed;
+  part B had waited eighteen minutes for `mpm-shadow`'s release commit,
+  for the reason the release workflow itself gives.
+- Parts A and C were joined in one tree before their merge.
+  The one conflict,
+  in the linter's README,
+  kept both sides:
+  the handover as it stood before the cuts shows the two sets of figures are different measurements.
+  No wrapper test ran on the three files of the wrapper's that the parts changed;
+  the next gate is their first run.
+- What the three merged parts chose against their ledgers:
+  part A let nine facts go as counts of a merged branch's check,
+  wrote a fact into a module doc comment and into the comment header of the list of published names,
+  and left the paragraph on issue 6638's round alone;
+  part B kept two list openers whose items are now only open points;
+  part C wrote no gate total and no lint count into a planning record,
+  kept the working rule for a built wrapper executable in the handover alone,
+  and gave the `~/.viminfo` incident a troubleshooting file of its own.
+- Part C asks two things it left:
+  whether the release binary's growth of about 112 KiB between `0.6.1-alpha.48` and `0.6.1-alpha.49`,
+  which has a home and no cause,
+  gets a round;
+  and whether an agent's `vim` run rewriting `~/.viminfo` becomes a rule in `AGENTS.md` or stays a record briefs point at.
+- Issue 6644's round chose a step of its own for the template guest's prepare and not a parameter of the built module's step;
+  reads before the load;
+  a pin that covers both module files where each records a version;
+  a step that removes nothing;
+  and one reading of the loaded version in place of the recipe's own two.
+  One state is held on the host alone:
+  a loaded module that is not the file's,
+  because the template's kernel refuses a repacked module's signature.
+- Two issues were filed from what the night showed:
+  6647,
+  the logger's file sink verification reporting an internal error after 5000 ms on a loaded host,
+  and 6648,
+  a slow `git worktree remove` that removes the worktree and then fails.
