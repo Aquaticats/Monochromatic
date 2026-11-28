@@ -2462,7 +2462,7 @@ and the two `truepeak` files wait on their branch.
   where the TypeScript checks should run is a proposal for the owner (issue 6584).
 - Issue 6586's round makes it impossible for the whole test process to reach this account's own service manager,
   and writes a proposal on whether the release should refuse to provision from a program that is not an installed wrapper.
-- That the repaired planted controls still compile,
+- That the planted controls a round repairs still compile,
   and that a campaign notices each of them,
   is owed to the next `native:mutation:planted` run.
 - A round's session cannot read `/var/log/audit/audit.log`,
@@ -2508,7 +2508,7 @@ and the two `truepeak` files wait on their branch.
 - Worktrees of ended,
   merged rounds are not all removed.
   A removal of eleven on 2026-11-27 removed none:
-  five were held by those orphaned shells,
+  five were held by orphaned shells,
   three are dirty,
   and three are refused with "validation failed,
   cannot remove working tree:
