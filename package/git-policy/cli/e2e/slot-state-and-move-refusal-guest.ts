@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
- Drive plan step 12's slot classes, its move and removal refusals, its prune pointer and its repair report end to
+ Drive plan step 12's slot classes, its move refusal and the removal the wrapper runs itself, its prune pointer and its
+ repair report end to
  end in a throwaway `mvm` guest.
 
  The arm needs a real pool, a real Git registration and a real clone: it reads one slot's class from the binding
  record, the mount intent and the mount table while the clone is mounted and again while it is unmounted, and it
  shows the wrapper's refusal beside Git's own answer, which is a busy mount while mounted and success while
- unmounted. The same run drives the wrapper's own command path: `git worktree move` and `git worktree remove` are
- refused where Git's own move succeeded, the prune pass writes the recorded pointer back before Git would drop the
- registration, and `git worktree repair` prints what it can and cannot restore. Every one of those is a ZFS or Git
+ unmounted. The same run drives the wrapper's own command path: `git worktree move` is refused where Git's own move succeeded, `git worktree remove`
+ of a bound slot is the wrapper's own removal order rather than Git's, which stops at the origin-side inventory this
+ fixture never writes and leaves the registration and the underlay pointer standing, the prune pass writes the recorded
+ pointer back before Git would drop the registration, and `git worktree repair` prints what it can and cannot restore. Every one of those is a ZFS or Git
  fact no host control can make, so the arm runs only inside the guest the ZFS binding's recipe creates
  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`).
 
@@ -17,7 +19,7 @@
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  The evidence of one run is `slot-state-arm.log`, pulled back into the log directory, and a run passes only when it
- carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL-REFUSAL`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
+ carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL-RUNS`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
  line, so an arm that returned without running fails the run instead of reporting a green suite.
  */
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -110,7 +112,8 @@ const EXPECTED_MARKERS = [
   'MOVE-REFUSAL unmounted cause=bound',
   'MOVE-REFUSAL wrapper-unmounted cause=bound status=refused',
   'MOVE-REFUSAL unmounted git=succeeded',
-  'REMOVAL-REFUSAL wrapper class=known-unmounted-clone status=refused',
+  'REMOVAL-RUNS wrapper class=known-unmounted-clone stop=origin-inventory status=refused',
+  'REMOVAL-RUNS alias class=known-unmounted-clone stop=origin-inventory status=refused',
   'PRUNE-POINTER intact registration=kept',
   'PRUNE-POINTER restored registration=kept',
   'REPAIR damaged registration=stands',

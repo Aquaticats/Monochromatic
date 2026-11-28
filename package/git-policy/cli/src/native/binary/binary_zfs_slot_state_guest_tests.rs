@@ -7,7 +7,9 @@
 //!  a pending add and a pending removal,
 //!  and the wrapper's `git worktree move` refusal beside Git's own answer,
 //!  which is `Device or resource busy` while mounted and success while
-//!  unmounted.
+//!  unmounted,
+//!  and the removal the wrapper runs itself where Git's own would have deleted
+//!  the registration and the underlay pointer while the clone dataset stood.
 //! Why:
 //!  The kernel refuses a move only while the clone is mounted,
 //!  so the unmounted arm is the one that shows why the wrapper needs a refusal
@@ -16,6 +18,11 @@
 //!  "Unmounted,
 //! pruned or moved worktrees";
 //!  the measurement's item 6).
+//!  The removal's own order takes the bound slot and stops before its first
+//!  write,
+//!  because this fixture writes no origin-side inventory,
+//!  so the arm shows the wrapper answering the removal rather than handing it to
+//!  Git without building the pool the whole removal would destroy.
 //!  The arm runs only where `CLI_GIT_ZFS_SLOT_STATE_GUEST` names a disposable
 //!  guest and prints `SKIP` everywhere else,
 //!  so a host run that ran nothing says so.
@@ -437,8 +444,10 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
         ],
     );
 
-    // The removal of the bound slot is refused, because Git's own removal would delete the registration and the underlay
-    // pointer while the clone dataset kept the worktree.
+    // The wrapper answers the removal itself and Git never runs: a whole managed clone is bound to the slot, so the
+    // removal's own order takes it. This fixture writes no origin-side inventory, so the order stops before its first
+    // write and nothing is destroyed. The registration and the underlay pointer are therefore still what Git wrote,
+    // which is the whole point of the step: Git's own removal would have deleted both while the clone dataset stood.
     let removal: Output = wrapper_git(
         checkout.as_path(),
         &["worktree", "remove", "--force", shown(slot.as_path())],
@@ -446,20 +455,34 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     assert_eq!(
         removal.status.code(),
         Some(1),
-        "the wrapper refuses the removal: {}",
+        "the removal stops before it writes: {}",
         said_of(&removal)
     );
     assert!(
-        said_of(&removal).contains("this release has no removal for a clone"),
-        "{}",
+        said_of(&removal).contains("runs here: a whole managed clone is bound to this slot"),
+        "the wrapper's own removal runs and Git does not: {}",
+        said_of(&removal)
+    );
+    assert!(
+        said_of(&removal).contains("Nothing was destroyed, and the registration stands."),
+        "the stop says what it left: {}",
+        said_of(&removal)
+    );
+    assert!(
+        said_of(&removal).contains(&format!(
+            "the origin-side inventory the add recorded for the slot `{SLOT}` could not be read"
+        )),
+        "the stop names the record this fixture never wrote: {}",
         said_of(&removal)
     );
     assert!(place.registration.is_dir(), "the registration stands");
     assert!(slot.join(".git").is_file(), "the underlay pointer stands");
-    println!("REMOVAL-REFUSAL wrapper class=known-unmounted-clone status=refused");
+    println!(
+        "REMOVAL-RUNS wrapper class=known-unmounted-clone stop=origin-inventory status=refused"
+    );
 
-    // The same refusal behind a shell alias: Git runs the alias's shell at the top of the working tree, and the
-    //  operand is a path from there with a `.` step in it, so no registered path ends with it and the refusal has to
+    // The same answer behind a shell alias: Git runs the alias's shell at the top of the working tree, and the
+    //  operand is a path from there with a `.` step in it, so no registered path ends with it and the run has to
     //  resolve it against the directory Git runs the command in. The host controls hold that rule
     //  (`a_bound_slots_removal_reads_its_operand_where_git_runs_the_alias`); this arm repeats it once on a real pool.
     let by_an_alias: Output = wrapper_git(
@@ -474,17 +497,22 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     assert_eq!(
         by_an_alias.status.code(),
         Some(1),
-        "the wrapper refuses the removal behind a shell alias: {}",
+        "the removal behind a shell alias stops at the same place: {}",
         said_of(&by_an_alias)
     );
     assert!(
-        said_of(&by_an_alias).contains("this release has no removal for a clone"),
-        "{}",
+        said_of(&by_an_alias).contains("runs here: a whole managed clone is bound to this slot"),
+        "the alias's operand is resolved to the bound slot the step answers: {}",
+        said_of(&by_an_alias)
+    );
+    assert!(
+        said_of(&by_an_alias).contains("the origin-side inventory the add recorded for the slot"),
+        "the alias's removal stopped at the same record: {}",
         said_of(&by_an_alias)
     );
     assert!(place.registration.is_dir(), "the registration stands");
     assert!(slot.join(".git").is_file(), "the underlay pointer stands");
-    println!("REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused");
+    println!("REMOVAL-RUNS alias class=known-unmounted-clone stop=origin-inventory status=refused");
 
     // The pointer the add keeps for prune: real Git's own prune keeps the registration while the pointer stands.
     let pruned_intact: Output = git(checkout.as_path(), &["worktree", "prune", "--verbose"]);
