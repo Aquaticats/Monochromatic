@@ -2832,9 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-What `cargo-shadow`'s alpha.12 pass found,
-with no High finding:
-
 - "Never what is decided" holds by reading:
   both releases refuse exactly when the direct child was not reaped or the report is not empty,
   and nothing in release code reads the report's words.
