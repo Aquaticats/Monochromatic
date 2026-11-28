@@ -24,6 +24,9 @@
 
 use super::*;
 
+/// The lines this thread has written,
+/// which is where the notice about a stopped reader is read.
+use crate::diagnostic_log::take_lines_written;
 /// Reading what a stream already holds,
 /// which is how a control sees a line without waiting for a thread.
 use std::io::Read;
@@ -619,6 +622,134 @@ fn a_line_a_stream_nobody_drains_is_answered_unwritten_and_holds_no_caller() {
                 "the caller waits one bound and not for the reader: {elapsed:?}"
             );
             drop(reader);
+        },
+    );
+}
+
+/// What:
+///  The line that says this queue's reader stopped taking lines is said once,
+///  at the bound the caller's wait gives the reader up at,
+///  through the door a diagnostic line takes:
+///  the words name the queue and the bound,
+///  and the line reaches the stream the queue's thread writes.
+/// Why:
+///  The notice is the only account a person gets of diagnostics that stopped reaching them,
+///  so a change that moved where it is said must not move when it is said,
+///  what it says, or whether it is said twice.
+///  A reader that takes its line at once owes no notice,
+///  so the first arm is the positive control for the arm that owes one:
+///  without it, a notice said for every line would pass.
+///  The notice is read through `take_lines_written`,
+///  which only the door over the words calls,
+///  so a notice that reached the queue some other way would leave that list empty.
+///  The bound is the code's own, and a loaded host may wake this control's thread late,
+///  so the wait is allowed thirty times it (issue 6519).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inChildWith({ MONOCHROMATIC_VERBOSE: 'true' }, () => {
+///   giveTheThread(draining()); expect(writeBytes(line)).toBe('Written'); expect(takenLines()).toEqual([])
+///   giveTheThread(full()); const began = now(); expect(writeBytes(line2)).toBe('Unwritten')
+///   expect(now() - began).toBeAtLeast(250); expect(takenLines()).toEqual([noticeLine])
+///   expect(writeBytes(line3)).toBe('Unwritten'); expect(takenLines()).toEqual([])
+///   expect(drain(reader)).toContain(noticeLine)
+/// })
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound() {
+    crate::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound",
+        &[(
+            "MONOCHROMATIC_VERBOSE",
+            std::ffi::OsStr::new("true"),
+        )],
+        &["MONOCHROMATIC_WARN"],
+        || {
+            // What: every word of the notice after the time it carries, which is the one part of a line this control
+            //       cannot know.
+            // Why:  a debug line is stamped when it is said, so the words the control is about are the rest of it.
+            let owed: String = format!(
+                "[monochromatic-git-policy-cli] [{TAG}] the reader of this queue's stream took no line within \
+                 {within:?}, so the command stops waiting for it\n",
+                within = WARNING_WRITE_CEILING
+            );
+            let _before: Vec<String> = take_lines_written();
+            // What: a reader that takes every line at once, which owes no notice.
+            // Why:  the arm below reads a notice, and this one proves the notice is not simply every line's.
+            let (mut keeping_up, writer) = std::io::pipe().expect("a pipe");
+            give_the_thread(Box::new(writer));
+            let answered: HandedOver = write_bytes(b"[warn] a line a reader takes at once\n");
+            assert_eq!(
+                answered,
+                HandedOver::Written,
+                "a reader that is taking lines takes this one, so nothing is owed the person about it"
+            );
+            assert!(
+                take_lines_written().is_empty(),
+                "a reader that took the line is not one the queue says stopped"
+            );
+            let _taken: String =
+                read_while_it_keeps_coming(&mut keeping_up, Duration::from_millis(500));
+            // What: the same queue with a reader that has stopped, which is what the notice is about.
+            // Why:  the wait gives the reader up at its bound, and the notice is said at that moment.
+            let (mut stopped, full) = a_pipe_that_is_full();
+            give_the_thread(Box::new(full));
+            let began: Instant = Instant::now();
+            let answered: HandedOver = write_bytes(b"[warn] a line the stopped reader never takes\n");
+            let waited: Duration = began.elapsed();
+            assert_eq!(
+                answered,
+                HandedOver::Unwritten,
+                "a reader that stopped taking lines leaves the line out of the stream"
+            );
+            assert!(
+                waited >= WARNING_WRITE_CEILING,
+                "the notice waits for the reader until the bound passes, and this call waited {waited:?}"
+            );
+            assert!(
+                waited < WARNING_WRITE_CEILING.saturating_mul(30),
+                "the notice is said at the bound and not at the end of a wait with no end: {waited:?}"
+            );
+            let said: Vec<String> = take_lines_written();
+            assert_eq!(
+                said.len(),
+                1,
+                "one notice is said for one reader that stopped: {said:?}"
+            );
+            assert!(
+                said[0].starts_with("[debug] [") && said[0].ends_with(owed.as_str()),
+                "the notice is a debug line saying which stream's reader stopped and the bound it gave up at: {}",
+                said[0]
+            );
+            // What: a second line for the same stopped reader, which pays no bound and says no second notice.
+            // Why:  the notice is owed once, and no later caller waits for a reader the queue already gave up on.
+            let began: Instant = Instant::now();
+            let answered: HandedOver =
+                write_bytes(b"[warn] a second line the stopped reader never takes\n");
+            let again: Duration = began.elapsed();
+            assert_eq!(
+                answered,
+                HandedOver::Unwritten,
+                "a reader that stopped taking lines leaves every later line out of the stream"
+            );
+            assert!(
+                again < WARNING_WRITE_CEILING,
+                "a later line waits for no reader at all: {again:?}"
+            );
+            assert!(
+                take_lines_written().is_empty(),
+                "the notice is said once and not for every line the stopped reader is owed"
+            );
+            // What: the stream the queue's thread writes, drained so the words it holds can be read.
+            // Why:  the notice is a diagnostic line like any other, so it reaches the person by that route.
+            let text: String = read_while_it_keeps_coming(&mut stopped, Duration::from_millis(500));
+            assert!(
+                text.contains(owed.as_str()),
+                "the notice reaches the stream the queue writes: {text:?}"
+            );
+            drop(stopped);
         },
     );
 }
