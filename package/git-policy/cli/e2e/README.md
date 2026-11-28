@@ -843,6 +843,7 @@ which is the one set of guest-step helpers since issue 6612
 `-command-line.ts`,
 `-arm-log.ts`,
 `-step-command.ts`,
+`-live-steps.ts`,
 `-recipe-step.ts`,
 `-host-command.ts`,
 `-script.ts`,
