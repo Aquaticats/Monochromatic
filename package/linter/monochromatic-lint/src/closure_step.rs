@@ -40,7 +40,7 @@ use crate::{
         driver_gaps,
         driver_site_from_environment,
         gaps_hold_library,
-        unknown_note,
+        unknown_reason,
     },
     closure_findings::{
         RULE,
@@ -234,16 +234,11 @@ pub fn run_closure_step_at(
         if gaps_hold_library(gaps.gaps.as_slice(), &package.library) {
             continue;
         }
+        let unchecked: Option<String> = unknown_reason(gaps.unknown.as_slice(), &package.library)
+            .map(|reason| format!("The Dylint driver check could not be made: {reason}. "));
         absorb(
             &mut outcome,
-            check_package(
-                package,
-                cargo,
-                &search,
-                &targets,
-                cwd,
-                unknown_note(gaps.unknown.as_slice(), &package.library),
-            ),
+            check_package(package, cargo, &search, &targets, cwd, unchecked.as_deref()),
         );
     }
     return outcome;

@@ -21,6 +21,8 @@
 //!  with `<drivers>` being `DYLINT_DRIVER_PATH` or `<home>/.dylint_drivers`,
 //!  and a driver counts as current unless its `-V` fails or reports a version below `cargo-dylint`'s.
 //!  A driver that is not current is acceptable when `cargo metadata --offline` resolves the same throwaway crate.
+//!  A toolchain the library's own directory selects but this machine has not installed is a missing prerequisite,
+//!  so its packages are skipped with the command that installs it.
 //!  The facts that are read here and the reads themselves live in `closure_driver_probe`,
 //!  and this module turns them into one verdict per library.
 //!  Doc:
@@ -46,6 +48,7 @@ pub use crate::closure_driver_probe::{
 /// Import the readers of one machine and the package grouping.
 use crate::{
     closure_driver_probe::{
+        ToolchainGap,
         active_toolchain,
         driver_unresolved,
         driver_version,
@@ -63,8 +66,8 @@ use std::path::{
 /// What:
 ///  The result of checking one library's driver.
 /// Why:
-///  A machine that lacks the driver is a skip,
-///  and a check that could not be made must not hide the run,
+///  A prerequisite the machine lacks is a skip with the command that fills it,
+///  and a check that failed for another reason must not hide the run,
 ///  so it falls through to the run itself and is noted for `--debug`.
 ///
 /// In TS you'd write (pseudocode):
@@ -76,10 +79,10 @@ pub enum DriverState {
     /// A current driver exists,
     ///  or the cargo cache can build one.
     Ready,
-    /// The driver is absent or outdated and the cargo cache cannot build one.
+    /// A prerequisite of the check is absent or out of date and nothing on this machine fills it.
     Missing(
-        /// Why the driver cannot be built,
-        /// as the first error line of the failed resolve.
+        /// Why the prerequisite is missing,
+        ///  including the command that fills it.
         String,
     ),
     /// The check itself could not be made.
@@ -110,22 +113,23 @@ pub struct DriverGaps {
 }
 
 /// What:
-///  One library whose driver check could not be made and the sentence that says why.
+///  One library whose driver check could not be made and why.
 /// Why:
-///  The same sentence is the `--debug` note and the end of a finding's message,
-///  because a package the check then left unchecked has to name the cause that was already known.
+///  The reason is the `--debug` note and part of a finding's message,
+///  because a package the check then left unchecked has to name the cause that was already known,
+///  and the two sentences differ: one says the check did not run, the other that it could not be made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DriverUnknown = { library: Path; note: string };
+/// type DriverUnknown = { library: Path; reason: string };
 /// ```
 #[derive(Debug, Eq, PartialEq)]
 pub struct DriverUnknown {
     /// The library directory the check was asked about.
     pub library: PathBuf,
     /// Why the check could not be made,
-    ///  as the note a `--debug` run prints.
-    pub note: String,
+    ///  as the machine's own answer.
+    pub reason: String,
 }
 
 /// What:
@@ -150,22 +154,22 @@ pub fn gaps_hold_library(
 }
 
 /// What:
-///  The note of a library whose driver check could not be made.
+///  Why a library's driver check could not be made.
 /// Why:
 ///  The packages of such a library are run anyway,
 ///  and one that prints no record has to say which known cause left it unchecked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unknownNote(unknown: DriverUnknown[], library: Path): string | undefined;
+/// function unknownReason(unknown: DriverUnknown[], library: Path): string | undefined;
 /// ```
-pub fn unknown_note<'unknown>(
+pub fn unknown_reason<'unknown>(
     unknown: &'unknown [DriverUnknown],
     library: &Path,
 ) -> Option<&'unknown str> {
     for entry in unknown {
         if entry.library.as_path() == library {
-            return Some(entry.note.as_str());
+            return Some(entry.reason.as_str());
         }
     }
     return None;
@@ -213,16 +217,22 @@ fn dotted(version: (u64, u64, u64)) -> String {
 ///  a current driver is reused,
 ///  and only otherwise does it build,
 ///  which needs the pinned crates in the cargo cache.
-///  `warm` is the command that fills the caches and is quoted in the reason.
+///  `library_name` is how the caller shows the library directory,
+///  and `warm` is the command that fills the caches;
+///  both are quoted in the reason.
+///  A `rustup` that cannot name the directory's toolchain is a missing prerequisite,
+///  because no driver can exist for a toolchain this machine has not installed,
+///  and the record gives a missing prerequisite a skip and not a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function driverState(cargo: Path, site: DriverSite, library: Path, needed: [number, number, number], warm: string): DriverState;
+/// function driverState(cargo: Path, site: DriverSite, library: Path, libraryName: string, needed: [number, number, number], warm: string): DriverState;
 /// ```
 pub fn driver_state(
     cargo: &Path,
     site: &DriverSite,
     library: &Path,
+    library_name: &str,
     needed: (u64, u64, u64),
     warm: &str,
 ) -> DriverState {
@@ -233,7 +243,16 @@ pub fn driver_state(
     };
     let toolchain: String = match active_toolchain(&site.rustup, library) {
         Ok(name) => name,
-        Err(reason) => return DriverState::Unknown(reason),
+        Err(ToolchainGap::NoRustup(reason)) => {
+            return DriverState::Missing(format!(
+                "the toolchain active in the library {library_name} cannot be read, so no package of that library can be checked: {reason}. Install the Rust toolchain with `mise run toolchain:install`, which also installs `cargo-dylint`, `dylint-link` and the compiler component this check needs"
+            ));
+        }
+        Err(ToolchainGap::NotInstalled(reason)) => {
+            return DriverState::Missing(format!(
+                "the toolchain selected in the library {library_name} is not installed, so no package of that library can be checked: {reason}. Run `rustup toolchain install` in {library_name}, which installs the toolchain its own toolchain file names and is needed again after each change to that file, or point that file at an installed toolchain"
+            ));
+        }
     };
     let driver: PathBuf = drivers.join(&toolchain).join("dylint-driver");
     let found: Option<(u64, u64, u64)> = driver_version(&driver);
@@ -314,6 +333,8 @@ fn packages_using(
 ///  The driver depends on the toolchain active in the library directory and not on the package,
 ///  so a repository of many packages with one library is checked once.
 ///  A `cargo-dylint` version that cannot be read is noted and the run proceeds.
+///  A library whose driver check could not be made keeps its packages in the run and records the reason,
+///  which is both the `--debug` note and what a package that printed no record reports.
 ///  A library whose check could not be made keeps its packages in the run and records the reason,
 ///  which is both the `--debug` note and what a package that printed no record reports.
 ///
@@ -330,10 +351,24 @@ pub fn driver_gaps(
 ) -> DriverGaps {
     let mut result: DriverGaps = DriverGaps::default();
     let Some(needed) = parse_version(version_text) else {
-        result.notes.push(format!(
-            "the Dylint driver check did not run: `cargo dylint --version` printed no readable version ({})",
+        let reason: String = format!(
+            "`cargo dylint --version` printed no readable version ({})",
             version_text.trim()
-        ));
+        );
+        result
+            .notes
+            .push(format!("the Dylint driver check did not run: {reason}"));
+        let mut known: Vec<&PathBuf> = Vec::<&PathBuf>::new();
+        for package in packages {
+            if known.contains(&&package.library) {
+                continue;
+            }
+            known.push(&package.library);
+            result.unknown.push(DriverUnknown {
+                library: package.library.clone(),
+                reason: reason.clone(),
+            });
+        }
         return result;
     };
     let mut seen: Vec<&PathBuf> = Vec::<&PathBuf>::new();
@@ -347,16 +382,22 @@ pub fn driver_gaps(
             library_name.as_str(),
             display_name(&package.manifest, cwd).as_str(),
         );
-        match driver_state(cargo, site, &package.library, needed, warm.as_str()) {
+        match driver_state(
+            cargo,
+            site,
+            &package.library,
+            library_name.as_str(),
+            needed,
+            warm.as_str(),
+        ) {
             DriverState::Ready => {}
             DriverState::Unknown(reason) => {
-                let note: String = format!(
+                result.notes.push(format!(
                     "the Dylint driver check for the library {library_name} did not run: {reason}"
-                );
-                result.notes.push(note.clone());
+                ));
                 result.unknown.push(DriverUnknown {
                     library: package.library.clone(),
-                    note,
+                    reason,
                 });
             }
             DriverState::Missing(reason) => {

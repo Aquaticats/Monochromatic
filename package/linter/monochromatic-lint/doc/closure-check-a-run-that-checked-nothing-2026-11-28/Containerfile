@@ -1,0 +1,33 @@
+# The probe image for issue 6667: a package the closure rule did not check ended as a clean package.
+# It holds one nightly, Dylint 6.4.0, and nothing of this account.
+#
+# It does not pre-build a Dylint driver, because a driver for the library's own toolchain needs
+# `dylint_driver`'s build script, which clones the Clippy repository, and `git clone` inside a
+# rootless container on this machine cannot create a directory at all:
+# `git clone --depth 1 https://github.com/rust-lang/rust-clippy /tmp/clone1` answers
+# `fatal: could not create work tree dir '/tmp/clone1': Permission denied`
+# while `mkdir -p /tmp/clone1` from the same shell succeeds, and `git ls-remote` reaches the host.
+# The arm this image was built for (a library whose toolchain file names an absent toolchain) never
+# builds the library or the driver: `cargo dylint` answers before either.
+FROM docker.io/cachyos/cachyos-v4:latest
+RUN pacman -Sy --noconfirm --needed rustup curl binutils gcc pkgconf openssl ca-certificates \
+    && pacman -Scc --noconfirm
+ENV RUSTUP_HOME=/opt/rustup
+ENV CARGO_HOME=/opt/cargo
+# `rustc-dev` is what the linter's own machine-wide check looks for before the driver check,
+# so an arm without it ends as a skip and never reaches the state under test.
+RUN rustup toolchain install nightly --profile minimal --no-self-update \
+    --component rustc-dev --component llvm-tools-preview \
+    && rustup default nightly
+RUN curl -fsSL https://github.com/trailofbits/dylint/releases/download/v6.4.0/cargo-dylint-x86_64-unknown-linux-gnu-v6.4.0.tar.gz \
+    | tar -xz --strip-components=1 -C /usr/local/bin \
+    && curl -fsSL https://github.com/trailofbits/dylint/releases/download/v6.4.0/dylint-link-x86_64-unknown-linux-gnu-v6.4.0.tar.gz \
+    | tar -xz --strip-components=1 -C /usr/local/bin
+# The arms that run as a user with no passwd entry, so a home directory cannot be looked up, still
+# run cargo and rustup: both directories are readable and writable for that user in this throwaway image.
+# The library's own registry entries, so `cargo metadata` inside the library directory answers
+# without the network and `cargo dylint` reaches the toolchain of that directory at all.
+COPY fixture /warm/fixture
+RUN cd /warm/fixture/lint-closure && cargo fetch --locked
+RUN mkdir -p /opt/cargo && chmod -R a+rwX /opt/cargo /opt/rustup
+CMD ["sleep", "infinity"]

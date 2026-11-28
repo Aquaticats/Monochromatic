@@ -149,20 +149,51 @@ pub fn parse_version(line: &str) -> Option<(u64, u64, u64)> {
 }
 
 /// What:
+///  Why `rustup` could not name the toolchain active in a library directory.
+/// Why:
+///  The two causes want two different commands:
+///  a `rustup` that cannot answer is installed with the repository's toolchain task,
+///  and a selection it refuses is a toolchain this machine has not installed,
+///  which the library's own directory installs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolchainGap = { kind: 'no-rustup'; reason: string } | { kind: 'not-installed'; reason: string };
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum ToolchainGap {
+    /// `rustup` cannot be started,
+    ///  or it ran and named no toolchain at all.
+    NoRustup(
+        /// What `rustup` answered.
+        String,
+    ),
+    /// `rustup` refused the selection of the directory,
+    ///  which is what a toolchain file naming an uninstalled toolchain gives.
+    NotInstalled(
+        /// What `rustup` answered.
+        String,
+    ),
+}
+
+/// What:
 ///  The first word of the output of `rustup show active-toolchain` in a directory.
 /// Why:
 ///  That word names the driver directory.
 ///  The environment is cleaned as `cargo-dylint` cleans it,
 ///  because an inherited `RUSTUP_TOOLCHAIN` is not what it asks.
+///  A `rustup` that refuses the directory's selection says why on standard error,
+///  and that line is quoted,
+///  because it names the file that selects the toolchain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function activeToolchain(rustup: Path, directory: Path): string; // throws string
+/// function activeToolchain(rustup: Path, directory: Path): string; // throws ToolchainGap
 /// ```
 pub(crate) fn active_toolchain(
     rustup: &Path,
     directory: &Path,
-) -> Result<String, String> {
+) -> Result<String, ToolchainGap> {
     let output = match Command::new(rustup)
         .args(["show", "active-toolchain"])
         .current_dir(directory)
@@ -173,22 +204,38 @@ pub(crate) fn active_toolchain(
         .output()
     {
         Ok(done) => done,
-        Err(error) => return Err(format!("rustup does not run ({error})")),
+        Err(error) => {
+            return Err(ToolchainGap::NoRustup(format!(
+                "`{}` does not run ({error})",
+                rustup.display()
+            )));
+        }
     };
     if !output.status.success() {
-        return Err(format!(
-            "`rustup show active-toolchain` failed ({})",
+        let said: String = String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let detail: String = if said.is_empty() {
+            String::new()
+        } else {
+            format!(": {said}")
+        };
+        return Err(ToolchainGap::NotInstalled(format!(
+            "`rustup show active-toolchain` failed ({}){detail}",
             output.status
-        ));
+        )));
     }
     return match String::from_utf8_lossy(&output.stdout)
         .split_ascii_whitespace()
         .next()
     {
         Some(word) => Ok(word.to_string()),
-        None => Err(String::from(
+        None => Err(ToolchainGap::NoRustup(String::from(
             "`rustup show active-toolchain` printed no toolchain",
-        )),
+        ))),
     };
 }
 

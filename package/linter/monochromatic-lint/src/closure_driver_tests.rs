@@ -42,6 +42,9 @@ use std::path::{
 /// The toolchain name that the `rustup` stub reports.
 const TOOLCHAIN: &str = "nightly-fixture-toolchain";
 
+/// How the caller shows the library directory in a reason.
+const LIBRARY_NAME: &str = "lib-fixture";
+
 /// The version of `cargo-dylint` in the controls.
 const NEEDED: (u64, u64, u64) = (6, 3, 0);
 
@@ -130,6 +133,7 @@ impl Machine {
             &self.cargo.cargo,
             &self.site(),
             &self.library.path,
+            LIBRARY_NAME,
             NEEDED,
             "WARM",
         );
@@ -345,9 +349,14 @@ fn an_unwritable_or_unknown_scratch_is_unknown() {
         scratch: None,
         ..none.site()
     };
-    let DriverState::Unknown(unknown) =
-        driver_state(&none.cargo.cargo, &site, &none.library.path, NEEDED, "WARM")
-    else {
+    let DriverState::Unknown(unknown) = driver_state(
+        &none.cargo.cargo,
+        &site,
+        &none.library.path,
+        LIBRARY_NAME,
+        NEEDED,
+        "WARM",
+    ) else {
         panic!("the check could not be made");
     };
     assert!(unknown.contains("no cache directory"), "{unknown}");
@@ -360,6 +369,7 @@ fn an_unwritable_or_unknown_scratch_is_unknown() {
             ..current.site()
         },
         &current.library.path,
+        LIBRARY_NAME,
         NEEDED,
         "WARM",
     );
@@ -371,11 +381,11 @@ fn an_unwritable_or_unknown_scratch_is_unknown() {
 }
 
 /// Without a known driver directory,
-/// with a failing `rustup`,
-/// with a `rustup` that names nothing,
-/// with a missing `rustup`,
 /// and with a missing `cargo` for the resolution,
 /// the check could not be made.
+/// Neither is a prerequisite the machine lacks:
+/// nothing says a driver is absent,
+/// and `cargo` answered the version probe just before.
 #[test]
 fn facts_that_cannot_be_read_make_the_check_unknown() {
     let machine: Machine = Machine::new(&COLD);
@@ -387,66 +397,96 @@ fn facts_that_cannot_be_read_make_the_check_unknown() {
         &machine.cargo.cargo,
         &unlocated,
         &machine.library.path,
+        LIBRARY_NAME,
         NEEDED,
         "WARM",
     ) else {
         panic!("unknown");
     };
     assert!(drivers.contains("no driver directory"), "{drivers}");
-    let failing: Scenario = scenario(&[("show.status", "1")]);
-    let failing_site: DriverSite = DriverSite {
-        rustup: failing.cargo.clone(),
-        ..machine.site()
-    };
-    let DriverState::Unknown(failed) = driver_state(
-        &machine.cargo.cargo,
-        &failing_site,
-        &machine.library.path,
-        NEEDED,
-        "WARM",
-    ) else {
-        panic!("unknown");
-    };
-    assert!(failed.contains("rustup show active-toolchain"), "{failed}");
-    let silent: Scenario = scenario(&[]);
-    let silent_site: DriverSite = DriverSite {
-        rustup: silent.cargo.clone(),
-        ..machine.site()
-    };
-    let DriverState::Unknown(nothing) = driver_state(
-        &machine.cargo.cargo,
-        &silent_site,
-        &machine.library.path,
-        NEEDED,
-        "WARM",
-    ) else {
-        panic!("unknown");
-    };
-    assert!(nothing.contains("printed no toolchain"), "{nothing}");
-    let absent_site: DriverSite = DriverSite {
-        rustup: PathBuf::from("/nonexistent/monochromatic-lint/rustup"),
-        ..machine.site()
-    };
-    let DriverState::Unknown(missing) = driver_state(
-        &machine.cargo.cargo,
-        &absent_site,
-        &machine.library.path,
-        NEEDED,
-        "WARM",
-    ) else {
-        panic!("unknown");
-    };
-    assert!(missing.contains("rustup does not run"), "{missing}");
     let DriverState::Unknown(no_cargo) = driver_state(
         Path::new("/nonexistent/monochromatic-lint/cargo"),
         &machine.site(),
         &machine.library.path,
+        LIBRARY_NAME,
         NEEDED,
         "WARM",
     ) else {
         panic!("unknown");
     };
     assert!(no_cargo.contains("cargo does not run"), "{no_cargo}");
+}
+
+/// A `rustup` that cannot name the directory's toolchain is a missing prerequisite,
+/// which the record gives a skip and the command that fills it:
+/// a selection it refuses is installed in the library's own directory,
+/// and a `rustup` that cannot answer is installed with the repository's toolchain task.
+#[test]
+fn a_toolchain_that_cannot_be_read_is_a_missing_prerequisite() {
+    let machine: Machine = Machine::new(&COLD);
+    let refused: Scenario = scenario(&[
+        ("show.status", "1"),
+        (
+            "show.stderr",
+            "error: override toolchain 'nightly-fixture-toolchain' is not installed: the toolchain file at 'lib-fixture/rust-toolchain.toml' specifies an uninstalled toolchain\n",
+        ),
+    ]);
+    let refused_site: DriverSite = DriverSite {
+        rustup: refused.cargo.clone(),
+        ..machine.site()
+    };
+    let DriverState::Missing(uninstalled) = driver_state(
+        &machine.cargo.cargo,
+        &refused_site,
+        &machine.library.path,
+        LIBRARY_NAME,
+        NEEDED,
+        "WARM",
+    ) else {
+        panic!("a toolchain the directory selects and the machine lacks is a skip");
+    };
+    assert!(
+        uninstalled.contains("`rustup toolchain install` in lib-fixture"),
+        "{uninstalled}"
+    );
+    assert!(
+        uninstalled.contains("specifies an uninstalled toolchain"),
+        "{uninstalled}"
+    );
+    assert!(machine.cargo.calls().is_empty());
+    let silent: Scenario = scenario(&[]);
+    let silent_site: DriverSite = DriverSite {
+        rustup: silent.cargo.clone(),
+        ..machine.site()
+    };
+    let DriverState::Missing(nothing) = driver_state(
+        &machine.cargo.cargo,
+        &silent_site,
+        &machine.library.path,
+        LIBRARY_NAME,
+        NEEDED,
+        "WARM",
+    ) else {
+        panic!("a rustup that names no toolchain is a skip");
+    };
+    assert!(nothing.contains("printed no toolchain"), "{nothing}");
+    assert!(nothing.contains("mise run toolchain:install"), "{nothing}");
+    let absent_site: DriverSite = DriverSite {
+        rustup: PathBuf::from("/nonexistent/monochromatic-lint/rustup"),
+        ..machine.site()
+    };
+    let DriverState::Missing(missing) = driver_state(
+        &machine.cargo.cargo,
+        &absent_site,
+        &machine.library.path,
+        LIBRARY_NAME,
+        NEEDED,
+        "WARM",
+    ) else {
+        panic!("a rustup that does not run is a skip");
+    };
+    assert!(missing.contains("does not run"), "{missing}");
+    assert!(missing.contains("mise run toolchain:install"), "{missing}");
 }
 
 /// A version line that is not readable is a note and no check runs.

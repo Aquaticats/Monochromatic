@@ -214,7 +214,13 @@ fn counts_every_record_of_any_reason() {
 /// and a line that is no record carries no reason and is not counted.
 #[test]
 fn a_compiler_message_is_a_counted_record() {
-    let only: Vec<u8> = lines(&[record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 1)]);
+    let only: Vec<u8> = lines(&[record(
+        Some(REPORTED_CODES[0]),
+        "warning",
+        "m",
+        "src/a.rs",
+        1,
+    )]);
     assert_eq!(parse_records(&only).records, 1);
     assert_eq!(parse_records(b"{\"message\": 1}\n").records, 0);
 }

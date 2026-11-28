@@ -1,0 +1,6 @@
+monochromatic-lint: debug: discovered 1 supported file(s)
+monochromatic-lint: debug: pkg/src/lib.rs: selected for linting
+monochromatic-lint: debug: linting 1 file(s) with a concurrency limit of 4
+monochromatic-lint: debug: rewrote 0 file(s); loaded 0 Cargo workspace(s)
+monochromatic-lint: debug: the Dylint driver check for the library lint-closure did not run: `rustup show active-toolchain` failed (exit status: 1)
+monochromatic-lint: debug: rust/avoidable-closure checked pkg: 0 report(s) from the compiler

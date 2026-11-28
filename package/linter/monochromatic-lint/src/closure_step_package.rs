@@ -194,22 +194,20 @@ fn failure_message(
 ///  which is what a library whose toolchain is absent ends in,
 ///  so a package that the compiler never saw would otherwise be reported as a package without closures.
 ///  The message names the cause the driver check already knew,
+///  as the sentence the caller built,
 ///  and quotes the end of cargo's own messages,
 ///  which is where a cause it did not know is said.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function uncheckedMessage(run: DylintRun, subject: string, driverNote?: string): string;
+/// function uncheckedMessage(run: DylintRun, subject: string, driverSentence?: string): string;
 /// ```
 fn unchecked_message(
     run: &DylintRun,
     subject: &str,
-    driver_note: Option<&str>,
+    driver_sentence: Option<&str>,
 ) -> String {
-    let known: String = match driver_note {
-        Some(note) => format!("{note}. "),
-        None => String::new(),
-    };
+    let known: &str = driver_sentence.unwrap_or("");
     let said: String = tail(&run.stderr, 12);
     let messages: &str = if said.is_empty() {
         "none"
@@ -232,7 +230,7 @@ fn unchecked_message(
 ///  each can end the package early with a skip or a failure.
 ///  A run that exits successfully without printing one record is a failure too:
 ///  the compiler never saw the package,
-///  and the driver check's own note names the cause when it recorded one.
+///  and the sentence the caller built from the driver check names the cause when one was recorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -244,7 +242,7 @@ pub(crate) fn check_package(
     search: &OsString,
     targets: &Targets,
     cwd: &Path,
-    driver_note: Option<&str>,
+    driver_sentence: Option<&str>,
 ) -> ClosureOutcome {
     let mut outcome: ClosureOutcome = ClosureOutcome::default();
     let Some(directory) = package.manifest.parent() else {
@@ -314,7 +312,7 @@ pub(crate) fn check_package(
         outcome.findings.push(processing_failure(
             manifest_name.as_str(),
             file_start(),
-            unchecked_message(&run, subject.as_str(), driver_note),
+            unchecked_message(&run, subject.as_str(), driver_sentence),
         ));
     }
     return outcome;

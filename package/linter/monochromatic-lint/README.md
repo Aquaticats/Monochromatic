@@ -451,8 +451,9 @@ Directories ending in `.fuzz` or `.bench` are skipped by name whatever the confi
 A package that fails to build,
 a cargo failure without any diagnostic,
 a missing library directory,
-and an invalid
-prerequisite manifest are `core/processing-failure` findings (status `2`),
+an invalid
+prerequisite manifest,
+and a run that exited `0` without printing one of cargo's records are `core/processing-failure` findings (status `2`),
 because the result would be incomplete.
 The step does not run under `--fix` or `--stdin`.
 Closures in generated code (for example `slint::include_modules!` output below the build directory) are skipped by
@@ -503,11 +504,40 @@ every package of the library is skipped with the exact command that fills the ca
 `env --unset=CARGO_NET_OFFLINE cargo dylint --path <library> --manifest-path <manifest> -- --locked`,
 which the owner runs once with network access,
 and again after each `cargo-dylint` upgrade.
-A check that cannot be made (an unreadable version,
-no `rustup`,
-no known driver directory) skips nothing
-and shows only under `--debug`;
-the run then decides as before.
+A library whose own `rust-toolchain.toml` names a toolchain this machine has not installed is a missing prerequisite,
+and the amendment of 2026-11-07 gives a missing prerequisite a skip:
+one warning finding per package,
+which names the library,
+quotes what `rustup show active-toolchain` answered,
+and gives the command that fills the gap,
+`rustup toolchain install` in the library's directory
+(a `rustup` that cannot answer at all gets `mise run toolchain:install` instead).
+No driver can exist for a toolchain that is not installed,
+so nothing of that library is checked and the record says so.
+The three other states in which the driver check cannot be made
+(no known driver directory,
+no known cache directory,
+a resolve probe that fails)
+are not prerequisites the machine lacks:
+they skip nothing and show only under `--debug`,
+and the packages of those libraries are run,
+because `cargo dylint` finds its driver directory and its own scratch space by itself
+and needs nothing from this probe.
+A package that run then leaves unchecked is a `core/processing-failure` at its `Cargo.toml` with status `2`,
+and the compiler's own record decides that:
+`cargo dylint` prints a record as soon as it builds anything,
+`{"reason":"build-finished","success":true}` at the least,
+and does so even when every unit was already built,
+so a run that printed none of them never reached the compiler.
+That finding names the cause the driver check recorded and quotes the end of cargo's messages.
+A package that is then really checked keeps its `--debug` note and no finding.
+`0.5.2-alpha.25` read the first state wrongly:
+`cargo dylint` warned `Warning: No libraries were found.` on standard error,
+printed no record and exited `0`,
+and that run printed nothing and exited `0` too,
+which a reader could not tell from a clean package.
+The container run and the other three states are recorded with their commands in
+`doc/closure-check-a-run-that-checked-nothing-2026-11-28/README.md`.
 A skip is a warning finding like any other:
 the exit status stays `0` unless `--max-warnings` is exceeded,
 `--max-warnings` counts it,

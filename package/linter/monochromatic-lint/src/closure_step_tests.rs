@@ -500,7 +500,10 @@ const VERSIONED: (&str, &str) = ("dylint-version.stdout", "cargo-dylint 6.3.0\n"
 /// Copied from the capture
 /// `doc/closure-check-a-run-that-checked-nothing-2026-11-28/cargo-check/fresh-second-run.jsonl`,
 /// line 2.
-const CHECKED: (&str, &str) = ("dylint.stdout", "{\"reason\":\"build-finished\",\"success\":true}\n");
+const CHECKED: (&str, &str) = (
+    "dylint.stdout",
+    "{\"reason\":\"build-finished\",\"success\":true}\n",
+);
 
 /// The answers that make the offline resolution of the throwaway driver crate fail.
 const COLD_DRIVER: [(&str, &str); 2] = [
@@ -709,39 +712,60 @@ fn a_run_that_printed_no_record_is_a_processing_failure() {
     assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
 }
 
-/// The same failure names the cause the driver check already knew,
-/// which is the state the issue was measured in:
-/// the library's toolchain cannot be read and `cargo dylint` then finds nothing to check.
+/// The toolchain a library's own directory selects but this machine lacks is a missing prerequisite,
+/// so the packages of that library are skipped with the command that installs it,
+/// and `cargo dylint` never runs.
 #[test]
-fn a_failure_of_a_run_that_printed_nothing_names_the_driver_check() {
+fn a_toolchain_that_cannot_be_read_skips_the_library() {
     let fixture: Fixture = fixture();
-    let stub = scenario(&[VERSIONED]);
-    let rustup = scenario(&[
+    let stub = scenario(&[VERSIONED, CHECKED]);
+    let refused = scenario(&[
         ("show.status", "1"),
         (
             "show.stderr",
             "error: override toolchain `nightly-fixture` is not installed\n",
         ),
     ]);
-    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
-    assert!(outcome.skips.is_empty());
-    assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
-    let message: &String = &outcome.findings[0].message;
-    assert_eq!(outcome.findings[0].code, PROCESSING_FAILURE);
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &refused));
+    assert!(outcome.findings.is_empty(), "{:?}", outcome.findings);
+    assert_eq!(outcome.skips.len(), 1, "{:?}", outcome.skips);
+    let message: &String = &outcome.skips[0].message;
     assert!(
-        message.contains(
-            "the Dylint driver check for the library lib did not run: `rustup show active-toolchain` failed (exit status: 1)"
-        ),
+        message.starts_with("rust/avoidable-closure skipped my pkg:"),
         "{message}"
     );
     assert!(
-        outcome
-            .notes
-            .iter()
-            .any(|note| return message.contains(note.as_str())),
-        "{:?} is not part of {message}",
-        outcome.notes
+        message.contains("`rustup toolchain install` in lib"),
+        "{message}"
     );
+    assert_eq!(kinds(&stub), vec!["dylint-version"]);
+}
+
+/// A cache directory that is not known is not a missing prerequisite:
+/// the packages are run, and one that prints no record is a failure that names that cause.
+#[test]
+fn a_missing_cache_directory_and_a_silent_run_is_a_failure() {
+    let fixture: Fixture = fixture();
+    let stub = scenario(&[VERSIONED]);
+    let rustup = toolchain_stub();
+    let no_cache: DriverSite = DriverSite {
+        scratch: None,
+        ..driver_site(&stub, &rustup)
+    };
+    let outcome = run_at(&fixture, &stub, &no_cache);
+    assert!(outcome.skips.is_empty());
+    assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
+    let finding = &outcome.findings[0];
+    assert_eq!(
+        (finding.code.as_str(), finding.filename.as_str()),
+        (PROCESSING_FAILURE, "my pkg/Cargo.toml")
+    );
+    assert!(
+        finding.message.contains("no cache directory is known"),
+        "{}",
+        finding.message
+    );
+    assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
 }
 
 //endregion

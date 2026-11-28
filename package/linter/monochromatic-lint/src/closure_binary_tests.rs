@@ -619,7 +619,13 @@ fn a_missing_driver_is_a_warning_finding_and_exit_zero() {
 fn a_current_driver_is_not_skipped() {
     let fixture: Fixture = Fixture::new();
     let stub = scenario(&[COLD_DRIVER[0], COLD_DRIVER[1], COLD_DRIVER[2], CHECKED]);
-    let output: Run = run_on_machine(&fixture, &stub, Some("dylint-driver 6.3.0\n"), None, &["my pkg"]);
+    let output: Run = run_on_machine(
+        &fixture,
+        &stub,
+        Some("dylint-driver 6.3.0\n"),
+        None,
+        &["my pkg"],
+    );
     assert_eq!((output.status, output.stdout.as_str()), (0, ""));
     assert!(!output.stderr.contains("skipped"), "{}", output.stderr);
     assert!(
@@ -637,7 +643,13 @@ fn a_current_driver_is_not_skipped() {
 fn a_cargo_dylint_that_printed_no_record_exits_two() {
     let fixture: Fixture = Fixture::new();
     let stub = scenario(&[]);
-    let output: Run = run_on_machine(&fixture, &stub, Some("dylint-driver 6.3.0\n"), None, &["my pkg"]);
+    let output: Run = run_on_machine(
+        &fixture,
+        &stub,
+        Some("dylint-driver 6.3.0\n"),
+        None,
+        &["my pkg"],
+    );
     assert_eq!(output.status, 2, "{}", output.stderr);
     let found: Vec<Value> = records(&output.stdout);
     assert_eq!(found.len(), 1, "{}", output.stdout);
@@ -649,10 +661,7 @@ fn a_cargo_dylint_that_printed_no_record_exits_two() {
         message.contains("printed none of cargo's records"),
         "{message}"
     );
-    assert!(
-        message.contains("could not check my pkg"),
-        "{message}"
-    );
+    assert!(message.contains("could not check my pkg"), "{message}");
 }
 
 /// The control: one record of a finished build is a package the compiler saw,
@@ -661,39 +670,51 @@ fn a_cargo_dylint_that_printed_no_record_exits_two() {
 fn a_cargo_dylint_that_printed_a_record_is_a_checked_package() {
     let fixture: Fixture = Fixture::new();
     let stub = scenario(&[CHECKED]);
-    let output: Run = run_on_machine(&fixture, &stub, Some("dylint-driver 6.3.0\n"), None, &["my pkg"]);
-    assert_eq!((output.status, output.stdout.as_str()), (0, ""), "{}", output.stderr);
+    let output: Run = run_on_machine(
+        &fixture,
+        &stub,
+        Some("dylint-driver 6.3.0\n"),
+        None,
+        &["my pkg"],
+    );
+    assert_eq!(
+        (output.status, output.stdout.as_str()),
+        (0, ""),
+        "{}",
+        output.stderr
+    );
 }
 
 /// The state the issue was measured in:
-/// the library's active toolchain cannot be read, `cargo dylint` then finds no library to check,
-/// and the finding names both the driver check that could not be made and cargo's own words.
+/// the library's active toolchain cannot be read, so the packages of that library are skipped
+/// with the command that installs it, and `cargo dylint` never runs.
 #[test]
-fn a_failure_of_a_run_that_printed_nothing_names_the_reason() {
+fn a_toolchain_that_cannot_be_read_skips_the_package() {
     let fixture: Fixture = Fixture::new();
-    let stub = scenario(&[(
-        "dylint.stderr",
-        "Warning: error: override toolchain `nightly-fixture` is not installed\nWarning: No libraries were found.\n",
-    )]);
+    let stub = scenario(&[("dylint-version.stdout", "cargo-dylint 6.3.0\n")]);
     let output: Run = run_on_machine(&fixture, &stub, None, Some("1"), &["my pkg"]);
-    assert_eq!(output.status, 2, "{}", output.stderr);
+    assert_eq!(output.status, 0, "{}", output.stderr);
     let found: Vec<Value> = records(&output.stdout);
     assert_eq!(found.len(), 1, "{}", output.stdout);
+    assert_eq!(found[0]["code"], CLOSURE_RULE);
+    assert_eq!(found[0]["severity"], "warn");
+    assert_eq!(found[0]["filename"], "my pkg/Cargo.toml");
     let message: &str = found[0]["message"].as_str().expect("text");
     assert!(
-        message.contains(
-            "the Dylint driver check for the library lib did not run: `rustup show active-toolchain` failed (exit status: 1)"
-        ),
+        message.starts_with("rust/avoidable-closure skipped my pkg:"),
         "{message}"
     );
-    assert!(message.contains("No libraries were found."), "{message}");
-    let notes: Run = run_on_machine(&fixture, &stub, None, Some("1"), &["--debug", "my pkg"]);
     assert!(
-        notes
-            .stderr
-            .contains("the Dylint driver check for the library lib did not run"),
-        "{}",
-        notes.stderr
+        message.contains("`rustup toolchain install` in lib"),
+        "{message}"
+    );
+    assert!(
+        !stub
+            .calls()
+            .iter()
+            .any(|call| return call.starts_with("dylint|")),
+        "{:?}",
+        stub.calls()
     );
 }
 

@@ -1,0 +1,4 @@
+monochromatic-lint: debug: discovered 1 supported file(s)
+monochromatic-lint: debug: pkg/src/lib.rs: selected for linting
+monochromatic-lint: debug: linting 1 file(s) with a concurrency limit of 4
+monochromatic-lint: debug: rewrote 0 file(s); loaded 0 Cargo workspace(s)
