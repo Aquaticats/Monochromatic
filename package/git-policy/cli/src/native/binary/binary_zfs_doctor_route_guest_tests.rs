@@ -338,10 +338,7 @@ fn install_layout() {
         format!("{CHECKOUT}/.claude/worktrees/one"),
     ] {
         std::fs::create_dir_all(folder.as_str()).expect("the account's folder");
-        run(
-            "chown",
-            &[the_owner().as_str(), folder.as_str()],
-        );
+        run("chown", &[the_owner().as_str(), folder.as_str()]);
         std::fs::set_permissions(folder.as_str(), std::fs::Permissions::from_mode(0o700))
             .expect("the account's mode");
     }
@@ -559,18 +556,12 @@ fn publish_the_records() {
 fn make_the_staging_folder() {
     let cache: String = the_cache();
     std::fs::create_dir_all(cache.as_str()).expect("the cache");
-    run(
-        "chown",
-        &[the_owner().as_str(), cache.as_str()],
-    );
+    run("chown", &[the_owner().as_str(), cache.as_str()]);
     std::fs::set_permissions(cache.as_str(), std::fs::Permissions::from_mode(0o700))
         .expect("the cache mode");
     let stage: String = format!("{cache}/{}", stage_name());
     std::fs::create_dir(stage.as_str()).expect("the staging folder");
-    run(
-        "chown",
-        &[the_owner().as_str(), stage.as_str()],
-    );
+    run("chown", &[the_owner().as_str(), stage.as_str()]);
     std::fs::set_permissions(stage.as_str(), std::fs::Permissions::from_mode(0o700))
         .expect("the staging folder's mode");
     run("mount", &["--bind", stage.as_str(), stage.as_str()]);
@@ -1238,8 +1229,7 @@ fn the_releases_gatherer_answers_the_same_report() {
     assert_eq!(released.len(), helped.len());
     for (one, other) in released.iter().zip(helped.iter()) {
         assert_eq!(
-            one.check,
-            other.check,
+            one.check, other.check,
             "the two reports hold the same checks in the same order"
         );
         assert_eq!(
@@ -1896,7 +1886,7 @@ fn breaks_missing_slot() {
     let slots: Vec<SlotIdentityFacts> = the_machines_facts().route.slots;
     let missing: &SlotIdentityFacts = slots
         .iter()
-        .find(|slot| return slot.slot == "one")
+        .find(|listed| return listed.slot == "one")
         .expect("the store still lists the slot whose folder moved");
     let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_slot_identity(missing);
     let CheckOutcome::Finding {

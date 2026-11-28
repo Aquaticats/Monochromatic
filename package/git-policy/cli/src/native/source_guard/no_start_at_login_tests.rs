@@ -107,21 +107,41 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
 ///  the text it may carry,
 ///  and the line that use is written on.
 /// Why:
-///  The removal of the link an earlier release made is the one use this guard allows,
+///  The removal of the link an earlier release made is one use this guard allows,
 ///  and an entry that named only the file and the text excused a second `.wants` line added beside it.
 ///  The line is what an entry names:
 ///  a use swapped for another leaves the line this entry names holding nothing,
 ///  so the list is reported stale rather than excusing the file.
+///  The second use is a report and not an enablement:
+///  `doctor` says whether a wants link enables ZFS's event daemon,
+///  which is a fact about a link that already stands,
+///  so it reads the two places such a link is written and writes none
+///  (`machine_route_facts/the_route_places.rs`,
+///  plan step 18's "ZED and service wiring").
+///  The guard reads a line and cannot tell a read from a write,
+///  which is why the read needs its two entries rather than the rule being widened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ALLOWED_CODE = [['service/service_provision_earlier_service_retirement.rs', 'sockets.target.wants', '.join("sockets.target.wants")']];
+/// const ALLOWED_CODE = [['service/service_provision_earlier_service_retirement.rs', 'sockets.target.wants', '.join("sockets.target.wants")'], ['machine_route_facts/the_route_places.rs', '.wants', '"/etc/systemd/system/multi-user.target.wants/zfs-zed.service",'], …];
 /// ```
-const ALLOWED_CODE: &[(&str, &str, &str)] = &[(
-    "service/service_provision_earlier_service_retirement.rs",
-    "sockets.target.wants",
-    ".join(\"sockets.target.wants\")",
-)];
+const ALLOWED_CODE: &[(&str, &str, &str)] = &[
+    (
+        "service/service_provision_earlier_service_retirement.rs",
+        "sockets.target.wants",
+        ".join(\"sockets.target.wants\")",
+    ),
+    (
+        "machine_route_facts/the_route_places.rs",
+        ".wants",
+        "\"/etc/systemd/system/multi-user.target.wants/zfs-zed.service\",",
+    ),
+    (
+        "machine_route_facts/the_route_places.rs",
+        ".wants",
+        "\"/etc/systemd/system/zfs-zed.service.wants\",",
+    ),
+];
 
 /// What:
 ///  `the_entry_of_a_wants_line(relative, line, taken)` is the index of the entry that excuses that line,
@@ -505,11 +525,13 @@ fn the_excuse_names_the_line_it_covers() {
         None,
         "the same line in another file is excused by no entry"
     );
+    let mut one_taken: Vec<bool> = vec![false; ALLOWED_CODE.len()];
+    one_taken[0] = true;
     assert_eq!(
         the_entry_of_a_wants_line(
             "service/service_provision_earlier_service_retirement.rs",
             "        .join(\"sockets.target.wants\")",
-            &[true],
+            one_taken.as_slice(),
         ),
         None,
         "one entry excuses one line"
