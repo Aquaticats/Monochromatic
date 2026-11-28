@@ -407,13 +407,13 @@ fn a_slot_a_destruction_plan_names_is_the_removals_own() {
         mounts: &mounts,
         intents: &intents,
     };
-    let answer: Option<BoundSlotRemovalAnswer> = the_removal_with(
+    let left_to_git: Option<BoundSlotRemovalAnswer> = the_removal_with(
         fixture.slot_path.as_path(),
         fixture.common_dir.as_path(),
         RemovalReads::Scripted(&pool),
         &sources,
     );
-    let answer: BoundSlotRemovalAnswer = answer.expect(
+    let answer: BoundSlotRemovalAnswer = left_to_git.expect(
         "a slot a destruction plan names is the removal's own, and Git's own removal would drop the registration while the clone stands",
     );
     assert_eq!(
