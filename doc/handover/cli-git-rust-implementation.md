@@ -2935,9 +2935,6 @@ and the two `truepeak` files wait on their branch.
 - Two proposals wait for the owner:
   `doc/planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md`
   and `doc/planning/git-policy-cli-a-step-whose-watch-cannot-start.md`.
-- The container ledger reads Rust sources now (`ff1ae3e5c7`,
-  issue 6594):
-  four Rust files name the tool and none starts a container.
 - A round's `edit` tool wrote a planning file into the main checkout and not its worktree
   (issue 6586's round,
   twice seen untracked there,
