@@ -2713,6 +2713,12 @@ naming the step whose boot unit runs it.
 The migration,
 the property changes and the install are your own act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+The texts themselves are read by a real manager in a throwaway guest only:
+`e2e/zfs-step-19-guest.ts` writes the plan where systemd reads it,
+has the guest's `systemd-analyze verify` parse each unit file,
+reads each drop-in back from the guest's manager,
+and reboots the guest to read what the boot made of it,
+which is the one place a boot and a shutdown can be measured.
 
 #### The event filter and the merge device, built and reached by no command
 

@@ -30,19 +30,51 @@ use std::path::{
 
 /// The route's facts as the design states them on this machine.
 fn facts() -> CheckoutBootFacts {
+    return facts_of("/home/user/Monochromatic", ROOT_MODE_INSTALL_PATH);
+}
+
+/// Facts naming one checkout and one root-owned file,
+/// which every control of this folder builds from instead of spelling them.
+///
+/// Why:
+///  the four other controls of the folder each need a pair that differs from
+///  the route's,
+/// and a second spelling of the shape drifts from this one.
+pub(crate) fn facts_of(
+    checkout: &str,
+    root_file: &str,
+) -> CheckoutBootFacts {
     return CheckoutBootFacts {
-        checkout: PathBuf::from("/home/user/Monochromatic"),
-        root_file: PathBuf::from(ROOT_MODE_INSTALL_PATH),
+        checkout: PathBuf::from(checkout),
+        root_file: PathBuf::from(root_file),
         key_unit: None,
     };
 }
 
 /// One nested dataset as the design states it on this machine.
 fn nested() -> NestedDatasetMount {
+    return nested_of(
+        "zpcachyos/nosnap/vm-builder-output",
+        "/home/user/Monochromatic/package/vm-builder/cli/output",
+        "output",
+    );
+}
+
+/// One nested dataset with the three values a control states.
+///
+/// Why:
+///  a control about the shape of the plan needs the plan's own nested dataset
+///  and not this machine's,
+/// and the three values are what the unit is built from.
+pub(crate) fn nested_of(
+    dataset: &str,
+    mountpoint: &str,
+    slug: &str,
+) -> NestedDatasetMount {
     return NestedDatasetMount {
-        dataset: String::from("zpcachyos/nosnap/vm-builder-output"),
-        mountpoint: PathBuf::from("/home/user/Monochromatic/package/vm-builder/cli/output"),
-        slug: String::from("output"),
+        dataset: String::from(dataset),
+        mountpoint: PathBuf::from(mountpoint),
+        slug: String::from(slug),
     };
 }
 
