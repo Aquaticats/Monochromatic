@@ -2827,16 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- Low:
-  three sentences of the slot refusals
-  (one fires for an empty record folder,
-  one advises a settling command no grammar admits,
-  one calls `--` an option);
-  the merge pass does not reach a last line without a final newline;
-  a named pipe among the merge records stops every command with no way out named;
-  a drain sizes its batches from one reading of the host per round;
-  the kept-copy line prints a holder's name unfiltered;
-  the README holds a pasted handover excerpt.
 - Right as claimed,
   exercised with both binaries:
   the slot refusals for the spellings they name,
