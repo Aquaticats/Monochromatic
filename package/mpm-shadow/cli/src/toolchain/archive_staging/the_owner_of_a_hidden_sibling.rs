@@ -353,6 +353,34 @@ fn existence_of(pid: u32) -> Existence {
 }
 
 /// What:
+/// Whether any process holds the number `pid` now,
+/// as a name that records no more than a process number is judged by.
+/// Why:
+/// A name written before this build carried no start time and no place,
+/// so nothing can say which process wrote it;
+/// a number no process holds cannot be an installer that still runs,
+/// while a number some process holds may be that installer or one that took the number over,
+/// and a reader that cannot tell hands back "some process holds it".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theNumberIsHeld(pid: number): boolean
+/// ```
+pub(crate) fn the_number_is_held(pid: u32) -> bool {
+    // What: the kernel's answer for the number, folded to the one yes/no a caller acts on.
+    // Why: "the system did not say" is the answer that keeps what may belong to a live process.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return existenceOf(pid) !== 'free';
+    // ```
+    return match existence_of(pid) {
+        Existence::There | Existence::Unknown => true,
+        Existence::Free => false,
+    };
+}
+
+/// What:
 /// The bytes of one process's `/proc/<pid>/stat` record,
 /// or the answer the read gave.
 /// Why:

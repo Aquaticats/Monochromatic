@@ -40,6 +40,11 @@ the rate rule waits for step 22's measurement"
 ([plan][plan],
 "Open items and the step that needs each",
 lines 2850 to 2854).
+The plan names steps 10,
+14,
+18,
+19 and 22 as of 2026-11-27T21:42:57-05:00,
+by this design's "What builds it".
 This design ships no rate:
 it designs
 the rule's shape and names the measurement that sizes it.
