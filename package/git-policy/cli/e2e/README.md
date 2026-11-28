@@ -1476,6 +1476,34 @@ clone a person destroyed outside the wrapper,
 and the cancel word's reversal of a removal a kill left,
 which the shipped handler answers on its own sweep while the wrapper waits for
 the receipt.
+
+Every arm's fixture is the add's own state rather than a hand-written one:
+the binding record of a filled slot,
+the origin-side inventory read from the guest's pool
+(`binary_zfs_origin_inventory_guest_fixture.rs`),
+the clone's copied administration exchanged for the registration pointer
+(`git-administered-copy` beside it),
+and the clone's own `unmount` request,
+which the killed removal's arm writes where the real unmount writes it before
+it waits for the receipt.
+A command that reads the slot's pointer meets a directory until that exchange
+runs,
+and a removal's entry has nothing to prove its lineage against until the
+inventory is published.
+The driver runs the three arms in one guest,
+so an arm takes down the clone an earlier arm left mounted before it rebuilds
+the layout,
+because a mount holds the dataset the rebuild destroys.
+
+The cancel word's two refusals are told apart by what the slot holds:
+a slot whose records hold no plan,
+no staged record and no `unmount` request is refused with exit `2` as not being
+removed,
+and a slot name no folder answers is a damaged `.git` pointer at exit `1`
+(`src/native/worktree_clone_removal_cancel/the_proof_reads.rs`,
+`read_the_records`),
+so an arm about a slot no removal has touched names a slot the fixture built.
+
 A run passes only when the pulled `grammar-commands-arm.log` carries every
 `GRAMMAR` line and no `SKIPPED` line.
 
