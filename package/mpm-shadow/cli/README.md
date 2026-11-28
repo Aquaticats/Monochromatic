@@ -1388,17 +1388,15 @@ so a copy a kill leaves under it is never published and never removed.
   `.recovered` holds it,
   and the next install of that version publishes it,
   downloading nothing.
+- After the rename and before the `.replaced` name is removed:
+  the version is finished,
+  and `.replaced` holds the unfinished copy it replaced,
+  which the next install of that tool removes.
 
 A hidden copy that holds a finished install is published by the next install of that version,
 downloading nothing,
 unless that version's name holds a finished copy by then,
 which makes the hidden one a second one that install removes.
-That is the one case a failed publish's copy is left in after this run put the version at its name,
-and the warning says so when it happens.
-- After the rename and before the `.replaced` name is removed:
-  the version is finished,
-  and `.replaced` holds the unfinished copy it replaced,
-  which the next install of that tool removes.
 
 The finished copy is what a later install publishes rather than the copy that was there,
 because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
@@ -1586,12 +1584,15 @@ toolchain install: removed 2 hidden directories left behind by installs of mpm-s
 
 A removed finished copy is either a second one,
 when the run reads the version's own name as finished,
-or the one copy the version had here,
-and only the second is the copy the version loses.
-The sentence says what that read at the version's name was:
+or the one copy the version had here.
+The sentence says what that read at the version's name was,
+and never what a start of either copy does:
+the test is a completion marker and a program found,
+so a program cut short under its marker reads as finished too,
+and the copy the version's name holds may be the one that cannot run.
 
 ```text
-toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13; 0.2.7-alpha.13 holds its completion marker and its program at its name, so that copy was a second one
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
 ```
 
 ```text
@@ -1636,16 +1637,19 @@ so `prune` leaves that decision to the install.
 A hidden name it cannot judge is printed on standard error and left,
 and the line says what that run read there and what deleting that directory would cost.
 When a known lock names the program that finishes the tool's install,
-a copy the run reads as finished is the version's only one here unless the version stands finished at its own name:
+a copy the run reads as finished is the version's only one here unless the version's own name reads as finished by the
+same test:
 
 ```text
 mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a finished copy of mpm-shadow 0.2.7-alpha.13, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged
 ```
 
 ```text
-mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 is finished at its name, and deleting it by hand loses only that second copy
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name, and deleting it by hand loses that second copy
 ```
 
+That line names the two reads and no conclusion drawn from them:
+whether the copy the version's name holds behaves when it is started is something this run did not read.
 A directory the run reads as holding no finished copy loses nothing:
 
 ```text

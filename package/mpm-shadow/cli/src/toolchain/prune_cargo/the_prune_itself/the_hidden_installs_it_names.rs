@@ -6,6 +6,9 @@
 //! so a removal here can cost the only finished copy of a version;
 //! the line it prints for a name it cannot judge therefore says what it read there
 //! and what deleting that directory would cost.
+//! What it read is a completion marker and a program found, which say nothing about what a program does when it
+//! starts,
+//! so no line concludes that a start of the version works.
 //! It sits in a file of its own because the prune next to it is longer than a person reads at once.
 //!
 //! In TS you'd write (pseudocode):
@@ -59,8 +62,8 @@ use super::tool_directories;
 /// Why:
 /// The line says which of these it read,
 /// because a marker alone is not a working tool,
-/// a version that is finished at its name needs no hidden copy,
-/// and only the last of them is a copy whose deletion costs the version its bytes.
+/// a version whose own name reads as finished by the same test already holds a copy there,
+/// and only the last of them is a copy the version has nowhere else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,7 +165,8 @@ fn what_it_read(
 /// Deleting such a directory by hand is the only way a person clears it,
 /// and the line has to say what the deletion costs without claiming a read the run did not make:
 /// a marker is not a finished copy,
-/// and a copy beside a version that stands finished at its name costs the version nothing.
+/// a copy beside a name that holds one too is a second copy of that version,
+/// and whether either copy works when it is started is something no line here read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,7 +176,7 @@ fn what_it_read(
 ///     case 'no-finished-copy': return `${start}; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it`;
 ///     case 'no-completion-marker': return `${start}; it holds no completion marker, so deleting it by hand loses no finished copy, once no install uses it`;
 ///     case 'a-completion-marker-only': return `${start}; it holds a completion marker, but no known lock names the program that would finish a copy of ${id} ${version}, so deleting it by hand loses whatever that name holds, which nothing publishes while its installer cannot be judged`;
-///     case 'a-second-finished-copy': return `${start}; it holds a second finished copy of ${id} ${version}, because ${version} is finished at its name, and deleting it by hand loses only that second copy`;
+///     case 'a-second-finished-copy': return `${start}; it holds a second finished copy of ${id} ${version}, because ${version} holds its completion marker and its program at its name, and deleting it by hand loses that second copy`;
 ///     case 'the-versions-only-finished-copy': return `${start}; it holds a finished copy of ${id} ${version}, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged`;
 ///   }
 /// }
@@ -212,7 +216,7 @@ fn the_line_for_a_name_it_cannot_judge(
             "{start}; it holds a completion marker, but no known lock names the program that would finish a copy of {id} {version}, so deleting it by hand loses whatever that name holds, which nothing publishes while its installer cannot be judged"
         ),
         WhatItRead::ASecondFinishedCopy => format!(
-            "{start}; it holds a second finished copy of {id} {version}, because {version} is finished at its name, and deleting it by hand loses only that second copy"
+            "{start}; it holds a second finished copy of {id} {version}, because {version} holds its completion marker and its program at its name, and deleting it by hand loses that second copy"
         ),
         WhatItRead::TheVersionsOnlyFinishedCopy => format!(
             "{start}; it holds a finished copy of {id} {version}, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged"
