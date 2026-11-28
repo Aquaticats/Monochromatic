@@ -16,7 +16,7 @@ The owner declares completion;
 nothing here is approved or adopted,
 and nothing here is built.
 
-Three same-vendor gate reads have been taken of this file,
+Four same-vendor gate reads have been taken of this file,
 each a second pass by another Claude instance and none an independent review:
 the read of 2026-11-27 (4 High,
 6 Medium,
@@ -25,25 +25,40 @@ the read of 2026-11-28,
 second (4 High,
 8 Medium,
 6 Low),
-and the read of 2026-11-28,
+the read of 2026-11-28,
 third (3 High,
 8 Medium,
+6 Low),
+and the read of 2026-11-28,
+fourth (1 High,
+6 Medium,
 6 Low).
-All three are kept whole with their probes in
-`package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/`.
-Every finding of all three is answered,
+All four are kept whole with their probes in
+`package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/`
+(`gate-read/`,
+`gate-read-second-2026-11-28/`,
+`gate-read-third-2026-11-28/` and
+`gate-read-fourth-2026-11-28/`).
+Every finding of all four is answered,
 one by one with the line or the run each answer rests on,
 in
 `package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/gate-read-third-2026-11-28/findings-answered.md`,
 together with the reports of the revisions that answered them.
-That file also says which findings this revision found wrong.
+That file also says which findings a revision found wrong;
+this one found none of the fourth read's wrong,
+and changed what each of them names.
 None of those answers is needed to answer the questions in "The questions for the owner".
+This fourth revision changed text and records only:
+it ran no container,
+no build and no test,
+and every measurement named here is the third round's.
 
 ## What you are asked, and what this proposal recommends
 
-Seven questions follow in this section,
+Eight questions follow in this section,
 one per line of decision,
 each with the answer this proposal recommends,
+the answers it was chosen over,
 what that recommendation rests on,
 and what a yes leaves undecided.
 The mechanism and cost of every answer,
@@ -54,14 +69,30 @@ are in the decision sections named beside each question.
    Recommended:
    **K1**,
    a `rust-toolchain.toml` in `package/linter/monochromatic-lint-closure`
-   generated from the lock's `rust` entry.
+   generated from the lock's `rust` entry,
+   over K2,
+   a date written by hand in the same file,
+   and I,
+   the components on the rustup channel named `nightly`.
    Basis:
-   measured.
+   measured on one image and one day.
    With K1's file and the toolchain variable exported,
-   the rule returned six findings in 87 s of first-run build (M15a arm C);
-   with the components on the rustup channel named `nightly` and today's compiler,
-   the same linter returned a processing failure and status 2 for every package,
-   and no findings (M12 arm A).
+   the rule returned six findings on the copied package (M15a arm C);
+   with the components on a fresh install of the channel named `nightly`,
+   the same linter returned one processing failure and status 2 (M12 arm A).
+   **K1 returns findings only while the lock lags the channel.**
+   Once the lock names a compiler Dylint 6.4.0 cannot build on,
+   K1 returns the same `E0603` and status 2 as I,
+   measured with a file naming `nightly-2026-11-28`,
+   whose compiler is the channel's `c82ce1563` (M16).
+   What the channel names on this machine is measured and what adding the components does to it is not:
+   this host's floating channel is `5df8c02af 2026-11-16` with no `rustc-dev`
+   (`machine/machine-state.txt`),
+   and a fresh `nightly` install resolved `c82ce1563 2026-11-27` on the day of the runs (M12).
+   The arm that would settle what
+   `rustup component add ... --toolchain nightly` does to this host's older channel
+   is named in "What is true today about the compiler and Dylint",
+   and it was not run.
    A yes leaves undecided who writes the file,
    which lock field it is written from,
    and when it is rewritten (Decision 1).
@@ -70,11 +101,21 @@ are in the decision sections named beside each question.
    Recommended:
    **T**,
    the lint task's own environment,
-   with the rustup proxies first in `PATH` and `RUSTUP_TOOLCHAIN` naming the toolchain of question 1.
+   with the rustup proxies first in `PATH` and `RUSTUP_TOOLCHAIN` naming the toolchain of question 1,
+   over N,
+   no change with a person setting it by hand,
+   CL,
+   the linter putting the proxy first for its child,
+   and SH,
+   the shadow exporting the lock's toolchain for every cargo it starts.
    Basis:
-   measured state,
-   and it is the state every measurement here ran in;
-   that a `mise` task can create that state is read and not run.
+   measured state in the arms that exported the variable (M15a arm C,
+   M16);
+   the arms that left it unset are M12,
+   M14 arm A and M15a arms A,
+   B and D,
+   so it is not the state every measurement ran in.
+   That a `mise` task can create the state is read and not run.
    A yes leaves undecided whether `cargo-shadow` gets a rule for the lint's build,
    and whether a person calling the binary by its full path gets the rule at all (Decision 2).
 
@@ -82,18 +123,30 @@ are in the decision sections named beside each question.
    Recommended:
    **B**,
    a step in the root lint task that runs the linter's own warm command
-   before the offline run.
+   before the offline run,
+   over Z,
+   the documented manual warm,
+   and A,
+   a plan row that builds the driver at install time.
    Basis:
-   measured.
-   The warm command built the driver and the rule then returned the six findings (M15a arms B and C);
-   the same command cannot deliver today under question 1's other answers (M12 arm B).
+   the command is measured and the step is not.
+   Run by hand in a container,
+   the warm command built the driver and the rule then returned the six findings (M15a arms B and C);
+   under Answer I the same command fails with the `E0603` before a driver exists (M12 arm B);
+   K2's date is warmed by the same command as K1's,
+   on the date K2 names.
+   That a `mise` task can run that command as a step is read and not run,
+   as for T.
    A yes leaves undecided what a lint run does without the network,
    and which package's task warms the driver (Decision 3).
 
 4. **Whether a pull request gets the rule at all.**
    Recommended:
    **C**,
-   a prepared image the job runs.
+   a prepared image the job runs,
+   over H,
+   the job provisioning the tools itself,
+   and neither.
    Basis:
    not measured.
    The job's state is read from `.github/workflows/advisory-core.yml`:
@@ -104,37 +157,54 @@ are in the decision sections named beside each question.
    and where the image lives (Decision 4).
 
 5. **What a run says when the rule did not check a package.**
-   Recommended:
-   a record and an exit status only for the causes the owner names,
-   a field a script can read,
-   and a closing line on standard error:
-   four parts,
-   each answerable alone;
-   the recommended choice in each part is marked there,
-   with the fifth part this round measured (Decision 5).
+   Four parts are choices,
+   each answerable alone and combinable,
+   and a fifth is a defect this work fixes rather than a choice:
+   the severity,
+   a severity per cause (J) over keeping one `warn`;
+   a marker field,
+   `"checked": false` (D2) over none;
+   the exit status,
+   one keyed by cause (D1) over one keyed on any skip or over none;
+   a closing count,
+   one line on standard error (D3) over none;
+   and a run that checked nothing and printed nothing,
+   which is fixed without asking (issue 6667),
+   with the owner asked only whether a toolchain the library names and the machine lacks
+   reports as a warning-level skip or as a processing failure,
+   the processing failure being this proposal's recommendation.
    Basis:
-   measured.
-   The statuses a skip returns are M10's;
-   a run that checked nothing and printed nothing,
-   exiting 0,
-   is M14 arm A.
+   measured for today's statuses (M10) and for the silent pass (M14 arm A);
+   the four recommended changes,
+   and the fix,
+   are not measured.
    A yes to each part leaves undecided the option's name,
    the field's name,
-   the status number and the line's wording.
+   the status number,
+   the line's wording,
+   and the report's shape.
 
 6. **Whether the two Dylint tools stay at `@latest`.**
    Recommended:
-   keep `@latest`.
+   keep `@latest`,
+   over L,
+   an exact request for both tools.
    Basis:
-   line read of the plan's rows and of the record's "update EVERYTHING daily";
+   line read of the plan's rows and of the record's "update EVERYTHING (not just rust) daily";
    the cost of the alternative is stated,
    and nothing here is measured.
+   Nothing moves either row by itself today:
+   the daily update timer is disabled,
+   so a person runs `toolchain:update`,
+   which is one command for both rows;
+   a pin needs an edit of the rows and the lock.
    A yes leaves undecided nothing further;
    a yes to a pin leaves undecided which version to hold (Decision 6).
 
 7. **Where the counts of the rule's one measured repository-wide run live.**
    Recommended:
-   beside the 2026-11-07 count in `doc/planning/repository-linter-stays-at-zero.md`.
+   beside the 2026-11-07 count in `doc/planning/repository-linter-stays-at-zero.md`,
+   over a record of their own.
    Basis:
    measured counts from the kept files of that run (M3,
    recounted);
@@ -142,13 +212,57 @@ are in the decision sections named beside each question.
    not a measurement.
    A yes leaves undecided whether that run is repeated on this machine (Decision 7).
 
+8. **Which name `latest` should mean for the library's compiler.**
+   Recommended:
+   **the lock's dated name**,
+   over the name of the rustup channel `nightly`.
+   Basis:
+   line read of the plan row,
+   the lock and the owner's recorded words;
+   nothing here is measured.
+   The lock's name moves when `toolchain:update` runs,
+   and today that is only when a person runs it:
+   the timer is disabled.
+   Nothing in the repository moves the channel either,
+   and no commit records a move of it.
+   A yes to the lock's name leaves undecided who runs the update,
+   and whether the timer is re-enabled.
+   A yes to the channel leaves undecided who moves the channel,
+   and when (Decision 8).
+
 The one thing the questions cannot be answered without,
-and which this revision states first because the last one stated it wrongly:
+and which this revision states first because an earlier one stated it wrongly:
 `toolchain:install` installs a **dated** toolchain and adds the row's components to **that** toolchain.
 It does not put components on the rustup channel named `nightly`,
 and nothing in the repository moves that channel.
 The lines are in "The plan row installs a dated toolchain,
 and puts the components on it".
+
+### Which questions come first
+
+- **Questions 1 and 2 first,
+  together,
+  with question 8.**
+  Decision 1's ranking assumes Decision 2's answer T,
+  and T's value is question 1's name,
+  so neither can be answered as if the other stood still.
+  Question 8 asks which name the owner wants `latest` to mean,
+  which is the preference behind question 1's answers;
+  it starts no work and can be answered at any time.
+- **Question 3 follows them.**
+  The drivers it ranks are built with the compiler question 1 chooses,
+  and under Answer I the warm command fails before a driver exists (M12 arm B).
+- **Questions 4,
+  5 and 7 can wait.**
+  Question 4's answers are unmeasured and the job cannot start the linter today,
+  so a CI answer waits on work no answer here includes.
+  Question 5 changes what an absent rule says,
+  not whether it runs,
+  and its fifth part is a defect the work fixes without a question.
+  Question 7 changes where a count lives.
+- **Question 6's recommendation is the state today.**
+  Keeping `@latest` is the plan's current row;
+  nothing starts unless the owner chooses a pin.
 
 ### What each kind of claim rests on
 
@@ -176,13 +290,18 @@ and puts the components on it".
   `probes/gh-dylint-releases-and-pull-request-2203.txt`).
   Such a release would let Answer I deliver without a new file,
   and would make question 1 a choice between two working answers.
-- The daily toolchain update being what moves the lock.
-  The timer stands `disabled; inactive (dead)` on this machine,
+- **The lock moving to a compiler Dylint 6.4.0 cannot build on.**
+  That happens at the next lock move past the break,
+  and nothing moves the lock on a schedule:
+  the timer stands `disabled; inactive (dead)` on this machine,
   read by the second gate read and kept in
   `gate-read-second-2026-11-28/probe-daily-update-timer-and-lock-state.txt`.
-  If the lock does not move,
-  K1's compiler does not move either,
-  and the choice in question 1 loses most of its meaning.
+  Measured for that state,
+  a file naming `nightly-2026-11-28` returns the same `E0603` and status 2 as I (M16).
+  So K1's lead lasts until the lock moves past the break,
+  and not longer:
+  the next `toolchain:update` a person runs resolves today's channel,
+  and K1 then returns status 2 with I until a `cargo-dylint` release carries upstream's fix.
 - Whether the lint task inherits the lock's exported `RUSTUP_TOOLCHAIN`,
   a dated name.
   It was not measured.
@@ -401,9 +520,24 @@ and they do not behave the same.
   the linter printed **no record at all and exited 0**,
   and its `--debug` notes said the driver check did not run and that the package produced
   "0 report(s) from the compiler" (M14 arm A).
+  The arm's state:
+  the image's floating channel carries `rustc-dev`,
+  `llvm-tools` and `rust-src` (the `Containerfile`),
+  and `RUSTUP_TOOLCHAIN` was unset.
+  That is Answer I's compiler state,
+  not K1's or K2's recommended one:
+  with the floating channel lacking `rustc-dev` and the variable unset,
+  the linter skips visibly at its machine-wide check (M15a arms A and D).
+  That the run checked nothing is inferred rather than logged:
+  the arm kept no output or status from `cargo dylint`,
+  and a `cargo dylint` that failed would have added a processing failure (`check_package`),
+  so it exited 0 and printed nothing;
+  the positive control is M15a arm C,
+  where the same package returns six findings with the right driver and compiler.
   That is a run that checked nothing and said nothing:
-  none of the four skip parts in Decision 5 catches it,
-  which is why Decision 5 has a fifth part.
+  none of the four skip choices in Decision 5 catches it,
+  issue 6667 holds it,
+  and Decision 5's fifth part is its fix.
 - A `cargo dylint` run that fails after the probe passed,
   because the library build or the check failed
   for a reason no probe reads:
@@ -538,8 +672,9 @@ with `rustc-dev`,
 `clippy` and `rustfmt`,
 and the two Android targets.
 It does not add anything to the rustup channel named `nightly`.
-That is the opposite of what the last revision of this file said,
-and it is why Answer I is stated with a new installer step and an owner for it.
+That is the opposite of what an earlier revision of this file said,
+and it is why Answer I is stated with a plan row that names the channel
+and an owner for moving it.
 
 ### Nothing in the repository moves the floating channel
 
@@ -691,7 +826,9 @@ What each answered:
   the compiler keeps moving,
   breaks are fixed forward,
   and the plan file tracks latest
-  through the daily update.
+  through the daily update
+  (the timer that would run it is disabled today;
+  see "What is true today about the compiler and Dylint").
 - "Wait for Dylint" answered the question that record puts as three options for the closure package's own red:
   patch the package source now,
   wait for a Dylint release,
@@ -729,7 +866,8 @@ what refreshing the lock did:
 
 "The shared floating nightly" there is the lock's `rust` entry,
 which holds a dated toolchain name
-and moves when the daily update resolves a newer one.
+and moves when `toolchain:update` re-resolves it
+(the daily timer that would run that task is disabled today).
 That is the arrangement the plan implements today (the section on the plan row).
 It is not the rustup channel named `nightly`,
 and the record never names that channel.
@@ -790,8 +928,10 @@ What each answer to question 1 returns on that compiler:
 - Answer I,
   the components on the channel:
   the library builds with `c82ce1563` and fails,
-  with `error[E0603]: enum ErrorOutputType is private` at `dylint_linting-6.4.0/src/lib.rs:794`.
-  The linter then returns one `core/processing-failure` per package and status 2 (M12 arms A and B).
+  with `error[E0603]: enum ErrorOutputType is private` at `dylint_linting-6.4.0/src/lib.rs:794`
+  (M12 arm B);
+  the linter then returns one `core/processing-failure` per package and status 2,
+  and the arm held one package (M12 arm A).
 - Answer K1,
   a file naming the lock's toolchain:
   it builds with the dated compiler,
@@ -808,10 +948,38 @@ What each answer to question 1 returns on that compiler:
   same mechanism as K1 on that date,
   and nothing installs that date (the section on the plan row and the cleaner).
 
-So today only K1 and K2 return findings,
-and only with the toolchain variable exported (Decision 2),
-and both return them only until the lock (or the hand date) reaches a compiler newer than the 6.4.0 release.
-The fix for that is a `cargo-dylint` release carrying pull request 2203,
+That compiler is the fresh install's,
+not this host's.
+This host's floating channel carries `5df8c02af 2026-11-16` and no `rustc-dev`
+(`machine/machine-state.txt`),
+and Dylint 6.4.0 compiles on `5df8c02af` (M8).
+What `rustup toolchain install --no-self-update nightly` followed by
+`rustup component add rustc-dev llvm-tools-preview rust-src --toolchain nightly`
+does to that installed channel is not measured,
+and the two outcomes differ for the owner:
+if the channel stays at `5df8c02af`,
+Answer I returns the six findings on this host today;
+if it moves to the channel's current `c82ce1563`,
+Answer I returns status 2 here as M12 does.
+M8 does not settle it,
+because it copies a dated install that already holds the components over the floating name
+(`scripts/m8-in-container.sh`).
+One container arm would close it:
+a floating channel frozen at `5df8c02af`,
+the components added by those two installer commands,
+then the linter.
+It was not run,
+because this revision makes no new measurement.
+
+So,
+in the measured state (driver built,
+the variable exported),
+only K1 and K2 return findings,
+and both return them only while the compiler they name is one Dylint 6.4.0 builds on:
+K1 follows the lock,
+so its findings last until the lock moves past the break (M16),
+and K2 keeps them only on a date someone installs and nobody moves.
+The fix is a `cargo-dylint` release carrying pull request 2203,
 or a locally built `cargo-dylint`:
 the library could take `dylint_linting` from a Git revision,
 but the driver is built by `cargo-dylint` from `dylint_driver = "=<its own version>"` on crates.io,
@@ -829,7 +997,7 @@ each inside its own
 `TasksMax`,
 `IOWeight=1` and `RuntimeMaxSec`,
 from the image `localhost/dylint-probe-2026-11-28c`
-(`third-round-2026-11-28/scripts/Containerfile`:
+(`third-round-2026-11-28/Containerfile`:
 today's floating `nightly` with the components Answer I installs,
 the lock's `nightly-2026-11-16` with its components,
 `nightly-2026-11-17` minimal,
@@ -837,8 +1005,13 @@ and `cargo-dylint` and `dylint-link` 6.4.0).
 Each container was removed at the end of its run;
 the host script prints the image digest and the container names it used.
 The linter binary was the released `monochromatic-lint` 0.5.2-alpha.25,
-whose sha256 is `34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a`
-(printed in every run log),
+whose sha256 is `34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a`,
+printed in the run logs of M12,
+M13,
+M14,
+M15a and M17
+(M15b runs no linter,
+and M16 and M10 print no digest),
 copied from the machine-global install;
 the closure sources did not change between it and `HEAD`
 (`git diff --stat 8638a53928..HEAD -- package/linter/monochromatic-lint/src` is empty).
@@ -879,8 +1052,13 @@ instead of skipping for a cache it cannot fill offline.
   whose message begins
   "rust/avoidable-closure could not check this package:
   `cargo dylint` exited with exit status:
-  1" and ends with the compiler's own `E0603` text against `dylint_linting`
-  (`m12/log/a-linter.jsonl`).
+  1" and ends with the tail of the compiler's `E0603` message against `dylint_linting`,
+  as the linter keeps the end of cargo's messages:
+  the middle of the diagnostic,
+  its `help` block and the `rustc --explain E0603` line,
+  without the `error[E0603]` header line
+  (`m12/log/a-linter.jsonl`;
+  the header line and the `dylint_linting-6.4.0/src/lib.rs:794` path are in arm B's `b-warm.err`).
 - Arm B,
   the warm command itself,
   to keep the first compiler error:
@@ -893,9 +1071,15 @@ instead of skipping for a cache it cannot fill offline.
   `b-driver-tree.txt`).
 
 What M12 settles:
-on the compiler the channel carries today,
-Answer I returns no findings and status 2 for every Rust package,
-and the run's message carries the compiler's first error.
+on the compiler the channel carried that day,
+Answer I returns no findings and status 2 for each package it is given,
+and the run's message carries the end of the compiler's first error.
+The variable does not reach that library build:
+Dylint removes `RUSTUP_TOOLCHAIN` for its children (source,
+"What `cargo dylint` itself does"),
+and in this state the linter's own probe passes on the channel's components
+whether the variable is unset or names the channel;
+no arm of M12 sets it.
 A `--max-warnings` gate is irrelevant there:
 the status is already 2.
 
@@ -924,11 +1108,13 @@ and no driver exists.
   `nightly-2026-11-16-x86_64-unknown-linux-gnu`,
   3 `git` executions,
   241 executions of the dated `rustc` and none of the floating one,
-  the driver's `-V` printing `nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0`,
-  and one RUNPATH entry into the dated toolchain
+  the driver's `-V` printing `nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0`
   (`m15a/log/b-warm.err`,
   `b-rustc-counts.txt`,
-  `b-driver-version.txt`).
+  `b-driver-version.txt`),
+  and one RUNPATH entry into the dated toolchain,
+  which this arm's log does not hold and M13's does
+  (`m13/log/b-driver-readelf.txt`).
 - Arm C,
   the linter with `RUSTUP_TOOLCHAIN=nightly-2026-11-16` and the driver present:
   six findings at offsets 7146,
@@ -1022,9 +1208,12 @@ the supported step is the answer that does not depend on it.
   and M11's log is still cited for the rustup version and the warning text.
 - M10's `run.txt` prints no linter digest,
   and M11 keeps no `log/` folder;
-  the digest is now in every run log of this round,
-  and M10's binary is the same
-  0.5.2-alpha.25 whose sha256 begins `34ca8f26d6`.
+  the digest is printed in this round's M12,
+  M13,
+  M14,
+  M15a and M17 logs,
+  and M10 ran the same released 0.5.2-alpha.25 whose sha256 begins `34ca8f26d6`,
+  which its own log does not show.
 - M3,
   the thirty selectable lock directories of 2026-11-27,
   recounted this round from the kept files:
@@ -1103,7 +1292,7 @@ the supported step is the answer that does not depend on it.
    on different compilers,
    in different containers,
    with no spread measured.
-6. A published driver carries an absolute RUNPATH into the builder's toolchain (M15a arm B,
+6. A published driver carries an absolute RUNPATH into the builder's toolchain (M13,
    M4,
    M5),
    so it loads only where that path exists.
@@ -1115,6 +1304,10 @@ the supported step is the answer that does not depend on it.
    the packages run,
    produce no record,
    and exit 0 (M14 arm A).
+   That is measured in the arm's state,
+   a floating channel with `rustc-dev` and the variable unset;
+   in K1's and K2's recommended state it is reachable by inference only
+   (Decision 5's fifth part).
 9. CI cannot start the linter at all today,
    so every CI answer waits on a workflow change
    that no provider answer includes.
@@ -1162,11 +1355,17 @@ and the linter's probe reads that compiler when the variable is exported.
 The library's compiler is the lock's nightly,
 which is the toolchain the owner's 2026-10-18 answer
 put `rustc-dev` on.
+It also puts back what that record removed:
+the record says
+"The package therefore has no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override",
+and the package README says the same,
+so a yes to K1 reverses that arrangement for this package
+and the README's sentence changes with it.
 
 **What it gives up.**
 The library's compiler moves only when the lock moves;
-if the daily update is off,
-nothing moves it.
+with the timer disabled,
+nothing moves it until a person runs `toolchain:update`.
 The file names the toolchain in a second place:
 its content is the lock's,
 but its presence is a policy the lock does not state.
@@ -1187,8 +1386,8 @@ the run prints six `rust/avoidable-closure` records at offsets 7146,
 2292 and exits `0`;
 the driver appears at
 `~/.dylint_drivers/nightly-2026-11-16-x86_64-unknown-linux-gnu/dylint-driver`
-after 87 s of first-run build (measured,
-M15a arms B and C).
+after a first-run build of 87 s (M15a arm B),
+and with the driver present the same run prints the six findings (arm C).
 Without the variable the same run prints one skip per package and exits `0` (M15a arms A and D).
 
 **Cost.**
@@ -1215,6 +1414,12 @@ and nothing regenerating it.
 **What it changes for good.**
 The library's compiler is frozen until someone edits the file,
 and the lock can move without moving the library.
+It is the same package-level file K1 puts back,
+where the 2026-10-18 record says the package has
+"no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override",
+and it is the kind of pin that record lists as
+"a pin of the nightly" under "Still not approved",
+neither approved nor refused.
 
 **What it gives up.**
 The pin diverges from the lock the plan installs and from what the lean cleaner keeps:
@@ -1239,11 +1444,14 @@ the same six findings as K1 while that date is installed (same mechanism,
 one measurement,
 M15a).
 With a date nothing has installed and auto-install off,
-the linter prints no record and exits `0`
-(M14 arm A):
-a silent pass,
-not a finding.
-K2 was not measured on its own date.
+rustup cannot answer for the file;
+in the state M14 arm A ran in (the components on the floating channel,
+the variable unset) the linter prints no record and exits `0`.
+In K2's recommended state the variable names the same absent toolchain,
+and the linter fails at its version probe with one record at the configuration file
+and status 2 (M17).
+K2 was not measured on its own date,
+so both statements are the mechanism read from the sources and the other arms.
 
 **Cost.**
 The same file and the same first-use download,
@@ -1257,13 +1465,25 @@ and who moves it.
 ### Answer I: the components on the rustup channel named `nightly`
 
 **How it works.**
-A new installer step puts `rustc-dev`,
-`llvm-tools-preview` and `rust-src` on the floating channel.
-Today's plan row does **not** do that:
-it installs `nightly-2026-11-16` and adds the components
+The plan row's `packageId` names the channel,
+so the installer's own component step puts `rustc-dev`,
+`llvm-tools-preview` and `rust-src` there.
+The installer functions already act on whatever channel that field names:
+`install_rust_toolchain` runs `rustup toolchain install --no-self-update <that channel>`,
+`install_rust_components` runs `rustup component add <name> --toolchain <that channel>`,
+and a test in the same package asserts exactly that for a `packageId` of `nightly`
+(`rust_components_and_targets_use_the_package_id_channel_that_was_installed`).
+Today's row does **not** do that:
+its `packageId` is `{version}`,
+so it installs `nightly-2026-11-16` and adds the components
 to that toolchain (the section on the plan row).
-So this answer is new work in the installer,
-a new owner for the channel's components,
+What Answer I needs,
+then,
+is a plan row that names the channel,
+a decision on what the lock and `env.RUSTUP_TOOLCHAIN` record for it
+(the plan's `env` is `{version}`,
+a dated name that would then be installed by nothing,
+which is M17's shape),
 and an owner for moving the channel,
 which nothing in the repository does.
 With the components present,
@@ -1283,20 +1503,21 @@ so the components and the compiler can move apart.
 and what it returns on a compiler Dylint cannot use.**
 The library is built by whatever the channel holds.
 A nightly that moves rustc's internal API breaks the library,
-and today's channel is such a nightly:
-with the components present and today's compiler,
+and the channel the runs were made on is such a nightly:
+with the components present and that compiler,
 the run returned one `core/processing-failure`
 per package and status 2,
-and no findings (measured,
+and the arm held one package (measured,
 M12 arm A).
-That message names the package's `Cargo.toml` and quotes the compiler's first error;
+That message names the package's `Cargo.toml` and carries the end of the compiler's first error;
 the run is red and nothing is checked.
 Every linted package must also compile on that compiler,
 because Dylint builds the target
 with the toolchain that built the library (the owner record,
 "Known limits"),
 so a package can pass its own build and fail the rule's run.
-Nobody is told by the daily update:
+Nobody is told by the daily update,
+when it runs:
 that update checks each package's own `lint:clippy`,
 reports a newly red package once,
 and never reports "failed then failed" again
@@ -1318,7 +1539,8 @@ the last sentence is inference).
 Input:
 the copied package,
 the library with no toolchain file,
-the floating channel holding today's compiler with `rustc-dev`,
+the floating channel holding the compiler that day's fresh install resolved,
+with `rustc-dev`,
 `llvm-tools` and `rust-src`,
 no exported variable,
 no driver.
@@ -1339,14 +1561,16 @@ on `5df8c02af`),
 which is the result the previous revision ranked first.
 
 **Cost.**
-The new installer step and its owner,
+A plan row that names the channel and its owner,
+the decision on what the lock records for it,
 an owner for the channel's daily move,
 about 500 MB of components,
 and a red root lint run for every Rust package
 until a `cargo-dylint` release exists.
 
 **What a yes leaves undecided.**
-Who adds the components and who moves the channel;
+What the lock and `env.RUSTUP_TOOLCHAIN` record for the channel;
+who moves the channel;
 what to do on a nightly that breaks the library;
 and whether the plan's row or a separate task installs the components.
 
@@ -1357,53 +1581,107 @@ findings the rule returns,
 on a machine whose `cargo` and `rustc` are the rustup proxies,
 with Decision 2's answer T exporting the variable,
 on the compiler each answer names.
-Measured in one image,
+
+**What is measured**,
+in one image,
 one linter and one day (M12,
 M15a,
-M16).
+M16):
 
-**K1 > K2 > I.**
+- K1 with a file naming `nightly-2026-11-16`,
+the variable exported and no driver:
+the warm command built the driver and the rule returned the six findings
+(M15a arms B and C).
+- I with the components on a fresh `nightly` install and no exported variable:
+one processing failure and status 2 (M12 arm A).
+The variable does not reach the library build,
+because Dylint removes it for its children (source,
+"What `cargo dylint` itself does"),
+and in this state the linter's probe passes on the channel's components with it unset or set;
+no arm of M12 sets it.
+- K1 with a file naming the compiler the channel carried that day and the variable exported:
+the same `E0603` and status 2 (M16 arm B).
+
+**What that supports**:
+K1 over I,
+and only while the lock's compiler is one Dylint 6.4.0 builds on.
+Once the lock reaches the break,
+K1 and I are equal:
+both return status 2 for each package they are given,
+and neither delivers before a `cargo-dylint` release carries upstream's fix.
+
+**What is not measured**:
+K2 on its own date,
+and any answer on this host's floating channel with the components added.
+
+**K1 > K2 > I**,
+on the state measured.
 
 - **K1 over K2.**
   Both are the same file and the same mechanism,
-  and on the day its date is installed,
-  K2 delivers what K1 delivers.
-  K1's date is the lock's on the day the generator runs,
-  so it names a toolchain the plan installs,
-  and the lean cleaner keeps a toolchain the lock names.
+  and on the date it names K2 returns what K1 returns
+  (inference from that identity;
+  K2 was not run on its own configuration).
+  The difference is what installs and records the date.
+  K1's date is the lock's whenever the generator has run,
+  so it is the toolchain the plan installs and the lock names;
+  this machine has that toolchain installed (`machine/machine-state.txt`).
   K2's date is installed by nothing the repository runs,
-  and the cleaner keeps only a toolchain the lock
-  or a checkout-root file names.
-  That is a difference in whether the run happens at all,
-  not a difference in effort.
-  What K1 does not settle either:
-  a file the generator has not rewritten since the lock moved names an older
-  toolchain,
-  which rustup keeps,
-  so that is a stale file and not a missing toolchain.
+  and under the ranking's own answer T an uninstalled date fails before any driver is looked for:
+  one record at the configuration file and status 2 (M17).
+  With the variable unset its first use depends on rustup's auto-install,
+  which rustup's own warning calls deprecated (M14 arm B,
+  M15b arm A).
+  What the lean cleaner keeps is wider than the lock:
+  it keeps a toolchain any checkout pins (the lock's `rust` version,
+  `.cache/toolchain.env.json`'s `RUSTUP_TOOLCHAIN`,
+  a checkout-root `rust-toolchain` file),
+  one rustup names as default or an override,
+  one a process runs or has in its environment,
+  and one younger than the grace period
+  (source,
+  `lean_rustup_toolchains.rs`);
+  a package-level file is not read.
+  So neither answer is shielded from the cleaner once the lock has moved past its date:
+  a K1 file the generator has not rewritten names a toolchain the cleaner may retire
+  when the grace period ends,
+  and K2's hand date becomes such a name at the next lock move.
+  That removal is not measured;
+  it is the cleaner's rule read against a file it does not read.
+  K2 is also the pin the 2026-10-18 record lists as "still not approved".
 - **K2 over I.**
-  On the day K2's date is installed,
-  K2 returns the six findings by the same mechanism K1 does.
-  I returns a processing failure and status 2 on the compiler the channel carries today (M12),
-  and would return findings only on a channel frozen at an older compiler or after a `cargo-dylint` release.
+  On a date Dylint 6.4.0 builds on,
+  K2 returns the six findings by the mechanism M15a measured;
+  on a date past the break it returns status 2 by the mechanism M16 measured.
+  I returns status 2 on the compiler the channel carried the day M12 ran,
+  and would return findings only on a channel frozen at an older compiler
+  or after a `cargo-dylint` release.
+  Both statements about K2 are inference:
+  it was not run on its own date.
 - **I is ranked last on today's delivery,
   not on a preference.**
   If a release carrying upstream's fix lands,
-  I's delivery returns without a new file,
-  and the order becomes K1 > I > K2,
-  because I would then deliver without the file K2 needs and
-  with a compiler that moves on its own.
-  What I still needs is an installer step and an owner for moving the channel,
-  which is a cost,
-  not a delivery.
+  I and K1 both deliver,
+  and which to prefer becomes question 8's preference rather than delivery.
+  What I still needs is a plan row that names the channel,
+  a decision on what the lock records for it,
+  and an owner for moving the channel;
+  that channel moves only when a person runs rustup.
+  Those are costs to state,
+  not reasons to rank it lower.
 
 What this ranking does not weigh:
-the owner's wish that the compiler always be latest.
-The repository implements "latest" as a dated name in the lock,
-which the daily update resolves,
-so K1 follows the owner's recorded mechanism and I would follow it only if something moved the channel.
+which mechanism should represent "latest" for this library,
+which is question 8.
+The repository's way is a dated name the lock records,
+so K1 follows it;
+neither mechanism moves on its own today:
+the lock moves when a person runs `toolchain:update` (the timer is disabled),
+and the channel moves when a person runs rustup.
+The difference is that a move of the lock is a commit a reader can find
+and a move of the channel is recorded nowhere.
 The owner may still prefer the channel for a reason this proposal cannot measure;
-that is the preference to confirm,
+that is the preference question 8 asks,
 not a result the ranking can produce.
 
 ## Decision 2: how the toolchain variable gets to Dylint's children
@@ -1607,7 +1885,7 @@ Result:
 the warm step builds the library and the driver in 87 s (3 `git` executions) and the lint run then
 prints the six findings (measured,
 M15a arms B and C).
-Under Answer I on today's compiler the same step fails with `E0603` and builds no driver (M12 arm B):
+Under Answer I on the channel's compiler of that day the same step fails with `E0603` and builds no driver (M12 arm B):
 B cannot deliver what the compiler cannot build.
 **Cost.**
 Network and a cache write inside a lint run;
@@ -1700,7 +1978,7 @@ under Answer K1 the driver build clones `rust-clippy` (3 `git` executions,
 M15a arm B),
 so no cargo setting makes that build offline and F alone cannot deliver it;
 under Answer I the build would need no clone on the floating name (M8 arm B),
-but on today's compiler the build fails before any cache matters (M12 arm B).
+but on that day's channel compiler the build fails before any cache matters (M12 arm B).
 F is offered to whichever provider the owner picks,
 and it is not ranked against them.
 
@@ -1865,10 +2143,15 @@ The owner's words are "Fetch then warn."
 Everything else in that block is the record's reading,
 and the quiet-form consequence was never put to the owner.
 
-Five parts,
+Four parts are choices,
 each answerable alone and combinable.
-Part 5 is this round's,
-not the record's.
+Part 5 is not a choice about today's behaviour:
+it is a defect,
+held by issue 6667,
+that the work fixes without asking,
+and the only thing left for the owner there is the shape of its report.
+Parts 1 to 4 change the record's contract;
+part 5 does not.
 
 ### Part 1: severity
 
@@ -2008,49 +2291,129 @@ The line delivers the count to a reader of the run;
 
 ### Part 5: a run that checked nothing and printed nothing
 
-This part is not in the record,
-and this round measured the case:
-with the driver's toolchain name unreadable,
+This is a defect,
+not a behaviour to choose between.
+With the driver's toolchain name unreadable,
 the linter returns `Unknown`,
 notes the reason only under `--debug`,
 runs the packages,
 prints no record and exits `0` (M14 arm A).
+Issue 6667 holds it,
+and a round on that issue is finding the cause and building the fix
+(`monochromatic-lint-a-package-the-closure-rule-did-not-check-never-ends-as-clean`).
+"Leave it" is not offered:
+the revision that found it calls it a defect,
+and the record's own standard for a run that could not check a package
+is that it "is not a silent message with exit status 0".
 
-- **Report it** (recommended):
-a processing failure at the package's `Cargo.toml`,
+That it checked nothing is inferred,
+not logged:
+the arm kept no output or status from `cargo dylint`,
+and a `cargo dylint` that failed would have added a processing failure (`check_package`),
+so it exited 0 and printed nothing;
+the positive control is M15a arm C,
+where the same package returns six findings with the right driver and compiler.
+
+The state the arm ran in:
+the image's floating channel carries `rustc-dev`,
+`llvm-tools` and `rust-src` (the `Containerfile`),
+and `RUSTUP_TOOLCHAIN` was unset.
+That is Answer I's compiler state,
+not K1's or K2's recommended state:
+there the floating channel lacks `rustc-dev`,
+so with the variable unset the linter skips visibly at its machine-wide check
+(M15a arms A and D),
+and with T's variable naming an absent toolchain it fails at the version probe
+(one record at the configuration file,
+status 2,
+M17).
+A route to the silent pass under K1 with T is inference:
+the variable names a toolchain that is present,
+the library's file names one the cleaner has removed,
+and the linter's driver probe removes the variable before asking rustup
+(`closure_driver_probe.rs`),
+reads the file's name,
+fails,
+and returns `Unknown`.
+No kept run has that combination.
+
+The one thing left to decide is the shape.
+
+- **A processing failure** (recommended):
+  a `core/processing-failure` at the package's `Cargo.toml`,
   status `2`,
-  naming the reason the linter could not read
-the toolchain name.
+  naming the reason the linter could not read the toolchain name.
   How it works:
   the `Unknown` branch builds a finding instead of a note.
   What it changes for good:
-  the one case where a run looks clean and checked nothing becomes red.
+  a run that looks clean and checked nothing becomes red,
+  and its status stops a gate.
   What it gives up:
+  the record's rule that a missing prerequisite is not an error,
+  for this cause;
   a run whose toolchain name cannot be read now fails rather than proceeding.
   Result:
   the shape is M14 arm A's silent run;
   the fix is not measured.
-- **Leave it**:
-  today's behaviour,
-  measured.
+  What a yes leaves undecided:
+  which of the `Unknown` branch's other causes keep status `2`,
+  and whether the record's amendment is rewritten to name this cause.
+- **A warning-level skip:**
+  a `warn` finding of `rust/avoidable-closure` at the package's `Cargo.toml`
+  naming the package and `rustup toolchain install <the name>`,
+  status `0` unless `--max-warnings` is set,
+  and hidden by `--quiet`.
+  How it works:
+  the same skip machinery every other missing prerequisite uses.
+  What it changes for good:
+  the silent pass becomes a record,
+  and the record's contract stands unchanged.
+  What it gives up:
+  the run still exits `0`,
+  and `--quiet` hides the record exactly as it hides the other skips.
+  Result:
+  none for this cause;
+  the shape is the one M10 measured for both skip causes.
+  What a yes leaves undecided:
+  the wording of the command the skip names,
+  and whether the record's list of skip causes is widened to include this one.
 
 **Ranking:
-report > leave.**
+a processing failure > a warning-level skip.**
 Criterion:
-whether a reader can tell a clean run from a run that checked nothing.
-Leaving it produces exactly the record the issue is about,
-with no record at all.
+whether a gate can tell a run that checked nothing from a clean one.
+A processing failure gives status `2` and a record at the package;
+a warning skip gives a record and status `0` unless the gate sets `--max-warnings`,
+which it can only do at the price of failing every other missing prerequisite too (M10,
+M3).
 
-### How the five parts combine
+Which the record points to:
+its amendment of 2026-11-07 gives a warning-level skip to a missing prerequisite,
+and keeps status `2` for "Failures that are not a missing prerequisite".
+A toolchain the library names and the machine lacks is a prerequisite,
+with the fix rustup itself prints,
+so the record points to the warning-level skip for this cause,
+and the processing failure is a departure the owner's yes would decide.
+The record's own list of skips (a machine-wide gap,
+a missing driver) does not name this cause;
+the `Unknown` branch also covers causes that are not missing prerequisites at all,
+such as an unreadable rustup answer or an unreadable `cargo dylint --version`,
+and those are failures the record keeps at status `2`.
+A round on issue 6667 builds the fix.
 
-Any combination of the parts is buildable.
+### How the parts combine
+
+Any combination of the four choices is buildable,
+and each can be answered alone.
+Part 5's fix is built whatever the four are,
+and the shape the owner picks combines with any of them.
 One pair conflicts in intent:
 a severity keyed by cause together with a status keyed on any skip,
 because the first leaves prerequisite skips at `warn` and the second makes them red.
 "Both,
 in this order" is reachable:
-Part 5 first,
-then Parts 1 to 4 on top of it,
+part 5's fix first,
+then the four choices on top of it,
 or the other way round.
 
 ## Decision 6: whether the two Dylint tools stay at `@latest`
@@ -2061,7 +2424,8 @@ both through `cargo-binstall` (`toolchain.plan.jsonc`).
 - **Keep `@latest`** (recommended).
   How it works:
   unchanged.
-  The daily update moves the tools;
+  `toolchain:update` moves the two rows when it runs,
+  and today it runs only when a person does (the timer is disabled);
   the driver is rebuilt when `cargo-dylint`'s
   version moves,
   because Dylint rebuilds a driver whose `-V` reports a version below `cargo-dylint`'s
@@ -2095,8 +2459,13 @@ keep `@latest` > L.**
 Criterion:
 how soon the rule picks up an upstream fix.
 Today's compiler needs upstream's merged fix (the section on what is true today),
-and `@latest` carries it to the machine on the next daily update with no person involved;
-a pin holds the compiler-breaking release until the owner moves it.
+and `@latest` picks the fix up on the next `toolchain:update`,
+with no edit of the plan or the lock;
+a pin needs an edit of both,
+and holds the compiler-breaking release until the owner makes it.
+Nothing moves either row by itself today:
+the daily update timer is `disabled; inactive (dead)`,
+so the next move is a person running `toolchain:update`.
 The cost of `@latest`,
 an unwanted move,
 is stated and not used to rank it lower.
@@ -2137,16 +2506,141 @@ whether the run is repeated on this machine.
 A yes leaves undecided when,
 and by whom.
 
+## Decision 8: which name `latest` should mean for the library
+
+What the owner decides:
+whether the library's compiler should follow the lock's dated name
+or the name of the rustup channel `nightly`,
+as the repository's way of keeping the compiler latest.
+Whether each delivers findings is Decision 1's question;
+this one asks which mechanism the owner wants preferred when both would work,
+and it starts no work by itself.
+
+### The lock's dated name
+
+**How it works.**
+A file in the package names the lock's `rust` entry and is regenerated from the lock
+(K1's file),
+so every rustup command in that directory answers the dated full name.
+The name moves when `toolchain:update` re-resolves the lock and the file is rewritten.
+
+**What it changes for good.**
+The library's compiler is the toolchain the plan installs,
+and every move is a commit in `toolchain.lock.json` that a reader can find.
+It also puts a package-level `rust-toolchain.toml` back,
+where the 2026-10-18 record says the package has
+"no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override".
+
+**What it gives up.**
+The compiler is as new as the last lock move,
+and today nothing moves the lock on a schedule:
+the timer stands `disabled; inactive (dead)`,
+so the lock moves only when a person runs `mise run toolchain:update`.
+The record's status line says the timer was enabled on 2026-11-07;
+why it is off is not known.
+
+**Example and its result.**
+Input:
+the lock as it stands,
+`nightly-2026-11-16`,
+and a file generated from it.
+Result:
+the library builds with `5f4effd57`
+and the rule returns the six findings (measured,
+M15a);
+the next `toolchain:update` resolves the channel's `c82ce1563`,
+and the same file then returns status 2 (measured for that compiler,
+M16).
+
+**Cost.**
+A generated file and its generator,
+and the person or task that runs the update.
+
+**What a yes leaves undecided.**
+Who runs `toolchain:update`,
+and whether the timer is re-enabled.
+
+### The rustup channel named `nightly`
+
+**How it works.**
+The components go on the channel (Answer I's installation),
+and the library's compiler is whatever build the channel holds when a command runs.
+
+**What it changes for good.**
+The library follows the channel a person's rustup moves,
+and no lock field names the compiler.
+
+**What it gives up.**
+Nothing in the repository moves that channel or records its move:
+a new nightly arrives with no commit,
+and a break arrives the same way.
+Adding the components may itself move the channel,
+which is unmeasured (question 1).
+
+**Example and its result.**
+Input:
+the channel as a fresh install resolves it,
+`c82ce1563`,
+with the components.
+Result:
+the library fails with `E0603` and the run returns status 2 (measured,
+M12 arm A).
+On a channel frozen at `5df8c02af` the same state returns the six findings (measured,
+M8 arms B and C).
+
+**Cost.**
+A plan row for the channel's components,
+the decision on what the lock records,
+an owner for moving the channel,
+about 500 MB of components,
+and a compiler no commit records.
+
+**What a yes leaves undecided.**
+Who runs rustup for the channel,
+and when.
+
+### The ranking of Decision 8
+
+Criterion:
+whether a move of the compiler is recorded and repeatable,
+which decides what a reader can check after a break.
+
+**The lock's dated name > the channel.**
+
+- A move of the lock is a commit in `toolchain.lock.json` a reader can find,
+  and the plan installs exactly the toolchain the file names (line read of the plan row and the lock).
+  A move of the channel is a rustup command on one machine,
+  recorded nowhere in the repository,
+  and nothing in the repository runs it.
+- The lock's mechanism names the same compiler on every machine that runs `toolchain:install`;
+  the channel's gives each machine whatever build its own rustup last fetched.
+- The lock's cost,
+  a compiler as new as the last update,
+  and the channel's,
+  a compiler nobody records,
+  are both stated,
+  and neither is used to rank an option lower.
+
+The owner's recorded words want the compiler always latest.
+Both mechanisms can serve that wish;
+the difference this ranking turns on is who moves the compiler and whether the move is recorded.
+
 ## How the decisions depend on each other
 
 - **Decision 1's ranking assumes Decision 2's answer T.**
   Without the variable,
   K1 and K2 skip (M15a arms A and D),
-  and I fails on today's compiler for its own reason
+  and I fails on the channel's compiler of that day for its own reason
   (M12).
   The two decisions are therefore not independent as ranked,
-  and the assumption is stated here rather
+  which is why questions 1 and 2 are answered together;
+  the assumption is stated here rather
   than inside the ranking.
+- **Decision 8 is the preference behind Decision 1.**
+  It decides which of question 1's answers to prefer when both would work,
+  and it changes no delivery.
+  An owner may prefer the channel and still take K1 while I returns status 2,
+  or prefer the lock's name and still take I once a `cargo-dylint` release lands.
 - **Under Answer I,
   T's value is the floating channel's name.**
   The lock records `RUSTUP_TOOLCHAIN` as the dated name in the `rust` entry's environment.
@@ -2157,12 +2651,16 @@ and by whom.
 - **Decision 3 and Decision 4 deliver only under an answer to Decision 1 whose compiler builds Dylint.**
   Today that is K1 or K2;
   under I the warm command fails before a driver exists (M12 arm B).
+  Decision 3 is answered after 1 and 2 for that reason;
+  Decision 4 can wait,
+  because its own answers are unmeasured and the job cannot start the linter today.
 - **Decision 6 interacts with Decision 3:**
   a move of `cargo-dylint` invalidates the driver,
   so a pinned tool makes a rebuild deliberate and `@latest` makes it automatic.
 - **Decision 5 is independent of all of them:**
   it changes what an absent rule says,
-  not whether it runs.
+  not whether it runs,
+  and its fifth part is a defect the work fixes without asking.
 - **Decision 7 is independent:**
   it changes where a count lives.
 
@@ -2193,6 +2691,13 @@ with the extra work named:
   Under K1 the driver build clones `rust-clippy`,
   so F alone cannot make the first run offline;
   under I today the build fails before the caches matter.
+- **The channel as question 8's preference with Answer K1 or K2.**
+  A preference changes no delivery:
+  an owner who prefers the channel can take K1 while I returns status 2,
+  and move to I once a `cargo-dylint` release lands.
+  The other way round is buildable too:
+  an owner who prefers the lock's name can take I while it works,
+  and the preference says what to return to.
 
 Not buildable as stated:
 
@@ -2214,16 +2719,20 @@ Two combinations whose result is not known:
   The task would have to override a dated value with the channel's;
   not measured.
 - **Answer A with the lean cleaner.**
-  The cleaner keeps the toolchain the lock or a checkout-root file names,
-  so an asset built for a name
-  nothing keeps may be deleted or left behind;
+  The cleaner keeps a toolchain a checkout pins,
+  one rustup names as default or an override,
+  one a process runs or has in its environment,
+  and one younger than the grace period;
+  an asset built for a name outside all of those may be deleted or left behind,
+  and the cleaner's own check is a process scan,
+  not a driver read;
   not measured.
 
 ## The questions for the owner
 
 Each question is one the owner alone can answer,
-is answerable without the others,
 and says what a yes leaves undecided.
+Which to answer first is stated in "Which questions come first".
 
 1. **Which compiler should build the closure lint's library,
    and so which name should its driver be filed under?**
@@ -2232,19 +2741,24 @@ and says what a yes leaves undecided.
    a date written by hand in the same file (K2);
    or the rustup channel named `nightly`,
    with the components installed there (I).
-   Today only the first two return findings,
-   and only until the lock or the hand date reaches a compiler
-   newer than the 6.4.0 release (measured,
-   M12 against M15a and M16).
-   The owner's recorded wish that the compiler always be latest is implemented by the lock's daily move,
-   which K1 follows;
-   I would follow it only if something moved the channel.
+   Measured in the state with the driver built and the variable exported:
+   K1 returns the six findings while the lock names `nightly-2026-11-16`,
+   I returns status 2 on a fresh install of the channel (M12 against M15a),
+   and K1 returns status 2 once its file names the channel's compiler (M16).
+   On this host the channel is older than the fresh install's,
+   and what adding the components does to it is not measured
+   (the section "What is true today about the compiler and Dylint").
+   The owner's recorded wish that the compiler always be latest is a separate question (question 8):
+   the lock moves when a person runs `toolchain:update`,
+   and the channel moves when a person runs rustup.
    A yes to K1 leaves undecided who writes the file,
    which lock field it is written from,
-   and when it is rewritten.
+   when it is rewritten,
+   and whether the README's sentence about the package having no `rust-toolchain.toml` changes with it.
    A yes to K2 leaves undecided which date,
-   and who moves it.
-   A yes to I leaves undecided who installs the components,
+   who moves it,
+   and whether the record's refusal of a pin is lifted.
+   A yes to I leaves undecided what the lock and `env.RUSTUP_TOOLCHAIN` record for the channel,
    who moves the channel,
    and what to do on a nightly that breaks the library.
 2. **How should the toolchain variable reach the lint's `cargo` tree?**
@@ -2254,8 +2768,10 @@ and says what a yes leaves undecided.
    with a person doing it (N);
    the linter setting its child's `PATH` or program (CL);
    or the shadow exporting the lock's toolchain for every cargo it starts (SH).
-   Only the first meets both of the rule's needs in a measurement (M15a arm C);
+   Only the first meets both of the rule's needs in a measurement (M15a arm C,
+   and its value is question 1's name);
    the two designs meet the first and leave the second unmet under K1 (M15a arm D).
+   That a `mise` task can create that environment is read and not run.
    A yes to T leaves undecided whether the shadow gets a rule for that tree.
    A yes to either design leaves undecided what replaces the shadow's checks for that build,
    and how the linter's own compiler probe comes to read a compiler with `rustc-dev`.
@@ -2288,38 +2804,64 @@ and says what a yes leaves undecided.
    and what the job costs in wall time.
 5. **What should a run say when the rule did not check a package,
    and what should it exit with?**
-   Five parts,
-   each answerable alone:
-   the severity (keep `warn`,
-   or a severity per cause,
-   J);
+   Four parts,
+   each answerable alone and combinable:
+   the severity (a severity per cause,
+   J,
+   over keeping `warn`);
    a marker field (`"checked": false`,
    D2,
-   or none);
+   over none);
    an exit status (one keyed by cause,
-   D1;
-   one keyed on any skip;
-   or none);
-   a closing count on standard error (D3,
-   or none);
-   and a report for a run whose toolchain name cannot be read (report,
-   or leave it).
-   Any combination is buildable except a severity per cause with a status keyed on any skip.
+   D1,
+   over one keyed on any skip or over none);
+   and a closing count on standard error (D3,
+   over none).
+   A fifth is not a choice:
+   a run whose toolchain name cannot be read prints no record and exits `0`,
+   which is a defect (issue 6667),
+   and the work fixes it without asking;
+   the owner is asked only whether a toolchain the library names and the machine lacks
+   reports as a warning-level skip (the record's shape for a missing prerequisite)
+   or as a processing failure,
+   which this proposal recommends.
+   The record points to the warning skip for that cause,
+   and the processing failure is a departure from it.
+   Any combination of the four choices is buildable except a severity per cause with a status keyed on any skip.
    A yes to J leaves undecided the option's name and which causes it covers.
    A yes to the field leaves undecided the field's name.
    A yes to a status leaves undecided the number.
    A yes to a count leaves undecided the line's wording.
+   A yes to either shape leaves undecided which of the `Unknown` branch's other causes
+   keep status `2`.
 6. **Should `cargo-dylint` and `dylint-link` stay at `@latest`,
    or be pinned to exact versions (L)?**
-   Keeping `@latest` follows the owner's "update EVERYTHING daily" and carries upstream's fix to the
-   machine without a person;
-   a pin makes a bump deliberate and takes the two tools out of that update.
+   Keeping `@latest` follows the owner's "update EVERYTHING (not just rust) daily"
+   and picks up upstream's fix on the next `toolchain:update` a person runs,
+   with no edit of the plan or the lock;
+   a pin makes a bump deliberate
+   and takes the two tools out of that update.
+   Today the timer is disabled,
+   so neither row moves without a person either way.
    A yes to L leaves undecided which version to hold now.
 7. **Where should the counts of the rule's repository-wide run live,
    and should the run be repeated on this machine?**
    Beside the 2026-11-07 count in `doc/planning/repository-linter-stays-at-zero.md`,
    or in a record of their own.
    A yes leaves undecided whether the host run the issue asked for is repeated,
+   and when.
+8. **Which name should `latest` mean for the library's compiler:**
+   **the lock's dated name,
+   or the name of the rustup channel `nightly`?**
+   The lock's name is written by a generated file and moves when `toolchain:update` runs,
+   which today is only when a person runs it (the timer is disabled);
+   the channel moves only when a person runs rustup,
+   and nothing in the repository moves it or records a move.
+   The record's words want the compiler always latest;
+   the record's 2026-10-18 change put `rustc-dev` on the lock's dated name.
+   A yes to the lock's name leaves undecided who runs the update,
+   and whether the timer is re-enabled.
+   A yes to the channel leaves undecided who moves the channel,
    and when.
 
 ## Measured, inferred, and not known
@@ -2334,8 +2876,8 @@ with the log beside it:
 - Dylint's releases,
   pull request 2203 and how far `master` is past 6.4.0
   (`probes/gh-dylint-releases-and-pull-request-2203.txt`);
-- Answer I on today's compiler:
-  one processing failure per package,
+- Answer I on the compiler a fresh `nightly` install resolved that day:
+  one processing failure,
   status 2 (M12);
 - Answer K1 on the same image and day:
   a skip without the variable,
@@ -2355,7 +2897,7 @@ with the log beside it:
 - the statuses a skip returns for both skip causes (M10);
 - the library and driver build times and the clone counts for a dated name (M15a) and a floating name (M8);
 - the driver's `-V`,
-  its RUNPATH and its `NEEDED` library (M15a,
+  its RUNPATH and its `NEEDED` library (M13,
   M8,
   M4);
 - the thirty selectable packages' outcomes and counts (M3,
@@ -2380,7 +2922,14 @@ and labelled where it appears:
 - that option F makes a first run offline-sufficient under Answer I (no kept run is an offline driver build
   under I with a pre-filled registry);
 - that Answer C's temporary-directory trap fails a build (no kept run shows it failing);
-- that K1's first use installs its components on rustup 1.30 (measured on 1.29.3 only).
+- that K1's first use installs its components on rustup 1.30 (measured on 1.29.3 only);
+- that K1 delivers over K2,
+  from the same mechanism on two dates and from what installs each date
+  (K2 was not run on its own configuration);
+- that the lean cleaner retires a toolchain a stale K1 file names,
+  from its rule read against a file it does not read (no run shows the removal);
+- that the silent pass is reachable under K1 with T,
+  from the linter's driver probe and the cleaner (no kept run has that combination).
 
 Not known:
 
@@ -2388,23 +2937,34 @@ Not known:
 - whether the lint task inherits the lock's exported `RUSTUP_TOOLCHAIN`;
 - what a CI job costs in wall time;
 - why the daily toolchain update timer is disabled;
+- what `rustup toolchain install --no-self-update nightly` and
+  `rustup component add rustc-dev llvm-tools-preview rust-src --toolchain nightly`
+  do to this host's installed floating channel,
+  which one container arm would close;
 - whether the counts M3 records are distinct positions in `package/git-policy/cli`,
   which was not checked
   by a command.
 
 ## What this round did not do
 
+The third round ran the measurements;
+this fourth revision ran none.
+It read sources and the kept logs,
+and changed text and records.
+
 - It changed nothing that ships:
   no source a release or a test compiles,
   no configuration,
   no plan,
   lock or workflow.
-- It ran no `cargo dylint` on this account,
-  built no driver on this account,
-  and wrote nothing under
-  `~/.cargo`,
-  `~/.rustup` or `~/.dylint_drivers`;
-  every such run happened in a container.
+  Its only script edit is a comment in a kept measurement's script (`m16-in-container.sh`),
+  which changes no line of any run.
+- It ran no container,
+  no `cargo`,
+  no `cargo dylint`,
+  no driver build and no test,
+  so the arm that would close question 1's open half was not run
+  (it is named in "What is true today about the compiler and Dylint").
 - It ran no `mise run toolchain:install`,
   no `pnpm install`,
   no release and no workflow.
@@ -2417,9 +2977,9 @@ Not known:
   Answer C's image,
   or option A's route.
 - It did not touch `doc/handover/` or `doc/decision/`.
-- It did not create an issue for the silent pass M14 arm A measured;
-  that needs the coordinating session's decision,
-  and is named in the report of this revision.
+- The silent pass M14 arm A measured is issue 6667,
+  created after the third revision;
+  this revision does not change that issue.
 
 ## The evidence folder
 
@@ -2434,14 +2994,16 @@ Every log this file cites is in
 - `ci/ci-run-41274002049-static-step-excerpt.txt`:
   the step's last retrievable log.
 - `gate-read/review.md`,
-  `gate-read-second-2026-11-28/` and `gate-read-third-2026-11-28/`:
-  the three same-vendor reads,
+  `gate-read-second-2026-11-28/`,
+  `gate-read-third-2026-11-28/` and `gate-read-fourth-2026-11-28/`:
+  the four same-vendor reads,
   whole,
   with the probes each ran.
 - `gate-read-third-2026-11-28/findings-answered.md`:
-  every finding of all three reads,
+  every finding of all four reads,
   answered,
-  and this revision's report.
+  and the reports of the revisions that answered them,
+  this one's included.
 - `m1-f1-…/` through `m6-…/`:
   the first round's measurements.
 - `m7-k-with-minimal-floating-channel/`,
