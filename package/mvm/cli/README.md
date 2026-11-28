@@ -705,7 +705,7 @@ as `MVM_VIRSH_COMMAND` does for libvirt.
 
 ```sh
 # Create an instance (defaults: the project's Canadian regions, the smallest
-# flavor in stock there, the newest Ubuntu image)
+# flavor in stock there, the newest plain Ubuntu image that flavor boots)
 mise run //package/mvm/cli:run -- --backend ovh create dev-01
 
 # Pick a flavor and a region series (the first region with stock wins)
@@ -768,6 +768,16 @@ mise run //package/mvm/cli:run -- --backend ovh update
 - **No image cache**:
    OVHcloud manages images server-side,
    so `update` reports what the project offers and builds nothing locally.
+- **A shorthand stands for a plain image**:
+   `--image ubuntu` takes the newest active Ubuntu image that carries no
+  preinstalled software and is no variant of another image,
+   so it never takes a GPU driver image such as
+  "Ubuntu 26.04 - NVIDIA - v595" or a "- UEFI" variant,
+   both of which OVHcloud's catalogue publishes after the plain release.
+   An image that states a larger disk,
+   more memory or another flavor family than the chosen flavor has is left out.
+   To boot one of those images,
+   pass its whole name to `--image`.
 
 A live,
  billed integration test lives at

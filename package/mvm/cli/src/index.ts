@@ -161,6 +161,7 @@ export {
   listMvmInstances,
   mvmInstances,
   publicIpv4,
+  runningTimeoutMessage,
   waitForSnapshotReady,
   waitUntilRunning,
 } from './backend/ovh/instances.ts';

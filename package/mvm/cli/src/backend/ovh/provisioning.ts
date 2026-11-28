@@ -113,11 +113,12 @@ async function provisionInRegion({
    Image to boot from in this region, matched against the region's own list.
    */
   const bootImage = await resolveImage({
+    flavor,
     region,
     shorthand: image ?? DEFAULT_IMAGE,
   },);
   rl.info(
-    `creating ${name} (${flavor.id}, image ${bootImage.name}) in ${region}`,
+    `creating ${name} (flavor ${flavor.name}, image ${bootImage.name}) in ${region}`,
   );
   return createInstance({
     flavorId: flavor.id,
