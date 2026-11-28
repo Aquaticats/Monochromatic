@@ -960,6 +960,11 @@ Each check takes its facts as a value and answers a pass,
 a finding that names the failing field or path component,
 or unknown with the reason it could not read the proof;
 the facts themselves are a wiring run's to gather once from the live system.
+The gather of everything true of the machine and not of one clone is built in `src/native/machine_route_facts/`,
+one entry that no command reaches yet:
+each read takes a path the gather names or one seam a control scripts,
+a read the machine refuses answers the checks it feeds unknown with that read's own words,
+and each managed clone's removal facts are a later round's.
 `doctor` reaches none of them in this release,
 except the add route's own call to the delegation and the dataset checks,
 so a person reads no receipt,

@@ -2633,7 +2633,9 @@ and deciding between a re-registration at a commit a person names and removing t
 `git monochromatic-git-policy-cli doctor` prints the same reports for each slot a record names once plan step 18
 wires its checks.
 The route's checks are built in `src/native/health/doctor_zfs_route/` and no command reaches them in this
-release:
+release,
+and the gather of the machine's own route facts is built in `src/native/machine_route_facts/`,
+reached by no command either:
 `doctor` reaches none of them,
 except the add route's own call to the delegation and the dataset checks,
 so a receipt,

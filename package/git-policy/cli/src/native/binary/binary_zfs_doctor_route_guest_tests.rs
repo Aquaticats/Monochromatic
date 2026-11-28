@@ -143,12 +143,20 @@ const FIXTURE: &str = "/home/zfs-doctor-fixture";
 /// The checkout the design's dataset mounts at.
 const CHECKOUT: &str = "/home/zfs-doctor-fixture/checkout";
 
-/// The account the delegation names and the cache belongs to.
-/// The release's gatherer reads this process's own effective user,
-/// which is the account the wrapper runs as,
-/// so the arm states the same one here:
-/// the guest runs every command as root,
-/// and the grants, the cache and the staging folder are root's.
+/// What:
+///  The account the delegation names and the cache belongs to.
+/// Why:
+///  The release's gatherer reads this process's own effective user,
+///  which is the account the wrapper runs as,
+///  so the arm states the same one here:
+///  the guest runs every command as root,
+///  and the grants,
+///  the cache and the staging folder are root's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const account = process.geteuid();
+/// ```
 fn the_account() -> u32 {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     return unsafe { libc::geteuid() };
