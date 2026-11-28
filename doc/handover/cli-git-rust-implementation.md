@@ -1014,220 +1014,29 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
 - rounds for `cargo-shadow`:
-  both rounds of its `0.1.5-alpha.14` read are merged,
-  and `0.1.5-alpha.15` is released
-  (release commit `d9f0c8ea32`,
-  locked `bb47735936`,
-  installed);
-  its Claude Sonnet read returned
-  (`~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`;
-  "What `cargo-shadow`'s alpha.15 read found"),
-  and two rounds started from it at 2026-11-27T15:20:50-05:00,
-  each named `cargo-shadow-alpha-15-release-pass-` and then:
-  `the-populated-read-answers-as-the-kernel-is-shown-to-and-each-row-is-held`
-  and `the-refusal-says-once-which-later-runs-settle-and-the-records-match`;
-  and one more,
-  `issue-6623-the-route-questions-asking-again-is-sized-from-a-measured-manager-reexec`,
-  is merged (`e595486ec8`).
-  It measured every ask of the discovery across reexecs of a user manager,
-  in a container on Linux 7.3.5 with systemd 262
-  and in a guest on Linux 6.8 with systemd 255:
-  every refusal fell inside a reexec window,
-  the longest 0.588 s,
-  none in the five seconds after one,
-  and a reload refused none.
-  The question is now asked five times,
-  200 ms apart,
-  which spans 0.800 s.
-  One control rides a stand-in refusal of 0.600 s;
-  another reexecutes a container's own manager,
-  and on a host it prints one line and passes,
-  so only its run inside a container shows anything.
-  The ten failures of that morning came after the reexec had ended,
+  The ten failures of 2026-11-27 came after the reexec had ended,
   no measurement reproduced them,
   and their words were not kept:
   issue 6628 holds that,
   with nothing to build until a red run's output is kept whole.
-  The commit's `Closes` line closed issue 6623 at the merge;
-  a comment on that commit says `Refs` is the accurate word.
-  That span cost a call 883.1 ms at the median where no user manager can be reached,
-  against 43.2 ms for `0.1.5-alpha.15`,
-  so `0.1.5-alpha.16` waited for the round of issue 6629,
-  which is merged (`aa7b4eb927`).
-  The discovery now reads in its own process whether anything on the host could carry an ask:
-  the runtime directory and the bus address,
-  the manager's own socket and directory,
-  and the bus socket.
-  Where nothing could,
-  the first failed ask is the answer.
-  It matches no words of another program.
-  Measured again with the same harness,
-  in both ways of having no manager:
-  one ask per call in all 72 calls,
-  and the branch's call at 1.01 to 1.28 times the released binary's per round with neither variable set
-  (median 1.11),
-  and at 0.87 to 1.05 times with a runtime directory that holds nothing
-  (median 1.00),
-  while byte-identical copies moved as much.
-  The control that reexecutes a container's own manager passed three times with the change,
-  and failed there with the asking again taken out.
-  Sampled across real reexecs,
-  the manager's socket was absent for 0.17 ms and for 0.28 ms in one run and never in another,
-  and the manager's directory was there in every sample,
-  which is why a reexec does not read as no manager.
-  One residue:
+  One residue of the asking again:
   a host whose manager died and left its socket file or its directory behind is still asked five times.
-  Its commit's `Closes` line closed issue 6629 at the merge,
+  The round's commit closed issue 6629 by its `Closes` line at the merge,
   and the coordinator reopened the issue for that residue.
-  The release run of `0.1.5-alpha.16` was started by 2026-11-27T17:51:43-05:00
-  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079151776>);
-  its release commit is `4338272860`,
-  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
-  and `main` is fast-forwarded to it.
-  It is published,
-  locked (`49ca48000e`) and installed here,
-  where `.cache/toolchain-bin/cargo-shadow --version` says `0.1.5-alpha.16`,
-  and the session's `git` link is back.
-  Its Claude Sonnet second pass returned and was read whole
-  ("What `cargo-shadow`'s alpha.16 read found"),
-  and one round took its findings:
-  `cargo-shadow-alpha-16-release-pass-the-asking-again-is-spent-where-the-records-say-and-its-controls-can-fail`,
-  which is merged (`05e0758cb7`) and released as `0.1.5-alpha.17`
-  ("What `cargo-shadow`'s alpha.16 round did,
-  and its alpha.17").
-  Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
-  saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
-  Issue 6619's round is merged (`1ef6287246`).
-  Each of the ten tests asks first whether the host can give a delegated scope;
-  one failed ask of `systemctl` was read as a host that cannot;
-  and a stand-in that refuses the first ask of each process reproduces the ten failures at about ten milliseconds each.
-  The question is now put up to three times,
-  fifty milliseconds apart,
-  and the package's `test` task keeps a failing run's whole output in a file its last lines name.
-  The suite passed 950 of 950 on that branch,
-  and the package's record is `package/cargo-shadow/cli/doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
-  What made an ask fail that day is not measured (issue 6623).
-  The journal holds this much:
-  a system upgrade's hook re-executed the account's manager from 14:07:27.786 to 14:07:28.150;
-  the manager logged no unit start from 14:07:27.639 to 14:07:28.533,
-  nor from 14:07:28.709 to 14:07:29.935;
-  and the red run's first scope starts are at 14:07:28.533 and 14:07:28.664,
-  for the two controls that finished just before the ten.
-  So the ten asked no earlier than half a second after the reexec had ended,
-  and not inside it;
-  that is a lower bound,
-  and how much later they asked is not on record.
-  The coordinator first wrote on issues 6619 and 6623 that the reexec's own 365 ms was the trigger,
-  corrected both with a comment once the journal was read whole,
-  and then took back one clause of that correction,
-  which had placed the asks inside the second span without a unit start.
-  Issue 6623's round measures asks across a reexec and after one in a container or a guest,
-  never on this account's manager,
-  and sizes nothing if every ask there answers.
-  The round on the `populated` read is merged (`92a10aa7dc`).
-  It measured what two readings of the kernel's source disagreed about,
-  on this host's kernel `7.3.5-2-cachyos`:
-  of 3,090 reads made while a group was being created,
-  none answered "No such file" with the group's directory there,
-  against 1,640 such answers from the same harness on a plain directory whose file is written after it;
-  and of 300 removals,
-  24 put the step's own read at "No such device",
-  with the directory still there in 20 of them.
-  So a group's directory and its files appear together,
-  and "No such device" is a group the kernel is removing:
-  that row answers as a collected scope again,
-  which is alpha.14's answer and reverses the pick merged as `3bf99cd706`.
-  The row for "No such file" with the directory there keeps its warning,
-  and is recorded as one this kernel is not seen to produce;
-  the same check is live at the `pids.peak` read.
-  The control of the bound at a run's end allows one second over the promise where it allowed five.
-  The suite passed 951 of 951 on its merged tree,
-  and its picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
-  The round on the refusal's words is merged (`7eb08ea6b9`).
-  It staged a real refusal and made each kind of later run:
-  `cargo check`,
-  `cargo metadata`,
-  `cargo update`,
-  `cargo-shadow install`,
-  `cargo-shadow update` and both dry runs settle the kept journal;
-  a frozen run,
-  a run on the fast path,
-  a run that resolves nothing and a run outside the catalog's repository leave it and print nothing.
-  The refusal now says each fact once and states that as a rule,
-  from one constant both refusals use;
-  the recovery's sentences say "a run that did not finish" where they said "killed";
-  each dry run's help says it settles a kept journal first;
-  and the README's and the troubleshooting file's sentences the read found wrong are corrected against their own figures.
-  It changed one sentence in the READMEs of `mpm-shadow`,
-  `pnpm-shadow` and `search-shadow`,
-  on which suites a changed identity copy fails.
-  The two rounds met in one sentence of the troubleshooting file,
-  which the coordinator resolved by hand,
-  keeping the refusal round's fact and `main`'s pointer;
-  the suite passed 964 of 964 on the merged tree.
-  The round on the refusal is merged (`87399f8462`).
-  It staged a real refusal and ran each kind of next run:
-  an ordinary resolving run and `cargo-shadow update` settle the kept journal,
-  while a pass-through command and a frozen run leave it and print nothing about it,
-  and the refusal's sentence now says so.
+  What made an ask fail on 2026-11-27 is not measured (issue 6623).
+  The `populated` read's picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
   A control shows that a scope whose directory was never made is read as collected,
   with its unit left loaded in silence;
   the fix belongs to the retire gate and is not made
   (`doc/handover/questions-for-the-owner.md`).
-  The two rounds met in one sentence of `control_group_stop_report.rs`;
-  the session's wrapper merged it by word when `main` was merged into the branch
-  (its README,
-  "Word-level second merge pass"),
-  the result holds both rounds' clauses word for word,
-  and the package's suite passed 946 of 946 on it.
-  The round on the retire gate is merged (`3bf99cd706`).
-  The read's finding held:
-  with either edit it named,
-  all 15 tests of the gate passed.
-  A control now reaches the new decision through `retire` and fails under each edit;
-  three warnings say only what the look had read;
-  and a `populated` read that answers "No such file" while the group's directory is there is no longer read as the manager's collection,
+  A `populated` read that answers "No such file" while the group's directory is there is no longer read as the manager's collection,
   which is a changed decision with the owner's veto open
   (`doc/handover/questions-for-the-owner.md`).
-  One whole run of the package's suite in that round failed ten tests that need a delegated scope,
-  each in about ten milliseconds,
-  and the next two runs passed 941 of 941;
-  the round's own command had cut the messages off;
-  issue 6619's round measured the mechanism,
-  and issue 6623 holds what made an ask fail that day.
-  `0.1.5-alpha.14` is released
-  (release commit `8673ec1309`),
-  locked (`c652b74260`) and installed,
-  and every round of the `0.1.5-alpha.13` pass is merged.
-  The round on the retire's gate is merged (`67103f2285`):
-  seven controls,
-  each shown red by the edit it guards and reading the real gate through a group directory of its own;
-  a group without `pids.peak` is asked about once,
-  and the README names the kernel that file came in;
-  the warning says only what was read;
-  the comment beside the reap grace says what the code polls;
-  and the README and the troubleshooting file say the manager can lose the notification an ordinary run relies on.
-  The round on the refusal's listing is merged (`cf3210724e`):
-  the last leftover a stop can report reaches the refusal's decision in a control that rests on no race;
-  a branch no input could reach is gone;
-  the listing's order is stated as the code gives it,
-  the scope's own group first,
-  and pinned across two groups;
-  and the refusal for a scope the manager collected says what becomes of the kept journal.
-  The proposal round of that list is merged too (`17a5efdf9a`):
-  in a guest on systemd 262.2,
-  with the account's inotify watches used up,
-  a scope started the way `cargo-shadow` starts one stayed `loaded active running` with no member after its program ended,
-  and the released `0.1.5-alpha.13` left its four scopes that way and exited 0;
-  a re-execution of the manager collects such units and can also lose one
-  (two of forty in one of two timed attempts).
-  A leftover holds no process;
-  twenty of them grew the manager by about 130 KiB each in one reading without a control.
-  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md` now holds this second road:
+  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md` now holds a second road:
   the option that stops the unit a journal recorded cannot reach it,
   the two sweeps can,
   and the ranking stays as it was,
-  with its first pair closer;
+  with its first pair closer.
 - a follow-up round for `mpm-shadow`:
   The pick is that the row declares the `rustfmt` component;
   it waits in `doc/handover/questions-for-the-owner.md` with the veto open (issue 6630).
