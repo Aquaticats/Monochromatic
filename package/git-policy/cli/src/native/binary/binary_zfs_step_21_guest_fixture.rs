@@ -100,6 +100,9 @@ const ADD_WAIT: Duration = Duration::from_secs(180);
 ///  the end.
 pub(super) const ROUNDS: usize = 3;
 
+/// The desired-state property the add writes its mount request under.
+const DESIRED_STATE: &str = "org.monochromatic:git-worktree-clone-mount-desired-state";
+
 /// The account this arm runs as,
 /// whose delegation the route's preflight reads.
 const ACCOUNT: &str = "0";
@@ -551,7 +554,11 @@ impl Fixture {
             if let Ok(Some(_status)) = child.try_wait() {
                 break;
             }
-            if !attach_made && slot.is_dir() && dataset_stands(self.sbin.as_str(), clone.as_str()) {
+            if !attach_made
+                && slot.is_dir()
+                && dataset_stands(self.sbin.as_str(), clone.as_str())
+                && the_intent_says_mount(self.sbin.as_str(), clone.as_str())
+            {
                 if let Some(call) = hook.take() {
                     call(slot.as_path());
                 }
@@ -711,6 +718,21 @@ fn dataset_stands(
     dataset: &str,
 ) -> bool {
     return zfs(sbin, "zfs", &["list", "-H", "-o", "name", dataset], None).0;
+}
+
+/// Whether one clone's durable intent asks for its mount,
+/// so the arm mounts only once the route's own state says a mount belongs there.
+fn the_intent_says_mount(
+    sbin: &str,
+    clone: &str,
+) -> bool {
+    let (_ok, said, _error): (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &["get", "-H", "-o", "value", DESIRED_STATE, clone],
+        None,
+    );
+    return said.trim().ends_with(":mount");
 }
 
 /// Whether a mount stands at one folder of this process's table.
