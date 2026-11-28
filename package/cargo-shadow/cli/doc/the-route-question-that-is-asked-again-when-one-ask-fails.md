@@ -16,7 +16,7 @@ and the asks of a manager that answered (the alpha.16 read's Low 1 to Low 4,
 
 Status:
 **unapproved and non-final**.
-Written by four Pi runs:
+Written by five Pi runs:
 one on branch
 `fix/cargo-shadow-cli-issue-6619-ten-scope-tests-failed-together-once-and-passed-in-the-next-two-runs`,
 one on branch
@@ -35,7 +35,12 @@ which changed the transports the read counts to the ones systemd's source shows,
 added the controls of each of them,
 made the discovery ask where the slice is before it starts the slice so an answer of the manager's ends the asking,
 added the controls of that refusal and of an answer that is not a path,
-and made the warning a kept unit carries say what the read saw.
+and made the warning a kept unit carries say what the read saw,
+and one on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-17-release-pass-five-record-sentences-say-what-is-so-and-two-controls-can-fail`,
+which corrected five of this record's sentences against systemd's own file at each tag and a same-vendor second read,
+added the control of the pause the call site sleeps and the control of an address beside a runtime directory,
+and said what the span does not cover.
 Every claim about behaviour here names what it rests on:
 a command a round ran,
 a line of this package,
@@ -327,6 +332,25 @@ and what makes an ask fail after a reexec has ended is still unknown.
 The constants are sized to a reexec,
 which is what a measurement showed.
 
+What the span does not cover:
+the rest of a call.
+A reexec that begins after the discovery has answered fails everything after it,
+in both releases.
+A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
+0 to 110 ms after each of its 24 calls began,
+so every discovery was done before the window opened,
+and 11 of the 24 calls exited 1
+(7 of `0.1.5-alpha.16`'s 12 and 4 of `0.1.5-alpha.17`'s 12,
+every one on the delegated route),
+with the scope launcher's
+`Failed to connect to user scope bus via local transport: Connection refused`
+in the output of the calls whose standard error that read kept,
+and `cargo update --workspace --offline failed` from the install.
+The two releases differ only in where the reexec fell inside each call,
+and the code that makes the scopes is the same,
+so neither release tried a scope's creation again.
+It is in the Open list.
+
 ### The two controls of the span
 
 The figure is held by two controls (`src/control_group_route_discovery_reexec_tests.rs`):
@@ -402,6 +426,38 @@ The reexec is the container's root user manager,
 which its own `systemd-run` started,
 so the host's manager,
 bus and journal are not touched at all.
+
+### The control of the pause the call site sleeps
+
+`the_gap_between_two_asks_is_the_pause_the_call_site_sleeps`
+(`src/control_group_route_discovery_reexec_tests.rs`)
+plants a `systemctl` that refuses every ask and writes down when each one began and ended,
+and requires the time from one ask's end to the next one's beginning to be at least `ASKING_AGAIN_PAUSE`.
+`the_span_the_records_name_is_the_span_the_discovery_spends` and `a_moment_as_long_as_the_longest_measured_reexec_is_asked_through`
+hold the constants and the moment they outlast,
+and neither of them reads the sleep in `ask_where_the_slice_is`:
+with `std::thread::sleep(ASKING_AGAIN_PAUSE * 3 / 4)` there,
+the span becomes 0.6 s where these records name 0.800 s,
+its margin over the measured 0.588 s falls to about 2 percent,
+and those two controls stay green
+(a same-vendor second read of this release named that edit on 2026-11-27).
+It runs wherever the suite runs and needs no container.
+The gap it measures holds the next stand-in's own start and the discovery's work between two programs as well as the sleep,
+so a host that spends a quarter of the pause there can hide the edit.
+
+Measured 2026-11-27 on this host:
+with the sleep in place it passed in 0.908 s with pauses of 209.0 ms to 209.9 ms before the second to fifth ask,
+and with `std::thread::sleep(ASKING_AGAIN_PAUSE * 3 / 4)` there it failed in 2.06 s with
+`the shortest pause between two asks was 174.647195ms, shorter than the 200ms the call site sleeps, so the span is not the 800ms the records name`,
+while those two controls stayed green in the same run
+(`the discovery rode through a moment of 600ms in 869.207269ms, with 5 asks`,
+and the constants' control in 0.032 s).
+Its four gaps with the edit were 174.6 ms,
+229.7 ms,
+358.7 ms and 460.3 ms,
+so the edit showed in one gap of the four:
+this host's work around the sleep can be as long as the difference the control is about,
+and only the shortest gap speaks.
 
 ### What a call costs where no manager answers, before and after issue 6629's change
 
@@ -506,7 +562,7 @@ Read at both versions the package was met beside on 2026-11-27:
 and 255 in the guest of issue 6623.
 
 systemd 262,
-`bus_connect_user_systemd` (`src/shared/bus-util.c:266-289` at v262):
+`bus_connect_user_systemd` (`src/shared/bus-util.c:266-300` at v262):
 
 ```c
         e = secure_getenv("XDG_RUNTIME_DIR");
@@ -529,7 +585,9 @@ So with `$XDG_RUNTIME_DIR` set,
 systemd 262 takes `$XDG_RUNTIME_DIR/systemd/private` alone,
 and the bus socket and every address entry are transports the ask never takes.
 
-systemd 255's copy of the same function (`src/shared/bus-util.c:234-262` at v255) differs in one line:
+systemd 255's copy of the same function (`src/shared/bus-util.c:234-268` at v255) differs in two lines
+(`:244` against `:276` and `:260` against `:292`,
+in the order the block below shows):
 
 ```c
         e = secure_getenv("XDG_RUNTIME_DIR");
@@ -858,6 +916,7 @@ outside a container it prints what it did not do and ends.
 - `a_manager_socket_at_the_runtime_directory_keeps_the_asking_again`;
 - `a_bus_socket_at_the_runtime_directory_keeps_the_asking_again_where_no_bus_address_is_set`;
 - `a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directory_is_set`;
+- `a_bus_address_naming_a_socket_keeps_the_asking_again_where_a_runtime_directory_is_set`;
 - `a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes`;
 - `an_address_this_process_cannot_judge_keeps_the_asking_again`;
 - `the_manager_s_own_directory_keeps_the_asking_again`.
@@ -865,14 +924,24 @@ outside a container it prints what it did not do and ends.
 The first two cover the two ways a host has no manager that a container,
 a CI job or a session without a manager gives,
 and each requires one ask and less than two waits.
-The next four are one per transport,
+The next five are one per transport,
 written on 2026-11-27 with the source above:
-three the read counts (the manager's own socket,
+four the read counts (the manager's own socket,
 the user bus socket where no address is set,
-and a socket an address names) and one it does not (the user bus socket beside a bus address),
+a socket an address names where no runtime directory is set,
+and a socket an address names where one is)
+and one it does not (the user bus socket beside a bus address),
 and each requires the count the read answers with:
 one ask where nothing a transport can be carried over is there,
 and the full five where one is.
+The address beside a runtime directory was added on 2026-11-27,
+because a read that counted the address only where no runtime directory is set stayed green under every other control
+(a same-vendor second read of this release named that edit):
+the only control that set both before it named an address that is not there,
+so one ask was right either way.
+Measured 2026-11-27 on this host:
+the new control passed in 0.877 s with five asks,
+and under that edit it failed in 0.039 s with one ask where it requires five.
 `an_address_this_process_cannot_judge_keeps_the_asking_again` covers the three unjudged addresses
 (an abstract socket,
 an escaped byte,
@@ -1040,11 +1109,14 @@ The ask after it would answer,
 and a transport failure would then be read as the manager's answer,
 which would refuse the call.
 The gap is one program start,
-a few tens of milliseconds,
-and the window is 0.17 ms to 0.38 s long,
-so the two can meet;
-no run here reaches it,
-and what it would print is a refusal of the shape of the three above,
+and the window in which a connect is refused was 65 ms to 372 ms long in the containers
+a same-vendor second read of this release measured on 2026-11-27
+(65 ms to 99 ms with no services loaded,
+88 ms to 96 ms with 20,
+294 ms to 372 ms with 600),
+so the two can meet,
+and that read reached the state in 2 of its 24 calls whose reexec was aligned to the call's start.
+What it would print is a refusal of the shape of the three above,
 which names the unit and the verb and is a transport that died.
 It is in the Open list.
 
@@ -1111,10 +1183,21 @@ and the figure above is the run as it was measured then.
   and a window inside that one program start would make a transport failure read as the manager's answer,
   which would refuse the call.
   The three asks of the start-failure shape measured above are what it would look like.
-  No run here reached it:
-  the container's window is 0.17 ms to 0.38 s and the gap is a few tens of milliseconds.
+  A same-vendor second read of 2026-11-27 reached the state in 2 of its 24 calls
+  whose reexec was aligned to the call's start,
+  and the window a connect is refused in was 65 ms to 372 ms long in its containers,
+  against a gap of one program start.
   A host whose `app.slice` is inactive and whose manager reexecutes at that instant is the state,
   and nothing here stages it.
+- A call whose scope creation meets a reexec.
+  The span is the discovery's,
+  and no wait covers the scopes a call makes after it ("What the span does not cover"),
+  so a reexec that begins after the discovery has answered fails the call in both releases.
+  Either a scope's creation that meets a reexec is tried again,
+  which needs a retry around `systemd-run` that can tell a transport that died from a scope that was made,
+  or the failure stays as it is,
+  which costs a failed call inside that window.
+  No measurement here says how often a call meets one.
 - Whether an empty `$XDG_RUNTIME_DIR` beside a live address should end the asking.
   systemd 262 treats an empty variable as a set one and refuses at once (`/systemd/private`),
   while the read names the address and keeps the asking,

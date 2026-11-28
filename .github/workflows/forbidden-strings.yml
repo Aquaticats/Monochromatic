@@ -205,33 +205,32 @@ jobs:
       # `Is a directory (os error 21)`) and a submodule gitlink (its path is a
       # folder or absent). The `--all` walk leaves both out already
       # (`Mode::SYMLINK` and `Mode::COMMIT` in `src/walk.rs`); this step leaves
-      # them out of the positional list and writes each one, with its raw
-      # record, to `forbidden-strings.left-out-raw` for the next step, which
-      # inspects what a file scan cannot reach: the entry's own name and, for a
-      # link, the target text Git stores for it (issue #6633). A link to a file,
-      # a broken link and a regular file the scanner cannot open are still
-      # handed over here, because something inspectable may sit behind them, and
-      # one line states how many entries were left out, by kind, and what
-      # inspects them instead, so nothing leaves silently. `--` ends the option
-      # list, because a repository path can begin with a dash.
+      # them out of the positional list, and the two steps after it inspect what
+      # a file scan cannot reach (issue #6633): the entry's own name and, for a
+      # link, the target text Git stores for it. A link to a file, a broken link
+      # and a regular file the scanner cannot open are still handed over here,
+      # because something inspectable may sit behind them; that link's stored
+      # target text is scanned by the later steps too (issue #6640). One line
+      # states how many entries were left out, by kind, and what inspects them
+      # instead, so nothing leaves silently. `--` ends the option list, because a
+      # repository path can begin with a dash.
       run: |
         set -euo pipefail
         rules="$RUNNER_TEMP/forbidden-strings.rules.txt"
         comparison_file="$RUNNER_TEMP/forbidden-strings.comparison"
         changed_list="$RUNNER_TEMP/forbidden-strings.changed-raw"
         whole_tree_marker="$RUNNER_TEMP/forbidden-strings.whole-tree"
-        left_out_list="$RUNNER_TEMP/forbidden-strings.left-out-raw"
         if [ -e "$whole_tree_marker" ]; then
           echo '::notice::No validated scan baseline; scanning the current tree.'
           forbidden-strings --builtin-rules --rules "$rules" --all
           exit 0
         fi
-        : > "$left_out_list"
         comparison=$(cat -- "$comparison_file")
         changed=()
         listed_entries=0
         folder_links_left_out=0
         gitlink_entries_left_out=0
+        changed_links=0
         while IFS= read -r -d '' raw_record; do
           IFS= read -r -d '' entry
           listed_entries=$((listed_entries + 1))
@@ -242,15 +241,14 @@ jobs:
           entry_mode=${entry_mode%% *}
           if [ "$entry_mode" = '160000' ]; then
             gitlink_entries_left_out=$((gitlink_entries_left_out + 1))
-            printf '%s\0%s\0' "$raw_record" "$entry" >> "$left_out_list"
             continue
           fi
           if [ "$entry_mode" = '120000' ]; then
+            changed_links=$((changed_links + 1))
             # `-d` follows the link, so this is true only when the link points
             # at a folder; a link to a file and a broken link stay in.
             if [ -d "./$entry" ]; then
               folder_links_left_out=$((folder_links_left_out + 1))
-              printf '%s\0%s\0' "$raw_record" "$entry" >> "$left_out_list"
               continue
             fi
           fi
@@ -262,8 +260,8 @@ jobs:
           exit 0
         fi
         if [ "$left_out_entries" -gt 0 ]; then
-          printf 'Left out %d of %d changed entries the scanner cannot open as a file: folder links %d, submodule gitlinks %d. The next step scans their own names and, for each link, its stored target text. A link to a file, a broken link and an unreadable file stay in the scan.\n' \
-            "$left_out_entries" "$listed_entries" "$folder_links_left_out" "$gitlink_entries_left_out"
+          printf 'Left out %d of %d changed entries the scanner cannot open as a file: folder links %d, submodule gitlinks %d. The next step scans their own names and, for each link, its stored target text. A link to a file, a broken link and an unreadable file stay in the scan; the stored target text of every changed link is scanned there too, %d in all.\n' \
+            "$left_out_entries" "$listed_entries" "$folder_links_left_out" "$gitlink_entries_left_out" "$changed_links"
         fi
         if [ ${#changed[@]} -eq 0 ]; then
           echo "Every changed entry in $comparison is one the scanner cannot open as a file; the next step scans their names and link target texts."
@@ -273,23 +271,89 @@ jobs:
         printf '  %s\n' "${changed[@]}"
         forbidden-strings --builtin-rules --rules "$rules" -- "${changed[@]}"
 
-    - name: Scan the entries left out of the file scan
-      # The file scan cannot open two kinds of tree entry, and this step inspects
-      # what a file scan cannot reach (issue #6633): each entry's own name, and,
-      # for a tracked link, the target text Git stores for it. The target text
-      # comes from the link's own blob in the tree, the new object the raw record
-      # names, and never from the path the link points at, so nothing is
-      # followed. A submodule gitlink has no content of its own, so its pair
-      # carries an empty file and only its name is inspected. `--name-path`
-      # requires one name per positional file and cannot accompany `--all`, so
-      # the pairs are built together and every left-out entry goes to the
-      # scanner in one call, each finding labelled with its `input` index.
+    - name: Write each link's stored target text to a file
+      # The runner skips the rest of a job after a failing step; `!cancelled()`
+      # keeps these two steps running after the file scan fails, so a run that
+      # finds something in a regular file still reports what it finds in a
+      # link, and a link whose content and stored text both match shows both
+      # findings in one run. A cancelled run skips them.
+      if: ${{ !cancelled() }}
+      # Two kinds of tree entry hold bytes the file scan never reads: a tracked
+      # link's stored target text (the `120000` blob) and a submodule gitlink,
+      # which has no content of its own. `--name-path` scans a file under a
+      # logical name and needs one name per file, so the next step reads a list
+      # of pairs, and this step builds it for both scope arms: a delta lists the
+      # changed entries it was given, a whole-tree run takes every link and
+      # gitlink of the index because it has no changed-entry list at all. Each
+      # pair is written in the raw-record shape the next step already parses, so
+      # one list feeds it either way (issue #6640).
+      run: |
+        set -euo pipefail
+        whole_tree_marker="$RUNNER_TEMP/forbidden-strings.whole-tree"
+        changed_list="$RUNNER_TEMP/forbidden-strings.changed-raw"
+        entry_list="$RUNNER_TEMP/forbidden-strings.link-and-gitlink-raw"
+        : > "$entry_list"
+        links=0
+        gitlinks=0
+        if [ -e "$whole_tree_marker" ]; then
+          while IFS= read -r -d '' record; do
+            # An index record is `<mode> <object> <stage>` then a tab and the path.
+            entry_mode=${record%% *}
+            rest=${record#* }
+            entry_sha=${rest%% *}
+            entry=${rest#*$'\t'}
+            if [ "$entry_mode" = '120000' ]; then
+              links=$((links + 1))
+            elif [ "$entry_mode" = '160000' ]; then
+              gitlinks=$((gitlinks + 1))
+            else
+              continue
+            fi
+            printf ':%s %s %s %s A\0%s\0' "$entry_mode" "$entry_mode" "$entry_sha" "$entry_sha" "$entry" >> "$entry_list"
+          done < <(git ls-files --stage -z)
+          printf 'Whole-tree scan: the --all walk leaves link and gitlink entries out, so the next step scans each tracked link and gitlink by its own name and each link by its stored target text: tracked links %d, submodule gitlinks %d.\n' "$links" "$gitlinks"
+          exit 0
+        fi
+        while IFS= read -r -d '' raw_record; do
+          IFS= read -r -d '' entry
+          raw_fields=${raw_record#:}
+          entry_mode=${raw_fields#* }
+          entry_mode=${entry_mode%% *}
+          entry_new_sha=${raw_fields#* * * }
+          entry_new_sha=${entry_new_sha%% *}
+          if [ "$entry_mode" = '120000' ]; then
+            links=$((links + 1))
+          elif [ "$entry_mode" = '160000' ]; then
+            gitlinks=$((gitlinks + 1))
+          else
+            continue
+          fi
+          printf ':%s %s %s %s A\0%s\0' "$entry_mode" "$entry_mode" "$entry_new_sha" "$entry_new_sha" "$entry" >> "$entry_list"
+        done < "$changed_list"
+        paired_entries=$((links + gitlinks))
+        if [ "$paired_entries" -gt 0 ]; then
+          printf 'Handing the next step every changed link and gitlink: tracked links %d, submodule gitlinks %d, each by its own name and, for each link, its stored target text.\n' "$links" "$gitlinks"
+        fi
+
+    - name: Scan each link's stored target text and each gitlink's name
+      # A cancelled run skips this step too, for the reason the step before it
+      # states.
+      if: ${{ !cancelled() }}
+      # The file scan and the `--all` walk cannot reach two kinds of tree entry
+      # (issues #6633 and #6640): a tracked link's stored target text and a
+      # submodule gitlink's name. `--name-path` scans a file under a logical name
+      # and needs one name per file, so every entry of the list the step before
+      # wrote goes to the scanner in one call, each with its stored target text
+      # or, for a gitlink, an empty file, and each finding carries its `input`
+      # index. The target text comes from the link's own blob in the tree, the
+      # object its raw record names, and never from the path the link points at,
+      # so nothing is followed.
       run: |
         set -euo pipefail
         rules="$RUNNER_TEMP/forbidden-strings.rules.txt"
-        left_out_list="$RUNNER_TEMP/forbidden-strings.left-out-raw"
-        if [ ! -s "$left_out_list" ]; then
-          echo 'Nothing left the file scan; no link name or target text to scan.'
+        entry_list="$RUNNER_TEMP/forbidden-strings.link-and-gitlink-raw"
+        if [ ! -s "$entry_list" ]; then
+          echo 'No link or gitlink entry to scan in this run.'
           exit 0
         fi
         materialized="$RUNNER_TEMP/forbidden-strings.link-target-text"
@@ -314,7 +378,7 @@ jobs:
           name_path_arguments+=(--name-path "$entry")
           inputs+=("$input")
           index=$((index + 1))
-        done < "$left_out_list"
-        printf 'Scanning %d left-out entries: each one by its own name, and each link by its stored target text:\n' \
+        done < "$entry_list"
+        printf 'Scanning %d link and gitlink entries: each one by its own name, and each link by its stored target text:\n' \
           "${#inputs[@]}"
         forbidden-strings --builtin-rules --rules "$rules" "${name_path_arguments[@]}" -- "${inputs[@]}"

@@ -180,6 +180,10 @@ So a control whose body routes a hand-over hands in a fixture runtime directory 
 as `worktree_copying`'s two hand-over controls do,
 and the hand-over fails with "no commit service can be started from this session",
 which is the world those controls are about.
+The merge that added the two switches changes a real run in three edge cases:
+a runtime directory whose name is not UTF-8 is used where it was ignored,
+an empty bus address is passed on and treated as before,
+and an empty `XDG_RUNTIME_DIR` on the ZFS add route is refused as not set.
 A control whose subject is a route with a program in it passes one to `choose_route` itself,
 and `landing/service_route_tests.rs` holds both kinds.
 A child also inherits the records its parent holds,
@@ -852,6 +856,16 @@ so say only what the source shows:
 declared in `worktree_remove_clears_the_registration`,
 and that module is `#[cfg(target_os = "linux")]` (`worktree/mod.rs`).
 
+A merge can take a gate away with no textual conflict,
+and one did on 2026-11-27:
+a merge restored seven platform gates,
+seven such attributes in its diff outside tests,
+where its commit says 29 items and the handover of that day said 28.
+The same merges left a Linux release build differing through two changes only,
+argued from the source text and not from a build:
+an unused constant left it,
+and one tag constant went from 141 copies to 123 with every value the same.
+
 ## A published name takes a line in the list beside the surface control
 
 `source_guard/nothing_becomes_nameable_from_outside_tests.rs` holds the library target's published surface to
@@ -885,12 +899,52 @@ and a re-export written without a leading path read from the module that writes 
 A gate keeps a name out only where it holds only when testing,
 so `#[cfg(test)]` and `#[cfg(all(test, unix))]` keep one out
 and `#[cfg(all(not(test), unix))]` does not.
+A `mod` line the reader cannot place stops every scan of the tree with the line named,
+rather than being stepped over:
+the visibilities it reads are
+`mod`,
+`pub mod`,
+`pub(crate) mod` and
+`pub(super) mod`,
+so
+`pub(in crate::a) mod x;`,
+`pub(self) mod x;`
+and a `mod` line with text after its `;` are errors.
+
+The reading was widened on 2026-11-27 to the shapes above:
+154 of 155 published names it could not see had no line in the list,
+a function with `async` before `fn`,
+a name another listed item already has,
+a field,
+a method,
+and a `pub use` written over several lines.
+
+After each of two structure branches merges,
+`native:check` runs on the merged tree before the next merge:
+a narrowed item or a changed excuse can break the build through a merge with no
+textual conflict.
+
+Two facts of the reading are decisions a reader has to see in the list:
+a name behind a feature gate counts as published,
+because a gate keeps a name out only where it holds only when testing,
+so the list holds the three names such gates carry today
+(`foundation::test_only_switches fn value`,
+`fn value_in` and
+`worktree::worktree_clone_conversion_fence_measurement_routes fn fence_of_the_measurement_route`);
+and a member is keyed by its type's bare name,
+so a `pub` type in a module nothing publishes has its `pub` members read as published whenever a published
+type elsewhere writes the same name.
+A member of a type whose only public path is a `pub use` facade is read too,
+at the facade's path and under the name the facade gives it,
+from the module the statement names;
+a facade that names an inline `mod` body or a module no chain and no root glob reaches publishes a type whose
+members the reading sees nowhere.
 
 What the reading still cannot see,
 and why,
 is in that same doc:
 a `pub` field written in a tuple-like struct's parentheses,
-a member of a type published only through a `pub use` facade,
+a member of a type a facade names through an inline `mod` body or through a module the tree cannot resolve,
 a `pub trait`'s methods and a `pub enum`'s variants,
 an item inside an inline `mod name { ... }`,
 a glob's own names,
@@ -1067,6 +1121,21 @@ and each guard whose scope could hold one says so in its top doc:
 a call a macro written outside the scope expands to,
 a name a glob import (`use super::*;`) brings into scope without writing it,
 and a call whose name and `(` a line break separates.
+The alpha.50 read planted nine spellings against these guards on 2026-11-27,
+and the call reader reads each of these now but the macro:
+a renamed import,
+a function taken as a value,
+a call with its types written out,
+another crate's name for the same call,
+a handle reached through a module,
+and a key passed through a constant.
+A spelling a guard can be made to read,
+it reads and plants a control for:
+the commit path's ban reads a direct `syscall` call,
+because `libc::syscall(libc::SYS_symlinkat, ...)` writes the system call's name inside a longer constant;
+the login guard reads the manager's program however its literal is spelled,
+bare or as a path;
+and the note guard reads a write by descriptor number (`libc::STDERR_FILENO`).
 
 ## Walk the sources through the one walk, never a recursive read
 
@@ -1124,7 +1193,9 @@ a split moves the guard into a sibling file,
 or `cargo fmt` reflows the expression onto other lines.
 `bin/native-planted-controls.unit.test.ts` is what reports that,
 so it names the control and the file whose text no longer occurs exactly once;
-seven controls were stale on 2026-11-27 and the source walk's crash hid every one of them.
+seven controls were stale on 2026-11-27 and the source walk's crash hid every one of them;
+four of the seven had moved with a split,
+and three were reflowed by `cargo fmt`.
 A control whose guard moved names the file that holds the guard now,
 and one whose text was reflowed carries the text as the file holds it,
 with a comment saying which commit moved what.
@@ -1204,6 +1275,18 @@ a test that reaches one of them opens the device.
 Such arms run in a guest of the round's own,
 on a file-backed pool,
 and the host run's `--skip guest --skip _arm_tests` keeps the named ones out.
+
+## A rewritten guest driver runs beside `main`'s version
+
+A rewritten guest driver is proved by running it in its guest against `main`'s version,
+and comparing the lines that say what an arm did:
+the two are the same wherever the rewrite changed nothing.
+That reading found the start probe's shared header broken since `dcf5877982`:
+an unquoted handler assignment ran the wrapper as a command,
+so every arm after `green` stopped at its fourth line,
+in `main`'s driver and the rewritten one alike.
+It is quoted now,
+and those arms run.
 
 ## A round runs no whole container gate
 

@@ -33,6 +33,7 @@ import { closeSync, mkdirSync, openSync, writeFileSync, } from 'node:fs';
 import { join, } from 'node:path';
 
 import { loadTheBuiltModuleStep, } from './load-the-built-module-step.ts';
+import { loadTheTemplateModuleStep, } from './load-the-template-module-step.ts';
 
 //region Constants
 
@@ -386,10 +387,18 @@ function create(options: Options): void {
  `strace` and Git as packages.
  So the recipe neither installs Debian packages
  nor builds the module;
- it checks each fact the arms below rely on
+ it loads that module through the template's own package route,
+ says which one the guest now runs,
+ and checks each other fact the arms below rely on
  and prints what it found,
  so a template that lost one is refused here
  rather than measured.
+
+ The load is the step in `load-the-template-module-step.ts`,
+ which keeps `modprobe`'s own words
+ and refuses in words when the module the template was built with
+ is not the one running
+ (issue 6644).
 
  @param options - the run's options, naming the expected kernel release
 
@@ -402,9 +411,7 @@ function prepareFromTemplate(options: Options): void {
     'uname --kernel-release',
     `test "$(uname --kernel-release)" = ${options.kernelRelease}`,
     'echo "== the module and userspace the design pins"',
-    'modprobe --quiet zfs 2>/dev/null || true',
-    'cat /sys/module/zfs/version',
-    `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
+    ...loadTheTemplateModuleStep({ label: 'prepare', release: OPENZFS_RELEASE, }),
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version`,
     `test -f ${MODULE_BTF}`,
     'test -f /sys/kernel/btf/vmlinux',

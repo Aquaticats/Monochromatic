@@ -597,8 +597,14 @@ so there is no teardown of host state to show.
 - The module's BTF header length is `32` here and was `24` in the Ubuntu guest,
   because the module's own build tools write it.
   The layout checker answers `compatible` on both;
-  the gate arm's assertion expects the `24` its own guest writes,
+  the gate arm's assertion expected the `24` its own guest writes,
   and failed on the difference.
+  Issue 6502's fix makes the arm read the header length the module's own file
+  declares and compare the checker's report against it
+  (merge `bd180d7de9`,
+  2026-11-26T07:12:23-05:00),
+  so it passes at `32` here and at `24` in the Ubuntu guest
+  (`package/zfs/request-to-openzfs-kernel-device/doc/gate-arm-header-lengths-2026-11-26.md`).
 - `cargo-nextest` is `0.9.151` here and the recipe pins `0.9.152`.
   The packages are the distribution's,
   and `rustc` is the pinned `1.100.0`,
@@ -662,10 +668,20 @@ so there is no teardown of host state to show.
 ## What is left
 
 - The gate arm's pin to `24`,
-  named above.
-  Whether it becomes a release-independent assertion or keeps a per-guest expectation
-  is the owner's,
-  and it is the one thing this run cannot call qualified.
+  named above,
+  is settled:
+  the arm reads the header length the module's own file declares and compares
+  the checker's report against it,
+  so no length is written into the test
+  (issue 6502,
+  merge `bd180d7de9`,
+  2026-11-26T07:12:23-05:00;
+  `package/zfs/request-to-openzfs-kernel-device/doc/gate-arm-header-lengths-2026-11-26.md`).
+  It passed in a guest of this run's own template at declared `32`
+  and in the Ubuntu guest at declared `24`,
+  and failed again with the old pin restored.
+  Of the two forms the owner was to choose between,
+  main holds the release-independent one.
 - `cargo-nextest` one release behind the recipe's pin in the template.
 - The template is reproducible only from this host's `pacman` cache,
   because the four pinned packages are no longer on any CachyOS mirror.
