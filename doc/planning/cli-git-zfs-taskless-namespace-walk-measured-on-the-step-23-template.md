@@ -176,7 +176,10 @@ One run,
 2026-11-28T06:52-05:00,
 in `zfs-r10-taskless-final`,
 against the file-backed pool the arm builds,
-of the code this round commits:
+of the code this round commits up to `43b005f57e`;
+the later merge of `origin/main`,
+`208446deb5`,
+added another round's ninth phase after this one and changed nothing inside it:
 
 ```text
 FORCEDACT guest=zfs-r10-taskless-final kernel=7.3.5-1-cachyos zfs=zfs-2.4.4-1
@@ -345,6 +348,25 @@ so the host's kernel is where the calls were proved to exist and nowhere that th
 - A listed id whose namespace holds the copy but whose table could not be read,
   which the walk refuses `holder-blind`:
   the phase reads a table that answers.
+
+## The merge that came after the runs
+
+`origin/main` gained,
+while this round ran,
+a locked holder's stop through the account's own user manager:
+an ending of that kind,
+a read the preflight now takes (`locked_units`),
+and a ninth phase of the same guest arm.
+The merge that brought it in,
+`208446deb5`,
+kept both rows and both phases,
+and this round's phase is unchanged by it except that the arm's closing line counts nine phases.
+The runs quoted above are from `43b005f57e`,
+whose arm had eight;
+the ninth is that round's to measure and its own record says it did.
+The other round also measured that a swap file slows this host's crate build
+(`the_forced_act_guest_arm_scripts` turns one off),
+so this round's swap line in the driver is gone rather than fought over.
 
 ## What is left, and whose it is
 
