@@ -653,7 +653,8 @@ fn the_forced_act_guest_arm_tests() {
         "way 8's unmount is refused with the locked holder's word: {stopped_unit}"
     );
     assert!(
-        stopped_unit.contains("way7=holder-locked") || stopped_unit.contains("way7=holder-structural"),
+        stopped_unit.contains("way7=holder-locked")
+            || stopped_unit.contains("way7=holder-structural"),
         "way 7 refuses too, at its unmount or at the stage before it: {stopped_unit}"
     );
     assert!(
