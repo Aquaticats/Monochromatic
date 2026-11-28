@@ -28,15 +28,15 @@
 
 #![cfg(target_os = "linux")]
 
-use super::zfs_step_21_dependency_arms::{
-    the_cargo_arm,
-    the_launcher_arm,
-    the_pnpm_arm,
-};
-use super::zfs_step_21_guest_fixture::{
-    Fixture,
+use super::zfs_step_21_guest_fixture::Fixture;
+use super::zfs_step_21_guest_layout::{
     guest,
     mounted_at,
+};
+use super::zfs_step_21_launcher_arm::the_launcher_arm;
+use super::zfs_step_21_pnpm_and_cargo_arms::{
+    the_cargo_arm,
+    the_pnpm_arm,
 };
 use super::zfs_step_21_queued_arm::the_queued_and_inline_arms;
 use super::zfs_step_21_watch_arm::the_watch_arm;

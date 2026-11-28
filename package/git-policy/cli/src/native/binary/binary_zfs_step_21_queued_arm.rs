@@ -26,18 +26,24 @@
 
 #![cfg(target_os = "linux")]
 
-use super::zfs_step_21_dependency_arms::{
+use super::zfs_step_21_dependency_fixtures::{
     RESOLVED,
     the_cargo_workspace,
     the_node_project,
-    the_repair_line,
-    the_time_of,
 };
 use super::zfs_step_21_guest_fixture::{
     AddRound,
     Fixture,
+};
+use super::zfs_step_21_guest_layout::{
     ROUNDS,
+    WRAPPER,
     mounted_at,
+};
+use super::zfs_step_21_repair_readings::{
+    report,
+    the_repair_line,
+    the_time_of,
 };
 use git_policy_cli::service::service_instance::{
     instance_of,
@@ -108,7 +114,7 @@ impl TheService {
         std::fs::create_dir_all(JOURNAL).expect("the journal folder");
         let log: std::fs::File = std::fs::File::create(SERVICE_LOG).expect("the service's log");
         let kept: std::fs::File = log.try_clone().expect("the second handle of the log");
-        let mut command_line: Command = Command::new(super::zfs_step_21_guest_fixture::WRAPPER);
+        let mut command_line: Command = Command::new(WRAPPER);
         command_line
             .args([
                 "monochromatic-git-policy-cli",
@@ -461,9 +467,5 @@ pub(super) fn the_queued_and_inline_arms(fixture: &Fixture) {
             "a slot of round {round} still holds a mount"
         );
     }
-    super::zfs_step_21_dependency_arms::report(
-        "queued-vs-inline",
-        inline.as_slice(),
-        queued.as_slice(),
-    );
+    report("queued-vs-inline", inline.as_slice(), queued.as_slice());
 }
