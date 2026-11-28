@@ -2917,7 +2917,11 @@ so a full disk or a pipeline that stopped reading changes what a caller reads an
   0.082 ms at its slowest in twenty interleaved rounds on 2026-11-28),
   and what does not fit after that is dropped.
   A line and its line end are written in one piece,
-  so a line is never left without its end.
+  so a notice or a report line is never left without its end.
+  A longer report is written as the text it is,
+  so a stream that refuses it part-way can leave it short.
+- The argument parser's own `--version` and `--help` text is written by clap's writer,
+  which drops a refused answer in the same way and is not this module's.
 - The cost:
   a caller cannot tell that a report was refused.
   The stream is the only place a program says so,
