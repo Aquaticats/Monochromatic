@@ -5389,7 +5389,8 @@ What this release does not yet do:
 - The warning above the measured count of changed paths is not printed:
   the count is measurement M4's,
   which has not been run,
-  and a shipped bound cites a measurement (rule `LQM`).- A record that says an add is settling,
+  and a shipped bound cites a measurement (rule `LQM`).
+- A record that says an add is settling,
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.
@@ -5543,12 +5544,23 @@ A slot command behind a `!` alias whose shell's directory Git could not be asked
 for is one nothing placed,
 so it is refused with words saying what could not be read,
 and never forwarded in silence.
+A plain `git worktree prune` behind such an alias is the one slot command that is not
+refused there,
+because it reads no operand and so no directory changes what its pass reads;
+a prune behind such an alias that names a place of its own,
+with `-C`,
+`--git-dir` or `--work-tree`,
+is refused as a removal and a move are.
 When the rule is off or escaped it says nothing about the command;
 at `warn` its finding and the line saying the policy is warn-unsafe are printed
 before a refusal of any of the three slot commands,
 a removal's,
 a move's and a prune's alike,
 in the order a removal prints them.
+The lines the stage printed lead two failures as well,
+not only those three refusals:
+a repository location that cannot be read,
+and a configuration the command needs and cannot use.
 The spellings that reach that reading are the guard's own,
 stated in the passage "git by the word Git will run":
 a value whose bytes are letters,
@@ -8440,8 +8452,14 @@ No command installs any of it:
 no release writes a unit file,
 and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
 The migration,
-the property changes and the install are the owner's act,
-written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+the property changes and the install are the agent's act,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
+written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`;
+the owner chooses the moment of the migration and of any reboot.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
@@ -8458,7 +8476,12 @@ so the wording and the decision are tested on built facts and no control opens t
 No command reaches the folder in this release:
 `doctor` prints none of these lines,
 nothing writes `sanoid.conf` or sets the marker,
-and a property on an existing dataset is the owner's act,
+and a property on an existing dataset is the agent's act,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
 written up in `doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md`.
 
 #### The wrapper's side and its deadline
