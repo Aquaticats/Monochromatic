@@ -699,6 +699,9 @@ pub use repair::*;
 /// The `doctor` report and the checks of hooks and configuration it runs.
 pub mod health;
 
+/// Every fact of this machine the ZFS route's `doctor` checks read.
+pub mod machine_route_facts;
+
 /// The same re-export for `health`.
 pub use health::*;
 

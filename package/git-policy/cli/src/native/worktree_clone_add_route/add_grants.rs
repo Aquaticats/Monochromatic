@@ -364,16 +364,36 @@ fn the_refusal(line: String) -> StepRefusal {
     ));
 }
 
-/// The account this process runs as,
-/// which is the one the kernel judges a delegation against.
-fn this_account() -> u32 {
+/// What:
+///  The account this process runs as,
+///  which is the one the kernel judges a delegation against.
+/// Why:
+///  This add's preflight and `doctor`'s delegation check read the same
+///  account,
+///  so a report and a refusal cannot disagree about whose grants they are
+///  (`crate::doctor_zfs_route::the_machines_route_facts`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const account = thisAccount(); // process.geteuid()
+/// ```
+pub(crate) fn this_account() -> u32 {
     // SAFETY: `geteuid` reads this process's own identity and has no preconditions.
     return unsafe { libc::geteuid() };
 }
 
-/// Every group this process belongs to,
-/// which is what the kernel matches a group's grant against.
-fn groups_of_this_account() -> Result<Vec<u32>, StepRefusal> {
+/// What:
+///  Every group this process belongs to,
+///  which is what the kernel matches a group's grant against.
+/// Why:
+///  The delegation check and the add's own preflight need the same groups,
+///  so one read answers both and neither can name another set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const groups = groupsOfThisAccount(); // [1000]
+/// ```
+pub(crate) fn groups_of_this_account() -> Result<Vec<u32>, StepRefusal> {
     // SAFETY: a zero size with a null buffer only asks the kernel how many groups there are.
     let counted: libc::c_int = unsafe { libc::getgroups(0, std::ptr::null_mut()) };
     if counted < 0 {

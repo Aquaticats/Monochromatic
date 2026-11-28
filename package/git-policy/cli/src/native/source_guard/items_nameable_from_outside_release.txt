@@ -4768,6 +4768,15 @@ lock::stopped_git_locks fn LockLedger::before_start
 lock::stopped_git_locks fn LockLedger::none
 lock::stopped_git_locks fn LockLedger::sweep
 lock::stopped_git_locks struct LockLedger
+# The machine's ZFS route facts, gathered once from the live system: the binary test target's guest arm calls
+# the one entry and reads the value it answers, and the round that prints the report calls the same entry
+# (`machine_route_facts`, 2026-11-27).
+machine_route_facts::the_machines_route_facts field MachineFactsRefusal::why
+machine_route_facts::the_machines_route_facts field MachineRouteFacts::route
+machine_route_facts::the_machines_route_facts field MachineRouteFacts::unread
+machine_route_facts::the_machines_route_facts fn gather_the_machine_route_facts
+machine_route_facts::the_machines_route_facts struct MachineFactsRefusal
+machine_route_facts::the_machines_route_facts struct MachineRouteFacts
 markdown::markdown_exclude fn ExcludeMatcher::excludes
 markdown::markdown_exclude fn compile_exclude
 markdown::markdown_exclude struct ExcludeMatcher
