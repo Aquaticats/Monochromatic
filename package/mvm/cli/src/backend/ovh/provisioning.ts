@@ -27,6 +27,7 @@ import {
 } from './flavors.ts';
 import { resolveImage, } from './images.ts';
 import {
+  assertNameIsNotDeleting,
   instanceImageUser,
   instanceLoginUser,
   publicIpv4,
@@ -169,6 +170,7 @@ export async function provisionInstance({
    Full instance name including the mvm- prefix.
    */
   const fullName = `${VM_PREFIX}${name}`;
+  await assertNameIsNotDeleting({ name, },);
   /**
    Key identifier injected into the instance so SSH can connect afterwards.
    */

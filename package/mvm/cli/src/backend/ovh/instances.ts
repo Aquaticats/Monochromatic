@@ -10,7 +10,10 @@
  */
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
 
 import { VM_PREFIX, } from '../../config.ts';
 import {
@@ -23,6 +26,7 @@ import {
   type OvhInstance,
   IPV4_VERSION,
   INSTANCE_DELETED_STATUS,
+  INSTANCE_DELETING_STATUS,
   INSTANCE_FAILED_STATUSES,
   INSTANCE_RUNNING_STATUS,
   PUBLIC_IP_TYPE,
@@ -65,6 +69,19 @@ const USABLE_IMAGE_STATUS = 'active';
  */
 const SNAPSHOT_TIMEOUT_MS = 120_000;
 
+/**
+ How long to wait for an accepted delete to take the machine out of the
+ project's listing.
+
+ Measured on 2026-11-28 against the one project: a delete OVHcloud accepted at
+ 11:40:42.648Z was listed as `DELETED` at 11:40:54.346Z, 11.7s later, and a
+ delete accepted at 11:52:45.307Z was still `DELETING` at 11:53:01.246Z, 15.9s
+ later. Five minutes is more than an order of magnitude past both readings,
+ equals the wait a create already gives for a machine to start, and costs one
+ read of the project's listing every {@link POLL_INTERVAL_MS}.
+ */
+const DELETE_TIMEOUT_MS = 300_000;
+
 //endregion Constants
 
 //region Ownership
@@ -77,6 +94,9 @@ const SNAPSHOT_TIMEOUT_MS = 120_000;
  An instance the project lists as {@link INSTANCE_DELETED_STATUS} is gone:
  counting it would report a machine that runs nowhere, and matching it would
  make a name ambiguous as soon as a new machine takes it.
+ An instance the project lists as {@link INSTANCE_DELETING_STATUS} is not gone:
+ it is still billed, so it stays one of mvm's machines, it counts against any
+ limit on how many run at once, and a lookup by its name matches it.
  
  @param instances - every instance of the project
  
@@ -158,7 +178,115 @@ export async function listMvmInstances(): Promise<readonly OvhInstance[]> {
   return mvmInstances({ instances: await listInstances(), },);
 }
 
+/**
+ Refuses an instance the project is still deleting.
+
+ A machine under {@link INSTANCE_DELETING_STATUS} still bills and still answers
+ this backend's listing, so every lookup by name matches it; reaching it over
+ SSH cannot work, so the operations that would reach it say why instead.
+ 
+ @param instance - instance the lookup resolved
+ 
+ @param name - VM name without the mvm- prefix, named in the message
+ 
+ @throws Error when the project lists the instance as deleting
+ 
+ @example
+ ```ts
+ assertNotDeleting({ instance, name: 'dev-01' });
+ ```
+ */
+export function assertNotDeleting({
+  instance,
+  name,
+}: {
+  readonly instance: OvhInstance;
+  readonly name: string;
+},): void {
+  if (instance.status !== INSTANCE_DELETING_STATUS) {
+    return;
+  }
+  throw new Error(
+    `instance ${name} is being deleted: OVHcloud lists it as ${instance.status}, so there is nothing to connect to and nothing to run a command in. Check the listing with mvm --backend ovh list, and mvm --backend ovh destroy ${name} waits until the project stops listing it.`,
+  );
+}
+
+/**
+ Refuses a name the project is still deleting.
+
+ OVHcloud does not make an instance name unique, so a create under a name the
+ project still lists as deleting would leave two machines whose names mvm
+ cannot tell apart, and every later lookup by that name would refuse as
+ ambiguous. The two settings that create a machine, create and clone, ask this
+ first.
+ 
+ @param name - VM name without the mvm- prefix
+ 
+ @throws Error when the project lists a machine of that name as deleting
+ 
+ @example
+ ```ts
+ await assertNameIsNotDeleting({ name: 'dev-01' });
+ ```
+ */
+export async function assertNameIsNotDeleting({
+  name,
+}: {
+  readonly name: string;
+},): Promise<void> {
+  /**
+   Full instance name; the exact match target.
+   */
+  const fullName = `${VM_PREFIX}${name}`;
+  /**
+   The listed machine of that name, when the project still lists one as deleting.
+   */
+  const deleting = (await listInstances())
+    .find(function sameNameAndDeleting(instance,) {
+      return (instance.name === fullName) && (instance.status === INSTANCE_DELETING_STATUS);
+    },);
+  if (deleting === undefined) {
+    return;
+  }
+  throw new Error(
+    `OVHcloud is still deleting ${fullName}: the project lists it as ${deleting.status}, and OVHcloud bills an instance until it is deleted. Wait for it to leave the listing (mvm --backend ovh list), or delete it again (mvm --backend ovh destroy ${name}), before creating another machine with that name.`,
+  );
+}
+
 //endregion Ownership
+
+//region Shapes
+
+/**
+ A machine a delete has been accepted for, and the name its messages use.
+ */
+export type DeletedInstance = {
+  /**
+   Instance identifier, the value the project's listing carries.
+   */
+  readonly id: string;
+  /**
+   VM name without the mvm- prefix, named in the messages.
+   */
+  readonly name: string;
+};
+
+/**
+ One machine the project still lists after its delete was accepted, with the
+ status the last read gave it.
+ */
+export type StillDeleting = {
+  /**
+   VM name without the mvm- prefix.
+   */
+  readonly name: string;
+  /**
+   Status the project's listing gave the machine at the last read.
+   */
+  readonly status: string;
+};
+
+//endregion Shapes
 
 //region Addresses
 
@@ -410,6 +538,158 @@ export async function waitForSnapshotReady({
     `snapshot ${imageId} did not report the status "${USABLE_IMAGE_STATUS}" within ${
       String(SNAPSHOT_TIMEOUT_MS,)
     }ms; trying to boot it anyway`,
+  );
+}
+
+/**
+ Says why a wait for accepted deletes gave up, naming every machine still
+ listed, where each stood, what that costs and both commands that answer it.
+ 
+ @param pending - machines the project still lists, each with its last status
+ 
+ @param timeoutMs - how long the wait had
+ 
+ @returns the sentence the wait throws
+ 
+ @example
+ ```ts
+ destructionTimeoutMessage({ pending: [{ name: 'dev-01', status: 'DELETING' }], timeoutMs: 300_000 });
+ ```
+ */
+export function destructionTimeoutMessage({
+  pending,
+  timeoutMs,
+}: {
+  readonly pending: readonly StillDeleting[];
+  readonly timeoutMs: number;
+},): string {
+  /**
+   Machine names, in the order the wait was given them.
+   */
+  const names = pending.map(function nameOf(entry,) {
+    return entry.name;
+  },);
+  /**
+   Where each machine stood at the last read.
+   */
+  const listed = pending.map(function nameAndStatus(entry,) {
+    return `${entry.name} as ${entry.status}`;
+  },);
+  /**
+   One command per machine, so a reader can repeat any of them.
+   */
+  const commands = pending.map(function destroyCommand(entry,) {
+    return `mvm --backend ovh destroy ${entry.name}`;
+  },);
+  return `deleting ${names.join(', ',)} did not finish within ${
+    String(timeoutMs,)
+  }ms: OVHcloud still lists ${listed.join(', ',)}. OVHcloud bills an instance until it is deleted, so every machine the project still lists is still being paid for. Check the listing with mvm --backend ovh list, and delete again with ${commands.join(', ',)}.`;
+}
+
+/**
+ Waits for accepted deletes to take their machines out of the project's
+ listing, saying each status once.
+
+ A machine is gone when the project stops listing it or lists it as
+ {@link INSTANCE_DELETED_STATUS}: only then does nothing bill for it and is its
+ name free. A machine the project still lists as {@link INSTANCE_DELETING_STATUS}
+ is still billed, so its status is said once and the wait keeps reading.
+ 
+ @param instances - machines whose deletes OVHcloud has accepted
+ 
+ @param pollIntervalMs - delay between reads of the listing, the create wait's by default
+ 
+ @param rl - logger for the status lines, a module one by default
+ 
+ @param timeoutMs - how long to read before giving up, {@link DELETE_TIMEOUT_MS} by default
+ 
+ @throws Error from {@link destructionTimeoutMessage} when a machine is still listed at the bound
+ 
+ @example
+ ```ts
+ await waitUntilDeleted({ instances: [{ id: 'abc', name: 'dev-01' }] });
+ ```
+ */
+export async function waitUntilDeleted({
+  instances,
+  pollIntervalMs = POLL_INTERVAL_MS,
+  rl,
+  timeoutMs = DELETE_TIMEOUT_MS,
+}: {
+  readonly instances: readonly DeletedInstance[];
+  readonly pollIntervalMs?: number;
+  readonly rl?: Logger;
+  readonly timeoutMs?: number;
+},): Promise<void> {
+  /**
+   Logger scoped to this wait so its lines are namespaced.
+   */
+  const logger = rl ?? tagged({
+    tag: waitUntilDeleted.name,
+    l,
+  },);
+  /**
+   Deadline after which the wait gives up and names what is still listed.
+   */
+  const deadline = Date.now() + timeoutMs;
+  /**
+   Statuses already said, per instance, so a status met twice is said once.
+   */
+  const said = new Map<string, string>();
+  /**
+   Machines the last read of the listing still held, by instance identifier.
+   */
+  const stillListed = new Map<string, StillDeleting>();
+  do {
+    /**
+     The project's listing as this read found it.
+     */
+    // oxlint-disable-next-line no-await-in-loop -- deliberate serial reading of one project's listing
+    const listed = await listInstances();
+    /**
+     The listing keyed by instance identifier, which is what a delete names.
+     */
+    const byId = new Map(listed.map(function byIdentifier(instance,) {
+      return [
+        instance.id,
+        instance,
+      ] as const;
+    },),);
+    stillListed.clear();
+    for (const target of instances) {
+      /**
+       The machine as this read found it, absent once the project dropped it.
+       */
+      const current = byId.get(target.id,);
+      if ((current === undefined) || (current.status === INSTANCE_DELETED_STATUS)) {
+        continue;
+      }
+      if (current.status !== said.get(target.id,)) {
+        logger.info(`instance ${target.name} is ${current.status}`,);
+        said.set(
+          target.id,
+          current.status,
+        );
+      }
+      stillListed.set(
+        target.id,
+        {
+          name: target.name,
+          status: current.status,
+        },
+      );
+    }
+    if (stillListed.size === 0) {
+      return;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- deliberate serial reading of one project's listing
+    await wait(pollIntervalMs,);
+  } while (Date.now() < deadline);
+  throw new Error(
+    destructionTimeoutMessage({
+      pending: [...stillListed.values(),],
+      timeoutMs,
+    },),
   );
 }
 

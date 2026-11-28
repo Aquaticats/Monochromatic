@@ -1,9 +1,11 @@
 /**
  Unit tests for the ovh backend's lifecycle against a stand-in HTTP layer: a
  create never asks for monthly billing, waits for SSH as the account the image
- names, and deletes what it made when it cannot finish; a sweep touches only the
- machines whose name carries the tool's prefix; and a clone deletes its snapshot
- once the new machine runs.
+ names, and deletes what it made when it cannot finish; a create or a clone
+ refuses a name the project is still deleting; exec refuses a machine that is
+ being deleted; a destroy returns only once the project's listing has let its
+ machine go, and a sweep waits for every machine it deleted; and a clone deletes
+ its snapshot once the new machine runs.
 
  Every body here is a stand-in written by hand from OVHcloud's schema of the
  cloud API, never a recording, so nothing in this file claims what OVHcloud
@@ -98,6 +100,7 @@ function routed(routes: Routes,): (call: RecordedCall,) => Response {
  */
 function createRoutes(): Routes {
   return {
+    [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([],),],
     [`GET ${cloudPath('/sshkey',)}`]: [jsonAnswer([],),],
     [`POST ${cloudPath('/sshkey',)}`]: [jsonAnswer(sshKeyAnswer(),),],
     [`GET ${cloudPath('/region',)}`]: [jsonAnswer(['bhs5',],),],
@@ -118,12 +121,20 @@ function createRoutes(): Routes {
  */
 function cloneRoutes(): Routes {
   return {
-    [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
-      instanceAnswer({
-        id: 'instance-dev',
-        name: 'mvm-dev',
-      },),
-    ],),],
+    [`GET ${cloudPath('/instance',)}`]: [
+      jsonAnswer([
+        instanceAnswer({
+          id: 'instance-dev',
+          name: 'mvm-dev',
+        },),
+      ],),
+      jsonAnswer([
+        instanceAnswer({
+          id: 'instance-dev',
+          name: 'mvm-dev',
+        },),
+      ],),
+    ],
     [`POST ${cloudPath('/instance/instance-dev/snapshot',)}`]: [jsonAnswer({ snapshotId: 'snapshot-1', },),],
     [`GET ${cloudPath('/image/snapshot-1',)}`]: [jsonAnswer(imageAnswer({
       id: 'snapshot-1',
@@ -494,7 +505,7 @@ await describe({
         /**
          Requests in the order they were made, by method and path.
          */
-        const order = standIn.calls.map(function describe(call,) {
+        const order = standIn.calls.map(function methodAndPath(call,) {
           return `${call.method} ${call.path}`;
         },);
         /**
@@ -604,7 +615,7 @@ await describe({
         /**
          Requests in the order they were made, by method and path.
          */
-        const order = standIn.calls.map(function describe(call,) {
+        const order = standIn.calls.map(function methodAndPath(call,) {
           return `${call.method} ${call.path}`;
         },);
         /**

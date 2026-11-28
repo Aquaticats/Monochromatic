@@ -1,8 +1,11 @@
 /**
  Unit tests for reading the project's instances: only names carrying the tool's
- prefix are mvm's, an instance the project lists as deleted is nobody's,
- a name is matched exactly, the public IPv4 is picked out of the
- address list, and an instance that reaches a failed status stops the wait.
+ prefix are mvm's, an instance the project lists as deleted is nobody's while
+ one it lists as deleting stays mvm's, a name is matched exactly, the public
+ IPv4 is picked out of the address list, an instance that reaches a failed
+ status stops the wait, and a wait for accepted deletes ends on a status of
+ deleted or on absence, says each status once, and names what is left at its
+ bound.
 
  Instance bodies here are stand-ins written by hand from OVHcloud's schema
  (`cloud.instance.Instance`, `cloud.instance.IpAddress`), never a recording, so
