@@ -79,7 +79,7 @@ function fallbackWarning(reason: SessionDaemonFallbackReason,): string {
   return [
     cause,
     'For the rest of this process, libvirt\'s session daemon starts on demand inside the cgroup of the mvm command that asks for it, where that command\'s memory cap, time limit or cleanup kills the daemon and every guest of every session when that command ends.',
-    'The unit\'s half-of-memory cap and its separation from that cgroup are not in place for those calls.',
+    'The unit\'s three-quarters-of-memory cap and its separation from that cgroup are not in place for those calls.',
     `Why that cgroup matters: ${TROUBLESHOOTING_DOC}`,
   ].join('\n',);
 }

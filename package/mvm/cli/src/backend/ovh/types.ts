@@ -168,6 +168,14 @@ export const IPV4_VERSION = 4;
 export const INSTANCE_RUNNING_STATUS: OvhInstanceState = 'ACTIVE';
 
 /**
+ The status under which the project still lists an instance it has deleted.
+ The listing of a live run on 2026-11-28 named a destroyed instance with this
+ status seconds after its delete call was accepted. Such an instance runs
+ nowhere, so it is none of mvm's machines any more and its name is free.
+ */
+export const INSTANCE_DELETED_STATUS: OvhInstanceState = 'DELETED';
+
+/**
  Statuses from which an instance never becomes usable on its own, so a wait for
  it must stop and report the failure.
  */
