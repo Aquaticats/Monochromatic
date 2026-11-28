@@ -227,7 +227,6 @@ fn one_state(
 ) -> String {
     let dataset: String = format!("{}/{CHECKOUT_DATASET_LEAF}", fixture.pool);
     let checkout: &Path = fixture.checkout.as_path();
-    let text: &str = checkout.to_str().expect("a text path");
     // This namespace starts as a peer of the guest's own table, so a mount made here would be delivered there. Each
     // state fixes the propagation it is about before it mounts anything, so the guest's table keeps what it had.
     match state {
@@ -244,11 +243,7 @@ fn one_state(
         "unbindable" => {
             make_the_tree_private(fixture);
             mount_the_checkout(fixture, dataset.as_str());
-            let (unbindable, unbindable_said) = fixture.ask("mount", &["--make-unbindable", text]);
-            assert!(
-                unbindable,
-                "the mount could not be made unbindable: {unbindable_said}"
-            );
+            change_the_propagation(checkout, libc::MS_UNBINDABLE);
         }
         "slave" => {
             make_the_parent_a_slave(fixture);
@@ -259,8 +254,7 @@ fn one_state(
             // master: that is the set a machine inside a container has.
             make_the_parent_a_slave(fixture);
             mount_the_checkout(fixture, dataset.as_str());
-            let (shared, shared_said) = fixture.ask("mount", &["--make-shared", text]);
-            assert!(shared, "the mount could not be made shared: {shared_said}");
+            change_the_propagation(checkout, libc::MS_SHARED);
         }
         other => panic!("a state this arm does not know: {other}"),
     }
@@ -725,18 +719,52 @@ fn instance_of(path: &Path) -> u64 {
     return unique_mount_number_of(&handle).expect("the descriptor's unique mount number");
 }
 
+/// What:
+///  Change one mount's propagation through the kernel's own call.
+/// Why:
+///  `mount --make-slave` on this guest answers `mount failed: Unknown error 5005` when util-linux hands the change to a
+///  filesystem helper, and the kernel's call names the mount the answer is about,
+///  so the arm asks the kernel directly, as the start probe does for its own namespace
+///  (`start_probe/probe_mount_calls.rs`, `make_mounts_private`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mount(null, path, null, MS_REC | MS_PRIVATE, null);
+/// ```
+fn change_the_propagation(
+    path: &Path,
+    flags: libc::c_ulong,
+) {
+    let text: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("no NUL in a path");
+    // SAFETY: the path is a NUL-terminated string that outlives the call, no source, filesystem or data is named, and
+    // the flags ask only for a propagation change.
+    let answered: libc::c_int = unsafe {
+        libc::mount(
+            std::ptr::null(),
+            text.as_ptr(),
+            std::ptr::null(),
+            flags,
+            std::ptr::null(),
+        )
+    };
+    assert_eq!(
+        answered,
+        0,
+        "the propagation of {} could not be changed to {flags}: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
+}
+
 /// Make this namespace's whole tree private, so nothing mounted here is delivered to the guest's own table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// exec('mount --make-rprivate /');
+/// mount(null, '/', null, MS_REC | MS_PRIVATE, null);
 /// ```
-fn make_the_tree_private(fixture: &Fixture) {
-    let (private, private_said) = fixture.ask("mount", &["--make-rprivate", "/"]);
-    assert!(
-        private,
-        "the namespace's tree could not be made private: {private_said}"
-    );
+fn make_the_tree_private(_fixture: &Fixture) {
+    change_the_propagation(Path::new("/"), libc::MS_REC | libc::MS_PRIVATE);
 }
 
 /// Make this namespace's root a shared mount of its own, so a mount made on it comes up shared and stays here.
@@ -745,12 +773,8 @@ fn make_the_tree_private(fixture: &Fixture) {
 /// ```ts
 /// exec('mount --make-shared /');
 /// ```
-fn make_the_root_shared(fixture: &Fixture) {
-    let (shared, shared_said) = fixture.ask("mount", &["--make-shared", "/"]);
-    assert!(
-        shared,
-        "the namespace's root could not be made shared: {shared_said}"
-    );
+fn make_the_root_shared(_fixture: &Fixture) {
+    change_the_propagation(Path::new("/"), libc::MS_SHARED);
 }
 
 /// Make the folder the checkout is mounted in a slave of the namespace the arm came from,
@@ -760,12 +784,10 @@ fn make_the_root_shared(fixture: &Fixture) {
 /// ```ts
 /// exec('mount --make-slave /root');
 /// ```
-fn make_the_parent_a_slave(fixture: &Fixture) {
-    let (slaved, slaved_said) = fixture.ask("mount", &["--make-slave", "/root"]);
-    assert!(
-        slaved,
-        "the parent could not be made a slave: {slaved_said}"
-    );
+fn make_the_parent_a_slave(_fixture: &Fixture) {
+    // This namespace's root is a peer of the guest's own, so the kernel makes it a slave of that group, and a mount
+    // made under it receives that master and passes nothing on.
+    change_the_propagation(Path::new("/"), libc::MS_SLAVE);
 }
 
 /// Mount the checkout's dataset at the checkout path,
