@@ -28,6 +28,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ClearingDevice,
     EpochProbe,
     LivePool,
+    NOW,
     ORIGIN_OWN_NAME,
     ScriptedHead,
     ScriptedHolders,
@@ -244,19 +245,16 @@ fn a_removal_reaches_its_unmount_with_the_folder_the_release_makes() {
     let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
     let settle: ScriptedSettle = ScriptedSettle::succeeding();
     complete_with(
-        &TheCompletion {
-            fixture: &fixture_at,
-            pool: &pool,
-            check: &probe,
-            probe: &probe,
-            device: &device,
-            head: &head,
-            holders: &holders,
-            settle: &settle,
-            cancelling: None,
-            budget: the_budget(),
-        },
-        crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::NOW,
+        &the_removal_over(
+            &fixture_at,
+            &pool,
+            &probe,
+            &device,
+            &head,
+            &holders,
+            &settle,
+        ),
+        NOW,
         &staging,
         &unmount,
     )
@@ -427,7 +425,7 @@ fn a_resumed_removal_makes_the_folder_its_unmount_binds() {
             &holders,
             &settle,
         ),
-        crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::NOW,
+        NOW,
         &staging,
         &unmount,
     )
@@ -499,7 +497,7 @@ fn a_refused_proof_makes_no_folder() {
             &holders,
             &settle,
         ),
-        crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::NOW,
+        NOW,
         &staging,
         &unmount,
     )
