@@ -537,16 +537,29 @@ Every call inside both runs recorded its own wall-clock duration.
 `FIXTURE_COMMAND_TIMEOUT_MS` is 15,000 ms.
 It is 3.3 times the slowest call measured under the 400 percent cap
 and 29 times the slowest under 1000 percent,
-and it equals `SOPS_TIMEOUT_MS`,
-the deadline the reader gives the same `sops` child,
-so a call the shipped reader would wait out cannot fail a fixture.
-It is 5.9 times the 2,564 ms stall a 4 KiB write-and-sync probe saw on
+it is 5.9 times the 2,564 ms stall a 4 KiB write-and-sync probe saw on
 2026-11-17,
-so a stalled disk fits inside it.
+and it is no stricter than `SOPS_TIMEOUT_MS`,
+the deadline the reader gives the same `sops` child,
+so a fixture fails no call the shipped reader waits out.
+Fifteen seconds is an engineering bound from one run per cap,
+not a demonstrated worst case:
+it says how long a hang may last,
+not that no host will ever make a call slower than it.
 A tool that truly hangs now costs 15 s before its process group is stopped,
 where it cost 2 s:
 that is what a bound large enough for the calls above costs,
 and each test of the fixture makes a handful of calls.
+
+The whole suite was then run once more at `CPUQuota=400%` with the shipped
+default in place and no loader:
+between 2026-11-27T19:27:05-05:00 and 2026-11-27T19:29:37-05:00,
+load average 6.76 rising to 9.19,
+with 11 other Pi runs and two Claude runs in the process list,
+it passed every file,
+228 `[PASS]` lines,
+and no call met the deadline.
+That is the cap where the 2,000 ms bound failed four calls on 2026-11-27.
 
 ### Why 32 test files ran under a 400 percent cap
 
@@ -567,13 +580,26 @@ through `MONOCHROMATIC_TEST_FILE_TASKS` and the nearest `pids.max`,
 but that sizes processes,
 not processors.
 
-A cure there would read the cgroup CPU quota (cgroup v2's `cpu.max`,
-whose `quota/period` is the processors available)
-and cap the worker count by it,
+The quota is readable next to the affinity mask:
+inside a `CPUQuota=400%` scope,
+the scope's own
+`/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/agent.slice/agent-work.slice/run-p4152182-i96316691.scope/cpu.max`
+held `400000 100000`,
+`Cpus_allowed_list` still read `0-31`,
+`nproc` reported 4,
+and `availableParallelism()` reported 32.
+So `nproc` from coreutils 9.12 already answers what the runner needs,
+and Node asks a different question.
+
+A cure there would walk from the process's own cgroup node up,
+as `nearestPidsLimit` already does for `pids.max`,
+read the first finite `cpu.max`,
+and cap the worker count at its `quota/period`,
 so 400 percent planned 4 workers and 1000 percent planned 10.
 What it costs:
-a fallback for hosts and containers where that file is absent or means
-something else,
+a fallback for the hierarchy where `cpu.max` is absent (the root of
+`/sys/fs/cgroup` on this host has none),
+another for cgroup v1 hosts and containers,
 a floor of one worker,
 and more wall-clock time for a suite that finished in about 150 s at 32
 workers while most of its files wait on processes rather than burn processors.
