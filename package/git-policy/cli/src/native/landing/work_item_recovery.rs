@@ -309,7 +309,7 @@ pub(crate) fn requeue_with(
 ///  A word kept for a later telling outlives the words themselves,
 ///  because a pass killed between the notice and the move is told again by the next one;
 ///  it is taken back only here,
-/// after the record is in `failed`,
+///  after the record is in `failed`,
 ///  so a kill at that instruction costs one file nothing reads.
 ///
 /// In TS you'd write (pseudocode):

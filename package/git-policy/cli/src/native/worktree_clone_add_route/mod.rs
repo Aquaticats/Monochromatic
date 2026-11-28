@@ -1,41 +1,38 @@
 //! What:
 //!  The execution half of the ZFS add route:
-//! from the claimed slot to a verified
+//!  from the claimed slot to a verified
 //!  fill.
 //! Why:
 //!  The registration half beside this folder owns the record family,
-//! the
-//!  managed lock's words,
-//! the finder,
-//! the recipe and the resume states
+//!  the managed lock's words,
+//!  the finder,
+//!  the recipe and the resume states
 //!  (`package/git-policy/cli/src/native/worktree_clone_binding_record/`).
 //!  This folder owns what the wrapper does with them:
-//! the gate that keeps the
+//!  the gate that keeps the
 //!  route on the design's checkout dataset,
-//! the preflight,
-//! the claim,
-//! Git's own
-//!  `${git worktree add}` with the managed lock,
-//! the scan,
-//! the snapshot and
+//!  the preflight,
+//!  the claim,
+//!  Git's own `${git worktree add}` with the managed lock,
+//!  the scan,
+//!  the snapshot and
 //!  clone with their inventories,
-//! the mount request,
-//! the frozen proof,
-//! the
-//!  leave-outs,
-//! the private index,
-//! the pointer's exchange,
-//! the check of the
+//!  the mount request,
+//!  the frozen proof,
+//!  the leave-outs,
+//!  the private index,
+//!  the pointer's exchange,
+//!  the check of the
 //!  result,
-//! and the resume a later add makes
+//!  and the resume a later add makes
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A0 to A12;
+//!  A0 to A12;
 //!  `doc/planning/cli-git-zfs-add-time-git-lock-design.md`).
 //!  Plan step 10 builds it;
-//! the fallback that finishes a failed add with Git's
+//!  the fallback that finishes a failed add with Git's
 //!  own checkout,
-//! and the conversion fence's writes,
-//! are step 11's.
+//!  and the conversion fence's writes,
+//!  are step 11's.
 //!
 //! Files in this folder,
 //! each using only files listed before it:

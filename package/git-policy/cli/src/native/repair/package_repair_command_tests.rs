@@ -1148,13 +1148,13 @@ fn a_start_that_gives_no_answer_ends_the_run_at_its_bound_and_stops_the_child_it
 /// Why:
 ///  The run that gives up on a start tells the person that nothing of the tool ran and names the command to run by hand
 ///  (`wait_ceilings.rs`,
-/// `REPAIR_TOOL_START_CEILING`).
+///  `REPAIR_TOOL_START_CEILING`).
 ///  A tool that runs anyway has already opened,
-/// truncated or replaced its files in the new worktree by the time any kill
+///  truncated or replaced its files in the new worktree by the time any kill
 ///  reaches it,
-/// and a kill after its first write cannot restore a truncated lockfile or a half-written install.
+///  and a kill after its first write cannot restore a truncated lockfile or a half-written install.
 ///  The fixture's first action is that write,
-/// which is the moment the promise is broken.
+///  which is the moment the promise is broken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

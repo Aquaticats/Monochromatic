@@ -7,7 +7,7 @@
 //! The container gate's fixture root is a tmpfs the container makes,
 //! which is never a btrfs
 //!  filesystem,
-//! so they cannot run there.
+//!  so they cannot run there.
 //! A control that silently passed there would claim coverage it does not have,
 //! so a control that
 //!  needs btrfs fails with the reason unless the run states that the absence is known (the variable below,
@@ -90,7 +90,7 @@ pub(crate) fn removal_allowed(root: &std::path::Path) -> bool {
 
 /// What:
 ///  End the filesystem's running transaction,
-/// so every write made before this call is committed.
+///  so every write made before this call is committed.
 /// Why:
 ///   A subvolume created in the transaction that still runs already reports that transaction's id as its
 /// generation,

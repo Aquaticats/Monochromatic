@@ -152,7 +152,7 @@ pub fn ask_for_a_drawn_shadow(
 /// Why:
 ///  A socket whose listener is stopped takes no connection and refuses nothing,
 ///  and the ask is bounded from its first byte,
-/// not from its first answer.
+///  not from its first answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

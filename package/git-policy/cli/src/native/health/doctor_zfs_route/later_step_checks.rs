@@ -8,12 +8,12 @@
 //!  step 18,
 //!  "Open items").
 //!  Step 15 has landed,
-//! so the deferred-origin check is `clone-origin`'s own
+//!  so the deferred-origin check is `clone-origin`'s own
 //!  line now,
 //!  and the removal plan,
-//! the clone's own snapshots and the blocked-removal
+//!  the clone's own snapshots and the blocked-removal
 //!  state are `removal-plan`'s,
-//! `clone-snapshots`' and `blocked-removal`'s.
+//!  `clone-snapshots`' and `blocked-removal`'s.
 //!  A check answered unknown here is not a gap in this build:
 //!  it is the piece's boundary made visible,
 //!  so a person reading the report learns which step to wait for rather than

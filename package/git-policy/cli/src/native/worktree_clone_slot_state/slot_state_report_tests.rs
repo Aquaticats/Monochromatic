@@ -1,7 +1,7 @@
 //! Controls for one slot's report:
 //!  one report for each state the classification names,
 //!  with its slot,
-//! its dataset and pool,
+//!  its dataset and pool,
 //!  the evidence each state came from,
 //!  and the one next safe action,
 //!  plus the lines a command prints.

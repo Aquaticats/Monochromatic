@@ -16,10 +16,10 @@
 //!  and added a look before the unmount
 //!  (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
 //!  This folder is plan step 15's piece,
-//! built ahead of the plan's order and called by no
+//!  built ahead of the plan's order and called by no
 //!  person's command yet:
 //!  its own step wires it in,
-//! and its tests and its guest arm are its only callers
+//!  and its tests and its guest arm are its only callers
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
 //!  "Building later pieces ahead of the plan's order").
 //!

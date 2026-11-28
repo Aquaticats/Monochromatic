@@ -86,7 +86,7 @@ pub(super) fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
 /// so a build that started before a clean would reuse them at the wrong paths.
 /// The add cannot wait for the clean (`REPAIR_TOOL_CEILING` is eighteen minutes and the quiet window is six hundred
 ///  seconds),
-/// and it must not leave that state where a build can trust it,
+///  and it must not leave that state where a build can trust it,
 /// so it moves the state aside in one rename before it answers:
 /// a build that starts at once finds no build directory and compiles everything itself,
 /// which is correct and only slower,

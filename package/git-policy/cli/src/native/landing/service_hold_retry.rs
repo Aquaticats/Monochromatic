@@ -342,10 +342,10 @@ pub fn run_again_within(
 /// Why:
 ///   The ending of the attempt that is reported is the command's,
 ///  whether it lost the index once,
-/// lost it to a hold that never ended,
-/// or never lost it at all.
+///  lost it to a hold that never ended,
+///  or never lost it at all.
 ///   A Git this run's last attempt was ended by a signal has to reach the caller as that death,
-/// not as the status a shell
+///  not as the status a shell
 ///  prints for it (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 ///  finding 4 of the round-1 review).
 ///

@@ -579,7 +579,7 @@ fn alive(pid: i32) -> bool {
 
 /// What:
 ///  The helper:
-/// one upload run in a process of its own,
+///  one upload run in a process of its own,
 /// for the controls that send the wrapper a signal or leave a stand-in holding.
 /// Why:
 ///   The guard's handlers are process-wide and the first guard of a process owns them

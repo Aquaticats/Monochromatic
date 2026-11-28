@@ -31,7 +31,7 @@
 //!  Every check takes its facts as a value,
 //!  so the wording and the decision are tested on built facts and a control
 //!  never opens this machine's `/dev/zfs`,
-//! store or receipts.
+//!  store or receipts.
 //!  The facts themselves are the wiring run's to gather once from the live
 //!  system,
 //!  as the add route's preflight gathers the same delegation through

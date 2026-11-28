@@ -44,7 +44,7 @@ pub const BUILT_WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli
 ///  on this host and inside a guest,
 ///  and a control never needs root's own install folder to exist.
 ///  Each caller names its own folder,
-/// so two arms of one test never share a
+///  so two arms of one test never share a
 ///  link and a target,
 ///  and the link is removed and made again so a re-run starts from nothing.
 ///

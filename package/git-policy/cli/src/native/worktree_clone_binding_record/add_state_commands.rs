@@ -12,7 +12,7 @@
 //!  the pool refusing its listing is evidence a person confirms,
 //!  never a reason to leave the slot with no command
 //!  (the design writer's K14,
-//! added after the eleventh read).
+//!  added after the eleventh read).
 //!  A binding at `cloned` or `mounted` whose clone is gone is the settling command's,
 //!  proved or not.
 //!  Beside a standing plan the command is the plan design's,

@@ -1,6 +1,6 @@
 //! What:
 //!  The add's steps after the claim,
-//! one per phase:
+//!  one per phase:
 //!  the empty slot and its identity,
 //!  Git's registration and the scan that adopts or clears it,
 //!  the checkout snapshot and its inventory,
@@ -10,7 +10,7 @@
 //! Why:
 //!  Each step reads the state a kill at the step before it leaves and writes
 //!  only the facts it confirmed,
-//! so a resume continues from the phase the
+//!  so a resume continues from the phase the
 //!  record names
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "The add's writes in one order" and "What the writer confirms before each write").
@@ -61,13 +61,13 @@ pub use super::add_route_steps_snapshot_and_capture::step_snapshot;
 
 /// What:
 ///  Make the clone when it is not there,
-/// adopt it when only its record is
+///  adopt it when only its record is
 ///  missing,
-/// publish its inventory,
-/// and ask for its mount.
+///  publish its inventory,
+///  and ask for its mount.
 /// Why:
 ///  A successful clone does not imply a mount,
-/// and the request is what the
+///  and the request is what the
 ///  handler sweeps for.
 pub fn step_clone(
     steps: &Steps<'_>,
@@ -189,9 +189,9 @@ fn the_clone_came_from(
 ///  wait that would time out
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
 ///  The add destroys nothing:
-/// a wrong clone stands until the removal's settle
+///  a wrong clone stands until the removal's settle
 ///  step,
-/// plan step 14.
+///  plan step 14.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,10 +216,10 @@ fn refuse_a_clone_that_is_not_legacy_from_the_container(
 
 /// What:
 ///  Ask for the mount and verify it at the slot,
-/// then move to `mounted`.
+///  then move to `mounted`.
 /// Why:
 ///  The slot shows the clone only in this command's own namespace,
-/// so the wait
+///  so the wait
 ///  reads the mount table through the slot and not the handler's word.
 pub fn step_mount(
     steps: &Steps<'_>,
@@ -269,7 +269,7 @@ fn record_mounted(
 ///  Fill the mounted clone and mark the record usable.
 /// Why:
 ///  The phase follows the exchange and its verification,
-/// so a reader never sees
+///  so a reader never sees
 ///  a usable record before the worktree it names is whole.
 pub fn step_fill(
     steps: &Steps<'_>,

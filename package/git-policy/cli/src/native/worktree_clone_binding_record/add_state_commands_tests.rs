@@ -1,6 +1,6 @@
 //! Controls for the command each resume state names:
 //!  a clone the pool cannot prove gone names the settling command,
-//! as one it can,
+//!  as one it can,
 //!  a clone that stands names the removal,
 //!  a settling record with no clone GUID names the add again,
 //!  each head word of a standing plan names the command the plan design gives

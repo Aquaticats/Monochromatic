@@ -101,8 +101,7 @@ impl World {
 
     /// A complete registration with this add's lock,
     /// its back-link,
-    /// the slot's
-    /// pointer,
+    /// the slot's pointer,
     /// a `commondir` and a `HEAD`.
     fn a_complete_registration(&self) {
         let registration: PathBuf = self.registration();

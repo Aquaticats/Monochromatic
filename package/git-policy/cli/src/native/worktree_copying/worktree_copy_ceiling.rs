@@ -9,7 +9,7 @@
 //! (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
 //! The bound keeps even that command from spending an unbounded time on a checkout whose ignored
 //! state is huge or whose filesystem stopped answering,
-//! because the owner's rule is that
+//!  because the owner's rule is that
 //! "nothing should ever wait forever or indefinitely".
 //! A copy is a transaction that can be cut at any instruction,
 //! so a stop at the bound is safe and loses nothing it had written:
@@ -31,8 +31,8 @@ use std::time::{
 /// Why:
 ///  Six minutes is five times the longest copy measured at the scale the audit that found this wait used
 ///  (15,151 ignored entries,
-/// 150 MB:
-/// 73 s for the whole copy on this host at a load average of about 100),
+///  150 MB:
+///  73 s for the whole copy on this host at a load average of about 100),
 ///  rounded up to a whole minute,
 ///  which is the margin the wrapper's measured limits use.
 /// A copy the destination's own command may not finish ends as a worktree named for removal and a fresh

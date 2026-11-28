@@ -1,20 +1,19 @@
 //! What:
 //!  The check of a filled worktree:
-//! the pointer,
-//! its registration,
-//! the common
-//!  directory and the index.
+//!  the pointer,
+//!  its registration,
+//!  the common directory and the index.
 //! Why:
 //!  "Mark the binding usable only after the fill is verified",
 //!  and the verification is the facts every later reader relies on,
 //!  so each is read from the file system rather than from the values the fill
 //!  itself wrote
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A12).
+//!  A12).
 //!  `add_fill.rs` runs the fill in order and would go over the file-size limit
 //!  carrying the check,
 //!  and the check is the last thing the fill does,
-//! so a reader meets it after
+//!  so a reader meets it after
 //!  every write it judges.
 //!
 //! In TS you'd write (pseudocode):
@@ -27,11 +26,10 @@ use std::path::PathBuf;
 
 /// What:
 ///  Check the filled worktree:
-/// the pointer,
-/// its registration,
-/// the common
-///  directory,
-/// the index and the head.
+///  the pointer,
+///  its registration,
+///  the common directory,
+///  the index and the head.
 /// Why:
 ///  "Mark the binding usable only after the fill is verified",
 ///  and the verification is the facts every later reader relies on.

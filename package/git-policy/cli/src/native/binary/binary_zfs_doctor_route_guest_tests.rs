@@ -1,6 +1,6 @@
 //! What:
 //!  Plan step 18's `doctor` checks for steps 2 to 9,
-//! run against a real
+//!  run against a real
 //!  file-backed pool in a throwaway guest:
 //!  the three groups pass on the design's layout,
 //!  and each broken fact answers the finding that names it.
@@ -1773,19 +1773,19 @@ fn breaks_missing_slot() {
 /// What:
 ///  A checkout dataset that lists its snapshot directory is a finding naming
 ///  `visible`,
-/// the command that sets `disabled`,
-/// and the module floor.
+///  the command that sets `disabled`,
+///  and the module floor.
 /// Why:
 ///  Only `disabled` keeps the kernel from mounting a snapshot an account enters
 ///  by name,
 ///  so a person must learn the value,
-/// the command and that an older module has
+///  the command and that an older module has
 ///  no such value,
 ///  and the value is read through this route's own dataset-stats reply rather
 ///  than through `zfs get`
 ///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 ///  "What hiding comes to,
-/// answered 2026-11-23").
+///  answered 2026-11-23").
 fn breaks_snapdir_visible() {
     zfs(&["set", "snapdir=visible", checkout_dataset().as_str()]);
     let datasets: Vec<DatasetFacts> = dataset_facts();
@@ -1889,7 +1889,7 @@ fn snapdir_of(dataset: &str) -> git_policy_cli::doctor_zfs_route::SnapdirSetting
 ///  so a child that did not follow its parent would leave every clone showing
 ///  its own snapshot directory;
 ///  the child carries no origin,
-/// so the read is inheritance rather than a value
+///  so the read is inheritance rather than a value
 ///  a clone copied from its origin snapshot.
 fn snapdir_follows_the_container() {
     let probe: String = format!("{}/snapdir-probe", container_dataset());

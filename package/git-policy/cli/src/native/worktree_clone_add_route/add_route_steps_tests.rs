@@ -62,7 +62,7 @@ fn the_stop_switch_names_the_steps_the_guest_arms_kill_at() {
 ///  sweep refuses
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
 ///  The step opens the kernel's device,
-/// so the shape a release file must have is
+///  so the shape a release file must have is
 ///  read from the source,
 ///  as the preflight's own controls do.
 ///

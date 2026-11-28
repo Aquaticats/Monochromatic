@@ -203,7 +203,7 @@ fn sharing_fields(row: &MountFacts) -> Vec<&str> {
 ///  which is what the guest measured as the shared arm's preserved delivery
 ///  and its cost,
 ///  and propagation belongs to the mount instance,
-/// so the live row decides.
+///  so the live row decides.
 ///  The finding prints the one command that changes it and never runs it.
 ///
 /// In TS you'd write (pseudocode):

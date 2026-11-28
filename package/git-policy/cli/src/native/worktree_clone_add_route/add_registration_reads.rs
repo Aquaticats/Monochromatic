@@ -1,16 +1,15 @@
 //! What:
 //!  Everything the add's scan of `<common>/worktrees` reads:
-//! the entries of
+//!  the entries of
 //!  that folder,
-//! a registration's `gitdir`,
-//! one record that may be absent,
-//! and
-//!  the slots whose bindings already stand.
+//!  a registration's `gitdir`,
+//!  one record that may be absent,
+//!  and the slots whose bindings already stand.
 //! Why:
 //!  The finder decides from these facts and nothing else,
-//! so they are read once,
+//!  so they are read once,
 //!  under the claim,
-//! and each entry is read through the one reader the lock's own
+//!  and each entry is read through the one reader the lock's own
 //!  classification uses
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "A resume after a kill between Git's add and the registered write").
@@ -43,7 +42,7 @@ use std::path::{
 ///  Everything the scan reads.
 /// Why:
 ///  The slot and its path are the finder's key,
-/// and the home answers which
+///  and the home answers which
 ///  other slots own a candidate name.
 pub struct ScanInput<'a> {
     /// The repository's common Git directory.

@@ -1,16 +1,15 @@
 //! What:
 //!  The bytes a relayed child writes to its standard error:
-//! read as they arrive,
-//! written to this process's standard error,
-//! and
-//!  kept as a bounded tail for the reading after the wait.
+//!  read as they arrive,
+//!  written to this process's standard error,
+//!  and kept as a bounded tail for the reading after the wait.
 //! Why:
 //!  The person reads Git's own words while they are written,
-//! and the sentence after a refusal is chosen from the stream's end;
+//!  and the sentence after a refusal is chosen from the stream's end;
 //!  the relay never waits for bytes it cannot see,
-//! so a process the child left holding the stream cannot hold the wrapper
+//!  so a process the child left holding the stream cannot hold the wrapper
 //!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-//! "The end rule").
+//!  "The end rule").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -49,10 +48,10 @@ use std::io::Write;
 ///  How much of the child's error stream the relay keeps for the reading after the wait.
 /// Why:
 ///   A clone prints megabytes of progress,
-/// and the words the reading needs are at the end;
+///  and the words the reading needs are at the end;
 ///   keeping the whole stream would let one command hold all of it.
 ///   Sixty-four kilobytes is the bound the design names,
-/// and it holds a refusal's lines whole.
+///  and it holds a refusal's lines whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,11 +61,11 @@ pub(super) const KEPT_TAIL_BYTES: usize = 65536;
 
 /// What:
 ///  Read everything the child's error stream has now,
-/// write it to this process's standard error,
-/// and keep its tail.
+///  write it to this process's standard error,
+///  and keep its tail.
 /// Why:
 ///   One pass per readiness,
-/// so a progress update written in one go reaches the person whole.
+///  so a progress update written in one go reaches the person whole.
 ///   The answer says whether the stream reached its end.
 ///
 /// In TS you'd write (pseudocode):
@@ -117,11 +116,11 @@ pub(super) fn copy_what_is_readable(
 
 /// What:
 ///  Take whatever the stream still holds once the child ended,
-/// without waiting for more.
+///  without waiting for more.
 /// Why:
 ///   The design's end rule:
-/// the relay ends when the child does,
-/// after draining what is already readable,
+///  the relay ends when the child does,
+///  after draining what is already readable,
 ///   so a process the child left holding the stream cannot hold the wrapper.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,7 +151,7 @@ pub(super) fn drain_what_is_left(
 ///  Write one chunk to this process's standard error and keep its last `KEPT_TAIL_BYTES` bytes.
 /// Why:
 ///   The person reads the bytes as Git writes them,
-/// and the reading after the wait needs the stream's end.
+///  and the reading after the wait needs the stream's end.
 ///   A write that fails (a closed standard error) keeps the bytes away from the person but never from the reading.
 ///
 /// In TS you'd write (pseudocode):
@@ -183,7 +182,7 @@ fn relay_one_chunk(
 
 /// What:
 ///  Make a descriptor non-blocking,
-/// so the relay never waits for bytes it cannot see.
+///  so the relay never waits for bytes it cannot see.
 /// Why:
 ///   The relay waits with `poll` and reads only what is there;
 ///   a blocking read would hold this process past the child's end whenever a process the child started keeps the stream open.

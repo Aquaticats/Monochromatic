@@ -1232,6 +1232,21 @@ which then asks for rustdoc on the file and on each `use` in it
 (`package/linter/monochromatic-lint/src/processors_fences.rs`,
 `fences`).
 
+## A doc fence is closed, and nothing reports one left open
+
+Every doc fence is closed on the line after its last code line,
+and no rule reports a fence that is never closed:
+CommonMark runs an unterminated fence to the end of its container,
+so the lines after it are code to every Markdown rule,
+and a fix has nothing to say about the missing closing line.
+The repository's configuration and `monochromatic-lint` `0.5.2-alpha.24`
+reported nothing for the `//!` fence with the info string `ts` in
+`policy/policy_forbidden_strings.rs`,
+which stayed open from `8ac11438b8` (2026-11-26T19:44:23-05:00) until this round closed it,
+while a break planted in the same source was reported in the same run (2026-11-27).
+So count the file's doc fence lines before a commit:
+an odd count means one is open.
+
 ## Search the open branches before deleting anything as unused
 
 Pieces of later steps are built ahead and live on branches until they merge,
