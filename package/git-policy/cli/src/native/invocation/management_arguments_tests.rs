@@ -21,6 +21,13 @@ use super::{
     RetiredCommand,
     parse_management_arguments,
 };
+use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
+use crate::worktree_clone_record_settling::settling_request::SettlingRequest;
+use crate::worktree_clone_removal_cancel::cancel_arguments::{
+    CancelInvocation,
+    CancelMistake,
+    CancelRequest,
+};
 use std::ffi::OsString;
 
 /// Parse text arguments.
@@ -399,4 +406,133 @@ fn the_service_command_takes_only_status_and_settle_earlier_batches() {
             "{bad:?}"
         );
     }
+}
+
+/// What:
+///  That the two ZFS route words are the namespace's own grammar,
+///  so a word inside them answers the command's sentence rather than the
+///  namespace's usage text.
+/// Why:
+///  This is the change the round makes:
+///  before it,
+///  both words were an unknown command,
+///  and the binary printed `MANAGEMENT_USAGE` and exited `2` for each of them.
+///  A control that only read the parsed action could pass on a grammar that still
+///  fell through to the usage refusal after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(parse(['cancel-worktree-removal', 'one'])).not.toEqual(Err('usage'));
+/// expect(parse(['settle-worktree-clone-record', 'one'])).not.toEqual(Err('usage'));
+/// ```
+#[test]
+fn the_two_zfs_route_words_are_the_namespaces_own_grammar() {
+    assert_eq!(
+        parse(&["cancel-worktree-removal", "one"]),
+        Ok(ManagementAction::CancelWorktreeRemoval(Ok(
+            CancelInvocation::Cancel(CancelRequest {
+                slot: String::from("one"),
+            })
+        ))),
+        "the cancel word carries the slot the grammar read"
+    );
+    assert_eq!(
+        parse(&[
+            "settle-worktree-clone-record",
+            "one",
+            "--confirm-removal-of",
+            "one",
+            "--confirm-clone-guid",
+            "3102",
+        ]),
+        Ok(ManagementAction::SettleWorktreeCloneRecord(Ok(
+            SettlingRequest {
+                slot: String::from("one"),
+                confirmed_slot: String::from("one"),
+                digits: String::from("3102"),
+            }
+        ))),
+        "the settling word carries the three values the person typed"
+    );
+}
+
+/// What:
+///  That a word inside each of the two commands is answered by that command,
+///  never by the namespace's usage refusal.
+/// Why:
+///  The namespace's usage refusal exits `2` and prints fourteen lines a person
+///  did not ask about;
+///  the command's own sentence names the mistake they made.
+///  Both statuses are `2` here,
+///  so the assertion is about the answer's own kind and not only its status.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(parse(['cancel-worktree-removal'])) .toEqual(Ok({ command: 'cancel-worktree-removal', mistake: 'no-argument' }));
+/// ```
+#[test]
+fn a_word_inside_each_command_is_that_commands_own_answer() {
+    assert_eq!(
+        parse(&["cancel-worktree-removal"]),
+        Ok(ManagementAction::CancelWorktreeRemoval(Err(
+            CancelMistake::NoArgument
+        ))),
+        "the cancel word's own grammar answers a missing slot"
+    );
+    assert!(matches!(
+        parse(&["settle-worktree-clone-record", "one"]),
+        Ok(ManagementAction::SettleWorktreeCloneRecord(Err(
+            SettlingStop::Usage { .. }
+        )))
+    ));
+    assert_eq!(
+        parse(&["settle-worktree-clone-record", "--help"]),
+        Ok(ManagementAction::SettleWorktreeCloneRecord(Err(
+            SettlingStop::Usage {
+                said: String::from("`--help` is no option of this command"),
+            }
+        ))),
+        "the settling command has no help of its own, and says so in its own words"
+    );
+    assert_eq!(
+        parse(&["cancel-worktree-removal", "--help"]),
+        Ok(ManagementAction::CancelWorktreeRemoval(Ok(
+            CancelInvocation::Help
+        ))),
+        "the cancel command's usage is its own"
+    );
+}
+
+/// What:
+///  That both words are named in the namespace's usage and help.
+/// Why:
+///  A person who mistypes a word reads where the words are,
+///  and a word the grammar admits but neither text names is a command nobody
+///  finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(MANAGEMENT_USAGE).toContain('cancel-worktree-removal <slot>');
+/// expect(MANAGEMENT_HELP).toContain('settle-worktree-clone-record');
+/// ```
+#[test]
+fn the_namespace_names_the_two_words_it_admits() {
+    assert!(
+        MANAGEMENT_USAGE
+            .contains("git monochromatic-git-policy-cli cancel-worktree-removal <slot>"),
+        "{MANAGEMENT_USAGE}"
+    );
+    assert!(
+        MANAGEMENT_USAGE
+            .contains("git monochromatic-git-policy-cli settle-worktree-clone-record <slot>"),
+        "{MANAGEMENT_USAGE}"
+    );
+    assert!(
+        MANAGEMENT_HELP.contains("cancel-worktree-removal"),
+        "the help names the cancel word"
+    );
+    assert!(
+        MANAGEMENT_HELP.contains("settle-worktree-clone-record"),
+        "the help names the settling word"
+    );
 }

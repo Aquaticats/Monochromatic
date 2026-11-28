@@ -8,7 +8,7 @@
 //! Why:
 //!  The removal's own refusals send a person to this record,
 //!  so the line must name the clone,
-//! the origin and the registration a removal
+//!  the origin and the registration a removal
 //!  proves itself against,
 //!  and it must never turn a record nobody could read into an absence.
 //!

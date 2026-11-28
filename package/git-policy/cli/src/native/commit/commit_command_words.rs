@@ -57,7 +57,7 @@ use std::io::Write;
 ///  and a note of the commit is a line a person can live without,
 ///  so a reader that stopped draining costs the command the hand-over's bound and no more
 ///  (`standard_error_off_the_calling_thread.rs`,
-/// issue 6421).
+///  issue 6421).
 ///  The write is still the one place a slow reader becomes time the commit spends,
 ///  which the timing record states as `stderrMs`.
 ///

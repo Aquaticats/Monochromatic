@@ -151,9 +151,9 @@ fn read_while_it_keeps_coming(
 /// Why:
 ///  The harm this file exists to remove is a process that waits in a write while it holds something another command
 /// waits for,
-/// and the incident on record is a stop of a push that never returned
+///  and the incident on record is a stop of a push that never returned
 /// (`doc/planning/cli-git-no-unbounded-waits.md`,
-/// "Writes to the caller's own streams").
+///  "Writes to the caller's own streams").
 ///  This control never drains the stream,
 /// so a caller that waited for each line would take the bound per line:
 /// handing twice the queue's length and measuring the whole loop is what shows the wait is paid once.
@@ -253,7 +253,7 @@ fn a_stream_that_drains_gets_the_lines_in_the_order_they_were_said() {
 /// so the end waits for what was handed over;
 ///  a refusal's last line is the whole of what a person gets
 /// (`doc/planning/cli-git-no-unbounded-waits.md`,
-/// "Writes to the caller's own streams").
+///  "Writes to the caller's own streams").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

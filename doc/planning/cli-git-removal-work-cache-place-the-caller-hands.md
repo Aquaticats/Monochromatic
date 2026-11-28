@@ -29,6 +29,16 @@ the landing control that wrote `git-system-attributes-<digest>` under a throwawa
 `native-unit-<process id>-<number>-cache-home/monochromatic-git-policy-cli` now,
 and a fresh home stays empty.
 
+Which side wins is decided by the reader's order,
+not by the place:
+`environment_value` answers with the first match it meets.
+So the four places that hand an environment to a landing,
+an add,
+a ladder snapshot and a removal's clean check
+put the caller's entries before the process's own,
+where they appended them after it until `c1a3b33db5`
+and the process's own value won.
+
 ## The writer that remains
 
 Measured on this host by running the `worktree::worktree_remove` module with the process's home pointed

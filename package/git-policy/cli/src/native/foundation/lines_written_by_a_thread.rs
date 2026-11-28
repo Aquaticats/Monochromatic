@@ -22,7 +22,7 @@
 //! everything else is written here once,
 //!  which is what keeps one queue's fix from leaving the other behind
 //! (debt ledger of 2026-11-25,
-//! item 13).
+//!  item 13).
 //!  A refused thread is one of those differences only in what it says it was for:
 //! both queues start their thread the same way,
 //! so both meet the same refusal,
@@ -52,7 +52,7 @@ use std::sync::{
 ///  as the value each owner keeps in its own `OnceLock`.
 /// Why:
 ///   The queue,
-/// its thread and the callers that hand lines over all reach the same two values,
+///  its thread and the callers that hand lines over all reach the same two values,
 /// so they travel as one type;
 ///  each owner keeps its own,
 /// and neither reaches the other's.
@@ -85,8 +85,7 @@ pub(crate) type SharedQueue = &'static (Mutex<Queue>, Condvar);
 /// and a difference written as a value here cannot drift into one of them by accident;
 ///  every field below is a sentence of one file's documentation
 ///  (`diagnostic_lines_off_the_calling_thread.rs`,
-/// `service_log_lines_off_the_calling_thread.rs`)
-///  made readable by the code.
+///  `service_log_lines_off_the_calling_thread.rs`) made readable by the code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -447,7 +446,7 @@ fn write_every_line(started: SharedQueue) {
 /// Why:
 ///   A queue is empty between two lines and the thread must wait there rather than end;
 ///  the pop and the count are one step,
-/// so a gap is stated by the line right after it.
+///  so a gap is stated by the line right after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -636,7 +635,7 @@ fn write_whole(
 /// and between two attempts it must sleep somewhere that is not a loop of its own.
 ///  A queue whose policy retries on a tick sleeps for one and tries again by itself;
 /// one that does not waits to be asked,
-/// by the next line or the end of the process.
+///  by the next line or the end of the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -861,11 +860,11 @@ fn write_what_fits_now(
 ///   A line written where it is said must still keep the promise that no caller waits for a reader,
 /// and a stream with no room now is one a write would wait on;
 ///  a regular file,
-/// a terminal and a pipe being drained all answer that they have room,
+///  a terminal and a pipe being drained all answer that they have room,
 ///  so the ordinary case is written and the stopped reader costs the line.
 ///  Both queues' policies write this process's standard error when no control gave a stream,
 /// which is descriptor 2,
-/// so the room that was asked of here is the room the line goes to.
+///  so the room that was asked of here is the room the line goes to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -888,7 +887,7 @@ fn the_stream_has_room_now() -> bool {
 /// What:
 ///  Whether this process's standard error takes a write now,
 ///  on a platform whose descriptors carry no such question:
-/// it is written and waited for.
+///  it is written and waited for.
 /// Why:
 ///   Every platform this program is released on has the question above;
 /// this answer keeps the build of the other platforms and is measured by no control.

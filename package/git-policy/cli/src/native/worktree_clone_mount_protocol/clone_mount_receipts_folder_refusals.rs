@@ -37,8 +37,7 @@ pub const RECEIPT_MODE: u32 = 0o644;
 ///  `doctor` reaches none of the route's checks and nothing installs the boot
 ///  unit,
 ///  so a sentence that sends a person to `doctor` for a receipt,
-/// a readiness
-///  record,
+/// a readiness record,
 /// a claim or a slot's records,
 /// or to that unit's journal,
 /// sends them to

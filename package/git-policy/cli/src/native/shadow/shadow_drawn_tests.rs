@@ -476,7 +476,7 @@ fn a_tree_the_service_took_is_left_to_the_service_and_one_it_did_not_is_removed(
 
 /// What:
 ///  A commit that concludes a merge,
-/// a cherry-pick or a revert is never handed a drawn tree,
+///  a cherry-pick or a revert is never handed a drawn tree,
 ///  and a reftable repository or a worktree that keeps its own `info` is never handed one either.
 /// Why:
 ///   The landing of a conclusion compares the state Git left in the shadow with the copy it kept,
@@ -513,7 +513,7 @@ fn a_conclusion_commit_or_a_shadow_no_draw_makes_is_never_handed_a_tree() {
 ///  A drawn tree this invocation's own check refuses is released and the commit takes the pool's member.
 /// Why:
 ///   The service's check of a member is the fill's,
-/// and this commit's facts are what decide:
+///  and this commit's facts are what decide:
 ///  a repository that changed between the draw and the claim is refused here and never used,
 ///  the tree is handed back in the background,
 ///  and the commit goes on to the paths it knows instead of failing.

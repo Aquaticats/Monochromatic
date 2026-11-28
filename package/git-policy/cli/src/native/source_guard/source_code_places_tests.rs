@@ -5,11 +5,11 @@
 //!  A control that reads source text for a call must not read the call out of a comment or out of a text a control plants,
 //!  and the crate's own checks are the files that quote the calls they search for.
 //!  Reading the place once,
-//! rather than per rule,
-//! keeps every rule on the same answer.
+//!  rather than per rule,
+//!  keeps every rule on the same answer.
 //! Gotcha:
 //!  This is a reader of the two shapes that matter,
-//! not a Rust parser:
+//!  not a Rust parser:
 //!  a character literal holding a quotation mark (`'"'`) is code and is not read as a text literal's start,
 //!  while a lifetime (`'a`) is left alone.
 //!  A raw text (`r#"..."#`) is followed to its own closing hashes.
@@ -43,15 +43,15 @@ enum Place {
 /// What:
 ///  `fn starts_a_raw_text(bytes: &[u8], index: usize) -> Option<usize>` answers the number of `#` characters when a raw
 ///  text opens at `index`,
-/// and `None` when it does not.
+///  and `None` when it does not.
 ///  `&[u8]` is a borrowed slice of bytes (siblings:
-/// `Vec<u8>`,
-/// the owned buffer;
-/// `&str`,
-/// which promises UTF-8).
+///  `Vec<u8>`,
+///  the owned buffer;
+///  `&str`,
+///  which promises UTF-8).
 ///  `Option<usize>` is "a count or nothing" (sibling:
-/// `usize`,
-/// which would need a second value to say "none").
+///  `usize`,
+///  which would need a second value to say "none").
 /// Why:
 ///  `r#"..."#` is the one Rust text shape a plain `"` reader gets wrong,
 ///  and the count of hashes is what ends it.
@@ -74,18 +74,18 @@ fn starts_a_raw_text(
 
 /// What:
 ///  `fn is_code(text: &str) -> Vec<bool>` answers,
-/// for every byte of `text`,
-/// whether that byte belongs to code.
+///  for every byte of `text`,
+///  whether that byte belongs to code.
 ///  `Vec<bool>` is a growable list of yes/no values (siblings:
-/// `&[bool]`,
-/// a borrowed view;
-/// `[bool; N]`,
-/// a fixed array).
+///  `&[bool]`,
+///  a borrowed view;
+///  `[bool; N]`,
+///  a fixed array).
 /// Why:
 ///  A start or a signal a control only names in a comment or a planted text is no start and no signal,
 ///  and every scan of this module asks the same question,
 ///  so it is answered once,
-/// here.
+///  here.
 ///  `Vec<bool>` and not a borrowed slice because the answer outlives this function.
 ///
 /// In TS you'd write (pseudocode):

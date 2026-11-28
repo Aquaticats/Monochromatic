@@ -139,6 +139,9 @@ pub mod layout;
 /// Reading a scope's plan and lock together.
 pub mod load;
 
+/// The check that every declared bin name fits the longest name the exposure folder's file system holds.
+mod the_bin_names_the_exposure_folder_can_hold;
+
 /// The lock file:
 /// build,
 /// render,
@@ -357,6 +360,11 @@ mod plan_insert_tests;
 #[cfg(test)]
 mod exposure_tests;
 
+/// The controls of what a rebuild of the exposure farm removes,
+/// spares and names.
+#[cfg(test)]
+mod the_farm_removal_spares_and_names_tests;
+
 /// The controls of this repository's own `rust` row:
 /// an install of it names no unresolved bin,
 /// and a bin no route provides is still named.
@@ -465,6 +473,10 @@ mod old_copy_places_tests;
 /// The unit tests of the newest-across-both-roots rule for this repository's tools.
 #[cfg(all(test, unix))]
 mod across_roots_tests;
+
+/// The unit tests of the reader of the plan's bin names against the exposure folder's file system.
+#[cfg(test)]
+mod the_bin_names_the_exposure_folder_can_hold_tests;
 
 /// The unit tests of how an archive install becomes visible (staging,
 /// the completion marker,

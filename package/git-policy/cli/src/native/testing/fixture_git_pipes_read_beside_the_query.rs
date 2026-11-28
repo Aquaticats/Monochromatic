@@ -36,7 +36,7 @@ use std::path::Path;
 
 /// What:
 ///  One pipe of a query:
-/// the bytes as they arrive,
+///  the bytes as they arrive,
 ///  the news that its reader reached the end,
 ///  and a second reading end of the same pipe for the answer to ask the kernel about.
 /// Why:

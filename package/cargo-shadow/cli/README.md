@@ -627,6 +627,9 @@ and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-w
 
 The vetting of the chosen program (`vet` in `src/real_binary.rs`) refuses a program that is a shadow while the file is open,
 and the program is started through that open file.
+The start's own check is this crate's and not the other shadow crates' shared refusal:
+it has two outcomes that refusal has no word for,
+so a refused start here keeps its own line.
 The real cargo that the install step starts inside its contained runner (`src/cargo_run.rs`) sets no arrival marker:
 it is chosen by the same lookup that skips shadows by identity,
 and it keeps `vet` and the repeated check before its start.
@@ -1052,6 +1055,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   an unknown slice,
   a kernel before 5.14),
   the run goes on in a process group of its own and prints one line naming the missing capability.
+  A program that outlives its run is killed on the scope path and left alive on that process-group fallback.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new
   transaction refuses such a journal,
@@ -1985,6 +1989,23 @@ Linux 7.3.5 and 6.8,
 systemd 262 and 255),
 not the second after one,
 where no ask failed and the ten of that run did.
+The span is the discovery's,
+and not the call's:
+a reexec that begins after the discovery has answered fails everything after it,
+and no wait in this package covers that.
+A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
+0 to 110 ms after each of its 24 calls began,
+so every discovery was done before the window opened,
+and 11 of the 24 calls exited 1
+(7 of `0.1.5-alpha.16`'s 12 and 4 of this release's 12,
+every one on the delegated route),
+with the scope launcher's
+`Failed to connect to user scope bus via local transport: Connection refused`
+and `cargo update --workspace --offline failed` in the output of the calls whose standard error that read kept.
+The two releases differ only in where the reexec fell inside each call,
+and the code that makes the scopes is the same,
+so neither release tried a scope's creation again.
+Whether a scope's creation that meets a reexec is tried again is not decided.
 Where a manager answers,
 the asking again costs nothing:
 the first ask answers and no wait is spent.
@@ -2016,14 +2037,60 @@ against one ask and about 0.03 s a call where the read finds nothing.
 A manager that is there and answers with a refusal of its own is not one of those,
 and neither is an answer that is not a control group path:
 the discovery asks where the slice is first,
-starts the slice only where the manager reports no control group,
-and asks once more after a start it refused,
-so an answer of the manager's ends the asking
-(measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped:
+and that one ask reads two properties in one program start,
+the slice's control group and the job queued on the slice.
+The slice is started where the manager reports no control group **or a job queued on it**,
+and where it is a path and no job stands,
+the path is the route.
+A start that fails is followed by one more ask,
+and what that ask answers decides the asking (`the_manager_answered_a_start`):
+a path is the route and is used,
+whatever the start's words were;
+an empty answer ends the asking only where the start's own words are the manager's answer about the slice,
+which is what `Failed to start app.slice: Unit app.slice is masked.` is and no wait changes;
+and an empty answer after words of a transport,
+or after words that name neither the slice nor a transport,
+is a moment,
+and the whole question is put again inside the same span.
+An answer that is not a control group path ends the asking the same way,
+after the ask that followed the start,
+because the manager answered twice.
+Measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped:
 **3 asks and 56.5 ms a call against the released `0.1.5-alpha.16`'s 5 asks and 883.1 ms**,
 with the same refusal words;
 and through a stand-in that answers every ask of where the slice is with an empty value,
-**3 asks and 41.8 ms against 10 asks and 890.4 ms**).
+**3 asks and 41.8 ms against 10 asks and 890.4 ms**.
+This branch's binary made 3 asks in each of the 12 calls of that run,
+and the released `0.1.5-alpha.17` and its byte-identical copy made 3 in each of theirs,
+where `0.1.5-alpha.16` made 5.
+A slice with a stop job queued is one of the states a start waits out:
+the manager keeps the slice's path while the job stands,
+and a scope made in the slice then is refused (`Transaction for cargo-shadow-....scope/start is destructive (app.slice has 'stop'
+job queued, but 'start' is included in transaction).`,
+measured 2026-11-27 in a container),
+so the discovery starts the slice,
+which returned 0 after 3.68 s to 3.78 s behind a planted four-second stop and left
+nothing queued on the slice.
+Measured 2026-11-27 in that container's own manager with a service that ignores SIGTERM holding the stop open,
+three rounds of each arm,
+one call each:
+this branch's binary exited 0 and took the delegated route in 3 of 3 calls,
+in 3 asks and 3.8 s to 6.1 s,
+where `0.1.5-alpha.16` did the same in 2 asks and 3.6 s to 5.7 s,
+and the released `0.1.5-alpha.17` and its byte-identical copy exited 1 in the four calls that met the state,
+each taking one ask and under 0.2 s,
+with the manager's words above under "Cargo output".
+What a start behind a queued stop does is in systemd's own source at v262 and v255,
+and the document below
+reads it there (`src/core/job.c`,
+`src/core/transaction.c`,
+`src/run/run.c` and `src/systemctl/systemctl.h` at both
+versions):
+a start and a stop of one unit cannot merge,
+a transaction is refused as destructive only in `fail` or
+`lenient` mode or against a job marked irreversible,
+and `systemd-run` puts a scope's transaction in `fail` while
+`systemctl start` puts its own in `replace`.
 Where no user manager can be reached at all,
 the question is asked once:
 the discovery reads in its own process that nothing on this host could carry an ask

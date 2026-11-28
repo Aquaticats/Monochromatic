@@ -523,7 +523,7 @@ fn shared_info_entries(
 ///  `git-lfs` makes the directory on its first write,
 ///  so a creation that makes it first holds what the next command in the real repository would hold.
 ///  What the repository holds at that name is the person's,
-/// in every form,
+///  in every form,
 /// and never replaced,
 /// moved or deleted to make a directory:
 ///  a store several clones share through a link,

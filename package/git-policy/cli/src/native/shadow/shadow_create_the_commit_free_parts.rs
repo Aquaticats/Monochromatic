@@ -11,7 +11,7 @@
 //!  A step is made of the facts the template holds
 //!  (`shadow_create_template.rs`)
 //!  and of the skeleton,
-//! links and private storage it writes,
+//!  links and private storage it writes,
 //!  which is why it sits after those files and not beside the facts.
 //!
 //! In TS you'd write (pseudocode):

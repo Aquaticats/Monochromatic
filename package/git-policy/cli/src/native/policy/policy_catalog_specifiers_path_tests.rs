@@ -161,20 +161,13 @@ fn every_kind() -> Vec<FindingKind> {
 #[test]
 fn every_kind_of_the_rule_has_a_hint() {
     for kind in every_kind() {
-        for fix_available in [false, true] {
-            // The catalog rule's hint never speaks of a commit, so no answer about one is handed in.
-            let hint: &str = finding_hint(
-                "mono/catalog-specifiers",
-                kind.as_str(),
-                fix_available,
-                None,
-            )
+        // The catalog rule's hint never speaks of a commit, so no answer about one is handed in.
+        let hint: &str = finding_hint("mono/catalog-specifiers", kind.as_str(), None)
             .unwrap_or_else(|| panic!("{} has no hint", kind.as_str()));
-            assert!(hint.starts_with("Hint: "), "{}: {hint}", kind.as_str());
-        }
+        assert!(hint.starts_with("Hint: "), "{}: {hint}", kind.as_str());
     }
     assert_eq!(
-        finding_hint("mono/catalog-specifiers", "unknown", false, None),
+        finding_hint("mono/catalog-specifiers", "unknown", None),
         None
     );
 }

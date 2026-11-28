@@ -2,7 +2,7 @@
 //!  a tree leaves the stock with the answer that takes it,
 //!  and the draw beside the landing loop fills the stock out of the pool.
 //! The answer's own path,
-//! and that it never waits behind a landing,
+//!  and that it never waits behind a landing,
 //! is controlled where a connection is (`service_server_connection_handling_tests.rs`).
 
 use super::*;

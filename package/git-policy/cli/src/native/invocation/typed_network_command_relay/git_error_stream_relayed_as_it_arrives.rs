@@ -4,7 +4,7 @@
 //! Why:
 //!  A typed network command must still draw what plain Git draws:
 //!  the progress display,
-//! Git's colour and OpenSSH's touch notice are gated on `isatty(2)`,
+//!  Git's colour and OpenSSH's touch notice are gated on `isatty(2)`,
 //!  and a pipe answers no.
 //!  The decision record's K2 gives the child a pseudo-terminal when the wrapper's own standard error is a terminal,
 //!  and a pipe when it is not,
@@ -68,10 +68,10 @@ use super::the_relayed_bytes::{
 ///  How long one wait for the child's error stream lasts before the relay looks at the child again.
 /// Why:
 ///   `poll` returns the moment bytes arrive,
-/// so this slice is only how often an idle stream is looked at;
+///  so this slice is only how often an idle stream is looked at;
 ///   it also bounds how long the relay takes to notice that the child ended while a process it started still holds the
 ///   stream,
-/// which the design's end rule says must not hold the wrapper.
+///  which the design's end rule says must not hold the wrapper.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +86,7 @@ pub(super) const POLL_SLICE: rustix::event::Timespec = rustix::event::Timespec {
 ///  One read's worth of the child's error stream.
 /// Why:
 ///   A refusal's transcript is far smaller than this,
-/// and a progress update is not larger,
+///  and a progress update is not larger,
 ///   so one buffer reads a whole update.
 ///
 /// In TS you'd write (pseudocode):
@@ -97,9 +97,9 @@ pub(super) const CHUNK_BYTES: usize = 8192;
 
 /// What:
 ///  What the relay saw:
-/// how the child ended,
-/// its process number,
-/// and the tail of its error stream.
+///  how the child ended,
+///  its process number,
+///  and the tail of its error stream.
 /// Why:
 ///   The caller prints the sentence from that tail and ends the way Git ended,
 ///   and the record of a lock Git may hold needs the child's number.
@@ -124,7 +124,7 @@ pub struct RelayedErrorStream {
 ///  Which stream the child's standard error is connected to.
 /// Why:
 ///   K2 is decided once,
-/// by one `isatty` call on the wrapper's own standard error,
+///  by one `isatty` call on the wrapper's own standard error,
 ///   and both shapes then relay the same bytes to the same place.
 ///
 /// In TS you'd write (pseudocode):
@@ -143,10 +143,10 @@ pub enum ErrorStreamShape {
 
 /// What:
 ///  The shape this process's child gets,
-/// from one `isatty` call on the wrapper's own standard error.
+///  from one `isatty` call on the wrapper's own standard error.
 /// Why:
 ///   The design's K2 turns on exactly this call,
-/// and a second call could answer differently.
+///  and a second call could answer differently.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,7 +168,7 @@ pub fn shape_of_this_process() -> ErrorStreamShape {
 
 /// What:
 ///  A child already started with its error stream connected,
-/// and the descriptor the relay reads it from.
+///  and the descriptor the relay reads it from.
 /// Why:
 ///   The stream is decided before the start (a terminal must be the child's `stderr` from its first instruction),
 ///   and read after it,
@@ -195,11 +195,11 @@ pub struct RelayedStart {
 
 /// What:
 ///  Start `command` with its standard error connected for the relay,
-/// published to this guard's handlers.
+///  published to this guard's handlers.
 /// Why:
 ///   A signal a process sends to the wrapper must reach Git
 ///   (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
-/// "the child is published to the existing
+///  "the child is published to the existing
 ///   signal relay"),
 ///   and the child's error stream must be the terminal or the pipe K2 chose before it starts.
 ///   The command is taken here rather than borrowed,
@@ -332,13 +332,13 @@ pub fn start_relaying(
 
 /// What:
 ///  Read the child's error stream to the child's end,
-/// relaying every byte to this process's standard error.
+///  relaying every byte to this process's standard error.
 /// Why:
 ///   The relay ends when the child does,
-/// after draining what is already readable,
+///  after draining what is already readable,
 ///   so a process the child left holding the stream cannot hold the wrapper
 ///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-/// "The end rule").
+///  "The end rule").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -446,7 +446,7 @@ pub fn read_to_the_child_s_end(
 
 /// What:
 ///  Turn the child's status and kept bytes into the answer,
-/// retiring the relay's descriptor once the child is reaped.
+///  retiring the relay's descriptor once the child is reaped.
 /// Why:
 ///   A descriptor left pointing at a reaped number must never take a signal meant for a later child.
 ///
@@ -486,13 +486,13 @@ fn finish(
 
 /// What:
 ///  End a child the read never took,
-/// so a panic between the start and the read leaves no Git running.
+///  so a panic between the start and the read leaves no Git running.
 /// Why:
 ///  The wrapper dies with a panic sometimes,
-/// and a Git child it started would go on holding the repository's locks with nobody
+///  and a Git child it started would go on holding the repository's locks with nobody
 ///  left to reap it;
 ///  the token's own drop retires the relay first,
-/// so the kill reaches only this child.
+///  so the kill reaches only this child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -501,7 +501,7 @@ fn finish(
 impl Drop for RelayedStart {
     /// What:
     ///  Kill and reap the child this start still owns,
-    /// and point the relay away from it.
+    ///  and point the relay away from it.
     /// Why:
     ///  A child nobody read is a child nobody will wait for.
     ///

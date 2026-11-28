@@ -226,7 +226,7 @@ pub fn read_slot(
     // A record is keyed by the slot's last name, so the path it names says which worktree it belongs to, and the
     // classification proves nothing about a different path from it. Asking the plan folder and the clone's own intent
     // first would open the kernel's ZFS device for a removal, a move or a repair of a plain worktree that shares a bound
-    // slot's last name, which endangers nothing (`refuse_the_removal_with`; finding Low 5 of the alpha.47 pass), so the
+    // slot's last name, which endangers nothing (`the_removal_with`; finding Low 5 of the alpha.47 pass), so the
     // record's path is compared before either is asked.
     let (plan, intent, stands): (PlanReading, IntentFacts, Option<bool>) = match &binding {
         BindingReading::Record(record) if names_another_path(record, slot_path) => {

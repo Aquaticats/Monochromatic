@@ -1,7 +1,7 @@
 //! Controls for one slot's report:
 //!  one report for each state the classification names,
 //!  with its slot,
-//! its dataset and pool,
+//!  its dataset and pool,
 //!  the evidence each state came from,
 //!  and the one next safe action,
 //!  plus the lines a command prints.
@@ -186,7 +186,7 @@ fn a_pending_removal_reports_the_plan() {
     assert!(
         report
             .next_safe_action
-            .contains("resumes from the plan and ends it"),
+            .contains("reads the plan, proves every name the plan records again"),
         "{}",
         report.next_safe_action
     );
@@ -195,6 +195,18 @@ fn a_pending_removal_reports_the_plan() {
             .next_safe_action
             .contains(plan.to_str().expect("utf8 plan")),
         "{}",
+        report.next_safe_action
+    );
+    assert!(
+        report
+            .next_safe_action
+            .contains("runs the wrapper's own removal"),
+        "and names the removal that resumes the plan: {}",
+        report.next_safe_action
+    );
+    assert!(
+        !report.next_safe_action.contains("is Git's own removal"),
+        "and never leaves the slot to Git: {}",
         report.next_safe_action
     );
 }
@@ -251,10 +263,14 @@ fn a_known_unmounted_clone_reports_its_files_and_each_intent() {
     };
     let parked: String = report_of(&unmounting).next_safe_action;
     assert!(parked.contains("keeps it unmounted"), "{parked}");
-    assert!(parked.contains("no removal for a clone"), "{parked}");
     assert!(
-        !parked.contains("run the removal"),
-        "no text names a removal this release has not: {parked}"
+        parked.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
+        "{parked}"
+    );
+    assert!(
+        !parked.contains("no removal for a clone")
+            && !parked.contains("does not remove a clone yet"),
+        "no text denies the removal `git worktree remove` now runs: {parked}"
     );
 }
 

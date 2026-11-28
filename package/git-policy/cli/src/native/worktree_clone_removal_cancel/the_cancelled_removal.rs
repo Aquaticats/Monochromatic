@@ -269,7 +269,7 @@ impl TheSelfCancellationDone {
             )),
         }
         lines.push(String::from(
-            "The holder is what this removal could not release without `--force`, which ends the holders other than your session. Ways forward: end that job and run the removal again, or run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` once it is added to read the state.",
+            "Ways forward: end that job and run the removal again, or run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` to read the state and put the clone back.",
         ));
         return lines;
     }

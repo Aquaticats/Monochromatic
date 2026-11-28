@@ -163,13 +163,13 @@ fn install_directory_above(program: &Path) -> Option<&Path> {
 }
 
 /// What:
-/// The install directory `program` belongs to,
-/// as the path below the toolchain root that holds it:
-/// `<install directory>/current` is the link every launcher record and exposed link resolves through,
-/// so the same path names the same tool in both toolchain roots.
+/// The tool's install directory `program` belongs to,
+/// as the path below the toolchain root that holds it,
+/// or nothing when the program belongs to no install of either root.
 /// Why:
-/// A tree's launchers and the machine-global ones are the same set,
-/// and a program that belongs to neither root (a build folder) belongs to no install.
+/// A caller that keeps a link to an installed program has to know which install it is,
+/// and every question about that is this module's:
+/// it is also how `newest_installed_shadow` finds the running program's install.
 /// The install directory and each root are compared as files,
 /// never as text:
 /// on a machine whose home is a symbolic link (`/home` to `/var/home`) the running program's own path is the
@@ -182,7 +182,7 @@ fn install_directory_above(program: &Path) -> Option<&Path> {
 /// ```ts
 /// function installBelowRoot(scope: Scope, program: string): string | undefined
 /// ```
-fn install_below_root(
+pub(crate) fn install_below_root(
     scope: &Scope,
     program: &Path,
 ) -> Option<PathBuf> {

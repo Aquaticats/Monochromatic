@@ -11,7 +11,7 @@
 //!  A caller that waited there would hold that thing for as long as the reader does not read,
 //!  and every command waiting for the thing would wait with it
 //!  (`doc/planning/cli-git-no-unbounded-waits.md`,
-//! "Writes to the caller's own streams").
+//!  "Writes to the caller's own streams").
 //!  So the line is handed to a queue of bounded length and written on a thread that may wait as long as it likes;
 //!  a line that finds no room is dropped and counted,
 //!  and the next line that gets through says how many were dropped before it,
@@ -39,10 +39,10 @@
 //! a commit at its process limit failed on 2026-11-25 saying nothing at all,
 //!  because its refusal waited in a queue that no thread would ever write (issue 6476).
 //!  That answer is the queue's own (`lines_written_by_a_thread.rs`),
-//! because the service's log lines
+//!  because the service's log lines
 //!  meet the same refusal from the same limit;
 //!  this file asks for it,
-//! and names what its lines are for.
+//!  and names what its lines are for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

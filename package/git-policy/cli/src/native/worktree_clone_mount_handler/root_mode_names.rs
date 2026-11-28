@@ -7,23 +7,21 @@
 //!  ZED starts a zedlet by its file name and hands it no argument at all,
 //!  so only a name can reach the ZED hook's mode,
 //!  while a unit's `ExecStart`,
-//! an adoption and a person spell the words.
+//!  an adoption and a person spell the words.
 //!  Both exceptions to the ban on reading a start name live here and nowhere
 //!  else:
-//! the name is compared as the whole last path component,
-//! against one
-//!  constant,
-//! and the argument vector is read by `main` alone and handed on
+//!  the name is compared as the whole last path component,
+//!  against one constant,
+//!  and the argument vector is read by `main` alone and handed on
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
 //!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
 //!  "Choice 1:
-//! what selects a root mode").
+//!  what selects a root mode").
 //!  The words are read before the name,
-//! so a unit's line works at the installed
+//!  so a unit's line works at the installed
 //!  path,
-//! and both are read before the service's words,
-//! so
-//!  `service run` under the zedlet's name is refused rather than served.
+//!  and both are read before the service's words,
+//!  so `service run` under the zedlet's name is refused rather than served.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -71,18 +69,17 @@ pub enum RootModeStart<'arguments> {
 
 /// What:
 ///  Decide what one start is,
-/// from its whole argument vector.
+///  from its whole argument vector.
 /// Why:
 ///   Nothing here reads an element of a mode's own words beyond the two the
 ///  group word owns,
 ///  and every answer is one of three,
-/// so a start that is not a root mode
+///  so a start that is not a root mode
 ///  reaches the wrapper exactly as it did before.
 ///  `Path::file_name` answers the last component of both a bare name,
-/// which is
-///  what ZED's `execle` passes,
-/// and a path,
-/// which is what a unit writes.
+///  which is what ZED's `execle` passes,
+///  and a path,
+///  which is what a unit writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +113,7 @@ pub fn root_mode_start(arguments: &[OsString]) -> RootModeStart<'_> {
 /// Why:
 ///   The words are what selects a mode on any file,
 ///  so a unit's line works at the installed name,
-/// at a stray copy and at the
+///  at a stray copy and at the
 ///  wrapper's own path,
 ///  and the program's word is read from the constant the crate keeps it in
 ///  rather than written out here.
@@ -147,14 +144,14 @@ fn names_the_zedlet(start_name: Option<&OsStr>) -> bool {
 
 /// What:
 ///  The last component of a start name,
-/// as text.
+///  as text.
 /// Why:
 ///   ZED passes the bare file name and a unit writes the path as its
 ///  `ExecStart` spells it,
 ///  so one comparison has to read both:
 ///  a trailing slash,
-/// doubled slashes,
-/// `./` and `sub/../` all answer the same
+///  doubled slashes,
+///  `./` and `sub/../` all answer the same
 ///  last component.
 ///
 /// In TS you'd write (pseudocode):
@@ -169,10 +166,10 @@ fn last_component(start_name: &OsStr) -> Option<&str> {
 ///  One start's name and everything after it.
 /// Why:
 ///   An empty vector is a start with no name at all,
-/// which the kernel can pass
+///  which the kernel can pass
 ///  and which is the wrapper:
 ///  the last component of nothing is none,
-/// which is not the zedlet's name.
+///  which is not the zedlet's name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,7 +186,7 @@ fn split_the_name(arguments: &[OsString]) -> (Option<&OsStr>, &[OsString]) {
 ///  The first word this start cannot honour.
 /// Why:
 ///   `--help x` and `--version x` name `x`,
-/// because the first word alone is
+///  because the first word alone is
 ///  accepted and the second is what the name does not allow,
 ///  so a person who typed the second word reads about that word and not about
 ///  the one the file does answer.

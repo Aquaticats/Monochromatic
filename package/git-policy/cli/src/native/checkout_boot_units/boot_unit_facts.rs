@@ -325,4 +325,4 @@ pub fn check_word(
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "boot_unit_facts_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -62,7 +62,7 @@ fn the_stop_switch_names_the_steps_the_guest_arms_kill_at() {
 ///  sweep refuses
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
 ///  The step opens the kernel's device,
-/// so the shape a release file must have is
+///  so the shape a release file must have is
 ///  read from the source,
 ///  as the preflight's own controls do.
 ///
@@ -101,5 +101,58 @@ fn the_clone_step_reports_the_clones_mountpoint_before_it_publishes_the_inventor
     assert!(
         call < inventory,
         "the report stands before the clone is recorded, so a clone the add cannot use is never written down as its own"
+    );
+}
+
+/// What:
+///  The mount step files the clone's unanswered request before the durable
+///  intent,
+///  and removes it once the wait is answered.
+/// Why:
+///  The entry is the trigger a later command reads when the intent's event was
+///  lost,
+///  so a wait killed before its deadline must leave it behind,
+///  and an answered request must leave the repository the one `stat` case
+///  again (the design's V15 and its "one file per clone").
+///  The step opens the kernel's device,
+///  so the order is read from the source,
+///  as the clone step's own control reads its report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(body.indexOf('record_the_request')).toBeLessThan(body.indexOf('request_the_mount'));
+/// ```
+#[test]
+fn the_mount_step_files_the_request_before_the_intent_and_removes_it_once_answered() {
+    let source: &str = include_str!("add_route_steps.rs");
+    let code: Vec<&str> = source
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| return !line.starts_with("//"))
+        .collect();
+    let joined: String = code.join("\n").split_whitespace().collect();
+    let step: usize = joined
+        .find("pubfnstep_mount(")
+        .expect("the mount step is a function of this file");
+    let body: &str = &joined[step..];
+    let filed: usize = body
+        .find("requests.record_the_request(")
+        .expect("the mount step files the clone's request");
+    let asked: usize = body
+        .find(".request_the_mount(")
+        .expect("the mount step asks for the mount");
+    let waited: usize = body
+        .find("wait_for_the_mount(")
+        .expect("the mount step waits for the mount");
+    let removed: usize = body
+        .find("requests.remove_every_attempt(")
+        .expect("the mount step removes the answered request's entry");
+    assert!(
+        filed < asked,
+        "the entry is written with the request and before the intent, so a killed wait leaves the trigger"
+    );
+    assert!(
+        waited < removed,
+        "the entry is removed only once the wait is answered"
     );
 }

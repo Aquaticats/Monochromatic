@@ -36,8 +36,8 @@ use std::path::Path;
 ///  The fixed facts one add's steps share.
 /// Why:
 ///  Every step names the same slot,
-/// records and device,
-/// so one value carries
+///  records and device,
+///  so one value carries
 ///  them and no step recomputes one.
 pub struct Steps<'a> {
     /// The gate's facts.
@@ -113,7 +113,7 @@ impl StepRefusal {
 ///  Persist one phase of the record and flush it.
 /// Why:
 ///  Every write of this record is flushed,
-/// because a later command must not have
+///  because a later command must not have
 ///  to rediscover a fact the pool already committed.
 pub fn write_the_record(
     steps: &Steps<'_>,

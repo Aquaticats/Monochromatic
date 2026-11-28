@@ -1,0 +1,18 @@
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8873476Z ^[[36;1m  task-run lint:monochromatic-lint -- "${files[@]}"^[[0m
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8873867Z ^[[36;1mfi^[[0m
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8904485Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8905145Z env:
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8908952Z   GH_TOKEN: ***
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8909256Z   FILE_ENFORCER_IDLE_SECONDS: 2
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.8909580Z ##[endgroup]
+advisory core	UNKNOWN STEP	2026-11-01T04:41:41.9023158Z .github/CODE_OF_CONDUCT.md
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0041027Z task-run: line 1: monochromatic-lint: command not found
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0064273Z file:///home/runner/work/Monochromatic/Monochromatic/package/monorepo-task/cli/src/run.ts:515
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0065389Z   if (code !== 0) { throw new Error(`task-cli: step exited ${code}`); }
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0066111Z                           ^
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0066780Z 
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0066955Z Error: task-cli: step exited 127
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0067877Z     at runStepAsync (file:///home/runner/work/Monochromatic/Monochromatic/package/monorepo-task/cli/src/run.ts:515:27)
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0069094Z     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0070125Z     at async executeTask (file:///home/runner/work/Monochromatic/Monochromatic/package/monorepo-task/cli/src/run.ts:614:31)
+advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0071019Z     at async runTaskByName (file:///home/runner/work/Monochromatic/Monochromatic/package/monorepo-task/cli/src/run.ts:548:3)

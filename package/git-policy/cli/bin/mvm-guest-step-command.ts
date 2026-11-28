@@ -15,7 +15,9 @@
 
  The command runs in a process group of its own, and its bound stops that group and everything it started, which is the
  answer of the three sets of guest helpers that survived: `mvm` starts a guest's command on the far side of a connection,
- so a bound that reached only the client would leave the guest working with nobody reading it.
+ so a bound that reached only the client would leave the guest working with nobody reading it. A group of its own is also
+ what a person's interrupt key does not reach, so a step this process is still waiting for is recorded in
+ `mvm-guest-live-steps.ts`, and a signal that ends the driver stops it and says so.
  */
 import { spawn, } from 'node:child_process';
 import {
@@ -35,6 +37,7 @@ import {
   GuestDriverError,
   refusalOf,
 } from './mvm-guest-error.ts';
+import { holdTheLiveStep, } from './mvm-guest-live-steps.ts';
 import { runGateCommand, } from './native-gate-run.ts';
 
 /**
@@ -224,6 +227,14 @@ async function awaitStepCommand({
     child,
     deadlineMilliseconds: timeoutMilliseconds,
     refusal: `${step} was still running after ${String(timeoutMilliseconds,)} ms, the bound it is given, so it and everything it started were stopped.`,
+  },);
+  /**
+   The command as a step this process has started, held so a signal that ends the driver stops it, and forgotten when this
+   wait answers.
+   */
+  using _held = holdTheLiveStep({
+    child,
+    step,
   },);
   /**
    How the wait ended, with the deadline's timer ended before any of it is refused.

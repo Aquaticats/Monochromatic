@@ -71,9 +71,9 @@ use std::process::{
 
 /// What:
 ///  Run one real-Git query under `bound` and answer the status the wait returned,
-/// how the query ended,
+///  how the query ended,
 ///  the bytes its pipes had given by the grace after that ending,
-/// and what a descendant of it still holds.
+///  and what a descendant of it still holds.
 /// Why:
 ///  A control that ran Git directly would hold the suite for ever against a Git that never answers,
 /// and report nothing at all;
@@ -88,13 +88,13 @@ use std::process::{
 /// because a wait says which signal ended a child and never who sent it.
 /// A query that ended by itself comes back with its own status and output.
 ///  The answer is what this helper bounds,
-/// and a pipe or an input a descendant holds turns no answer into a panic:
+///  and a pipe or an input a descendant holds turns no answer into a panic:
 /// the write of the input runs on a thread of its own,
 /// so a query that keeps its standard input open and reads none of it fills the pipe and is ended at the bound
 /// like any other,
 /// a write the ending broke is part of that ending rather than a failure,
 /// and an input a descendant of the query still holds is said in `input_held`,
-/// as a held pipe is in `held_open`.
+///  as a held pipe is in `held_open`.
 ///  A descendant that keeps a pipe or the input is where that bound stops:
 /// the thread reading or writing that pipe is left to end when the descendant lets go or when the test's process ends,
 /// so what is bounded is the answer and not every thread that served it.

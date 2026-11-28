@@ -75,7 +75,10 @@ use std::time::{
 /// ```ts
 /// import { thisTestNeedsADelegatedScope } from 'crate/cgroup_test_support';
 /// ```
-use crate::cgroup_test_support::this_test_needs_a_delegated_scope;
+use crate::cgroup_test_support::{
+    NOT_RUN_PREFIX,
+    this_test_needs_a_delegated_scope,
+};
 /// What:
 /// `use crate::control_group::{RouteSettings, detect_route};` imports the discovery and the settings that replace the program it
 /// asks.
@@ -157,6 +160,34 @@ fn real_systemctl() -> String {
         }
     }
     panic!("no systemctl is on PATH, so this host has no user manager to ask");
+}
+
+/// What:
+/// `fn the_slice_the_manager_reports(real: &str) -> String` is the control group the real manager reports for the slice the
+/// ordinary settings name,
+/// or nothing where it reports none.
+/// Why:
+/// A control that plays an answer carrying a path needs a path this host really has,
+/// because the discovery checks it as a directory of the cgroup file system with `cgroup.kill`;
+/// reading it here keeps that read out of the stand-ins themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theSliceTheManagerReports(real: string): string
+/// ```
+fn the_slice_the_manager_reports(real: &str) -> String {
+    let slice: String = RouteSettings::default().slice;
+    let answered = std::process::Command::new(real)
+        .args([
+            "--user",
+            "show",
+            &slice,
+            "--property=ControlGroup",
+            "--value",
+        ])
+        .output()
+        .expect("the manager answers where its slice is");
+    return String::from_utf8_lossy(&answered.stdout).trim().to_string();
 }
 
 /// The control of a question that failed once:
@@ -444,5 +475,206 @@ fn an_answer_that_is_not_a_path_ends_the_asking() {
         calls.lines().count(),
         3,
         "an answer that is not a path was put again, so the asking spent its span on one answer: {calls:?}"
+    );
+}
+
+/// The control of a failed start whose reply was lost:
+/// the stand-in answers the first ask with no control group,
+/// fails the start with the words an in-flight request gives when the manager goes away under it,
+/// and answers the ask after it with the path the real manager reports for the slice and no job queued on it.
+/// The start in that state really ran,
+/// so that path is the route,
+/// and the control plays the answer it left behind
+/// (the state itself was measured 2026-11-27 in a container:
+/// the start ran and the ask after it answered the path).
+#[test]
+fn a_path_the_ask_after_a_failed_start_reports_is_the_route() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let real: String = real_systemctl();
+    let path: String = the_slice_the_manager_reports(&real);
+    if path.is_empty() {
+        println!(
+            "{NOT_RUN_PREFIX}{}]: {} has no control group on this host, so a stand-in here cannot report the path a lost reply leaves",
+            std::thread::current()
+                .name()
+                .unwrap_or("a_path_the_ask_after_a_failed_start_reports_is_the_route"),
+            RouteSettings::default().slice
+        );
+        return;
+    }
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-with-a-lost-start-reply",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nasked=$(wc --lines < '{log}')\nif [ \"$asked\" -eq 1 ]; then\n  exit 0\nfi\nif [ \"$asked\" -eq 2 ]; then\n  echo \"Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status app.slice' for details.\" >&2\n  exit 1\nfi\nif [ \"$asked\" -eq 3 ]; then\n  printf 'ControlGroup=%s\\nJob=\\n' '{path}'\n  exit 0\nfi\nexec '{real}' \"$@\"\n",
+            log = log.display(),
+            path = path,
+            real = real
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+    let wanted: String = settings.slice.clone();
+
+    let route =
+        detect_route(&settings).expect("the path an ask after a failed start reports is the route");
+
+    assert_eq!(
+        route.slice, wanted,
+        "the discovery did not find the slice the settings name"
+    );
+    assert!(
+        route.slice_dir.ends_with(&wanted),
+        "the route's directory is not the slice's: {}",
+        route.slice_dir.display()
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    // The three asks of that answer: where the slice is, the start whose reply was lost, and the path it reported.
+    assert_eq!(
+        calls.lines().count(),
+        3,
+        "the path the ask after a lost reply reported was thrown away, so the discovery refused a route it had: {calls:?}"
+    );
+}
+
+/// The control of a start that never reached the manager:
+/// the stand-in answers the first ask with no control group,
+/// fails the start with the words of a transport that is not there,
+/// answers the ask after it with no control group too,
+/// and hands every ask after that to the real manager,
+/// so the asking must be put again rather than ended on the start's words.
+#[test]
+fn a_start_that_never_reached_the_manager_is_put_again() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-that-cannot-reach-the-manager",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nasked=$(wc --lines < '{log}')\ncase \"$asked\" in\n  1) exit 0 ;;\n  2) echo 'Failed to connect to user scope bus via local transport: Connection refused' >&2; exit 1 ;;\n  3) exit 0 ;;\nesac\nexec '{real}' \"$@\"\n",
+            log = log.display(),
+            real = real_systemctl()
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+    let wanted: String = settings.slice.clone();
+
+    let route = detect_route(&settings)
+        .expect("a start that never reached the manager is a moment, not the manager's answer");
+
+    assert_eq!(
+        route.slice, wanted,
+        "the discovery did not find the slice the settings name"
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    // More than the three asks of the attempt that met the moment: the whole question was put again. How many asks the
+    // second attempt takes depends on whether the slice has a control group by then, so it is not pinned here.
+    assert!(
+        calls.lines().count() > 3,
+        "a start that never reached the manager ended the asking, so a moment was read as the manager's refusal: {calls:?}"
+    );
+}
+
+/// The control of a start that failed and an ask after it that failed too:
+/// the stand-in fails the first ask of where the slice is,
+/// the start,
+/// and the ask after the start,
+/// and hands every ask after those to the real manager,
+/// so the whole question must be put again.
+#[test]
+fn a_start_that_failed_and_the_ask_after_it_failing_too_is_put_again() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-that-loses-the-start-and-the-ask-after-it",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nasked=$(wc --lines < '{log}')\ncase \"$asked\" in\n  1) exit 0 ;;\n  2) echo \"Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status app.slice' for details.\" >&2; exit 1 ;;\n  3) echo 'Failed to get properties: Transport endpoint is not connected' >&2; exit 1 ;;\nesac\nexec '{real}' \"$@\"\n",
+            log = log.display(),
+            real = real_systemctl()
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+
+    let route = detect_route(&settings)
+        .expect("a start and the ask after it failing is a transport, not the manager's answer");
+
+    assert_eq!(
+        route.slice, settings.slice,
+        "the discovery did not find the slice the settings name"
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    assert!(
+        calls.lines().count() > 3,
+        "a failed start followed by a failed ask ended the asking: {calls:?}"
+    );
+}
+
+/// The control of a slice with a stop job queued:
+/// the stand-in answers the first ask with the path the real manager reports for the slice and a job queued on it,
+/// answers the start,
+/// and hands the ask after the start to the real manager,
+/// so the discovery must ask the start through before it takes the path as its route.
+#[test]
+fn a_stop_job_queued_on_the_slice_is_asked_through_before_the_route_is_taken() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let real: String = real_systemctl();
+    let reported: String = the_slice_the_manager_reports(&real);
+    if reported.is_empty() {
+        println!(
+            "{NOT_RUN_PREFIX}{}]: app.slice has no control group on this host, so a stand-in here cannot plant a slice that holds a path and a queued job at once",
+            std::thread::current().name().unwrap_or(
+                "a_stop_job_queued_on_the_slice_is_asked_through_before_the_route_is_taken"
+            )
+        );
+        return;
+    }
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-with-a-stop-job-queued",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nasked=$(wc --lines < '{log}')\ncase \"$asked\" in\n  1) printf 'ControlGroup=%s\\nJob=42\\n' '{reported}'; exit 0 ;;\n  2) exit 0 ;;\nesac\nexec '{real}' \"$@\"\n",
+            log = log.display(),
+            reported = reported,
+            real = real
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+    let wanted: String = settings.slice.clone();
+
+    let route = detect_route(&settings)
+        .expect("a slice with a stop job queued is a route the call waits out");
+
+    assert_eq!(
+        route.slice, wanted,
+        "the discovery did not find the slice the settings name"
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    let asked: Vec<&str> = calls.lines().collect();
+    assert_eq!(
+        asked.len(),
+        3,
+        "a slice with a job queued was taken as the route without asking the start through: {calls:?}"
+    );
+    assert!(
+        asked[1].contains("--user start app.slice"),
+        "the discovery did not ask the start through a slice that has a job queued: {calls:?}"
     );
 }

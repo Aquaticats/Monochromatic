@@ -177,7 +177,7 @@ impl RefusalForm {
 ///  unlinks the second or removes a registration
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 ///  "What a refusal leaves,
-/// and what the record keeps").
+///  and what the record keeps").
 ///  The answer is a value rather than a sentence so the cancel command,
 ///  `doctor` and a receipt read one rule.
 ///

@@ -34,7 +34,7 @@
 //! moment its lease runs out,
 //! so the retry the answer promised needs no other request and no periodic poll;
 //! a wake that arrives before that moment ends the wait at once,
-//! because no claim covers a record written and announced
+//!  because no claim covers a record written and announced
 //! while the lane waits.
 //!  A look that panicked is kept as a look that left its work for a later one,
 //! so one repository's defect ends that look and not the lane,
@@ -220,7 +220,7 @@ impl Drop for TheLaneIsBusy {
 ///  with a panic kept as a look that left its work for a later one.
 /// Why:
 ///   A look runs the drain,
-/// and a defect in it must not end the lane:
+///  and a defect in it must not end the lane:
 /// the records it held keep their lease and this asks to be looked at again after the pause a look that
 ///  left housekeeping behind asks for,
 /// so the lane serves this repository again and every repository behind it goes on being served.

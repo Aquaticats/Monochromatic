@@ -36,6 +36,8 @@
 /// import { resolveForwardedCommand, Route } from './forwarded_command.ts';
 /// import { decideGuardedWord } from '../command/rule_linked_worktree.ts';
 /// ```
+/// The Git directory Git gives the Git inside a `!` alias's shell.
+use crate::external_git_command_the_git_dir_the_shell_reads::the_git_dir_the_alias_shell_reads;
 use crate::forwarded_command::{
     ResolvedCommand,
     Route,
@@ -45,8 +47,12 @@ use crate::forwarded_command::{
 };
 use crate::git_builtins::is_git_builtin;
 use crate::global_arguments::{
+    GlobalLayout,
     command_tokens,
+    global_layout,
     names_the_place_the_command_acts,
+    option_tokens,
+    without_directory_changes,
 };
 use crate::rule_linked_worktree::{
     LinkedWorktreeDecision,
@@ -55,7 +61,10 @@ use crate::rule_linked_worktree::{
 /// The transaction Git context the resolver asks for an alias.
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
-use std::ffi::OsString;
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
 use std::path::{
     Path,
@@ -180,17 +189,46 @@ pub fn decide_guarded_forwarded(
         // What: The directory Git runs this shell in, and the globals every fact about the command it runs is
         //  asked with.
         // Why: The command's own `-C`, `--git-dir` or `--work-tree` names another worktree or repository, and the
-        //  policies judged the caller's until they were asked from there.
+        //  policies judged the caller's until they were asked from there; the caller's own options before the alias
+        //  name and the `GIT_DIR` Git exports to the shell move the repository the nested Git uses, and a guard that
+        //  read neither measured one place while the command wrote two (issue 6641).
         let shell_directory: Option<PathBuf> = shell_run_directory(context, &resolved, start);
+        // What the command Git runs adds before its subcommand: the alias value's own words and then the caller's.
+        let own: &[OsString] = command_git_runs
+            .arguments
+            .get(..command_git_runs.subcommand_index)
+            .unwrap_or(&[]);
+        // What the caller typed before the alias name, which Git reads first and hands to the shell as well.
+        let caller_layout: GlobalLayout = global_layout(arguments);
+        let callers_globals: &[OsString] = arguments.get(..caller_layout.prefix_len).unwrap_or(&[]);
+        // Git names the repository of the shell's Git only when something named one, so that is the one question the
+        //  reading asks about it; a command whose own words name no place keeps the caller's options, which reach the
+        //  same worktree.
+        let place_named_by_the_callers_words: bool = the_place_was_named(callers_globals);
+        let inherited_git_dir: Option<OsString> = if shell_directory.is_some()
+            && own
+                .iter()
+                .any(|token| return names_the_place_the_command_acts(token.as_encoded_bytes()))
+        {
+            the_git_dir_the_alias_shell_reads(
+                context,
+                callers_globals,
+                start,
+                place_named_by_the_callers_words,
+            )
+        } else {
+            None
+        };
         return GuardedForwarded {
             decision: decide_guarded_word(command_git_runs.word(), command_git_runs.region()),
             arguments: arguments.to_vec(),
             // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
             shell_directory: shell_directory.clone(),
             globals_that_place_the_command: globals_that_place_the_command(
-                command_git_runs.arguments.as_slice(),
-                command_git_runs.subcommand_index,
+                own,
                 shell_directory.as_deref(),
+                callers_globals,
+                inherited_git_dir.as_deref(),
             ),
         };
     }
@@ -211,33 +249,42 @@ pub fn decide_guarded_forwarded(
 }
 
 /// What:
-///  The global options that reach the place one command Git runs acts on,
-///  read from the directory Git runs its shell in,
+///  The global options every repository fact about one command Git runs is asked with,
+///  from the directory Git runs its shell in,
 ///  or nothing when that command names no place of its own or that directory was not read.
+///  `&[OsString]` borrows the command's own globals before its subcommand;
+///  the other slice borrows the caller's globals before the alias name;
+///  `Option<&OsStr>` is what Git gives the shell's Git as `GIT_DIR`,
+///  and nothing when it gives none.
 /// Why:
-///   A `!` alias's shell runs at the top of the working tree Git changed to,
-///  and the words Git appends to the alias value may begin with a global option
+///  The nested Git starts where the shell runs,
+///  keeps the `GIT_DIR` Git exported to that shell,
+///  keeps the caller's `-c` options Git exported there too,
+///  and only then applies the words Git appended to the alias value
 ///  (`git.c:401` to `git.c:402`),
-///  so `-C <main>` there names a directory relative to that top.
+///  so the same list in that order is the one that asks real Git about the place the command acts in.
 ///  `-C` first makes the facts start where the shell started,
 ///  and the command's own options then move them exactly as Git moves the nested Git.
+///  The caller's own `-C` options are left out,
+///  because the shell already stands where they reached,
+///  and its `--git-dir` or `--work-tree` are kept as written,
+///  so a later one of the command's own overrides them as it does for Git.
 ///  A command whose own options name no place keeps the caller's own options,
 ///  which reach the same worktree the shell runs in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const globalsThatPlaceTheCommand = (args, index, shellDirectory) => {
-///   const own = args.slice(0, index);
+/// const globalsThatPlaceTheCommand = ({ own, shellDirectory, callersGlobals, inheritedGitDir }) => {
 ///   if (!own.some(namesThePlace) || shellDirectory === undefined) return undefined;
-///   return ['-C', shellDirectory, ...own];
+///   return ['-C', shellDirectory, ...(inheritedGitDir === undefined ? [] : ['--git-dir', inheritedGitDir]), ...withoutDirectoryChanges(callersGlobals), ...own];
 /// };
 /// ```
 pub(crate) fn globals_that_place_the_command(
-    arguments: &[OsString],
-    subcommand_index: usize,
+    own: &[OsString],
     shell_directory: Option<&Path>,
+    callers_globals: &[OsString],
+    inherited_git_dir: Option<&OsStr>,
 ) -> Option<Vec<OsString>> {
-    let own: &[OsString] = arguments.get(..subcommand_index).unwrap_or(&[]);
     if !own
         .iter()
         .any(|token| return names_the_place_the_command_acts(token.as_encoded_bytes()))
@@ -245,11 +292,58 @@ pub(crate) fn globals_that_place_the_command(
         return None;
     }
     let directory: &Path = shell_directory?;
-    let mut globals: Vec<OsString> = Vec::with_capacity(own.len() + 2);
+    let mut globals: Vec<OsString> = Vec::with_capacity(own.len() + callers_globals.len() + 4);
     globals.push(OsString::from("-C"));
     globals.push(directory.as_os_str().to_os_string());
+    if let Some(git_dir) = inherited_git_dir {
+        globals.push(OsString::from("--git-dir"));
+        globals.push(git_dir.to_os_string());
+    }
+    globals.extend(without_directory_changes(callers_globals));
     globals.extend(own.iter().cloned());
     return Some(globals);
+}
+
+/// What:
+///  Whether the caller's own words before the alias name named the repository the Git inside a `!` alias's shell
+///  reads a Git directory or a work tree.
+/// Why:
+///  Git gives such a shell a `GIT_DIR` whenever either was named
+///  (`setup.c:1247` to `:1254` of Git 2.56.1,
+///  through the explicit path that stores the Git directory it found),
+///  and the value is read from Git rather than rebuilt from these words,
+///  so a relative spelling stays relative as Git stored it.
+///  A `-C` is not one of these:
+///  Git changes into that directory and finds the repository from there,
+///  which is the discovery that exports nothing in a plain main checkout.
+///  A `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment is not read here,
+///  because the facts' own Git inherits that environment:
+///  measured on 2026-11-28,
+///  an absolute `GIT_DIR` names the same state whether the reading pins it with
+///  `--git-dir` or the facts inherit it,
+///  a relative one is rebased by the command's own `-C` either way,
+///  and a `GIT_WORK_TREE` makes `--show-toplevel` differ from the Git directory,
+///  which the comparison already reads.
+///  Gotcha:
+///  this rests on every fact request inheriting the caller's environment;
+///  a request that unset `GIT_DIR` or `GIT_WORK_TREE` would make the reading name no state where Git's nested
+///  command has one,
+///  so such a request belongs beside this sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePlaceWasNamed = (callersGlobals) => callersGlobals.some((word) => /^--(git-dir|work-tree)(=|$)/.test(word));
+/// ```
+fn the_place_was_named(callers_globals: &[OsString]) -> bool {
+    /// The globals that store a Git directory or a work tree,
+    ///  in both spellings Git accepts.
+    const NAMED: &[&[u8]] = &[b"--git-dir", b"--git-dir=", b"--work-tree", b"--work-tree="];
+    return option_tokens(callers_globals).iter().any(|token| {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        return NAMED
+            .iter()
+            .any(|spelling| return bytes == *spelling || bytes.starts_with(spelling));
+    });
 }
 
 /// Alias resolution,

@@ -59,107 +59,77 @@ fn every_finding_code_has_a_hint_or_its_own() {
         ("security/forbidden-strings", FORBIDDEN_STRING_CODE),
     ];
     for (policy, code) in hinted {
-        for fix_available in [false, true] {
-            // What: every answer a finding can carry about a commit, so a new case cannot print nothing.
-            // Why:  the hint is chosen from both facts, and a case without words would leave the person guessing.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // for (const correction of [undefined, 'corrects', 'corrects-unless-the-selection-is-read-only', 'nothing-corrects-what-the-index-holds', 'nothing-corrects-what-a-commit-holds']) { /* ... */ }
-            // ```
-            for commit_correction in [
-                None,
-                Some(CommitCorrection::Corrects),
-                Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
-                Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
-                Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
-            ] {
-                let hint: &str = finding_hint(policy, code, fix_available, commit_correction)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "{policy}/{code} (fix {fix_available}, commit {commit_correction:?}) has no hint"
-                        )
-                    });
-                assert!(hint.starts_with("Hint: "), "{policy}/{code}: {hint}");
-            }
+        // What: every answer a finding can carry about a commit, so a new case cannot print nothing.
+        // Why:  the hint is chosen from that fact, and a case without words would leave the person guessing.
+        //       Whether the finding offers a patch decides no wording: a lifecycle that may apply a correction
+        //       reports the pass after it, which holds no such finding.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // for (const correction of [undefined, 'corrects-unless-the-selection-is-read-only', 'nothing-corrects-what-the-index-holds', 'nothing-corrects-what-a-commit-holds']) { /* ... */ }
+        // ```
+        for commit_correction in [
+            None,
+            Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+            Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
+            Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
+        ] {
+            let hint: &str = finding_hint(policy, code, commit_correction).unwrap_or_else(|| {
+                panic!("{policy}/{code} (commit {commit_correction:?}) has no hint")
+            });
+            assert!(hint.starts_with("Hint: "), "{policy}/{code}: {hint}");
         }
     }
     for (policy, code) in SELF_HINTED {
         assert_eq!(
-            finding_hint(policy, code, false, None),
+            finding_hint(policy, code, None),
             None,
             "{policy}/{code} would get two hints"
         );
     }
-    assert_eq!(finding_hint("final-newline", "unknown", false, None), None);
+    assert_eq!(finding_hint("final-newline", "unknown", None), None);
 }
 
 /// Every place of the final-newline finding says what changes the bytes there,
 ///  and each says a step that works where it is printed.
 #[test]
 fn the_final_newline_hint_says_what_corrects_the_file() {
-    let here: &str = finding_hint(
-        "final-newline",
-        FINAL_NEWLINE_CODE,
-        true,
-        Some(CommitCorrection::Corrects),
-    )
-    .expect("hint");
-    let by_the_commit_that_takes_the_file: &str = finding_hint(
-        "final-newline",
-        FINAL_NEWLINE_CODE,
-        false,
-        Some(CommitCorrection::Corrects),
-    )
-    .expect("hint");
     let unless_the_selection_is_read_only: &str = finding_hint(
         "final-newline",
         FINAL_NEWLINE_CODE,
-        false,
         Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
     )
     .expect("hint");
     let when_the_index_holds_them: &str = finding_hint(
         "final-newline",
         FINAL_NEWLINE_CODE,
-        false,
         Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
     )
     .expect("hint");
     let when_a_commit_holds_them: &str = finding_hint(
         "final-newline",
         FINAL_NEWLINE_CODE,
-        false,
         Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
     )
     .expect("hint");
-    // What: the three places the correction is still ahead of the person name the fix.
-    // Why:  those three cases share the promise that a command corrects the bytes, and two add the
-    //       condition under which it does.
+    // What: the place where a commit still corrects the bytes names the fix and the commit that takes them.
+    // Why:  an `add` may be refused and stage nothing, so the fix and the staging after it lead (issue 6627's
+    //       read, Low 3), and a commit corrects the ending only when its selection takes the bytes rather than
+    //       recording them as they are.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // for (const hint of [here, byTheFileTaker, unlessReadOnly]) expect(hint).toContain('git monochromatic-git-policy-cli fix');
+    // expect(unlessReadOnly).toContain('git monochromatic-git-policy-cli fix -- <path>'); expect(unlessReadOnly).not.toContain('edit it');
     // ```
-    for hint in [
-        here,
-        by_the_commit_that_takes_the_file,
-        unless_the_selection_is_read_only,
-    ] {
-        assert!(
-            hint.contains("git monochromatic-git-policy-cli fix -- <path>"),
-            "{hint}"
-        );
-        assert!(!hint.contains("edit it"), "{hint}");
-    }
-    assert!(here.contains("a commit corrects the ending"), "{here}");
     assert!(
-        by_the_commit_that_takes_the_file.contains("a commit that takes it corrects the ending"),
-        "{by_the_commit_that_takes_the_file}"
+        unless_the_selection_is_read_only
+            .contains("git monochromatic-git-policy-cli fix -- <path>"),
+        "{unless_the_selection_is_read_only}"
     );
-    // What: an `add` leads with the fix and the staging after it, because an `add` may be refused.
-    // Why:  a person whose add was refused can stage nothing until the file is corrected, and an index that
-    //       already holds the bytes keeps them until it is staged once more (issue 6627's read, Low 3).
+    assert!(
+        !unless_the_selection_is_read_only.contains("edit it"),
+        "{unless_the_selection_is_read_only}"
+    );
     assert!(
         unless_the_selection_is_read_only.starts_with(
             "Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- <path>`"
@@ -167,13 +137,23 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
         "{unless_the_selection_is_read_only}"
     );
     assert!(
-        unless_the_selection_is_read_only
-            .contains("then stage the file again with `git add -- <path>`"),
+        unless_the_selection_is_read_only.contains("then stage the file with `git add -- <path>`"),
         "{unless_the_selection_is_read_only}"
     );
     assert!(
         unless_the_selection_is_read_only
             .contains("a commit whose selection is read-only (`-p`, `-i` or `--include`) records"),
+        "{unless_the_selection_is_read_only}"
+    );
+    // What: the commit the hint names is one this wrapper accepts, and it is named as a command.
+    // Why:  a commit that names no path is refused (`commit-only/pathspec-required`), so "a plain commit" named
+    //       a form a person cannot use (issue 6627's read, Low 4).
+    assert!(
+        unless_the_selection_is_read_only.contains("`git commit -- <path>`"),
+        "{unless_the_selection_is_read_only}"
+    );
+    assert!(
+        !unless_the_selection_is_read_only.contains("plain commit"),
         "{unless_the_selection_is_read_only}"
     );
     // What: a lifecycle whose bytes nothing corrects tells the person to edit the file, and names the step after it.
@@ -202,11 +182,14 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
         !when_a_commit_holds_them.contains("stage it again"),
         "{when_a_commit_holds_them}"
     );
-    // What: the five answers are five different sentences, so nothing printed reads as another place's promise.
+    // What: the three answers are three different sentences, so nothing printed reads as another place's promise.
     // Why:  one text reused would tell a person the wrong thing at one of the lifecycles.
-    let distinct: [&str; 5] = [
-        here,
-        by_the_commit_that_takes_the_file,
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(new Set([unlessReadOnly, index, commit])).toHaveLength(3);
+    // ```
+    let distinct: [&str; 3] = [
         unless_the_selection_is_read_only,
         when_the_index_holds_them,
         when_a_commit_holds_them,
@@ -218,7 +201,7 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
     }
     assert_eq!(
         when_the_index_holds_them,
-        finding_hint("final-newline", FINAL_NEWLINE_CODE, false, None).expect("hint")
+        finding_hint("final-newline", FINAL_NEWLINE_CODE, None).expect("hint")
     );
 }
 

@@ -36,8 +36,23 @@
 //! `use std::io::stderr as say;`,
 //! `use std::io::{stderr as say};`) and where a type position names it (`Stderr`).
 //! What this ban does not see is a call a macro of another file expands to,
-//! and a name a glob import (`use super::*;`) brings into scope;
+//! a name a glob import (`use super::*;`) brings into scope,
+//! and a call whose name and `(` a line break separates;
 //! a reader checks each of those in a file that adds one.
+//! The shared handle is read by its descriptor number too (`libc::STDERR_FILENO`),
+//! which is the same handle and holds it the same way;
+//! a write to the number itself (`libc::write(2, ...)`) names no constant and no call,
+//! and this ban reads nothing of it.
+//! The terse ways to say a note are read as well:
+//! `eprintln!` and `eprint!` (`THE_TERSE_WAYS_TO_SAY_A_NOTE`),
+//! and the paths that open the same handle (`THE_SHARED_HANDLE_BY_PATH`).
+//! `eprintln!` is refused in every release source by the door's own guard
+//! (`source_guard/diagnostic_door_tests.rs`);
+//! this guard reads it in the files that say a note,
+//! so a note file that spells it fails here too,
+//! and this is the guard that says the note was written on the command's own thread.
+//! A path this ban misses is one built from parts (`concat!("/dev/", "stderr")`)
+//! and one a variable holds rather than a literal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -49,6 +64,7 @@ use super::{
     MayHold,
     entries_that_match_nothing,
     lines_calling_one_of,
+    lines_holding_one_of,
     lines_naming_one_of,
     lines_no_entry_excuses,
     release_sources_holding,
@@ -103,6 +119,51 @@ const THE_SHARED_HANDLE_CALLS: &[&str] = &["stderr"];
 /// const THE_SHARED_HANDLE_TYPES = ['Stderr'];
 /// ```
 const THE_SHARED_HANDLE_TYPES: &[&str] = &["Stderr"];
+
+/// What:
+///  `THE_SHARED_HANDLE_BY_NUMBER` is the constant that names this process's standard error by its descriptor
+///  number,
+///  which writes to the same handle as `std::io::stderr()` and holds it the same way.
+/// Why:
+///  a note written with `libc::write(libc::STDERR_FILENO, ...)` asks for the shared handle without writing either
+///  of its names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_SHARED_HANDLE_BY_NUMBER = ['STDERR_FILENO'];
+/// ```
+const THE_SHARED_HANDLE_BY_NUMBER: &[&str] = &["STDERR_FILENO"];
+
+/// What:
+///  `THE_TERSE_WAYS_TO_SAY_A_NOTE` is the two macros that write standard error without asking for a stream.
+/// Why:
+///  `eprintln!` and `eprint!` write this process's shared standard error on the caller's own thread,
+///  which is the write this ban exists for,
+///  and neither names the handle,
+///  the type or the descriptor number.
+///  The door's own guard refuses `eprintln!` in every release source;
+///  this list is what says a note file may not spell it either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_TERSE_WAYS_TO_SAY_A_NOTE = ['eprintln!', 'eprint!'];
+/// ```
+const THE_TERSE_WAYS_TO_SAY_A_NOTE: &[&str] = &["eprintln!", "eprint!"];
+
+/// What:
+///  `THE_SHARED_HANDLE_BY_PATH` is every path a file can open this process's standard error by.
+/// Why:
+///  `File::create("/dev/stderr")` and `std::fs::write("/dev/fd/2", ..)` reach the same handle the call
+///  and the descriptor constant reach,
+///  and they name none of them.
+///  `/proc/self/fd/2` is the same descriptor under the name the kernel gives it,
+///  which is what `/dev/stderr` resolves to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_SHARED_HANDLE_BY_PATH = ['/dev/stderr', '/dev/fd/2', '/proc/self/fd/2'];
+/// ```
+const THE_SHARED_HANDLE_BY_PATH: &[&str] = &["/dev/stderr", "/dev/fd/2", "/proc/self/fd/2"];
 
 /// What:
 ///  `THE_NOTE_FILES` is every file `main` says a note of the commit path from.
@@ -191,11 +252,14 @@ fn note_files() -> Vec<(String, String)> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writesWhereTheCommandStands = (sources) => [...linesCallingOneOf(sources, THE_SHARED_HANDLE_CALLS), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_TYPES)];
+/// const writesWhereTheCommandStands = (sources) => [...linesCallingOneOf(sources, THE_SHARED_HANDLE_CALLS), ...linesCallingOneOf(sources, THE_TERSE_WAYS_TO_SAY_A_NOTE), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_TYPES), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_BY_NUMBER), ...linesHoldingOneOf(sources, THE_SHARED_HANDLE_BY_PATH)];
 /// ```
 fn writes_where_the_command_stands(sources: &[(String, String)]) -> Vec<HoldingLine> {
     let mut holding: Vec<HoldingLine> = lines_calling_one_of(sources, THE_SHARED_HANDLE_CALLS);
+    holding.extend(lines_calling_one_of(sources, THE_TERSE_WAYS_TO_SAY_A_NOTE));
     holding.extend(lines_naming_one_of(sources, THE_SHARED_HANDLE_TYPES));
+    holding.extend(lines_naming_one_of(sources, THE_SHARED_HANDLE_BY_NUMBER));
+    holding.extend(lines_holding_one_of(sources, THE_SHARED_HANDLE_BY_PATH));
     return holding;
 }
 
@@ -274,15 +338,25 @@ fn the_lane_still_reads_every_file_that_says_a_note() {
 ///  the path of an
 ///  `io` import,
 ///  the import a rename is made from,
-///  and the type kept in a value.
+///  the type kept in a value,
+///  the descriptor number,
+///  the two macros that write it,
+///  and the paths that open it.
 /// Why:
 ///  The review of release 0.6.1-alpha.50 found that `use std::io; io::stderr().write_all(..)` held neither text the
-///  ban read (issue 6613).
+///  ban read (issue 6613),
+///  and the read of release 0.6.1-alpha.52 found the macros and the paths (its L2).
 const SPELLINGS_OF_THE_SHARED_HANDLE: &[&str] = &[
     "let _ = writeln!(std::io::stderr(), \"one\");",
     "let _ = io::stderr().write_all(b\"one\");",
     "use std::io::stderr as say;",
     "fn kept(handle: std::io::Stderr) {}",
+    "let _ = unsafe { libc::write(libc::STDERR_FILENO, bytes.as_ptr().cast(), bytes.len()) };",
+    "eprintln!(\"one\");",
+    "eprint!(\"one\");",
+    "let _ = std::fs::File::create(\"/dev/stderr\");",
+    "let _ = std::fs::write(\"/dev/fd/2\", b\"one\");",
+    "let _ = std::fs::File::create(\"/proc/self/fd/2\");",
 ];
 
 /// What:

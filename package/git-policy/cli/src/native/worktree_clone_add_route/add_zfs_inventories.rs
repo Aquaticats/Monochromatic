@@ -1,15 +1,14 @@
 //! What:
 //!  The two lists one add takes from the pool:
-//! the origin dataset's snapshots
+//!  the origin dataset's snapshots
 //!  and bookmarks at or below the snapshot the clone is made from,
-//! and the
-//!  clone's own snapshots and bookmarks immediately after it was made.
+//!  and the clone's own snapshots and bookmarks immediately after it was made.
 //! Why:
 //!  The binding records both lists,
-//! so a later reader can tell what the clone
+//!  so a later reader can tell what the clone
 //!  was made from without asking the pool a question whose answer has moved
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A9).
+//!  A9).
 //!  `add_zfs.rs` sends the requests and would go over the file-size limit
 //!  carrying the two listings,
 //!  and `add_zfs_pool_answers.rs` holds the reads and refusals they list by,
@@ -39,8 +38,7 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 impl OpenedDevice {
     /// The origin dataset's snapshots at or below `bounds_createtxg`,
-    /// and its
-    /// bookmarks,
+    /// and its bookmarks,
     /// as the origin inventory's set.
     ///
     /// # Errors

@@ -5,6 +5,21 @@
 //! a declaration it cannot place exactly is an error,
 //! because a guess here would
 //! decide which files a scan treats as release code.
+//! The visibilities it places are
+//! `mod`,
+//! `pub mod`,
+//! `pub(crate) mod` and
+//! `pub(super) mod`.
+//! A `mod` statement at a file's first column written with any other visibility
+//! (`pub(in crate::a) mod x;`,
+//! `pub(self) mod x;`)
+//! or with text after its `;` (`mod x; // a note`) is an error,
+//! because the module it declares would be missing from every scan in silence.
+//! An inline `mod name { ... }` declares no file of its own and is not read.
+//! The reading is one line at a time and knows nothing of string literals or block comments,
+//! so it reads a `mod` statement at a file's first column wherever it stands:
+//! fixture text holding one is written indented,
+//! which is why an indented line is skipped rather than refused.
 
 /// What:
 ///  `pub(crate) struct Declaration { ... }` is a record type (TS:
@@ -126,6 +141,12 @@ pub(crate) fn is_test_gate(predicate: &str) -> bool {
 /// or `None` when the line is anything else (including an inline `mod name {`).
 /// Why:
 ///  Both the resolver and the boundary scan need to recognise a module declaration line the same way.
+///  The visibilities read are the ones this crate writes:
+///  `mod`,
+///  `pub mod`,
+///  `pub(crate) mod` and
+///  `pub(super) mod`.
+///  `declarations` errors on a module statement written any other way rather than stepping over it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,15 +175,117 @@ pub(crate) fn module_name(line: &str) -> Option<&str> {
 }
 
 /// What:
+///  `fn starts_a_module_declaration(line: &str) -> bool` says whether that line is written as the start of a
+///  file-module declaration,
+///  whatever visibility stands before its `mod`:
+///  `mod name`,
+///  `pub mod name`,
+///  `pub(crate) mod name`,
+///  `pub(super) mod name`,
+///  `pub(in path) mod name` and
+///  `pub(self) mod name`.
+/// Why:
+///  `declarations` stops on a module statement it cannot place,
+///  and a line that is no module statement at all is no error there:
+///  an item,
+///  a `use`,
+///  a statement.
+///  An inline `mod name {` starts one too,
+///  and the caller reads its `{` to tell that shape apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startsAModuleDeclaration(line: string): boolean
+/// ```
+fn starts_a_module_declaration(line: &str) -> bool {
+    let trimmed: &str = line.trim();
+    let after_visibility: &str = if let Some(rest) = trimmed.strip_prefix("pub(") {
+        let Some((_inside, after)) = rest.split_once(')') else {
+            return false;
+        };
+        after.trim_start()
+    } else if let Some(after) = trimmed.strip_prefix("pub ") {
+        after
+    } else {
+        trimmed
+    };
+    return after_visibility.starts_with("mod ");
+}
+
+/// What:
+///  `fn leading_attributes(line: &str) -> (Vec<&str>, &str)` splits the attributes a line starts with from the
+///  declaration written after them on the same line.
+///  `Vec<&str>` is a growable list of borrowed views of the line (sibling:
+///  `String`,
+///  owned).
+/// Why:
+///  An attribute may stand on the declaration's own line (`#[inline] pub fn inlined() {}`,
+///  `#[cfg(test)] mod support;`),
+///  and a reader that took such a line for an attribute alone placed no declaration below it
+///  (the alpha.52 read's L1).
+///  The module tree and the published surface both read a declaration line through this one split,
+///  so a shape one of them places is a shape the other places too.
+///  An attribute's `]` is found with its square brackets counted and its string literals skipped,
+///  so `#[cfg(all(not(test), unix))]` and a value that holds a bracket end where the attribute ends.
+/// Gotcha:
+///  A line whose attribute is not closed answers the whole line as one attribute and no declaration,
+///  which is the reading these scans gave a line starting with `#[` before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leadingAttributes(line: string): [string[], string]
+/// ```
+pub(crate) fn leading_attributes(line: &str) -> (Vec<&str>, &str) {
+    let bytes: &[u8] = line.as_bytes();
+    let mut found: Vec<&str> = Vec::new();
+    let mut at: usize = 0;
+    while line[at..].starts_with("#[") {
+        let start: usize = at;
+        let mut depth: usize = 1;
+        let mut index: usize = at + "#[".len();
+        while index < bytes.len() && depth > 0 {
+            match bytes[index] {
+                b'"' => {
+                    index += 1;
+                    while index < bytes.len() && bytes[index] != b'"' {
+                        if bytes[index] == b'\\' {
+                            index += 1;
+                        }
+                        index += 1;
+                    }
+                }
+                b'[' => depth += 1,
+                b']' => depth -= 1,
+                _ => {}
+            }
+            index += 1;
+        }
+        if depth > 0 {
+            found.push(line.trim_end());
+            return (found, "");
+        }
+        found.push(&line[start..index]);
+        at = index;
+        while at < bytes.len() && bytes[at] == b' ' {
+            at += 1;
+        }
+    }
+    return (found, &line[at..]);
+}
+
+/// What:
 ///  `pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String>` lists the file-module declarations
 ///  of one source text in order,
 /// each with the attributes written directly above it (comments and blank lines
-///  between do not detach them).
+///  between do not detach them)
+///  and those written on its own line before it.
 /// Why:
 ///  The resolver follows these to find every file the compiler would read.
 /// It fails on an indented declaration (an
 ///  inline module's child,
-/// which resolves differently) and on a `path` attribute it cannot read,
+/// which resolves differently),
+/// on a module statement written with a visibility or an ending it does not place,
+///  and on a `path` attribute it cannot read,
 /// instead of guessing.
 ///
 /// In TS you'd write (pseudocode):
@@ -177,11 +300,32 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
         if trimmed.is_empty() || trimmed.starts_with("//") {
             continue;
         }
-        if trimmed.starts_with("#[") {
-            attributes.push(trimmed);
+        // What: the attributes this line starts with, and the declaration written after them on it.
+        // Why: `#[cfg(test)] mod support;` declares a module, and a reader that took the line for an
+        //      attribute alone left that module out of every scan of the tree in silence.
+        let (written_attributes, declaration): (Vec<&str>, &str) = if trimmed.starts_with("#[") {
+            leading_attributes(trimmed)
+        } else {
+            (Vec::new(), trimmed)
+        };
+        attributes.extend(written_attributes);
+        if declaration.trim().is_empty() {
             continue;
         }
-        let Some(name) = module_name(trimmed) else {
+        let Some(name) = module_name(declaration) else {
+            // What: A `mod` statement at a file's first column that this reading cannot place stops the scan.
+            // Why: Stepping over it would leave its module out of the tree, and the surface would be short by
+            //      every name that module publishes, with nothing said.
+            //      An indented one is inside an inline module or a fixture's own text, which is no file of the
+            //      tree either way.
+            if starts_a_module_declaration(declaration)
+                && !declaration.contains('{')
+                && !line.starts_with(char::is_whitespace)
+            {
+                return Err(format!(
+                    "`{trimmed}` is no `mod` declaration this reading places, so the module it declares would be missing from the tree: write `mod`, `pub mod`, `pub(crate) mod` or `pub(super) mod`, and end the line at its `;`"
+                ));
+            }
             // Any other line (an item, a use, a statement) detaches the attributes above it.
             attributes.clear();
             continue;
@@ -220,7 +364,7 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
             name: name.to_owned(),
             path_attribute,
             test_only,
-            public: line.starts_with("pub mod "),
+            public: declaration.starts_with("pub mod "),
         });
     }
     // `Ok(found)` is the success variant of `Result`; the tail expression is the return value.

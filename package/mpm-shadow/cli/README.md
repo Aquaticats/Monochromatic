@@ -241,12 +241,22 @@ or a Java major line such as `21`).
   The route is how a tool installs;
   the request is where its versions come from.
 - A `rustup-toolchain` row's `bins` are the programs the toolchain the row's channel names holds:
-  that toolchain's own `bin` directory under `~/.rustup/toolchains`,
-  and never another installed toolchain's,
-  whatever the directory names sort like
+  the `bin` directory of the toolchain `rustup which --toolchain <channel> rustc` prints a path in,
+  and never another installed toolchain's.
+  Which installed toolchain a channel is belongs to `rustup`:
+  its host triple is the kernel's own answer plus its build's C library,
+  or the `default_host_tuple` of its settings,
+  and a custom linked toolchain's directory is the link's own name,
+  so `mpm-shadow` asks rather than reading the directory names.
+  The names in `~/.rustup/toolchains` sorted like anything else are not read at all
   (a second toolchain beside the pin answered for the farm's `rustc`,
-  `cargo` and `rustfmt` before issue 6634);
-  and rustup's own proxies in the cargo bin directory where `rustup` itself was installed there.
+  `cargo` and `rustfmt` before issue 6634,
+  a neighbour whose name extends the channel answered for the programs the channel's own toolchain
+  lacked,
+  and so did a custom link whose name extends the pin and the same channel installed for a second
+  host triple).
+  The row also searches rustup's own proxies in the cargo bin directory where `rustup` itself was
+  installed there.
   `rustup` is never one of them:
   it is the manager,
   which `rustup-init` or the distribution's package installs before the first `mpm-shadow` run,
@@ -254,15 +264,36 @@ or a Java major line such as `21`).
   so the farm links `rustup` only where a `rustup` proxy of that name already sits in the cargo bin
   directory,
   and a row that declared it names an unresolved bin wherever none does.
+  On 2026-11-17 this machine's `rustup` became the distribution's package,
+  and the proxies in the cargo home went with the `rustup-init` installation it replaced,
+  so no `rustup` proxy sat there any more,
+  and the row that declared it named it an unresolved bin.
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  An install adds a declared component the toolchain lacks,
+  which `0.2.7-alpha.17` showed against a real `rustup` in its second pass:
+  on a pinned toolchain at the `minimal` profile holding no `rustfmt` it asked
+  `rustup component add rustfmt --toolchain nightly-2026-11-16`,
+  the two programs were in the toolchain's `bin` afterwards and ran,
+  and the report named no unresolved bin,
+  where `0.2.7-alpha.16` in the same state asked nothing and named three unresolved bins.
+  The controls around this answer every `rustup` call from a stand-in runner.
   `list` reads the same declarations:
-  it asks `rustup component list --installed` and `rustup target list --installed` about the row's
-  toolchain,
-  and a component or target it does not list is drift,
+  it asks `rustup` which toolchain the row's channel is,
+  then `rustup component list --installed` for what that toolchain holds,
+  and a declared component or target whose line is missing is drift,
   named in the `drift` line,
   which is what the next `install` would add.
+  A target is a `rust-std-<triple>` line of that same listing,
+  which is the listing `rustup target list --installed` filters for
+  (`list_targets` in rustup 1.29.3's `src/cli/rustup_mode.rs`),
+  so the two questions are one.
+  When the listing itself fails,
+  the row is drift too and the line carries the failure's words
+  (`its components and targets could not be read: ...`),
+  which is not what the next `install` would add:
+  nothing is known about the parts until a listing answers.
   Every program a row lists that no component it declares and no profile installs is not in
   the toolchain at all,
   so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
@@ -713,6 +744,43 @@ llama-cpu-cli \
   Exits 1 on drift.
   Also names the old copies of this repository's tools that `install` would retire,
   which are not drift.
+  It starts `rustup` twice for each `rustup-toolchain` row whose toolchain is at its version
+  (see "The plan" for those two questions),
+  and waits for each answer with no bound of its own,
+  so a `rustup` that never answers makes it wait for ever.
+  `install` waits the same way,
+  for the questions it asks about a Rust row and for every other program it
+  starts,
+  and so does every command that starts a program,
+  so a `rustup` or a `cargo` that never answers makes that command wait for ever too.
+  What a wait does say is one line on standard error once it has passed 2 s,
+  naming the program and every argument it was started with:
+
+  ```text
+  mpm-shadow: still waiting for `rustup component list --installed --toolchain nightly-2026-11-16` to answer, 2.0 s after this command started it; no deadline ends that wait
+  ```
+
+  The 2 s comes from what an ordinary answer costs,
+  measured on 2026-11-28 with three arms interleaved in each of 40 rounds:
+  this machine's `rustup 1.29.3` answering `--version` took 4.39 ms at the median and 45.61 ms at its slowest,
+  and a stand-in answering `which` and `component list` took 12.85 ms and 12.63 ms at their medians
+  and 26.58 ms and 26.28 ms at their slowest,
+  so 2 s is 75 times the slowest ordinary question and 157 times the median of the two questions,
+  and above the spread of the control arm,
+  whose slowest sample was 10.4 times its median.
+  What that costs when `rustup` answers:
+  20 to 116 ms for the whole command with the row's components and targets declared,
+  against 6 to 15 ms for a row that declares none and so asks only which toolchain the channel is,
+  measured on 2026-11-27 in seven interleaved rounds run three times over,
+  with this account's own `rustup 1.29.3`
+  and a hard-linked copy of this machine's pinned toolchain,
+  on a machine other sessions were loading;
+  one question alone cost 4 to 31 ms at the median of those rounds.
+  No deadline is shipped for those waits:
+  the measurement says what an answer costs,
+  not what a late one should be cut off at,
+  and a cut-off would tell a person a toolchain's parts could not be read when `rustup` was merely
+  slow.
 - `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
   deletes the cargo tool versions no known lock names
   and the superseded versions of this repository's release archives (see "Cleanup").
@@ -1070,12 +1138,23 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   A toolchain that is already at the locked version,
   which another program installed,
   is not skipped:
-  `install` asks `rustup component list --installed` and `rustup target list --installed` for that
-  toolchain,
+  `install` asks `rustup component list --installed` for that toolchain,
   adds only the declared parts `rustup` does not list,
   and reports the tool as installed with
   one line per part it added.
+  A target counts as installed when its `rust-std-<triple>` line is in that listing,
+  which is the listing `rustup target list --installed` filters for,
+  so the target question costs no second start.
   A listing or an add that fails fails that tool rather than counting it unchanged.
+  `install` then asks `rustup which --toolchain <channel> rustc` once for the row,
+  after the installers ran,
+  to learn the directory the farm links from (see "The plan");
+  `list` does not build the farm and never asks that question of an install.
+  That question and the listing above are waited on with no bound of their own,
+  as every program this command starts is,
+  and a wait that passes 2 s prints one line on standard error naming the program and its arguments
+  (the measurement behind that bound is under the `list` bullet of "Commands").
+  No deadline ends any of those waits.
 - `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
   (see "Cargo tool installs").
 - `pnpm add --global <package>@<locked>`,
@@ -1145,6 +1224,21 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   `update` (for a version taken from a release tag)
   and the path builders all refuse such a name,
   and the message names it.
+  A bin name is also refused when the file system the exposure folder is on cannot hold the temporary
+  name its link is written under:
+  every link is written as `.{bin}.tmp.{process id}.{start time}.{namespace}.{boot}` and then renamed over
+  the link's name,
+  which adds at most 95 bytes to the bin name,
+  so the check is made where the plan is read,
+  against the longest name the file system itself reports for that folder,
+  and the refusal names the row,
+  the bin,
+  that limit and the longest bin name that would fit.
+  On a file system holding 255 bytes that is a bin name of at most 160 bytes;
+  a declared bin of 161 bytes or more is refused before anything is downloaded
+  (see "What the exposure folder holds" for the temporary name and why it carries those facts).
+  A file system that cannot be asked leaves the question open,
+  and the link write's own error is what a person meets then.
   Entries in the plan's `postinstall` are not checked this way.
 - mpm is never asked to install or look up a version:
   mpm 8.2.0 ignores a pinned version for cargo and pnpm,
@@ -1446,7 +1540,13 @@ one for each way its publish can go wrong:
 
 Each of them ends with `the finished copy this run holds is still at <hidden name>`,
 following the words above,
-and that copy is the one the next install publishes:
+and that copy is the one a later install publishes without downloading while that version's name holds no finished copy,
+in this process namespace and after a reboot;
+an install in another process namespace does not judge that name and leaves the copy where it is,
+and a newer version of one of this repository's tools,
+installed by then,
+leaves the copy hidden,
+which is what the sentence itself then says:
 
 ```text
 toolchain install: mpm-shadow failed: cannot move the finished install to <toolchain root>/mpm-shadow/0.2.7-alpha.13: Input/output error (os error 5); the finished copy this run holds is still at <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222. A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, and removes it as a second finished copy when that name holds one; it acts on that name in this process namespace and after a reboot, but an install in another process namespace does not judge that name and leaves the copy where it is, and prune --toolchain prints that name and what deleting it costs; a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, because an older repository tool is never kept
@@ -1497,9 +1597,14 @@ and when that install fails too the report names both causes in one failure.
 That warning ends with what this run then did.
 When the install that follows put the version at its name,
 the warning says `so the run does not fail for it`
-and then the sentence above,
-whose first half cannot apply because the version is at its name by then,
-so the removal it also names is what that later install does in this process namespace;
+and then the sentence for that state,
+which names the removal alone,
+because the version's name holds a finished copy by then and no install can publish the kept copy any more:
+
+```text
+A later install of that version removes that copy as a second finished copy, because the version's name holds a finished copy by then; it acts on that name in this process namespace and after a reboot, but an install in another process namespace does not judge that name and leaves the copy where it is, and prune --toolchain prints that name and what deleting it costs; a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, because an older repository tool is never kept
+```
+
 when that install failed too,
 the copy stays where the run's own sentence put it.
 A put-back that fails names the copy that was there rather than a finished one,
@@ -1653,6 +1758,9 @@ and never what a start of either copy does:
 the test is a completion marker and a program found,
 so a program cut short under its marker reads as finished too,
 and the copy the version's name holds may be the one that cannot run.
+A stronger test of that clause was priced and not taken:
+keeping a second copy whose program differs means reading both programs on every recovery,
+and it still cannot tell a program cut short from one rebuilt at the same size.
 
 ```text
 toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
@@ -1850,21 +1958,85 @@ and it holds one link per declared bin
   A repository-published tool's link points at this tree's launcher instead,
   so a run through it can warn about the lock (see "The launcher").
 - Every link an install makes is replaced atomically,
-  so a run killed while the folder is rebuilt leaves no half-written name.
+  so a run killed while the folder is rebuilt leaves no half-written name:
+  the new link is written under a dotted temporary name beside the real one and renamed over it,
+  and a kill between those two steps leaves that temporary name behind.
 - Every rebuild also removes what the lock no longer declares:
   a symbolic link whose name no row of the lock declares is removed,
-  and the install's report names each one and where it pointed
+  and the install's report names each one as it removes it and says where it pointed
   (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
+  A run that fails at a later removal still names the removals it made before that failure,
+  and a link another run removed or renamed away in the instant before this run reached it is no failure here:
+  the removal reads the entry's own metadata,
+  then the link's target,
+  and then takes the link away,
+  and a name that any of those three calls no longer finds is gone,
+  which is what both runs wanted,
+  and the run that took it named it.
   A regular file,
   a directory,
   or anything else at such a name belongs to a person and stays.
-  The name of the running `mpm-shadow`,
-  which the same rebuild has just linked when there is an install to link,
-  stays whether or not a row declares it (see "The farm also carries the running `mpm-shadow`").
+  Two kinds of link stay that a name alone would mark:
+  - the program's own link,
+    which the rebuild made when the running binary belongs to an install,
+    and which a rebuild keeps while it resolves into an installed `mpm-shadow` of either toolchain root,
+    whatever binary runs that rebuild
+    (see "The farm also carries the running `mpm-shadow`");
+  - the dotted temporary name of a link an install is in the middle of writing,
+    which is that install's while that install may still run,
+    and which a rebuild removes and names once it can show that install has ended
+    (`removed the temporary link .thirdbin.tmp.... (it pointed at ...), a name of the shape an install writes while it holds a link, and the process that name records is not running`).
+    The name carries the facts that answer that question:
+    its process id,
+    the moment that process started,
+    the process namespace that gave the id out,
+    and the boot's identifier,
+    the facts a hidden name of an install carries too
+    (see "What a kill leaves and what the next install does about it").
+    The sentence says what the name is and what the run could show of the process it records,
+    never that an install wrote it:
+    a person's own dotted link can carry the same shape,
+    and nothing in the folder tells the two apart.
+    A name this build cannot judge against those facts,
+    such as one from another process namespace,
+    keeps its link,
+    and every rebuild names it once and says what deleting it by hand would risk:
+
+    ```text
+    toolchain install: left the temporary link <name>: this run cannot judge the install its name records, so it is not removed, and deleting it by hand may make that install fail where it gives the link its name
+    ```
+
+    A name an earlier build wrote carries the process id alone,
+    and the shorter name this build writes when it cannot read its own boot or process namespace carries a process id and a start time and no namespace:
+    no run can show that either name's process is the one that wrote it,
+    or that the process was ever in this run's process namespace,
+    so both stay,
+    named the same way,
+    and a person deletes one by hand once no install is running in the folder.
   The `rustup` link this repository's `rust` row left behind when it stopped declaring it
   (issue 6626) is the case the rule comes from:
   it dangled once the proxies went,
   and `list` said the toolchain was in sync (issue 6634).
+
+#### The upgrade, from a release that removes temporary links by number
+
+A release before this one tells a temporary link from a leftover by the process number alone,
+and takes any such link whose number no process holds in its own process namespace.
+A farm that two sessions rebuild,
+one with this release and one with an earlier one,
+therefore has two removers with two rules:
+
+- The earlier release takes this release's live temporary link wherever the number is free in its own namespace,
+  and the install that holds the link then fails at the rename that gives it its name
+  (`cannot place the link <farm>/thirdbin: No such file or directory`).
+- This release keeps a live temporary link an earlier release wrote,
+  because that name records no process namespace for this run to judge,
+  so an install of this release no longer takes an earlier release's live link.
+
+Nothing here can change what an earlier release's remover does.
+The window closes when every session that rebuilds the farm runs this release,
+and this repository's lock has named `0.2.7-alpha.19` alone since 2026-11-27,
+so the scopes that lock covers are past it.
 
 ### The farm also carries the running `mpm-shadow`
 
@@ -1883,10 +2055,19 @@ makes those names reachable from a fresh shell:
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
-  No other program removes it:
-  the one that made it is the one that is gone.
-  A rebuild of the folder leaves it because that run makes the same link again,
-  and a scope that has the program installed nowhere removes it as a link no row declares
+  A rebuild keeps it while it resolves into an install of `mpm-shadow` in either toolchain root,
+  whatever binary runs that rebuild,
+  so a run from a build folder,
+  a `cargo install` binary or the bootstrap archive
+  no longer takes the name away from a scope that has the program installed.
+  An install of `mpm-shadow` is the program's own install directory below either toolchain root:
+  `<root>/mpm-shadow` for a release archive,
+  or `<root>/cargo/monochromatic-mpm-shadow` for the cargo route.
+  A file named `mpm-shadow` inside another tool's install directory is not one,
+  and the link to it goes with the other links no row declares.
+  A scope that has the program installed nowhere,
+  or a link that resolves nowhere,
+  removes it as a link no row declares
   (see "What the exposure folder holds").
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.

@@ -263,7 +263,7 @@ fn a_look_whose_read_never_answers_gives_the_request_up_at_its_ceiling() {
 /// What:
 ///  A socket whose listener is behind answers the request's own bound:
 ///  nothing is sent,
-/// and the wait is the ceiling instead of the kernel's.
+///  and the wait is the ceiling instead of the kernel's.
 /// Why:
 ///  This is the case a plain connect waits in for ever:
 ///  a listener whose program is stopped accepts nothing and refuses nothing,

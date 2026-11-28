@@ -80,7 +80,6 @@ use crate::command_worktree::worktree_removal;
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
 pub use crate::rule_linked_worktree_messages::{
-    dirty_worktree_message,
     exemption_notice,
     ignored_file_message,
     main_worktree_message,
