@@ -133,6 +133,16 @@ B beats C because any durable record on the commit beats a line on standard erro
 
 ### What closes the last file loop in `foundation/`
 
+Taken on 2026-11-28 by the coordinating session's pick,
+with the owner's veto open:
+the third way,
+because it alone changes no signature and keeps the notice said when it is said today.
+A round builds it
+(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
+started at 2026-11-28T03:13:06-05:00),
+and it stops and reports if the third way turns out to change a signature,
+a behaviour or the moment the notice is said.
+
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
 The plan's move was applied and the linter run:
@@ -267,6 +277,12 @@ because the gate's verdict is unchanged and a false failure costs more than a sl
 
 
 ## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
+
+
+Answered on 2026-11-28:
+"Read the signatures first (Recommended)"
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The plan's rounds 1 to 3 are done or nearly done
 (`doc/planning/cli-git-source-layout-target-tree.md`,
@@ -4629,6 +4645,13 @@ and each can be undone.
 ## For the owner, and veto open: what the night of 2026-11-27 left after 22:15 (recorded 2026-11-27T23:01:36-05:00)
 
 ### A question that waits: what bounds the guests and the builds that run at once?
+
+
+Answered on 2026-11-28:
+the rounds of that night ride,
+and a later batch is bounded by guests alive
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The machine ran out of memory three times on the night of 2026-11-27,
 the second and third time for about twenty minutes each

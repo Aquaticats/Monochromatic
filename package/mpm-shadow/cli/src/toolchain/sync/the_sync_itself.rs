@@ -475,6 +475,7 @@ pub fn sync_tools(
     report
         .removed_exposure_links
         .extend(exposure.report.links_removed);
+    report.exposure_links_left = exposure.report.links_left;
     if let Some(error) = exposure.error {
         report
             .failed

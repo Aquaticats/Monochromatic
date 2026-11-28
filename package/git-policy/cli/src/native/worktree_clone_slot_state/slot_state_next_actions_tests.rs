@@ -2,9 +2,11 @@
 //!  the registration line for each of its three arms,
 //!  the evidence lines for a record with no clone yet,
 //!  the mounting intent's own placeholder,
-//!  and the settling command's sentence,
-//!  which says the command cannot be run in this release.
+//!  the settling command's sentence,
+//!  and the sentence a slot with a standing destruction plan gets,
+//!  which names no removal this release runs there.
 
+use crate::worktree_clone_binding_record::add_state_commands::THE_REMOVALS_WORDS;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{
     ProofStoppedBy,
@@ -106,7 +108,7 @@ fn an_unfinished_adds_evidence_names_its_phase() {
 /// A slot left at `phase=settling` names the add again,
 /// Git's removal and the
 /// settling command,
-/// and says the settling command cannot be run in this release,
+/// and claims no grammar refuses the settling command,
 /// so a person is not sent to one that answers with the usage text.
 #[test]
 fn the_settling_arm_names_the_settling_command_and_what_it_removes() {
@@ -161,6 +163,39 @@ fn the_unmounted_action_names_the_property_and_the_sweep() {
         waited.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"),
         "{waited}"
     );
+}
+
+/// What:
+///  A slot a destruction plan names is warned off `git worktree remove`,
+///  and the words that say the wrapper's removal runs there are not printed.
+/// Why:
+///  The command path takes only a slot it proves holds a whole clone,
+///  and a slot with a standing plan is a class of its own,
+///  so the sentence cannot say the wrapper's removal is what runs there:
+///  Git's own removal is,
+///  and it would drop the registration and the slot folder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const action = nextSafeAction(classifySlot(pendingRemoval), pendingRemoval);
+/// ```
+#[test]
+fn a_standing_plan_warns_off_git_rather_than_naming_the_removal() {
+    let readings: SlotReadings = SlotReadings {
+        plan: PlanReading::NamesTheClone {
+            plan: PathBuf::from(
+                "/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/topic",
+            ),
+        },
+        ..readings_at(Phase::Filled)
+    };
+    let state: SlotRouteState = classify_slot(&readings);
+    let action: String = next_safe_action(&state, &readings);
+    assert!(
+        action.contains("do not run `git worktree remove`"),
+        "the warning comes first: {action}"
+    );
+    assert!(!action.contains(THE_REMOVALS_WORDS), "{action}");
 }
 
 /// A state nothing proves tells the reader to change nothing and names the source.
