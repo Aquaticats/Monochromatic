@@ -132,6 +132,24 @@ export async function guestLayout({
     `install --mode=0644 ${openZfsSource}/etc/systemd/system/zfs-import.target /etc/systemd/system/zfs-import.target`,
     `install --mode=0644 ${openZfsSource}/etc/systemd/system/zfs.target /etc/systemd/system/zfs.target`,
     String.raw`printf "zfs\n" > /etc/modules-load.d/zfs.conf`,
+    // The recipe installs the release it builds under `extra/`, and modprobe searches `kernel/` before `extra/`, so a
+    // boot loads Ubuntu's own 2.2.2 module and the route's compatibility gate refuses every raw request. Copying the
+    // built module under `updates/` puts it first.
+    `mkdir --parents /lib/modules/$(uname --kernel-release)/updates`,
+    `cp /lib/modules/$(uname --kernel-release)/extra/zfs.ko /lib/modules/$(uname --kernel-release)/updates/zfs.ko`,
+    'depmod --all',
+    // The loaded module must be the one the recipe built: the guest's own 2.2.2 refuses `snapdir=disabled`, and the
+    // route's gate refuses every raw request against a module whose layout it cannot read. Nothing holds the module
+    // here, because the teardown above destroyed every pool, so it is removed and the built one inserted.
+    `module=/lib/modules/$(uname --kernel-release)/extra/zfs.ko`,
+    `spl=/lib/modules/$(uname --kernel-release)/extra/spl.ko`,
+    'if test "$(cat /sys/module/zfs/version 2>/dev/null)" != "$(modinfo --field version "$module")"; then',
+    '  modprobe --remove zfs 2>/dev/null || true',
+    // This build keeps `spl` in a module of its own, and `zfs` refuses to insert without it.
+    '  modprobe --quiet spl 2>/dev/null || insmod "$spl"',
+    '  insmod "$module"',
+    'fi',
+    'test "$(cat /sys/module/zfs/version)" = "$(modinfo --field version "$module")"',
     // A stand-in for the key provider a packaged OpenZFS ships (`zfs-load-key.service` on Debian and Ubuntu), under a
     // name this guest's own systemd does not mask. It is a stand-in, and no claim about a packaged unit's text rests on
     // it.

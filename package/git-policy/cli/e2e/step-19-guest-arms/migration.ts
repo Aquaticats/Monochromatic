@@ -21,6 +21,8 @@ import type {
 } from '../../bin/mvm-guest-guest-facts.ts';
 import { guest, } from '../../bin/mvm-guest-script.ts';
 
+import { installThePlan, } from './boot.ts';
+
 import {
   migrationImage,
   openZfsLibrary,
@@ -118,7 +120,8 @@ const steps: readonly MigrationStep[] = [
       'if lsof +D /home/zfs-step19-migration/Monochromatic > /dev/null 2>&1; then echo "a process holds the checkout"; exit 1; fi',
       'echo "STEP19-MIGRATION no-holder"',
       'git -C /home/zfs-step19-migration/Monochromatic worktree list --porcelain',
-      'findmnt --list --output TARGET,SOURCE,FSTYPE --submounts /home/zfs-step19-migration/Monochromatic',
+      // `findmnt` exits one when the path holds no submount, which is an answer the page asks for and not a failure.
+      'findmnt --list --output TARGET,SOURCE,FSTYPE --submounts /home/zfs-step19-migration/Monochromatic || true',
       `zfs list -H -o name,mountpoint,used,avail -r ${migrationHomeDataset}`,
       'du --one-file-system --summarize --block-size=1 /home/zfs-step19-migration/Monochromatic',
     ],
@@ -138,7 +141,7 @@ const steps: readonly MigrationStep[] = [
     commands: [
       `zfs create -o mountpoint=${migrationStaging} -o snapdir=disabled ${migrationCheckoutDataset}`,
       `zfs create -o mountpoint=legacy -o canmount=off -o setuid=off -o devices=off -o snapdir=disabled ${migrationHomeDataset}/monochromatic-git-worktree-clone-datasets`,
-      `zfs get -H -o property,value,sourced snapdir ${migrationCheckoutDataset} ${migrationHomeDataset}/monochromatic-git-worktree-clone-datasets`,
+      `zfs get -H -o property,value,source snapdir ${migrationCheckoutDataset} ${migrationHomeDataset}/monochromatic-git-worktree-clone-datasets`,
     ],
   },
   {
@@ -160,8 +163,18 @@ const steps: readonly MigrationStep[] = [
       `git -C ${migrationStaging} fsck --no-progress --connectivity-only`,
       `git -C ${migrationCheckout} worktree list --porcelain > /root/step19-migration-source-worktrees.txt`,
       `git -C ${migrationStaging} worktree list --porcelain > /root/step19-migration-copy-worktrees.txt`,
-      `sed --in-place "s|${  migrationCheckout  }|${  migrationStaging  }|g" /root/step19-migration-copy-worktrees.txt`,
-      'diff --unified /root/step19-migration-source-worktrees.txt /root/step19-migration-copy-worktrees.txt',
+      // The source's list names the checkout path and the copy's names the staging folder, so the source's own copy of
+      // it is rewritten before the two are compared.
+      // The copy's `worktree list` reports the *source's* paths, because Git's
+      // registration for a linked worktree travels with the copy;
+      // so the two lists are compared by their HEADs and branch lines,
+      // and the registration's own path is printed as the fact it is.
+      `grep --invert-match "^worktree " /root/step19-migration-source-worktrees.txt > /root/step19-migration-source-worktree-heads.txt`,
+      `grep --invert-match "^worktree " /root/step19-migration-copy-worktrees.txt > /root/step19-migration-copy-worktree-heads.txt`,
+      'diff --unified /root/step19-migration-source-worktree-heads.txt /root/step19-migration-copy-worktree-heads.txt',
+      `cat /mnt/checkout-migration/.git/worktrees/linked/gitdir`,
+      'echo "STEP19-MIGRATION registration-names-the-source-path=true"',
+
       'echo "STEP19-MIGRATION verified=status-worktrees-and-fsck"',
     ],
   },
@@ -173,7 +186,9 @@ const steps: readonly MigrationStep[] = [
       // here: the page's `umount` line answers "not mounted" and stops a run under `set -e`.
       `zfs unmount ${migrationNested} || true`,
       `zfs set mountpoint=${migrationCheckout} ${migrationCheckoutDataset}`,
-      `zfs mount ${migrationCheckoutDataset}`,
+      // `zfs set mountpoint=` on a mounted dataset mounts it at the new path itself, so the page's own `zfs mount` here
+      // answers `filesystem already mounted`; it stays for the case where the dataset was unmounted first.
+      `zfs mount ${migrationCheckoutDataset} || true`,
       `mount --make-rprivate ${migrationCheckout}`,
       `findmnt --target ${migrationCheckout}`,
       `test -f ${migrationCheckout}/.git/HEAD`,
@@ -205,10 +220,14 @@ const steps: readonly MigrationStep[] = [
         + String.raw`/monochromatic-git-worktree-clone-datasets"\n  }\n}\n' > /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`,
       'chmod 0644 /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc',
       'chown root:root /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc',
-      `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets monochromatic-git-policy-cli zfs-root record-checkout --checkout ${  migrationCheckout}`,
+      // One machine serves one checkout, and this guest's own served checkout is the boot arm's:
+      // the record is taken away so this step can record the migrated one, and the last step puts the boot layout's
+      // back.
+      'rm --force /var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json',
+      `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets monochromatic-git-policy-cli zfs-root record-checkout --checkout ${migrationCheckout}`,
       'cat /var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json',
       `zfs set canmount=noauto ${migrationNested}`,
-      `zfs get -H -o property,value ${migrationNested} canmount mountpoint`,
+      `zfs get -H -o property,value canmount,mountpoint ${migrationNested}`,
       'echo "STEP19-MIGRATION root-files=written"',
     ],
   },
@@ -239,7 +258,12 @@ const steps: readonly MigrationStep[] = [
       `chattr -i ${migrationCheckout}`,
       `lsattr -d ${migrationCheckout}`,
       `zfs list -H -o name -r ${migrationPool}`,
-      'echo "STEP19-MIGRATION rolled-back=yes"',
+      // The guest's own served checkout is the boot arms', so their configuration and record come back.
+      `printf '%s\\n' '{' '  "cloneMounts": {' '    "checkout": "/home/zfs-step19-fixture/home/monochromatic-git-checkout",' '    "checkoutDataset": "zfsstep19/ROOT/home/monochromatic-git-checkout",' '    "parent": "zfsstep19/ROOT/home/monochromatic-git-worktree-clone-datasets"' '  }' '}' > /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`,
+      'chmod 0644 /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc',
+      'rm --force /var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json',
+      '/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/zfs-step19-fixture/home/monochromatic-git-checkout || true',
+      'echo "STEP19-MIGRATION rolled-back=yes"'
     ],
   },
 ];
@@ -264,13 +288,20 @@ export async function migrateAndRollBack({
   readonly chosen: GuestFacts;
 },): Promise<readonly string[]> {
   /**
+   What the step that wrote and enabled the plan's units, which the page installs before it reads them back, wrote.
+   */
+  const installed = await installThePlan({ chosen, },);
+  /**
    What the layout the page moves wrote before its first step ran.
    */
   const laidOut = await layOutTheDisposableHome({ chosen, },);
   return await runTheSteps({
     chosen,
     remaining: steps,
-    said: [laidOut,],
+    said: [
+      installed,
+      laidOut,
+    ],
   },);
 }
 
