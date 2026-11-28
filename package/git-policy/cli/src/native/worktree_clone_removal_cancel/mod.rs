@@ -18,6 +18,9 @@
 //!  and the round that switches the removal's command path on calls
 //!  `the_cancelled_removal::the_removal_cancels_itself` at each of its stop points and adds the
 //!  management grammar entry that reaches `the_cancel_command::cancel_the_removal`.
+//!  The removal order may not name this folder,
+//!  so its stop points ask it through the removal's own seam and
+//!  `the_self_cancelling_answer.rs` is where the answer lives.
 //!  The forced arm is another round's:
 //!  this folder restores the state its failures leave and never ends a process.
 //!
@@ -64,6 +67,9 @@
 //! - `the_cancelled_removal.rs`:
 //!   what a removal restores when it cancels itself,
 //!   and what a forced removal's failure leaves.
+//! - `the_self_cancelling_answer.rs`:
+//!   the answer a removal that a holder stopped asks for,
+//!   over this folder's own reversal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -111,6 +117,9 @@ pub mod the_cancel_command;
 
 /// What a removal restores when it cancels itself.
 pub mod the_cancelled_removal;
+
+/// The answer a removal that a holder stopped asks for.
+pub mod the_self_cancelling_answer;
 
 /// The guest arms of the cancel command.
 /// Compiled for tests only and run in the throwaway guest.

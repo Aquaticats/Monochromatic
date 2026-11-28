@@ -25,7 +25,6 @@ use super::origin_refusals::{
     RefusalForm,
 };
 use super::removal_history::RemovalHistory;
-use crate::worktree_clone_binding_record::NO_REMOVAL_WORDS;
 
 /// The clone the message is about,
 /// or the slot for a plan that names no clone.
@@ -165,8 +164,7 @@ fn state(
 /// which the wrapper cannot finish for them.
 fn marked_ways_forward(origin_snapshot: &str) -> String {
     return format!(
-        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, {}.",
-        NO_REMOVAL_WORDS
+        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, the wrapper's own removal refuses a marked origin and prints this same mark until it is gone, so run `git monochromatic-git-policy-cli cancel-worktree-removal` on the slot once the origin answers without it."
     );
 }
 
@@ -217,7 +215,7 @@ fn ways_forward(refusal: &OriginRefusal) -> String {
         OriginRefusal::CloneGone {
             ..
         } => format!(
-            "a later run settles only after it has proved that clone is gone, and {NO_REMOVAL_WORDS}."
+            "a later run settles only after it has proved that clone is gone, and no command of this release settles a clone it cannot prove gone."
         ),
         OriginRefusal::CloneIsNotAFilesystem {
             planned,

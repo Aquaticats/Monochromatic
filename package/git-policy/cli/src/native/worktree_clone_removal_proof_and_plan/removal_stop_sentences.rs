@@ -198,7 +198,7 @@ impl RemovalStop {
                 holders,
                 incomplete,
             } => format!(
-                "a fresh all-namespace scan still sees this clone held, in {} namespace(s):\n{}\n{incomplete} further read(s) could not be completed. Nothing was destroyed for those holders, the plan keeps every line it had, and the clone stays unmounted. Ways forward: release the holders, or run a forced removal once it is measured; a scan that sees no holder never proves there is none.",
+                "a fresh all-namespace scan still sees this clone held, in {} namespace(s):\n{}\n{incomplete} further read(s) could not be completed. Nothing was destroyed for those holders, the plan keeps every line it had, and the clone stays unmounted. Ways forward: release the holders and run the removal again; a scan that sees no holder never proves there is none, and this release's removal ends no holder.",
                 holders.len(),
                 holders.join("\n")
             ),
@@ -251,7 +251,31 @@ impl RemovalStop {
                 step,
                 said,
             } => format!(
-                "the unmount step `{step}` did not prove the clone absent ({said}), so the removal stops before it records a destruction plan. Nothing was destroyed, every snapshot and bookmark stands, and the clone either stays where the step left it or stands at its slot again. Ways forward: find what holds the clone, release it, and run the removal again; with `--force` the wrapper ends the holders other than the caller and its session."
+                "the unmount step `{step}` did not prove the clone absent ({said}), so the removal stops before it records a destruction plan. Nothing was destroyed, every snapshot and bookmark stands, and the clone either stays where the step left it or stands at its slot again. Ways forward: find what holds the clone, release it, and run the removal again; this release's removal ends no holder, and `git worktree remove` offers no way to ask it to."
+            ),
+            RemovalStop::TheRemovalCancelledItself {
+                said,
+            } => String::from(said.as_str()),
+            RemovalStop::TheHeadDestroyWasRefused {
+                errno,
+                names,
+            } => format!(
+                "the head destroy of this clone did not take it (errno {}), and every name the pool still answers is:\n{}\nThe clone stands with what this run proved about it, and the plan records the request its head word names. Ways forward: release what holds the clone and run the removal again, which adopts the plan and destroys nothing twice.",
+                match errno {
+                    Some(held) => held.to_string(),
+                    None => String::from("none"),
+                },
+                if names.is_empty() {
+                    String::from("  no snapshot of this clone is left")
+                } else {
+                    names.join("\n")
+                }
+            ),
+            RemovalStop::TheRemovalCouldNotCancelItself {
+                stop,
+                said,
+            } => format!(
+                "{stop}, so the removal asked to put the clone back at its slot and could not: {said}. Nothing of the clone's own history was destroyed by a stop that came before a delete, and the plan keeps every line it had. Ways forward: read what refused, then run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` to finish putting the clone back, or run the removal again once the request can be answered."
             ),
         };
     }

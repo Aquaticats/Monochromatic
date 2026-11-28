@@ -19,8 +19,8 @@
 //!  accepted with its V10 answer "Stop that unit" by
 //!  `doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`.
 //!  Nothing in this folder is reached by a person's command:
-//!  the removal's command path stays behind the cut
-//!  (`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
+//!  the removal's command path ends no holder and offers no `--force`
+//!  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`),
 //!  no sentence of a release offers `--force`,
 //!  and the only callers are this folder's controls and the guest arms.
 //!  The cancelled removal and the `cancel-worktree-removal` command are the sibling design's and not built

@@ -208,15 +208,18 @@ pub const SETTLING_COMMAND_WORDS: &str =
 /// The words every refusal and report prints where a removal would be the way
 /// out.
 /// Why:
-///  No command of this release removes a clone,
-///  so naming one as the way out would send a person to a command that does not
-///  exist;
-///  this file is where the project states the one command a state names,
-///  and it says here that this one is not built
+///  A removal is the way out of most of the states this crate reports,
+///  and a sentence that named a command the release did not have would send a
+///  person nowhere,
+///  so the sentence lives here once and each caller appends it
 ///  (`SPEC.md`,
 ///  "Removal of a ZFS worktree clone").
-pub const NO_REMOVAL_WORDS: &str =
-    "this release has no removal for a clone, so the clone and its record stay until it does";
+///  The name is older than the removal it names:
+///  it was the words that said no removal existed,
+///  and it keeps its name so that no reader's line moves
+///  (`worktree_clone_slot_state`,
+/// `health/doctor_zfs_route` and this folder all read it)
+pub const NO_REMOVAL_WORDS: &str = "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
 
 /// What:
 ///  The command one state names.

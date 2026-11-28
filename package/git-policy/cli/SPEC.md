@@ -5750,10 +5750,9 @@ What this release does not do:
 - It does not release the managed lock;
   the release belongs to the registration-cleanup step that plan step 16 builds,
   after the recorded clone's destruction is proven.
-- It does not remove a clone;
-  the refusal above is the whole of its removal behaviour,
-  and plan steps 14 to 17 build the removal's writing path,
-  which no command of this release reaches.
+- It does not remove a clone the wrapper's own removal refuses;
+  the removal's own checks are the whole of what decides,
+  and a refusal changes nothing.
 - `doctor` does not print this report yet;
   plan step 18 reads it,
   and the slot and link report's shape is the one it prints.
@@ -5924,25 +5923,37 @@ with the same consequence named.
 
 Steps 1 to 4 write no removal record and unmount nothing,
 and the only thing among them that writes at all is step 1's claim file.
-This release's removal command runs their reads through the read-only reading,
-which takes no claim,
-because a claim is a write and this release removes nothing.
-`git worktree remove` of a slot a whole managed clone is bound to refuses,
-prints the slot's report,
-and prints the proof's own answer:
-either what the proof matched with every name a removal would lose,
-or the check that stopped it with the object it named,
-or the reason the pool could not be read.
-Every arm says that this release does not remove a clone yet,
-that nothing was unmounted,
-that no removal intent was filed and no destruction plan was written,
-and that every snapshot,
-bookmark,
-record and registration still stands.
-A refusal changes nothing at all:
-the plan folder is not created,
-the clone's intent property keeps its value,
-and no record is rewritten.
+`git worktree remove` of a slot a whole managed clone is bound to runs this order,
+so the slot's whole clone and the snapshots it made are destroyed by that one command,
+and its report is printed in the same invocation:
+what the batch destroyed,
+what the head took with it,
+what the origin cleanup did,
+what the settle removed,
+and what a person still has to do.
+Nothing is left for a second command to delete.
+Every spelling of `git worktree remove` takes this path,
+`-f -f` included,
+and no spelling makes the wrapper end a holder,
+lock another session or force anything:
+this release's removal meets a holder,
+cancels itself and puts the clone back,
+which the stop points below state.
+A removal whose clone is mounted or unmounted is the same order:
+the unmount is the one request the route files either way.
+
+The batch is split by one byte budget,
+`worktree_clone_snapshot_batch::request_budget::the_removals_request_budget`,
+which the owner decided at 65,536 bytes of packed request input
+(`doc/decision/cli-git-zfs-removal-batch-request-budget-is-65536-bytes.md`):
+the measurement of step 22 carried 64 names as 3,652 bytes,
+512 names as 28,740 bytes and 2,048 names as 114,756 bytes,
+the largest the measured guest accepted,
+so this budget is 2.3 times the 512-name request and under the largest accepted one.
+A verified set that does not fit one request is sent as several,
+each preceded by its own fresh holder scan and its own deferred-origin check,
+and the plan records each request's per-name answer before the next one is sent.
+
 The claim's own two refusals,
 a slot a live command holds and a claim that cannot be taken,
 change nothing of the clone at all:
@@ -5953,39 +5964,47 @@ A refusal that takes the claim and then stops,
 at a holder,
 at a check or at the settle,
 gives the claim back and leaves the records its own sentences name.
+The three refusals the deferred-destroy decision fixes are unchanged,
+and the deferred-origin check that refused reports itself the same way whether a person's
+removal reaches it or a resuming run does.
 
-The whole removal is built on one writing path,
-`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
-and no command reaches it.
-That path takes the slot's per-slot claim at its first step and releases it at its last,
-and the read-only reading a command does call takes no claim and writes no claim file:
-this release's removal command still changes nothing at all.
-The removal's command path still calls the read-only reading
-(`worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal`)
-and names none of the three writing functions:
-the entry that files the intent,
-unmounts the clone and publishes the plan
-(`removal_entry::enter_the_removal`),
-the step that checks and then sends the batch
-(`removal_destruction::destroy_the_removal`),
-and the step that finishes a removal
-(`removal_completion::complete_the_removal`).
-A `source_guard` scan holds that cut over all three names
-(`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
-and the round that switches the command path on names them in it and removes the scan with it.
-That switch waits on one more thing besides this build:
-a release whose printed sentences name only commands,
-records and states that it has.
-Until then the refusal prints what a removal would prove and lose and changes nothing,
-because an unmounted clone and a plan no command of this release could finish or cancel
-would be worse for a person than today's refusal.
+The removal has three stop points at which it cancels itself and puts the clone back at its slot,
+and each is the project's own decision
+(`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
+"A removal that meets a holder cancels itself"):
+the mount handler's rollback of an unmount a holder kept busy,
+the fresh all-namespace scan before a snapshot delete that saw a holder,
+and the head destroy the kernel refused `dataset is busy` after every one of the clone's own
+snapshots was gone.
+Each writes a `mount` request on the clone under a fresh nonce,
+waits for the handler's answer,
+settles the staged folder on it,
+and removes the plan only when that plan witnessed nothing,
+so a stop after a destroyed snapshot keeps the plan as the loss record.
+The report says where it stopped,
+every holder it named,
+what it destroyed and that no cancellation restores it,
+and the way back.
+The cancellation is asked through
+`worktree_clone_removal_proof_and_plan::the_self_cancelling_seam`,
+whose answer is
+`worktree_clone_removal_cancel::the_self_cancelling_answer`,
+so the removal's own folder never names the cancellation's,
+which the crate's layout rules require.
 The manual way back from a removal that did not finish is
 `cancel-worktree-removal <slot>`,
 which this release's management grammar admits.
 
 The tail a kill leaves behind a head word of `gone` has a driver of its own,
 `worktree_clone_removal_finish_pass::finish_the_removal_plans`,
-and no command reaches it either.
+and a forwarded command finishes it:
+`worktree_clone_removal_finish_pass::the_live_pass::finish_the_removal_plans_live` runs where the
+wrapper already finishes an interrupted destroy,
+before its own work,
+and a repository with no plan folder costs one `stat`.
+A command whose output a program reads settles held pushes and shows no notice,
+and it finishes neither an interrupted destroy nor a removal plan,
+exactly as this release's other notices are kept from a machine-read command.
 It takes the slot's claim under the last path component of the plan's `targetHex`,
 reads the start-time gate before any pool request,
 proves the clone gone by its recorded name and by no child of the pinned parent carrying the
@@ -6061,28 +6080,20 @@ and it is written before the request.
 
 What this release does not do:
 
-- It removes no clone.
-  The refusal above is the whole of its removal behaviour,
-  and the writing path that would finish one is built and reachable from no command.
-- It takes no per-slot claim on any command's behalf,
-  so no claim file is written and no command is refused for a slot another one owns.
-- It writes no removal intent,
-  unmounts no clone,
-  writes no destruction plan,
-  destroys no snapshot,
-  destroys no head,
-  destroys no origin snapshot and settles no registration on any command's behalf.
-  Every part of that order is built and tested,
-  and no release file outside the removal's own two folders names its writing functions.
-- It runs no origin cleanup look.
+- It ends no holder and forces nothing.
+  `--force` is refused in every spelling,
+  `-f -f` among them,
+  and a removal that meets a holder cancels itself and puts the clone back.
+- It runs the origin cleanup look from no command but the removal itself.
   The look the five worktree commands make
-  (`worktree_clone_origin_cleanup::origin_cleanup_look`),
-  its attempts,
-  its lines and its folder are built and controlled,
-  and no command calls it until the command path is switched on.
-- It adopts no plan from a command;
+  (`worktree_clone_origin_cleanup::origin_cleanup_look`)
+  is reached from the removal's own step of that order,
+  and the other four commands' look is not yet called.
+- It settles no record of a slot from a command:
+  the settling command is built and no management grammar admits it in this release.
+- It adopts a plan from no command but the removal of that clone:
   a removal that finds one adopts it and continues,
-  and no release command runs one.
+  and no other command runs one.
 
 #### The cancel command
 
@@ -6160,8 +6171,8 @@ A kind the evidence does not show is identified and refused,
 never ended,
 and the receipt's seven refusal words name what stopped the act.
 No sentence of this release offers `--force`,
-the removal's command path stays behind the cut,
-and the only callers are the folder's own controls and its guest arms.
+the removal a person's command runs ends no holder and offers no way to ask it to,
+and the only callers of this folder are its own controls and its guest arms.
 
 #### The settling command
 
