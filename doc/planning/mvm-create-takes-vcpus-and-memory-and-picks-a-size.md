@@ -93,7 +93,7 @@ The `--server-type` help text says "ignored by the libvirt backend" (line 93).
   and the README lists them as the defaults ("4 vCPUs",
   "8 GiB RAM",
   `package/mvm/cli/README.md`,
-  lines 872 to 877).
+  lines 883 to 888).
   Every other caller of `domainXml` carries them too:
   `create.ts` line 224,
   `clone.ts` line 195,
@@ -122,7 +122,7 @@ The `--server-type` help text says "ignored by the libvirt backend" (line 93).
 
 The rest of the surface carries no size at all:
 
-- `mvm run -- <command>` takes only `--from` (lines 286 to 304),
+- `mvm run -- <command>` takes only `--from` (lines 286 to 305),
   and its backend call creates a guest with a name and nothing else
   (`package/mvm/cli/src/backend/ephemeral-run.ts`,
   lines 183 to 188;
@@ -184,7 +184,7 @@ Billing is the reason the choice costs money rather than time:
 the backend bills by the second beyond an initial one-minute minimum,
 and a stopped instance still bills until it is deleted
 (`package/mvm/cli/README.md`,
-lines 585 to 600).
+lines 593 to 604).
 
 ## What the OVHcloud catalogue returned
 
@@ -945,7 +945,7 @@ and each one's effect in `BHS5`:
     the flavour's `quota` is above 0,
     and the project's per-region core and memory quota
     (`package/mvm/cli/README.md`,
-    lines 682 to 686) has room.
+    lines 693 to 696) has room.
 
 Two asks are worked through.
 The record's stock list covers only the ten smallest,
@@ -1033,15 +1033,17 @@ On this machine,
 every guest `mvm` starts runs inside
 `mvm-libvirt-session.service`,
 and `mvm` sets that unit's `MemoryMax` from `/proc/meminfo` when it starts:
-half of the machine's total,
-33,109,835,776 bytes here
+three quarters of the machine's total,
+49,664,753,664 bytes here
 (`package/mvm/cli/src/session-daemon-memory.ts`,
+whose `CAP_NUMERATOR` is 3 and `CAP_DENOMINATOR` is 4,
 and `package/mvm/cli/README.md`,
-lines 219 to 223).
+lines 219 to 232).
 
-On 2026-11-28 the owner raised it to three quarters of the machine's memory
-and applied it to the running unit at 05:45:26,
-moving `memory.max` from 33,109,835,776 to 49,664,753,664 bytes
+The owner chose three quarters on 2026-11-28,
+and it was applied to the running unit at 05:45:26,
+moving `memory.max` from 33,109,835,776 to 49,664,753,664 bytes,
+which was half of the machine's memory before that change
 (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
 the section titled "The guests' unit at its own memory cap,
 2026-11-28",
@@ -1050,9 +1052,9 @@ the section titled "The guests' memory:
 the unit's cap,
 builds outside the guest,
 and where more memory comes from").
-That change was applied at runtime,
-so the source still computes half,
-and the cap returns to half when the unit next starts unless the source changes.
+The source computes the same three quarters since commit `86e617634b`,
+so a restart of the unit keeps the cap the owner chose
+(`git log --format=%cI -1 86e617634b` gives the commit's own time).
 
 Four things follow for an ask:
 
@@ -1068,14 +1070,14 @@ Four things follow for an ask:
   not what its domain asks:
   a domain asking 8 GiB charged a peak of 990 MB in the 2026-11-21 measurement
   (`package/mvm/cli/README.md`,
-  lines 226 to 230).
+  lines 235 to 236).
   The ask therefore sets the domain's ceiling,
   and the guest's own work decides what the unit pays.
 - When the unit exceeds its cap the kernel kills a process inside it,
   usually the largest guest,
   and `OOMPolicy=continue` keeps that from stopping the unit
   (`package/mvm/cli/README.md`,
-  lines 234 to 238).
+  lines 245 to 249).
 - An ask above the unit's cap can never be satisfied,
   so `--memory` refuses a value above three quarters of the machine's total,
   naming the cap and the file it came from.
@@ -1554,7 +1556,7 @@ where a size and its price can still be changed for nothing.
   The create's own log line is the only sight
   (`creating <name> (flavor <flavor>, image <image>) in <region>`,
   `package/mvm/cli/src/backend/ovh/provisioning.ts`,
-  lines 120 to 129),
+  lines 120 to 122),
   and it is printed as the create call starts,
   after the choice and with no price.
   A person reads the price afterwards on the provider's page;
@@ -1824,7 +1826,7 @@ and the impossible combinations are listed.
 **H4,
 paths that create a guest with no size were undecided.**
 Checked in source:
-`run` (parser lines 286 to 304,
+`run` (parser lines 286 to 305,
 `ephemeralRun` at lines 183 to 188),
 `run_in_vm` (`tools-exec.ts`,
 lines 85 to 114),
@@ -1850,10 +1852,10 @@ no money and no way to see the pick.**
 Checked:
 the backend bills by the second beyond a one-minute minimum and a stopped
 instance still bills (README,
-lines 585 to 600),
+lines 593 to 604),
 the create logs the flavour and image just before the call
 (`provisioning.ts`,
-lines 120 to 129),
+lines 120 to 122),
 and the MCP success text names no size.
 The finding is right.
 Changed:
