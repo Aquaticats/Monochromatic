@@ -2940,14 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- Rust's `CommandExt::exec` sets `SIGPIPE` back to its default in the calling process,
-  and a failed `execve` leaves it there.
-  Two controls did that inside the test process,
-  which is what ended a ten-module threaded run by signal
-  (issue 6604,
-  `e4d7915941`,
-  `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`).
-  What the release does in the same state is issue 6607.
 - `gh issue view <number> --comments`,
   piped,
   prints the comments alone and nothing for an issue without any;
