@@ -286,6 +286,51 @@ await describe({
         expect(body.region,).toBe('gra9',);
       },
     },),
+    it({
+      name: 'a create without numbers walks past a region whose in-stock sizes all belong to other families',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/region',)}`]: [jsonAnswer(['bhs5', 'gra9',],),],
+          [`GET ${cloudPath('/region/gra9',)}`]: [jsonAnswer(regionAnswer({ name: 'gra9', },),),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 't1-45',
+              ram: 45,
+              vcpus: 8,
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=gra9`]: [jsonAnswer([
+            flavorAnswer({ region: 'gra9', },),
+          ],),],
+          [`GET ${cloudPath('/image',)}?region=gra9`]: [jsonAnswer([imageAnswer({},),],),],
+          [`POST ${cloudPath('/instance',)}`]: [jsonAnswer(instanceAnswer({
+            region: 'gra9',
+            status: 'BUILD',
+          },),),],
+        },),);
+        await ovhCreate({ name: 'dev', },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as {
+          readonly flavorId: string;
+          readonly region: string;
+        };
+        expect(body.region,).toBe('gra9',);
+        expect(body.flavorId,).toBe('d2-2',);
+      },
+    },),
 
     //region The size a create asks for
 
