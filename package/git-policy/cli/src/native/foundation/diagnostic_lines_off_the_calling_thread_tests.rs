@@ -751,6 +751,36 @@ fn the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound() {
                 "the notice reaches the stream the queue writes: {text:?}"
             );
             drop(stopped);
+            // What: a reader replaced by one that stops in its turn, which is owed a notice of its own.
+            // Why:  the notice follows the queue's state and not a latch a process keeps, so a control that arms a fresh
+            //       reader reads a fresh notice; a process whose reader stopped once and never came back says one line.
+            let (stopped_again, replaced_by_one_that_stopped) = a_pipe_that_is_full();
+            give_the_thread(Box::new(replaced_by_one_that_stopped));
+            let began: Instant = Instant::now();
+            let left_out_after_the_replacement: HandedOver =
+                write_bytes(b"[warn] a line of the reader that replaced the first one\n");
+            let waited_again: Duration = began.elapsed();
+            assert_eq!(
+                left_out_after_the_replacement,
+                HandedOver::Unwritten,
+                "the reader that replaced the first one took nothing either"
+            );
+            assert!(
+                waited_again >= WARNING_WRITE_CEILING,
+                "the notice for the second reader waits for it until the bound passes: {waited_again:?}"
+            );
+            let said_again: Vec<String> = take_lines_written();
+            assert_eq!(
+                said_again.len(),
+                1,
+                "a reader that stopped is owed one notice of its own: {said_again:?}"
+            );
+            assert!(
+                said_again[0].starts_with("[debug] [") && said_again[0].ends_with(owed.as_str()),
+                "the second notice says the same words as the first: {}",
+                said_again[0]
+            );
+            drop(stopped_again);
         },
     );
 }

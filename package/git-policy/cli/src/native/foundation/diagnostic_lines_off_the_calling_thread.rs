@@ -75,17 +75,18 @@ use crate::lines_written_by_a_thread::{
     SharedQueue,
     hand,
     start_the_queue,
-    the_reader_stopped as queue_the_reader_stopped,
     wait_until_written,
     write_what_waits as queue_write_what_waits,
 };
 /// The queue's control hooks,
+/// and the one reader of its state,
 /// which only a control reads.
 #[cfg(test)]
 use crate::lines_written_by_a_thread::{
     dropped_so_far as queue_dropped_so_far,
     give_the_thread as queue_give_the_thread,
     queued as queue_queued,
+    the_reader_stopped as queue_the_reader_stopped,
 };
 /// The stream that is this process's standard error without the shared lock.
 use crate::standard_error_descriptor::StandardErrorDescriptor;
@@ -213,6 +214,9 @@ static THE_POLICY: QueuePolicy = QueuePolicy {
     //  is the lines themselves rather than a line about them.
     refused_thread_purpose: Some("write this command's own lines"),
     tag: TAG,
+    // Said by this file, at the moment the queue's wait gives the reader up, so a gap in what a command says is a gap
+    //  the command states.
+    reader_stopped_notice: Some(say_the_reader_stopped),
 };
 
 /// The one queue of this process,
@@ -281,60 +285,41 @@ pub(crate) fn write_line(line: &str) {
     write(line);
 }
 
-/// Whether this process has said the notice about a reader that stopped taking lines.
-/// Why:
-///  The queue gives the reader up once,
-///  and the notice is owed once:
-///  two callers can find the same stopped reader at the same moment,
-///  and one of them says it.
-///  It is a flag rather than a `Once` because the notice is itself a line this file writes,
-///  so saying it reaches the write that says a notice,
-///  and a `Once` would wait there for itself.
-static THE_NOTICE_IS_SAID: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
 /// What:
-///  Says,
-///  once for this process,
-///  that this queue's reader took no line within the bound,
+///  Says that this queue's reader took no line within the bound,
 ///  as a debug record,
 ///  through the same write every diagnostic line takes.
 /// Why:
 ///   One reader that was not taking a line by the bound is a reader that is not taking lines,
-///  so the person is told once how long it was given and that nothing waits for it any more.
+///  so the person is told how long it was given and that nothing waits for it any more.
 ///  It is said by the caller whose wait gave the reader up,
+///  at that moment,
 ///  and not by the queue's thread,
 ///  because a reader that stopped is the one thing that thread cannot reach:
 ///  a line said to that stream would wait there for as long as the reader does not read.
+///  The queue hands this file the tag and the bound and asks for no line of its own,
+///  which is how the words stay here while the moment stays the queue's.
 ///  The switch is the debug record's own,
 ///  so a command that says no debug line says no notice either.
+///  It is said once for one reader that stopped,
+///  because the queue's wait comes here only from the caller that first found its bound passed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sayTheReaderStopped = () => { if (said.swap(true)) return; if (!DEBUG_ON) return; writeLine(diagnosticLine('debug', nowIso(), tag, readerStoppedSentence(WARNING_WRITE_CEILING))) }
+/// const sayTheReaderStopped = (tag, within) => { if (!DEBUG_ON) return; writeLine(diagnosticLine('debug', nowIso(), tag, readerStoppedSentence(within))) }
 /// ```
-fn say_the_reader_stopped() {
-    // What:     `swap(true, ...)` is this call's claim on saying the notice, and every other caller reads a yes.
-    // Why:      The notice is a line this file writes, so saying it comes back through this function; the claim is
-    //           taken before the line is said, so that line finds the notice already said and says nothing.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (theNoticeIsSaid.swap(true)) return;
-    // ```
-    if THE_NOTICE_IS_SAID.swap(true, std::sync::atomic::Ordering::SeqCst) {
-        return;
-    }
+fn say_the_reader_stopped(
+    tag: &'static str,
+    within: std::time::Duration,
+) {
     if !verbose_enabled() {
         return;
     }
-    // The tag is the queue's own, which is the policy this file gives its lines, as the notice was tagged when the
-    //  queue said it itself.
     let line: String = diagnostic_line(
         "debug",
         now_iso().as_str(),
-        THE_POLICY.tag,
-        the_reader_stopped_sentence(WARNING_WRITE_CEILING).as_str(),
+        tag,
+        the_reader_stopped_sentence(within).as_str(),
     );
     write_line(line.as_str());
 }
@@ -373,27 +358,15 @@ pub fn write_bytes(line: &[u8]) -> HandedOver {
     let Some(ticket) = hand(queue, line.to_vec(), QUEUED_LINES) else {
         return HandedOver::Unwritten;
     };
-    // What:     `wait_until_written(...)` waits, bounded, for exactly this line and answers whether it is in the stream.
+    // What:     `wait_until_written(...)` waits, bounded, for exactly this line and answers whether it is in the stream;
+    //           the notice a stopped reader is owed is said from inside that wait, by this file's own function.
     // Why:      A later line's write must not be taken for this one, and the caller waits for its own line alone.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const answered = waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
+    // return waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
     // ```
-    let answered: HandedOver = wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
-    // What:     `answered == HandedOver::Unwritten && queue_the_reader_stopped(queue)` is this caller's wait having given
-    //           the reader up, which is the moment the notice is owed.
-    // Why:      The notice is said once per process by `say_the_reader_stopped`, and a caller that found the reader
-    //           already stopped only reads the Once it set; a reader that took the line owes no notice at all.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (answered === 'Unwritten' && theReaderStopped(queue)) sayTheReaderStopped();
-    // ```
-    if answered == HandedOver::Unwritten && queue_the_reader_stopped(queue) {
-        say_the_reader_stopped();
-    }
-    return answered;
+    return wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
 }
 
 /// What:

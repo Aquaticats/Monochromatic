@@ -120,6 +120,17 @@ pub(crate) struct QueuePolicy {
     pub(crate) refused_thread_purpose: Option<&'static str>,
     /// The tag of this queue's own diagnostic lines.
     pub(crate) tag: &'static str,
+    /// What this queue says,
+    /// once,
+    /// when a caller's wait gave its reader up at the bound,
+    /// as the words of the line that says it,
+    /// or nothing when the queue says nothing about a stopped reader.
+    /// Why the owner of the words says it and this file only hands them over:
+    ///  a line said to the stream of a reader that stopped would wait there for as long as the reader
+    ///  does not read,
+    ///  so the owner says it through the write its own lines take,
+    ///  at the moment this queue's wait gives the reader up.
+    pub(crate) reader_stopped_notice: Option<fn(&'static str, std::time::Duration)>,
 }
 
 /// One line waiting for the stream,
@@ -127,10 +138,10 @@ pub(crate) struct QueuePolicy {
 pub(crate) struct Pending {
     /// Which line this is,
     /// in the order the callers handed their lines over.
-    pub(crate) ticket: u64,
+    pub(super) ticket: u64,
     /// The bytes of the line,
     /// which are written whole or not at all.
-    pub(crate) line: Vec<u8>,
+    pub(super) line: Vec<u8>,
 }
 
 /// What the queue of one process holds,
@@ -138,24 +149,24 @@ pub(crate) struct Pending {
 pub(crate) struct Queue {
     /// The lines waiting for the stream,
     /// oldest first.
-    pub(crate) lines: VecDeque<Pending>,
+    pub(super) lines: VecDeque<Pending>,
     /// The number the next line handed over takes.
-    pub(crate) next_ticket: u64,
+    pub(super) next_ticket: u64,
     /// The number of the last line whose every byte is in the stream.
-    pub(crate) written: u64,
+    pub(super) written: u64,
     /// How many lines found no room since the last one that got through.
-    pub(crate) dropped: u64,
+    pub(super) dropped: u64,
     /// Whether the thread holds a line it has not written yet.
-    pub(crate) writing: bool,
+    pub(super) writing: bool,
     /// Whether a reader has stopped taking lines:
     /// the first caller whose line did not leave its hands within the wait it is given
     ///  set it,
     /// and from then on no caller waits.
-    pub(crate) reader_stopped: bool,
+    pub(super) reader_stopped: bool,
     /// Whether the stream takes nothing more:
     /// a write that failed for any reason other than a momentary lack of room
     /// leaves a stream that no wait can bring back.
-    pub(crate) stream_is_gone: bool,
+    pub(super) stream_is_gone: bool,
     /// The numbers of the lines a stream refused,
     /// oldest first,
     /// kept until the caller that waits for one reads its answer.
@@ -168,22 +179,22 @@ pub(crate) struct Queue {
     ///  nobody reads an answer in a queue whose callers hand a line and go on,
     ///  and a service that logged for days beside a stream that refused every line
     ///  would keep one number per line for the life of its process.
-    pub(crate) lost: VecDeque<u64>,
+    pub(super) lost: VecDeque<u64>,
     /// Whether the system refused the thread that writes these lines,
     /// so every line is written on the thread that says it.
     /// Why the refusal is kept and not retried:
     ///  a process limit that refused the thread once refuses every later start too,
     ///  so a line waiting for a new one would never reach the person (issue 6476).
-    pub(crate) thread_refused: bool,
+    pub(super) thread_refused: bool,
     /// The line that says which limit refused that thread,
     /// or nothing once it is said.
     /// Why it waits here:
     ///  the queue is made before a control's stream is given to it,
     ///  so the sentence is said with the first line the process says.
-    pub(crate) thread_refusal: Option<String>,
+    pub(super) thread_refusal: Option<String>,
     /// Where a control's lines go,
     /// or nothing when they go to the stream this queue defaults to.
-    pub(crate) writer: Option<Box<dyn Write + Send>>,
+    pub(super) writer: Option<Box<dyn Write + Send>>,
     /// Whether `writer` is a control's own stream,
     /// which takes every byte at once,
     /// rather than this queue's default stream,
@@ -193,10 +204,10 @@ pub(crate) struct Queue {
     ///  and a writer that came back from the default stream is not a control's:
     ///  a line after it must be bounded by the room the stream has,
     ///  as the first one was.
-    pub(crate) writer_from_a_control: bool,
+    pub(super) writer_from_a_control: bool,
     /// What this queue is for,
     /// which is the only place the two queues differ.
-    pub(crate) policy: &'static QueuePolicy,
+    pub(super) policy: &'static QueuePolicy,
 }
 
 /// How often the end of a process asks the thread again for a line a stream refused.
@@ -704,10 +715,10 @@ pub(crate) fn give_the_thread(
 /// whether a wait gave the reader up,
 /// and so whether no later caller waits either.
 /// Why:
-///  A caller that must know when that happened reads it after its own wait
-///  (`diagnostic_lines_off_the_calling_thread.rs`,
-///  which says the notice the state is owed),
-///  and a control reads it to show a stopped reader is remembered.
+///  A control reads it to show a stopped reader is remembered;
+///  a release path never asks,
+///  because the caller that finds the bound passed is the one that knows.
+#[cfg(test)]
 pub(crate) fn the_reader_stopped(queue: SharedQueue) -> bool {
     let (held_queue, _ready) = queue;
     return held_queue

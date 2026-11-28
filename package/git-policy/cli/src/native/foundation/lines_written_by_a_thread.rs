@@ -52,7 +52,6 @@ pub(crate) use crate::the_queue_and_its_thread::{
     SharedQueue,
     THE_END_ASKS_AGAIN_EVERY,
     start_the_queue,
-    the_reader_stopped,
 };
 /// The queue's control hooks,
 /// which only a control reads,
@@ -62,6 +61,7 @@ pub(crate) use crate::the_queue_and_its_thread::{
     dropped_so_far,
     give_the_thread,
     queued,
+    the_reader_stopped,
 };
 
 /// What:
@@ -229,25 +229,35 @@ pub(crate) fn wait_until_written(
             return HandedOver::Unwritten;
         }
         // What:     `left` is how long the caller may still wait, or nothing once the bound has passed.
-        // Why:      A caller that waited its bound remembers the stopped reader instead of waiting again.
+        // Why:      A caller that waited its bound remembers the stopped reader instead of waiting again,
+        //           and says the line the person is owed about it.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const left = deadline - now(); if (left <= 0) { readerStopped = true; log(...); return 'Unwritten'; }
+        // const left = deadline - now(); if (left <= 0) { readerStopped = true; say(tag, within); return 'Unwritten'; }
         // ```
         let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
             // What:     `held.reader_stopped = true` is this process remembering that a reader is not taking lines,
-            //           so no later caller waits for one.
+            //           so no later caller waits for one;
+            //           `held.policy.reader_stopped_notice` is the line the person is owed about it.
             // Why:      The wait is paid once per process and never again, which is what keeps a command that says twenty
-            //           lines under a held lock to one bound rather than twenty. The line the person is owed about it is
-            //           said by the caller that reads this state after the wait, through the one write a diagnostic line
-            //           takes (`diagnostic_lines_off_the_calling_thread.rs`).
+            //           lines under a held lock to one bound rather than twenty, and only the caller that first found the
+            //           bound passed comes here, so the line is said once.
+            //           The lock is dropped first, because the line is the queue owner's own write and may reach this queue
+            //           (a diagnostic line says it), which must not be waited for here.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // const left = deadline - now(); if (left <= 0) { readerStopped = true; return 'Unwritten'; }
+            // const left = deadline - now(); if (left <= 0) { readerStopped = true; const say = policy.readerStoppedNotice; const tag = policy.tag; drop(held); say?.(tag, within); return 'Unwritten'; }
             // ```
             held.reader_stopped = true;
+            let notice: Option<fn(&'static str, std::time::Duration)> =
+                held.policy.reader_stopped_notice;
+            let tag: &'static str = held.policy.tag;
+            drop(held);
+            if let Some(say) = notice {
+                say(tag, within);
+            }
             return HandedOver::Unwritten;
         };
         held = match ready.wait_timeout(held, left) {
