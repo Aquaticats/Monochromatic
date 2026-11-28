@@ -430,6 +430,11 @@ Run every command and make every edit inside it.
 The main checkout (the repository path without `.claude/worktrees`) is read-only for the run:
 an edit left there blocks merges for everyone,
 and a build or test run there does not test the run's code.
+Where a brief says a file is on `main`,
+read the worktree's copy:
+the worktree was made from `main`,
+and an edit lands on whichever copy the run opened,
+as rounds of 2026-11-27 found (issue 6636).
 
 ## Committing
 

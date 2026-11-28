@@ -1414,10 +1414,13 @@ and a line that reads as none of them fails the run:
   and the run reports that one line dead,
   naming the folder it read,
   while every other line of the list is still read and every other finding of the rule is still reported.
-  A line holds one arrow only,
-  because no folder name holds an arrow word,
-  and a line that sets two of them off with whitespace is refused,
+  A `uses` line holds one arrow only,
+  because no folder name it names holds an arrow word,
+  and a `uses` line that sets two of them off with whitespace is refused,
   with a sentence that says so.
+  The file rule reads no `uses` line,
+  and a `file-uses` line whose folder name holds a set-off arrow is read from its last arrow,
+  whose place a file name cannot take.
   A line stays alive while its two folders still make that use and still sit in one loop together,
   in the folders' own graph or in the graph of the entries:
   a folder inside a group can be in a loop of its own folders and in the loop of its group at once,
@@ -2144,6 +2147,45 @@ and what the messages say.
   The release of 0.5.2-alpha.21 named the folder only while the character after the word,
   the one before the file and the one before the arrow was one each,
   and answered an arrow-named folder with a sentence about two arrows the line does not hold.
+  The release of 0.5.2-alpha.22 read the folder's own arrow as the first one whitespace set off,
+  so it named a folder whose own arrow a tab,
+  a no-break space or a doubled space sets off
+  only while the words joined with one space named another folder the tree held,
+  and answered the others with that sentence;
+  it named a folder whose own name begins with whitespace only while the character beside it was one.
+  This release reads the line's own arrow as the last one whitespace sets off,
+  takes the whitespace a doubled gap left off one character at a time at the start and as a whole run before the file,
+  names such a folder in both shapes,
+  and names the folder whose own name begins with the character where the same text is the line for two folders
+  (measured on 2026-11-27:
+  600 of 600 lines for the three arrow spellings named the written folder against 0,
+  where alpha.22 named `src/x -> y` in all 600,
+  and a folder named ` src/c d` was named in 200 of its 200 lines against 72).
+- A six-word line whose first folder word is absolute or holds a backslash is refused for that cause,
+  as a five-word line is,
+  where alpha.22 answered it by naming a folder it found on disk and telling its reader to rename it for a space.
+- Every refusal of the entry reader quotes its line,
+  and one that holds a character a reader cannot see names it and its place,
+  so a line with two faults is answered by one message,
+  where alpha.22 had three refusals that quoted no line and one that left such a character unmentioned.
+- A dead `file-uses` line is told to take a character out only while that character stands
+  in a file name the folder's modules do not hold:
+  a line that spells a real module file's own name,
+  and one whose character stands in the folder's name,
+  are told to be deleted,
+  which is what alpha.21 told them,
+  where alpha.22 told both to edit the line.
+- A sentence about what the line would read as after that edit
+  is said only when the edited text does read as a line of the list,
+  and a character with no plain name is named by its code point in that sentence,
+  where alpha.22 said a line would read as a `uses` line when the next run refused it,
+  and named only the characters it holds a plain name for.
+- No key any rule prints changes shape,
+  and no line a run printed reads back differently,
+  so a list written for `0.5.2-alpha.22` needs no new line from this release.
+  What changes is which folder a refusal names,
+  what its sentences say,
+  and which edit a later change fails.
 - A refusal says what renaming must give and says what the name is:
   a folder whose name is `->`,
   begins with `-> `,
@@ -2203,15 +2245,42 @@ and what the messages say.
   so a six-word line whose words between the folder's place and the arrow name no folder
   is a third file name or a doubled arrow,
   and it is refused as the misspelling of the shape it is.
+  A six-word line whose first folder word is absolute or holds a backslash is refused for that cause,
+  as a five-word line is,
+  so its reader is never sent to rename a folder for a space.
   Three readings of one line decide that,
   in this order:
   the name the line writes between the word and the file before its arrow,
   that name with the whitespace a doubled gap left beside it taken off,
   and the words joined with one space.
+  The line's own arrow is the last one whitespace sets off,
+  because a file name is one word and holds no whitespace,
+  while the folder before it may hold an arrow word of its own,
+  so a folder named `src/x -> y` is named by the first reading,
+  and so is one whose own arrow a tab,
+  a no-break space or a doubled space sets off.
   The first is the name the reader meant whenever the tree holds it,
-  so a tree holding both `src/c<TAB>d` and `src/c d` still has the line for the tab folder named as that folder;
-  the third is the only reading an arrow-named folder such as `src/x -> y` can come from,
-  because the arrow the reader finds first is the name's own.
+  so a tree holding both `src/c<TAB>d` and `src/c d` still has the line for the tab folder named as that folder.
+  The second reading takes the whole run of whitespace the gap before the file left,
+  because no folder name the rules accept ends in whitespace,
+  and at the start one character of its run at a time,
+  because a folder name may begin with whitespace and only the tree says how much of the run is its own:
+  so a folder named ` src/c d` is named for every gap spelling
+  whose extra character can be told from that name's own whitespace.
+  Where the same text is the line for two folders,
+  the first reading names the folder whose own name begins with the character,
+  and the third reading is the one that can name a folder the line was not written for:
+  a line written for `src/c<TAB>d` beside only `src/c d` names `src/c d`,
+  because the first two readings name no folder the tree holds.
+  Measured on 2026-11-27 over the read's 5,600-line matrix:
+  a folder named ` src/c d` was named in 200 of its 200 lines against 72 in `0.5.2-alpha.22`,
+  the 128 word-count refusals among them gone;
+  the three arrow spellings set off by a tab,
+  a no-break space or a doubled space were named in 600 of 600 lines against 0,
+  where `0.5.2-alpha.22` named `src/x -> y` in all 600;
+  and of the 200 lines written for `src/c d` beside it,
+  160 still named it,
+  and the other 40 were the texts both folders share.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
   a tab or a no-break space inside a module file name is keyed as written,
@@ -2259,13 +2328,25 @@ and what the messages say.
   Every message about such a character spells it,
   names it,
   and says where it stands,
-  counted in characters from the line's first one,
-  which is the column an editor shows.
+  counted in characters,
+  which are Unicode scalar values,
+  from the line's first one:
+  an editor may draw a tab as several cells or write one character as more than one byte,
+  so the column it shows can differ,
+  and no message says which column an editor shows.
+  A character with no plain name is named by its code point in the same sentence,
+  where the quote spells it.
   A line whose only fault is that character is told to take it out:
   a dead line the reader took for one finding's key,
-  a dead `file-uses` line whose file name holds one,
-  and a line the reader refuses.
-  A whitespace character where one belongs replaces it.
+  a line the reader refuses,
+  and a dead `file-uses` line whose file name holds one that no module of its folder holds.
+  A line that spells a real module file's own name,
+  and one whose character stands in the folder's name rather than a file's,
+  is told to be deleted,
+  because taking the character out would name another file or folder.
+  A whitespace character where one belongs replaces it,
+  and a sentence about what the line would read as after that edit
+  is said only when the edited text does read as a line of the list.
 
 ### Links and other tools
 

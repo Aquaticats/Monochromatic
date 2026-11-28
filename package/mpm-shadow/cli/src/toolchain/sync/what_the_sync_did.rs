@@ -167,7 +167,7 @@ fn removed_part(
 }
 
 /// What:
-/// `, 1 of which held a second finished copy of 0.2.1; 0.2.1 holds its completion marker and its program at its name, so that copy was a second one`,
+/// `, 1 of which held a second finished copy of 0.2.1, because 0.2.1 holds its completion marker and its program at its name`,
 /// `, 1 of which held a finished copy of 0.2.1 that this run did not publish, because ...; no finished copy of 0.2.1 is at its name, so that copy is gone`,
 /// or nothing when the directory held no finished copy.
 /// Why:
@@ -184,7 +184,7 @@ fn removed_part(
 ///   if ('secondCopy' in leftover.finishedCopy) {
 ///     const { secondCopy: version, programFound } = leftover.finishedCopy;
 ///     const read = programFound ? 'holds its completion marker and its program' : 'holds its completion marker';
-///     return `, 1 of which held a second finished copy of ${version}; ${version} ${read} at its name, so that copy was a second one`;
+///     return `, 1 of which held a second finished copy of ${version}, because ${version} ${read} at its name`;
 ///   }
 ///   const { version, whyNotPublished } = leftover.finishedCopy.notAtItsName;
 ///   return `, 1 of which held a finished copy of ${version} that this run did not publish, because ${whyNotPublishedText(whyNotPublished)}; no finished copy of ${version} is at its name, so that copy is gone`;
@@ -204,12 +204,13 @@ fn what_went_with_it(leftover: &RemovedLeftover) -> String {
         RemovedFinishedCopy::NoFinishedCopy => String::new(),
         // What: the clause names the two reads the run made at the version's own name, and nothing about its bytes.
         // Why: the marker and a program found are what `is_finished` asks, so a program cut short under its marker
-        //  reads as finished here, and a sentence that said nothing was lost would claim more than the run read.
+        //  reads as finished here, and a sentence that said nothing was lost, or that the copy at the name is the one
+        //  a person keeps, would claim more than the run read.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const read = programFound ? 'holds its completion marker and its program' : 'holds its completion marker';
-        // return `, 1 of which held a second finished copy of ${version}; ${version} ${read} at its name, so that copy was a second one`;
+        // return `, 1 of which held a second finished copy of ${version}, because ${version} ${read} at its name`;
         // ```
         RemovedFinishedCopy::SecondCopy {
             version,
@@ -228,7 +229,7 @@ fn what_went_with_it(leftover: &RemovedLeftover) -> String {
                 "holds its completion marker"
             };
             format!(
-                ", 1 of which held a second finished copy of {version}; {version} {read} at its name, so that copy was a second one"
+                ", 1 of which held a second finished copy of {version}, because {version} {read} at its name"
             )
         }
         RemovedFinishedCopy::NotAtItsName {
