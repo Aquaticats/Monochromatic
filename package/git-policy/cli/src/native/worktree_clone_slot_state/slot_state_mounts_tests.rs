@@ -249,3 +249,58 @@ fn a_row_of_another_dataset_is_ignored() {
         CloneMount::Nowhere
     );
 }
+
+/// What:
+///  A clone mounted on a folder a removal derived for a staging folder is that
+///  answer and not `Elsewhere`,
+///  and the same mount under another name is `Elsewhere`.
+/// Why:
+///  The two answers lead to different decisions:
+///  one is the state a removal refuses without force and unmounts with one,
+///  and the other is a person's mount that stays Git's.
+#[test]
+fn a_staging_folder_is_told_from_another_place() {
+    let staging: String =
+        String::from("/home/u/.cache/monochromatic-git-policy-cli-staging-7828944690444299989");
+    let rows: MountRows = MountRows::Rows(vec![MountedDatasetInstance {
+        dataset: String::from("tank/wt/topic"),
+        mount_point: PathBuf::from(staging.as_str()),
+        root: PathBuf::from("/"),
+    }]);
+    assert_eq!(
+        clone_mount_of(
+            &rows,
+            &SlotMount::Nothing,
+            "tank/wt/topic",
+            slot().as_path(),
+        ),
+        CloneMount::AtTheStagingFolder {
+            described: the_only_rows_words(&rows),
+        }
+    );
+    let elsewhere: MountRows = MountRows::Rows(vec![MountedDatasetInstance {
+        dataset: String::from("tank/wt/topic"),
+        mount_point: PathBuf::from("/mnt/backup/topic"),
+        root: PathBuf::from("/"),
+    }]);
+    assert_eq!(
+        clone_mount_of(
+            &elsewhere,
+            &SlotMount::Nothing,
+            "tank/wt/topic",
+            slot().as_path(),
+        ),
+        CloneMount::Elsewhere {
+            described: the_only_rows_words(&elsewhere),
+        }
+    );
+}
+
+/// The words the one row of a control's table describes itself with,
+/// so the control names what the reader named instead of writing it again.
+fn the_only_rows_words(rows: &MountRows) -> String {
+    let MountRows::Rows(found) = rows else {
+        panic!("the control's table is rows");
+    };
+    return found.first().expect("one row").described();
+}

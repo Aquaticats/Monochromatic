@@ -73,6 +73,11 @@ const REACH_PASSAGES: &[ReachPassage] = &[
         in_readme: "#### The boot and shutdown units, built and reached by no command",
     },
     ReachPassage {
+        topic: "the private-propagation step",
+        in_spec: "#### The private-propagation step, built and reached by no command",
+        in_readme: "#### The private-propagation step, built and reached by no command",
+    },
+    ReachPassage {
         topic: "the shutdown pass the gate's `ExecStopPost` will run",
         in_spec: "##### The shutdown pass, built and reached by no command",
         in_readme: "#### The shutdown pass, built and reached by no command",

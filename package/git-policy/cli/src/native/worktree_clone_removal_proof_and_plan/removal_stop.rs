@@ -259,12 +259,47 @@ pub enum RemovalStop {
         /// The plan's file.
         path: PathBuf,
     },
-    /// The destruction plan could not be read.
+    /// The destruction plan could not be read,
+    /// and this removal carried no force to go past it.
     PlanUnreadable {
+        /// The slot the plan belongs to.
+        slot: String,
         /// The plan's file.
         path: PathBuf,
         /// Why it was not read.
         refusal: PlanRefusal,
+    },
+    /// The clone the add recorded cannot be proved,
+    /// and this removal carried less than two forces.
+    TheCloneCannotBeProved {
+        /// The slot whose clone it is.
+        slot: String,
+        /// What the proof refused,
+        /// in its own words with the identities it compared.
+        cause: String,
+        /// The GUID the add's record held.
+        recorded_guid: String,
+        /// The GUID the pool answered,
+        /// when it answered one.
+        answered_guid: Option<String>,
+    },
+    /// A forced removal went past a plan it could not read,
+    /// and the clone that plan's record names does not answer the pool.
+    ThePlanIsUnreadableAndTheCloneIsGone {
+        /// The slot whose plan it is.
+        slot: String,
+        /// The plan's file.
+        path: PathBuf,
+        /// What the pool answered for the record's clone dataset.
+        reason: String,
+    },
+    /// The lock this add did not write could not be deleted,
+    /// which two forces ask for and the removal stops on when it fails.
+    TheLockCouldNotGo {
+        /// The lock's file.
+        path: PathBuf,
+        /// Why the unlink failed.
+        said: String,
     },
     /// The removal's own run nonce could not be made.
     NoRunNonce {

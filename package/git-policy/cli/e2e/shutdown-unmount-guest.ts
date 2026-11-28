@@ -23,6 +23,7 @@
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
+import { guestBackend, } from '../bin/mvm-guest-backend.ts';
 import {
   FOLDER_MODE,
   HOST_COMMAND_TIMEOUT_MS,
@@ -71,6 +72,11 @@ import {
   armScript,
   buildScript,
 } from './shutdown-unmount-guest-scripts.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -161,7 +167,10 @@ async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<v
    */
   const listed = await captureHostCommand({
     command: 'mvm',
-    args: ['list',],
+    args: [
+      ...backend.mvmArgumentWords,
+      'list',
+    ],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (holdsGuestName({
