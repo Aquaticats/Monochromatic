@@ -973,9 +973,14 @@ by ``rg -c "'libvirt'" package/git-policy/cli package/zfs/request-to-openzfs-ker
 and names it now in `bin/mvm-guest-backend.ts` and `e2e/guest-backend.ts` alone.
 The run named `--backend ovh`,
 `--guest-image 'Ubuntu 24.04'`,
-`MVM_OVH_FLAVOR=b3-16` (4 vCPUs,
-16 GiB),
-region `BHS5`,
+`MVM_OVH_FLAVOR=b3-16`,
+the size `mvm`'s own README and `flavors.ts` doc name as
+an example of a larger flavour (the guest's own processor count and memory were
+not read before it was destroyed,
+so the size rests on that documentation and on
+the create log's `flavor b3-16` line),
+region `BHS5` (the project's one Canadian region,
+from `mvm --backend ovh update`),
 and the machine destroyed by its name at the end.
 The steps were the recipe's `create`,
 `prepare` (which installs the packages and builds OpenZFS 2.4.4 in the guest)
@@ -999,7 +1004,9 @@ whose `mvm-create.log` and log files' own times are all it records):
   and at most 5 m 40 s on the local guest (the local run's logs name no step start,
   so that figure is the gap between its create's last line and its toolchain log);
 - `destroy`:
-  21 s on `ovh`,
+  21 s of `mvm destroy` on `ovh` (its own log's first and last line),
+  39 s for
+  the step as a whole,
   and 2.1 s on the local guest.
 
 A wrapper driver ran there too,
