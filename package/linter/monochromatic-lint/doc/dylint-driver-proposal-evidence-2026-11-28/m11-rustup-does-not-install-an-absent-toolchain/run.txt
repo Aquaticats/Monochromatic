@@ -1,0 +1,29 @@
+Running as unit: run-p3433231-i104067646.scope; invocation ID: 2dbec3c6b9544ebda6a5e5f9d8b30886
+== clock 2026-11-28T11:53:32+00:00
+info: This is the version for the rustup toolchain manager, not the rustc compiler.
+info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+== rustup rustup 1.29.3 (2026-11-11)
+== channel this host's plan would name, installed or not
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+== rustup show active-toolchain in a directory whose file names an absent toolchain
+show-active status 0
+nightly-2026-11-20-x86_64-unknown-linux-gnu (overridden by '/work/probe/rust-toolchain.toml')
+info: syncing channel updates for nightly-2026-11-20-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-20 for version 1.102.0-nightly (6905905bb 2026-11-19)
+info: downloading 8 components
+warn: the missing active toolchain `nightly-2026-11-20-x86_64-unknown-linux-gnu` has been auto-installed
+warn: auto-installation is deprecated for most `rustup` commands
+warn: scripts relying on this behavior in `rustup` may stop working in the future
+warn: to install the active toolchain, use `rustup install` instead
+warn: see <https://github.com/rust-lang/rustup/issues/4836> for more info
+== rustc --version in the same directory (does rustup install anything?)
+rustc status 0
+rustc 1.102.0-nightly (6905905bb 2026-11-19)
+== toolchains after (nothing may have been added)
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+nightly-2026-11-20-x86_64-unknown-linux-gnu
+== done 2026-11-28T11:53:58+00:00
