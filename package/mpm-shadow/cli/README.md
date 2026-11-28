@@ -743,7 +743,7 @@ llama-cpu-cli \
   with this account's own `rustup 1.29.3`
   and a hard-linked copy of this machine's pinned toolchain,
   on a machine other sessions were loading;
-  one question alone cost 4 to 18 ms at the median of those rounds.
+  one question alone cost 4 to 31 ms at the median of those rounds.
   No deadline is shipped for those waits:
   the measurement says what an answer costs,
   not what a late one should be cut off at,
