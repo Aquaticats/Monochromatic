@@ -432,14 +432,22 @@ its measurement and what is still open:
 
 A shim written before this package's `bin` named the source still names
 `dist/final/node/cli.mjs`.
-`pnpm install` in that checkout rewrites it,
-and rewrites every shim under the workspace's `node_modules/.bin`,
-re-links each package's dependency folder,
-and reconciles the install state with the lockfile.
-After that,
-`node_modules/.bin/mvm` runs `src/cli.ts` directly and the launcher is not needed
-for that shim;
-it stays because a worktree's build writes it and because another checkout may still name it.
+`pnpm install` in that checkout is what rewrites it,
+along with every shim under the workspace's `node_modules/.bin`,
+the links into each package's dependency folder,
+and the install state the lockfile records.
+That rests on two shims read on 2026-11-28,
+not on a run of the install:
+this round's worktree,
+whose `node_modules` was linked when the worktree was made that day,
+has a `mvm` shim naming `src/cli.ts`,
+while the main checkout's,
+written 2026-11-17,
+names the built file.
+After such an install,
+`node_modules/.bin/mvm` runs `src/cli.ts` directly and that shim no longer reads the launcher;
+the file stays because a build writes it,
+and because a checkout whose install is older than this manifest may still name it.
 
 ## Host tools
 
