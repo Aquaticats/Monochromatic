@@ -4,10 +4,12 @@
 //! which listed names count as the declared part,
 //! and that a listing that fails stops the reconcile before any add.
 //!
-//! The listing is `rustup component list --installed`, and a declared target is held when its
-//! `rust-std-<triple>` line is in it: that is the listing `rustup target list --installed` filters
-//! for (`list_targets` in rustup 1.29.3 `src/cli/rustup_mode.rs`) and the component
-//! `rustup target add` installs, so one question answers both.
+//! The listing is `rustup component list --installed`,
+//! and a declared target is held when its `rust-std-<triple>` line is in it:
+//! that is the listing `rustup target list --installed` filters for
+//! (`list_targets` in rustup 1.29.3 `src/cli/rustup_mode.rs`)
+//! and the component `rustup target add` installs,
+//! so one question answers both.
 
 use super::fakes::Rig;
 use super::install_rust_android::reconcile_rust_parts;
@@ -40,7 +42,8 @@ fn reconcile_with(
     return reconcile_rust_parts(&rig.context(), tool, &mut added).map(|()| return added);
 }
 
-/// The adds the fake recorded, in order.
+/// The adds the fake recorded,
+/// in order.
 fn the_adds(rig: &Rig) -> Vec<String> {
     return rig
         .runner
@@ -63,8 +66,8 @@ fn a_component_listed_with_its_host_triple_counts_as_installed() {
     assert!(the_adds(&rig).is_empty(), "{:?}", rig.runner.lines());
 }
 
-/// A declared target is held when its standard library is a component line, which is the whole of the
-/// claim that makes one listing enough.
+/// A declared target is held when its standard library is a component line,
+/// which is the whole of the claim that makes one listing enough.
 #[test]
 fn a_target_is_held_when_its_standard_library_is_a_component_line() {
     let rig = Rig::new();
