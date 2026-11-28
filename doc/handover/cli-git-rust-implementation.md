@@ -1566,34 +1566,6 @@ no start failed at its `EXEC` step,
 no unit reached the start limit,
 and the pair of commits made at once each landed once.
 
-What the `cargo-shadow` alpha.13 pass found
-(a Claude Sonnet read,
-same vendor,
-so a second pass;
-`~/temp/agent/cargo-shadow-alpha-13-release-review-2026-11-27/keep/review.md`):
-no High finding,
-and nothing that changes a run's decision or stops a live scope.
-In six interleaved rounds a trivial shadow call took 1.085 times alpha.11's time at the median
-(0.667 to 2.205),
-against 1.097 (0.776 to 2.364) for a same-binary control and 1.982 for alpha.12;
-it asked the manager two questions a call where alpha.12 asked ten,
-and no stop in 24 scoped runs.
-Its three Medium findings:
-systemd 262.2 can lose the notification that a scope emptied
-(an inotify queue overflow,
-a watch that could not be added,
-a scope that empties between a reload's one read and the watch being added again),
-and then the unit stays loaded with no member and no warning,
-read in the source and not reproduced;
-on a kernel before 6.1 a scope has no `pids.peak`,
-so every scoped run still asks the manager once,
-which no control reads and the README does not say;
-and seven edits to the gate would stay green,
-because the path controls arm a switch that answers before the gate reads anything.
-Its Low findings are words and records,
-and one window:
-a same-user process that writes itself into the scope after the look is killed by the stop in silence.
-
 What the `mpm-shadow` alpha.14 pass found
 (the same kind of read;
 `~/temp/agent/mpm-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
