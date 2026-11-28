@@ -2946,11 +2946,7 @@ and the two `truepeak` files wait on their branch.
   (`doc/handover/questions-for-the-owner.md`).
 - No real gate has run on the gate's reader of a container's control group yet:
   the next whole gate is its first.
-- Since 2026-11-27T12:49 a hook another session merged (`88632f16aa`,
-  the owner's "Clamp + prefix (Recommended)") moves a main-session Bash command that runs past two seconds to the background,
-  and its result arrives as a task notification;
-  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the design and the probes.
-  A wait loop is started with `run_in_background: true`,
+- A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
 - `native:ts-checks` prints the commit it ran on (`3c88496446`,
