@@ -14,6 +14,10 @@ import { setTimeout as wait, } from 'node:timers/promises';
 import type { PiRecord, } from '../dist/final/node/index.mjs';
 import { compactionPlays, } from './stand-in-pi-compaction-plays-fixture.ts';
 import {
+  EDITS_A_PATH_SCENARIO,
+  editOnePath,
+} from './stand-in-pi-edits-a-path-plays-fixture.ts';
+import {
   PRINTS_A_VALUE_SCENARIO,
   printOneSecretValue,
 } from './stand-in-pi-masking-fixture.ts';
@@ -181,6 +185,10 @@ export async function playPrompt(command: PiRecord,): Promise<void> {
   }
   if (scenario === PRINTS_A_VALUE_SCENARIO) {
     await printOneSecretValue({ id, },);
+    return;
+  }
+  if (scenario === EDITS_A_PATH_SCENARIO) {
+    await editOnePath({ id, },);
     return;
   }
   /**

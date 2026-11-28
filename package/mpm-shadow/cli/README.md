@@ -240,18 +240,29 @@ or a Java major line such as `21`).
   and `android-sdk`.
   The route is how a tool installs;
   the request is where its versions come from.
-- A `rustup-toolchain` row's `bins` are the programs the installed toolchain holds:
-  the toolchain's own `bin` directory under `~/.rustup/toolchains`,
-  and rustup's own proxies in the cargo bin directory where rustup itself was installed there.
+- A `rustup-toolchain` row's `bins` are the programs the toolchain the row's channel names holds:
+  that toolchain's own `bin` directory under `~/.rustup/toolchains`,
+  and never another installed toolchain's,
+  whatever the directory names sort like
+  (a second toolchain beside the pin answered for the farm's `rustc`,
+  `cargo` and `rustfmt` before issue 6634);
+  and rustup's own proxies in the cargo bin directory where `rustup` itself was installed there.
   `rustup` is never one of them:
   it is the manager,
-  which the bootstrap installs before the first `mpm-shadow` run and `mpm-shadow` never does
-  (see "Bootstrap"),
-  so the farm links no `rustup`,
-  and a row that declared it would name an unresolved bin on every install.
+  which `rustup-init` or the distribution's package installs before the first `mpm-shadow` run,
+  and `mpm-shadow` never does (see "Bootstrap"),
+  so the farm links `rustup` only where a `rustup` proxy of that name already sits in the cargo bin
+  directory,
+  and a row that declared it names an unresolved bin wherever none does.
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  `list` reads the same declarations:
+  it asks `rustup component list --installed` and `rustup target list --installed` about the row's
+  toolchain,
+  and a component or target it does not list is drift,
+  named in the `drift` line,
+  which is what the next `install` would add.
   Every program a row lists that no component it declares and no profile installs is not in
   the toolchain at all,
   so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
@@ -692,7 +703,7 @@ llama-cpu-cli \
   then installs every locked tool that is not at its locked version,
   makes the postinstall links and removes the ones an earlier run made that the lock no longer declares
   (see "Postinstall links the lock no longer declares"),
-  rebuilds the exposure directory,
+  rebuilds the exposure directory (see "What the exposure folder holds"),
   writes the tool environment for mise (see "Tool environment"),
   runs the postinstall commands
   and then retires the old copies of this repository's tools
@@ -1260,7 +1271,8 @@ whichever route installed them.
   count as finished and cause the working older version to be deleted.
   A failed install removes its staging directory and touches no copy that was already there.
   A publish that fails keeps the finished copy under the hidden name that run holds it at,
-  which the next install of that version publishes without downloading,
+  which an install either publishes or removes as a second one,
+  depending on what the version's name holds by then,
   and its message names that path and the version's name.
   A directory without the marker (one an earlier release unpacked in place,
   or one cut short) is never finished:
@@ -1392,6 +1404,11 @@ so a copy a kill leaves under it is never published and never removed.
   and `.replaced` holds the unfinished copy it replaced,
   which the next install of that tool removes.
 
+A hidden copy that holds a finished install is published by the next install of that version,
+downloading nothing,
+unless that version's name holds a finished copy by then,
+which makes the hidden one a second one that install removes.
+
 The finished copy is what a later install publishes rather than the copy that was there,
 because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
 while the copy at the version's name was unfinished,
@@ -1420,16 +1437,24 @@ a finished copy of another version is left for that version's own install to pub
 
 A recovery whose own publish fails keeps the copy it claimed:
 the copy stays under its `.recovered` name with that run's pair,
-which the next install of that version finds dead,
-claims and publishes,
 and the failure names both the version's name and the path the copy is at.
+Such a sentence promises nothing about a later run,
+because only the run that follows reads what that one would find:
+an install publishes the copy when the version may be kept and its own name holds no finished copy by then,
+and removes it as a second one when that name holds one.
 A recovery that fails does not stop the install that follows it:
 the tool is installed from the network when the network is there,
 the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
-That warning ends with what the run then did,
-because the recovery's own last clause says the copy is still where a later run would publish it from,
-which is false once this run installed the version itself.
+That warning ends with what this run then did.
+When the install that follows put the version at its name,
+the warning says that a later run publishes nothing from the copy and removes it,
+which is what that later run then does;
+when that install failed too,
+the copy stays where the run's own sentence put it.
+The one failure that names no copy is the tool's directory that could not be listed:
+its warning says what this run then did and that the run does not fail for it,
+and nothing about a copy it never read.
 A recovery that failed is a warning,
 and not a failure,
 whenever this tree's lock is satisfied after the run:
@@ -1570,12 +1595,15 @@ toolchain install: removed 2 hidden directories left behind by installs of mpm-s
 
 A removed finished copy is either a second one,
 when the run reads the version's own name as finished,
-or the one copy the version had here,
-and only the second is the copy the version loses.
-The sentence says what that read at the version's name was:
+or the one copy the version had here.
+The sentence says what that read at the version's name was,
+and never what a start of either copy does:
+the test is a completion marker and a program found,
+so a program cut short under its marker reads as finished too,
+and the copy the version's name holds may be the one that cannot run.
 
 ```text
-toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13; 0.2.7-alpha.13 holds its completion marker and its program at its name, so that copy was a second one
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
 ```
 
 ```text
@@ -1620,16 +1648,19 @@ so `prune` leaves that decision to the install.
 A hidden name it cannot judge is printed on standard error and left,
 and the line says what that run read there and what deleting that directory would cost.
 When a known lock names the program that finishes the tool's install,
-a copy the run reads as finished is the version's only one here unless the version stands finished at its own name:
+a copy the run reads as finished is the version's only one here unless the version's own name reads as finished by the
+same test:
 
 ```text
 mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a finished copy of mpm-shadow 0.2.7-alpha.13, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged
 ```
 
 ```text
-mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 is finished at its name, and deleting it by hand loses only that second copy
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name, and deleting it by hand loses that second copy
 ```
 
+That line names the two reads and no conclusion drawn from them:
+whether the copy the version's name holds behaves when it is started is something this run did not read.
 A directory the run reads as holding no finished copy loses nothing:
 
 ```text
@@ -1755,6 +1786,34 @@ every `install` removes the older managed copies of this repository's tools:
   its launchers keep working through the forward,
   and a link that names a version directory itself dangles until that tree's next `install`.
 
+### What the exposure folder holds
+
+The scope's exposure folder is the directory its `PATH` puts first,
+and it holds one link per declared bin
+(`.cache/toolchain-bin` in a checkout,
+`<data home>/monochromatic-dev/toolchain-global/exposure` for the machine-global scope).
+
+- A link is named after the bin its row declares,
+  and points at the program that row's route finds.
+  A repository-published tool's link points at this tree's launcher instead,
+  so a run through it can warn about the lock (see "The launcher").
+- Every link an install makes is replaced atomically,
+  so a run killed while the folder is rebuilt leaves no half-written name.
+- Every rebuild also removes what the lock no longer declares:
+  a symbolic link whose name no row of the lock declares is removed,
+  and the install's report names each one and where it pointed
+  (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
+  A regular file,
+  a directory,
+  or anything else at such a name belongs to a person and stays.
+  The name of the running `mpm-shadow`,
+  which the same rebuild has just linked when there is an install to link,
+  stays whether or not a row declares it (see "The farm also carries the running `mpm-shadow`").
+  The `rustup` link this repository's `rust` row left behind when it stopped declaring it
+  (issue 6626) is the case the rule comes from:
+  it dangled once the proxies went,
+  and `list` said the toolchain was in sync (issue 6634).
+
 ### The farm also carries the running `mpm-shadow`
 
 Every sentence `mpm-shadow` prints tells a person to run `mpm-shadow` or `mpm`,
@@ -1772,8 +1831,11 @@ makes those names reachable from a fresh shell:
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
-  Nothing removes it:
-  the program that would is the one that is gone.
+  No other program removes it:
+  the one that made it is the one that is gone.
+  A rebuild of the folder leaves it because that run makes the same link again,
+  and a scope that has the program installed nowhere removes it as a link no row declares
+  (see "What the exposure folder holds").
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
   A machine-global plan need not declare `mpm-shadow` at all,
@@ -2300,6 +2362,14 @@ A changed file refuses the publish and names the file.
 
 A fresh machine needs one prebuilt `mpm-shadow` archive whose SHA-256 is in the lock,
 or `cargo install monochromatic-mpm-shadow` after a verified `rustup` install.
+The archive route installs no `rustup`,
+and neither does `mpm-shadow` on any route:
+both need a `rustup` the machine already has,
+from `rustup-init` or from the distribution's package,
+because the `rust` row asks it for the toolchain,
+its components and its targets.
+The `cargo install` route is the other way a machine gets `mpm-shadow`,
+and the `cargo` it runs is the one a verified `rustup` install provides.
 `mpm-shadow verify-archive` checks a downloaded archive against the lock before it is run.
 Containers and CI can use the same `jq`,
 `curl`

@@ -33,16 +33,23 @@ import {
 
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
-  runGuestScript,
-  runHostCommand,
-  runRecipeStep,
-} from '../bin/guest-route-commands.ts';
+  host,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
 import {
-  type GuestRouteOptions,
-  guestRouteOptions,
-} from '../bin/guest-route-options.ts';
-import { FOLDER_MODE, } from '../bin/guest-route-permissions.ts';
-import { shellQuote, } from '../bin/guest-route-shell-quote.ts';
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
+  guestDriverOptions,
+  type GuestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
+import {
+  FOLDER_MODE,
+  HOST_COMMAND_TIMEOUT_MS,
+} from '../bin/mvm-guest-bounds.ts';
+import {
+  shellQuote,
+} from '../bin/mvm-guest-command-line.ts';
 
 /**
  Where the crate is unpacked and built inside the guest, which every account may traverse.
@@ -126,10 +133,9 @@ type GuestWorkEnding =
 
  @param chosen - the run's options
  */
-async function create(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function create(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'create',
   },);
 }
@@ -139,10 +145,9 @@ async function create(chosen: GuestRouteOptions,): Promise<void> {
 
  @param chosen - the run's options
  */
-async function prepare(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function prepare(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'prepare',
   },);
 }
@@ -152,10 +157,9 @@ async function prepare(chosen: GuestRouteOptions,): Promise<void> {
 
  @param chosen - the run's options
  */
-async function destroy(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function destroy(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'destroy',
   },);
 }
@@ -170,7 +174,7 @@ async function destroy(chosen: GuestRouteOptions,): Promise<void> {
 
  @throws Error naming the step that refused, or the marker the pulled log lacks
  */
-async function run(chosen: GuestRouteOptions,): Promise<void> {
+async function run(chosen: GuestDriverOptions,): Promise<void> {
   /**
    Where the snapshot of this worktree is unpacked before it is pushed.
    */
@@ -200,8 +204,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     chosen.logDir,
     'subject.tar.gz',
   );
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'tar',
     args: [
       '--create',
@@ -215,8 +219,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'mvm',
     args: [
       '--backend',
@@ -254,9 +258,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     'tail --lines=3 /root/slot-state-build.log',
   ]
     .join('\n',);
-  await runGuestScript({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  await guest({
+    chosen,
     script: prepareBuild,
     log: 'guest-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
@@ -283,9 +286,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     'cp /root/slot-state-arm.log /mnt/shared/slot-state-arm.log',
   ]
     .join('\n',);
-  await runGuestScript({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  await guest({
+    chosen,
     script: arm,
     log: 'guest-slot-state.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS * 2,
@@ -297,8 +299,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     chosen.logDir,
     'slot-state-arm.log',
   );
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'mvm',
     args: [
       '--backend',
@@ -338,7 +340,7 @@ async function guestWork({
   chosen,
   made,
 }: {
-  readonly chosen: GuestRouteOptions;
+  readonly chosen: GuestDriverOptions;
   readonly made: { created: boolean };
 },): Promise<GuestWorkEnding> {
   try {
@@ -382,7 +384,7 @@ async function destroyedAfter({
   chosen,
   holdsAFailure,
 }: {
-  readonly chosen: GuestRouteOptions;
+  readonly chosen: GuestDriverOptions;
   readonly holdsAFailure: boolean;
 },): Promise<void> {
   try {
@@ -402,7 +404,7 @@ async function destroyedAfter({
 
  @throws Error naming the first failure of the run
  */
-async function all(chosen: GuestRouteOptions,): Promise<void> {
+async function all(chosen: GuestDriverOptions,): Promise<void> {
   /**
    Whether this run made a guest of its own, which decides whether it may destroy one.
    */
@@ -430,7 +432,7 @@ async function all(chosen: GuestRouteOptions,): Promise<void> {
 /**
  The steps by name, and the whole run.
  */
-const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
+const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
   create,
   prepare,
   run,
@@ -441,8 +443,9 @@ const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
 /**
  The step and the values the command line gave this run.
  */
-const chosen = guestRouteOptions({
-  argv: process.argv,
+const chosen = guestDriverOptions({
+  argv: process.argv
+    .slice(2,),
   defaultName: 'git-policy-cli-slot-state',
   defaultLogDir: resolve(
     import.meta.dirname,

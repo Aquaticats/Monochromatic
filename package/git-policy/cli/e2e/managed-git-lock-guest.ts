@@ -20,32 +20,46 @@
  */
 import {
   mkdir,
-  rm,
 } from 'node:fs/promises';
 import {
-  join,
   resolve,
 } from 'node:path';
 
-import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
-  holdsWordLine,
-  missingMarkerRefusal,
-  missingMarkers,
+  guestDriverOptions,
+  type GuestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
+import {
+  FOLDER_MODE,
+  SWAP_GIBIBYTES,
+} from '../bin/mvm-guest-bounds.ts';
+import {
+  holdsLineStartingWith,
+  requireMarkers,
 } from '../bin/mvm-guest-arm-log.ts';
 import {
-  flagGiven,
-  flagValue,
   shellQuote,
 } from '../bin/mvm-guest-command-line.ts';
-import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
-import { runGuestScript, } from '../bin/mvm-guest-script.ts';
-import { runGuestRecipeStep, } from '../bin/mvm-guest-recipe-step.ts';
 import {
-  readStepLog,
-  runRequiredStepCommand,
-} from '../bin/mvm-guest-step-command.ts';
-import { runWholeGuestRun, } from '../bin/mvm-guest-whole-run.ts';
+  GuestDriverError,
+} from '../bin/mvm-guest-error.ts';
+import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
+import {
+  pushWorktreeSnapshot,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
+import {
+  recipeStepOf,
+} from '../bin/mvm-guest-recipe-step.ts';
+import {
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
+  pullGuestLog,
+} from '../bin/mvm-guest-detached-script.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
 
@@ -80,30 +94,14 @@ const OPENZFS_PATH = '/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/sbin:/usr/
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_LOCK_GUEST';
 
 /**
- Milliseconds one host command may take.
- */
-const HOST_COMMAND_TIMEOUT_MS = 120_000;
-
-/**
  Milliseconds the guest's build of the test target may take.
  */
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
 
 /**
- The swap file the guest adds, in gibibytes, so the rustc a one-job build runs has room for the linker beside it: the
- same 6 GiB the settling-command, removal-lineage, mount-git-worktree and zfs-step-22 drivers' guests add.
- */
-const SWAP_GIB = '6G';
-
-/**
  Milliseconds the arm may take.
  */
 const ARM_TIMEOUT_MS = 1_800_000;
-
-/**
- Seconds the guest's own `timeout` fires before `mvm`'s kill, so the guest reports a status rather than dying with it.
- */
-const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 
 /**
  The guest name a run takes when the command line names none.
@@ -151,16 +149,6 @@ const EXPECTED_MARKERS = [
 //region Arguments
 
 /**
- The step, the guest name, the log directory and whether `all` keeps the guest.
- */
-type Options = {
-  readonly step: string;
-  readonly name: string;
-  readonly logDirectory: string;
-  readonly keepGuest: boolean;
-};
-
-/**
  The log directory a run keeps its logs in, which this package's build folder holds unless the command line names one.
 
  @returns the directory this package's build folder holds for this driver's logs
@@ -179,49 +167,6 @@ function defaultLogDirectory(): string {
   );
 }
 
-/**
- The step and the values the command line gave it.
-
- @returns the step, the guest's name, the log directory and whether the guest is kept
-
- @example
- ```ts
- const chosen = options();
- ```
- */
-function options(): Options {
-  /**
-   The words this run was started with, after the program and this file's own path.
-   */
-  const argumentLine = process.argv
-    .slice(2,);
-  /**
-   The step this run performs, which the first word names.
-   */
-  const step = argumentLine[0] ?? '';
-  /**
-   The words after the step, which name the guest, its log directory and whether it is kept.
-   */
-  const argumentWords = argumentLine.slice(1,);
-  return {
-    step,
-    name: flagValue({
-      argumentWords,
-      flag: '--name',
-      fallback: DEFAULT_GUEST_NAME,
-    },),
-    logDirectory: flagValue({
-      argumentWords,
-      flag: '--log-dir',
-      fallback: defaultLogDirectory(),
-    },),
-    keepGuest: flagGiven({
-      argumentWords,
-      flag: '--keep-guest',
-    },),
-  };
-}
-
 //endregion Arguments
 
 //region Steps
@@ -232,7 +177,7 @@ function options(): Options {
  The pool is made without a mountpoint so the guest's own root keeps no mount from it; the arm's checkout dataset
  carries its own.
 
- @param chosen - the run's options
+ @param chosen - the run's guest and log folder
 
  @throws GuestDriverError when the guest could not run the script, or the pool refused it
 
@@ -241,7 +186,7 @@ function options(): Options {
  await pool({ chosen });
  ```
  */
-async function pool({ chosen, }: { readonly chosen: Options; },): Promise<void> {
+async function pool({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
   /**
    The script the guest runs: the pool's image, then the pool itself when it is not already there.
    */
@@ -252,20 +197,21 @@ async function pool({ chosen, }: { readonly chosen: Options; },): Promise<void> 
     `if ! zpool list -H -o name | grep --quiet '^${POOL}$'; then truncate --size 2G ${POOL_IMAGE}; zpool create -f -O mountpoint=none ${POOL} ${POOL_IMAGE}; fi`,
     `zpool list -H -o name ${POOL}`,
   ].join('\n',);
-  await runGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+  await guest({
+    chosen,
     script,
     log: 'guest-pool.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
   },);
 }
 
 /**
  Build the test target inside the guest and run the managed-lock arm there.
 
- @param chosen - the run's options
+ Only the target the arm starts is built: the lib test's compile is the guest's largest memory peak and nothing this
+ arm runs reads it.
+
+ @param chosen - the run's guest and log folder
 
  @throws GuestDriverError when a step refused, or when the pulled arm log lacks a line or holds a skip
 
@@ -274,66 +220,8 @@ async function pool({ chosen, }: { readonly chosen: Options; },): Promise<void> 
  await run({ chosen });
  ```
  */
-async function run({ chosen, }: { readonly chosen: Options; },): Promise<void> {
-  /**
-   The build context the wrapper's tree is copied into before it is packed.
-   */
-  const context = join(
-    chosen.logDirectory,
-    'snapshot',
-  );
-  await rm(
-    context,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-  await mkdir(
-    context,
-    {
-      recursive: true,
-      mode: 0o700,
-    },
-  );
-  await copyWrapperSnapshot({ context, },);
-  /**
-   The packed tree this run hands the guest.
-   */
-  const tarball = join(
-    chosen.logDirectory,
-    'subject.tar.gz',
-  );
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'tar',
-    argumentWords: [
-      '--create',
-      '--gzip',
-      '--file',
-      tarball,
-      '--exclude=target',
-      '--directory',
-      context,
-      '.',
-    ],
-    log: 'host-package.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
-  },);
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'mvm',
-    argumentWords: [
-      '--backend',
-      'libvirt',
-      'push',
-      chosen.name,
-      tarball,
-      '/root/subject.tar.gz',
-    ],
-    log: 'guest-push.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
-  },);
+async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+  await pushWorktreeSnapshot({ chosen, },);
   /**
    The script the guest runs to unpack and build the test target.
    */
@@ -347,7 +235,7 @@ async function run({ chosen, }: { readonly chosen: Options; },): Promise<void> {
     'export PATH=/root/.cargo/bin:$PATH',
     'df --human-readable / /mnt/shared',
     'free',
-    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
     // One job and a swap file, as the settling-command, removal-lineage and mount-git-worktree drivers do: cargo's
     // default of one job per vCPU ran four rustcs here, the guest's own `AnonPages` reached 7,701,208 kB of its
@@ -355,20 +243,20 @@ async function run({ chosen, }: { readonly chosen: Options; },): Promise<void> {
     // anonymous memory (measured 2026-11-27 in this driver's own guest, issue 6611). At one job the same reading of
     // the guest's `/proc/meminfo` peaks at 7,019,956 kB, one rustc of this crate's tests, with `MemAvailable` at
     // 625,704 kB at its lowest, so the bound rests on that figure and the swap file on the linker beside it.
-    'if cargo build --release --tests --locked --features test-only-switches --jobs 1 > /root/lock-build.log 2>&1; then status=0; else status=$?; fi',
+    // Only the target the arm runs is built (issue 6612): the lib test's compile was the peak and the arm never reads
+    // it.
+    'if cargo build --release --test native_binary --locked --features test-only-switches --jobs 1 > /root/lock-build.log 2>&1; then status=0; else status=$?; fi',
     // A build the guest's killer ends leaves no compile error to read, so the log is printed here and the status is
     // the script's own: `set -eu` alone would end the script at the killed build and keep the reason in the guest.
     'grep --extended-regexp "^(error|warning)" --after-context=6 /root/lock-build.log | tail --lines=80 || true',
     'tail --lines=5 /root/lock-build.log',
     'exit $status',
   ].join('\n',);
-  await runGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+  await guest({
+    chosen,
     script: build,
     log: 'guest-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
   },);
   await pool({ chosen, },);
   /**
@@ -389,53 +277,32 @@ async function run({ chosen, }: { readonly chosen: Options; },): Promise<void> {
     'test "$status" = 0',
     // A returning arm is not a passing arm, which every guest arm of this package holds.
     `if grep --quiet '^${SKIP_WORD}' /root/${ARM_LOG}; then echo 'the lock arm returned without running'; exit 1; fi`,
-    ...EXPECTED_MARKERS.map(function markerLine(marker) {
-      return `grep --quiet --fixed-strings ${shellQuote({ script: marker, },)} /root/${ARM_LOG}`;
+    ...EXPECTED_MARKERS.map(function markerLine(marker: string,): string {
+      return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/${ARM_LOG}`;
     },),
     `cp /root/${ARM_LOG} /mnt/shared/${ARM_LOG}`,
   ].join('\n',);
-  await runGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+  await guest({
+    chosen,
     script: arm,
     log: 'guest-lock-arm.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
-  },);
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'mvm',
-    argumentWords: [
-      '--backend',
-      'libvirt',
-      'pull',
-      chosen.name,
-      `/mnt/shared/${ARM_LOG}`,
-      join(
-        chosen.logDirectory,
-        ARM_LOG,
-      ),
-    ],
-    log: 'host-pull-lock-arm.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   /**
    The arm's own output, as the host pulled it back.
    */
-  const pulled = await readStepLog({
-    logDirectory: chosen.logDirectory,
-    log: ARM_LOG,
+  const pulled = await pullGuestLog({
+    chosen,
+    file: ARM_LOG,
+    log: 'host-pull-lock-arm.log',
   },);
-  /**
-   The first claim the pulled log lacks a line for, which the run refuses on.
-   */
-  const [firstMissing] = missingMarkers({
+  requireMarkers({
     text: pulled,
     markers: EXPECTED_MARKERS,
+    subject: 'the pulled arm log',
+    because: 'the guest ran the arm without performing it',
   },);
-  if (firstMissing !== undefined)
-    throw missingMarkerRefusal({ marker: firstMissing, },);
-  if (holdsWordLine({
+  if (holdsLineStartingWith({
     text: pulled,
     word: SKIP_WORD,
   },)) {
@@ -457,19 +324,40 @@ async function run({ chosen, }: { readonly chosen: Options; },): Promise<void> {
  await destroy({ chosen });
  ```
  */
-async function destroy({ chosen, }: { readonly chosen: Options; },): Promise<void> {
-  if (chosen.keepGuest) {
+async function destroy({
+  chosen,
+  keepGuest,
+}: {
+  readonly chosen: GuestFacts;
+  readonly keepGuest: boolean;
+},): Promise<void> {
+  if (keepGuest) {
     console.log(`git-policy lock guest: --keep-guest kept '${chosen.name}' to inspect and destroy`,);
     return;
   }
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+  await recipe({
+    chosen,
     step: 'destroy',
   },);
 }
 
 //endregion Steps
+
+/**
+ Build the test target in the guest and run the managed-lock arm there.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError when a step refused, or when the pulled arm log lacks a line
+
+ @example
+ ```ts
+ await runTheArm({ chosen });
+ ```
+ */
+async function runTheArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await run({ chosen, },);
+}
 
 //region The whole run
 
@@ -485,22 +373,20 @@ async function destroy({ chosen, }: { readonly chosen: Options; },): Promise<voi
  await all({ chosen });
  ```
  */
-async function all({ chosen, }: { readonly chosen: Options; },): Promise<void> {
+async function all({ chosen, }: { readonly chosen: GuestDriverOptions; },): Promise<void> {
   await runWholeGuestRun({
     label: 'git-policy lock guest',
     chosen,
+    keepGuest: chosen.keepGuest,
     steps: {
-      create: async function createTheGuest() {
-        await recipeStepOf({ step: 'create', },)(chosen,);
-      },
-      prepare: async function prepareTheGuest() {
-        await recipeStepOf({ step: 'prepare', },)(chosen,);
-      },
-      work: async function runTheArm() {
-        await run({ chosen, },);
-      },
-      destroy: async function destroyTheGuest() {
-        await destroy({ chosen, },);
+      create: recipeStepOf({ step: 'create', },),
+      prepare: recipeStepOf({ step: 'prepare', },),
+      work: runTheArm,
+      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await destroy({
+          chosen: facts,
+          keepGuest: chosen.keepGuest,
+        },);
       },
     },
   },);
@@ -511,69 +397,82 @@ async function all({ chosen, }: { readonly chosen: Options; },): Promise<void> {
 //region The command line
 
 /**
- One step of the ZFS binding's guest recipe, as a step of this driver's own command line.
-
- @param step - the recipe's step
-
- @returns a step that hands the recipe the guest's name and log directory
-
- @example
- ```ts
- const steps = { create: recipeStepOf({ step: 'create' }) };
- ```
- */
-function recipeStepOf({ step, }: { readonly step: string; },): (chosen: Options) => Promise<void> {
-  return async function recipeStep(chosen) {
-    await runGuestRecipeStep({
-      name: chosen.name,
-      logDirectory: chosen.logDirectory,
-      step,
-    },);
-  };
-}
-
-/**
  The steps by name, and the whole run.
  */
-const steps: Record<string, (chosen: Options) => Promise<void>> = {
-  create: recipeStepOf({ step: 'create', },),
-  prepare: recipeStepOf({ step: 'prepare', },),
-  pool: async function poolStep(chosen) {
-    await pool({ chosen, },);
-  },
-  run: async function runStep(chosen) {
-    await run({ chosen, },);
-  },
-  destroy: async function destroyStep(chosen) {
-    await destroy({ chosen, },);
-  },
-  all: async function allStep(chosen) {
-    await all({ chosen, },);
-  },
-};
+const steps: ReadonlyMap<string, (chosen: GuestDriverOptions,) => Promise<void>> = new Map([
+  [
+    'create',
+    async function createStep(chosen: GuestDriverOptions,) {
+      await recipe({
+        chosen,
+        step: 'create',
+      },);
+    },
+  ],
+  [
+    'prepare',
+    async function prepareStep(chosen: GuestDriverOptions,) {
+      await recipe({
+        chosen,
+        step: 'prepare',
+      },);
+    },
+  ],
+  [
+    'pool',
+    async function poolStep(chosen: GuestDriverOptions,) {
+      await pool({ chosen, },);
+    },
+  ],
+  [
+    'run',
+    async function runStep(chosen: GuestDriverOptions,) {
+      await run({ chosen, },);
+    },
+  ],
+  [
+    'destroy',
+    async function destroyStep(chosen: GuestDriverOptions,) {
+      await destroy({
+        chosen,
+        keepGuest: chosen.keepGuest,
+      },);
+    },
+  ],
+  [
+    'all',
+    async function allStep(chosen: GuestDriverOptions,) {
+      await all({ chosen, },);
+    },
+  ],
+],);
 
 /**
  The options this run was given.
  */
-const chosen = options();
+const chosen = guestDriverOptions({
+  argv: process.argv
+    .slice(2,),
+  defaultName: DEFAULT_GUEST_NAME,
+  defaultLogDir: defaultLogDirectory(),
+},);
 
 await mkdir(
-  chosen.logDirectory,
+  chosen.logDir,
   {
     recursive: true,
-    mode: 0o700,
+    mode: FOLDER_MODE,
   },
 );
 
 /**
- The step this run performs, or nothing when the command line named one this driver does not know.
+ The step this run performs.
  */
-const step = steps[chosen.step];
+const step = steps.get(chosen.step,);
 if (step === undefined) {
-  throw new GuestDriverError(`unknown step '${chosen.step}'; use ${Object.keys(steps,)
-    .join(', ',)}`,);
+  throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }
 await step(chosen,);
-console.log(`git-policy lock guest: step '${chosen.step}' finished; logs in ${chosen.logDirectory}`,);
+console.log(`git-policy lock guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`,);
 
 //endregion The command line

@@ -280,7 +280,20 @@ pub fn check_folder_links(
     used.extend(live_use_entries(
         &grouped, &loops, &own_loops, list, &groups, base,
     ));
-    kept.extend(dead_entry_findings(list, &used, &folders, base));
+    // What: every module file of the package, so a dead line can tell a file name its folder holds from one it does not.
+    // Why: a line that spells a real module file's own name is dead for another reason than a mistyped name.
+    let module_files: BTreeSet<PathBuf> = tree
+        .modules
+        .iter()
+        .map(|module| return module.file.clone())
+        .collect::<BTreeSet<PathBuf>>();
+    kept.extend(dead_entry_findings(
+        list,
+        &used,
+        &folders,
+        &module_files,
+        base,
+    ));
     return kept;
 }
 

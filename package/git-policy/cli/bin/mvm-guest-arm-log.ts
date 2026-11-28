@@ -1,9 +1,13 @@
 /**
- What a guest driver reads back out of an arm's pulled log, kept where a unit test can hold it.
+ What a guest driver reads back out of an arm's pulled log: whether a line begins with a word, which of the lines an arm
+ prints a log lacks, and the refusal a log that lacks one earns.
 
  An arm that returns is not an arm that ran, which every guest driver of this package holds: the test binary prints its
  `SKIP` line and exits zero when its variables did not reach it, so a green exit status alone would report a suite that
- measured nothing. A driver therefore judges the pulled log itself, and the two readings it makes live here.
+ measured nothing. A driver therefore judges the pulled log itself, and the readings it makes live here. Three sets of
+ guest helpers each held a copy (`bin/guest-route-log-lines.ts`, `bin/mvm-guest-arm-log.ts` and
+ `e2e/guest-host/guest-host-rules-fixture.ts`), and the surviving scan is one pass over the text with no regular
+ expression, because a pulled log is the guest's own output and has no bound.
  */
 
 import { GuestDriverError, } from './mvm-guest-error.ts';
@@ -44,30 +48,54 @@ export function missingMarkers({
 }
 
 /**
- The refusal for an arm log that lacks one of the lines it must hold.
+ Refuse a pulled log that lacks any of the lines an arm performs.
 
- The arm prints one line per claim it proved, so a log that lacks one ran without performing it: the driver refuses
- before it reports anything green, and names the claim the arm never made.
+ The refusal names the log the run kept, the line the arm never printed, and why a missing line is a failure, so a run
+ that only returned is a failed run rather than a green suite.
 
- @param marker - the line the log lacks
+ @param text - the log's whole text
 
- @returns the refusal to throw
+ @param markers - the lines the arm prints, one per claim it makes
+
+ @param subject - what the log is called in the refusal, such as `the pulled adoption-arm log`
+
+ @param because - why a missing line is a failure, after the semicolon
+
+ @throws GuestDriverError naming the first marker the log lacks
 
  @example
  ```ts
- throw missingMarkerRefusal({ marker: 'LOCK done' });
+ requireMarkers({ text: pulled, markers: ['SWEEP done',], subject: 'the pulled sweep-arm log', because: 'the guest ran the arm without performing it' });
  ```
  */
-export function missingMarkerRefusal({ marker, }: { readonly marker: string; },): GuestDriverError {
-  return new GuestDriverError(`the pulled arm log lacks ${marker}; the guest ran the arm without performing it`,);
+export function requireMarkers({
+  text,
+  markers,
+  subject,
+  because,
+}: {
+  readonly text: string;
+  readonly markers: readonly string[];
+  readonly subject: string;
+  readonly because: string;
+},): void {
+  /**
+   The markers the log lacks, of which the first one is the refusal.
+   */
+  const [missing,] = missingMarkers({
+    text,
+    markers,
+  },);
+  if (missing !== undefined)
+    throw new GuestDriverError(`${subject} lacks ${missing}; ${because}`,);
 }
 
 /**
  Whether a log holds a line that begins with one word.
 
  The word is the arm's own: a test binary that skipped prints `SKIP` or `SKIPPED` at the start of a line and exits zero,
- so a driver reads the start of every line rather than any occurrence anywhere in the log. One pass over the text,
- with no regular expression, because a pulled log is the guest's own output and has no bound.
+ so a driver reads the start of every line rather than any occurrence anywhere in the log. One pass over the text, with
+ no regular expression, because a pulled log is the guest's own output and has no bound.
 
  @param text - the whole log the guest wrote
 
@@ -77,10 +105,10 @@ export function missingMarkerRefusal({ marker, }: { readonly marker: string; },)
 
  @example
  ```ts
- holdsWordLine({ text: 'building\nSKIP the arm did not run\n', word: 'SKIP' }); // true
+ holdsLineStartingWith({ text: 'building\nSKIP the arm did not run\n', word: 'SKIP' }); // true
  ```
  */
-export function holdsWordLine({
+export function holdsLineStartingWith({
   text,
   word,
 }: {

@@ -14,8 +14,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   armTimeoutMilliseconds,
   configuration,
@@ -47,7 +53,7 @@ export const greenLog = 'guest-green.log';
 export async function green({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The whole green script: five interleaved rounds, then every claim the record
@@ -169,6 +175,6 @@ export async function green({
     chosen,
     script,
     log: greenLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

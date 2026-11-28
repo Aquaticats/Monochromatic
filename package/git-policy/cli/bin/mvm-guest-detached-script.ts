@@ -1,10 +1,20 @@
 /**
- A guest script a driver starts detached and reads back later, so a build that outlives its command still reports.
+ A guest script a driver starts detached and reads back later, so a build that outlives its command still reports, and
+ the log a pull or a copy brings back as the run's evidence.
 
  The guest's crate build ran for ten minutes and the two compiling jobs of the first runs exhausted the guest's memory,
  where the run lost the command's process and the reason with it. A script started this way runs under `setsid nohup`,
- writes its log where the host can read it, and ends by appending its own status line to that log. The host asks the log
- whether the script has ended, and reads the status out of the whole log once it has.
+ writes its log where the host can read it, and ends by appending its own status line to that log. The host asks whether
+ the script has ended, pulls the log, and reads its status out of the whole log.
+
+ Where the host learns that the script has ended, and how the log reaches it, are the caller's to say:
+ {@link lastLineFromTheGuest} asks the guest agent for the log's last line, `e2e/step-22-arms/host-shared-log.ts` reads the
+ host's own side of the shared folder because a busy agent then hides nothing, and {@link pullGuestLog} is `mvm`'s own
+ copy. Both were answers of the three sets of guest helpers, and the polling, the pull and the judgement of the status
+ are the one answer this module holds.
+
+ The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: one driver's
+ scripts answer it in the step file and the other two in the launcher.
  */
 import { writeFile, } from 'node:fs/promises';
 import {
@@ -14,32 +24,26 @@ import {
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
+import {
+  doneStatusOf,
+  detachedScriptFiles,
+  endedLineHolds,
+  type GuestNameCheck,
+} from './mvm-guest-command-line.ts';
+import {
+  HOST_COMMAND_TIMEOUT_MS,
+  LOG_FILE_MODE,
+  POLL_INTERVAL_MS,
+} from './mvm-guest-bounds.ts';
+import { GuestDriverError, } from './mvm-guest-error.ts';
+import type { GuestFacts, } from './mvm-guest-guest-facts.ts';
 import { runGateCommand, } from './native-gate-run.ts';
 import {
-  detachedLaunchText,
-  detachedStepText,
-  endedLineHolds,
-  endedStatusText,
-  secondsOf,
-} from './mvm-guest-command-line.ts';
-import { GuestDriverError, } from './mvm-guest-error.ts';
-import {
-  readStepLog,
+  readLog,
   runQuietStepCommand,
   runRequiredStepCommand,
   runStepCommand,
 } from './mvm-guest-step-command.ts';
-
-/**
- Milliseconds one `mvm` command of a detached script's start or end may take: a push, the launch, one look at the log,
- and the pull.
- */
-const GUEST_COMMAND_TIMEOUT_MS = 120_000;
-
-/**
- Permission bits of the two files a detached script is started from: the account that runs the driver reads them.
- */
-const LAUNCHER_FILE_MODE = 0o600;
 
 /**
  The folder inside the guest the host's pushes land in, which the guest mounts as `/mnt/shared`.
@@ -56,9 +60,7 @@ const GUEST_SHARED_FOLDER = '/mnt/shared';
 
  `mvm push` lands each file under its destination's own name, which is where the launcher looks for the step it starts.
 
- @param name - the guest's name
-
- @param logDirectory - the directory the push's own log lives in
+ @param chosen - the run's guest and log folder
 
  @param from - the file on this host
 
@@ -68,47 +70,38 @@ const GUEST_SHARED_FOLDER = '/mnt/shared';
 
  @example
  ```ts
- await pushIntoSharedFolder({
-   name: 'guest-a',
-   logDirectory: '/logs',
-   from: '/logs/build.log.step.sh',
-   log: 'guest-push-build.log.log',
- });
+ await pushIntoSharedFolder({ chosen, from: '/logs/build.log.step.sh', log: 'guest-push-build.log' });
  ```
  */
 async function pushIntoSharedFolder({
-  name,
-  logDirectory,
+  chosen,
   from,
   log,
 }: {
-  readonly name: string;
-  readonly logDirectory: string;
+  readonly chosen: GuestFacts;
   readonly from: string;
   readonly log: string;
 },): Promise<void> {
   await runRequiredStepCommand({
-    logDirectory,
+    logDirectory: chosen.logDir,
     program: 'mvm',
     argumentWords: [
       '--backend',
       'libvirt',
       'push',
-      name,
+      chosen.name,
       from,
       `${SHARED_FOLDER}/${basename(from,)}`,
     ],
     log,
-    timeoutMilliseconds: GUEST_COMMAND_TIMEOUT_MS,
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
 }
 
 /**
  Start one guest script detached from the command that starts it, with its log left in the guest's shared folder.
 
- @param logDirectory - the directory the launcher files and the push logs live in
-
- @param name - the guest's name, which its own hostname must answer
+ @param chosen - the run's guest and log folder
 
  @param script - the shell script to run inside the guest
 
@@ -116,80 +109,77 @@ async function pushIntoSharedFolder({
 
  @param timeoutMilliseconds - milliseconds the script may take inside the guest
 
- @param guestTimeoutMarginSeconds - seconds the guest's own `timeout` fires before the host's bound
+ @param nameCheck - which of the two files carries the guest's name check, if either
 
  @throws GuestDriverError when the guest could not be asked to start the script
 
  @example
  ```ts
  await startDetachedGuestScript({
-   logDirectory: '/logs',
-   name: 'guest-a',
+   chosen,
    script: 'cargo build --release --tests',
    log: 'build.log',
    timeoutMilliseconds: 2_400_000,
-   guestTimeoutMarginSeconds: 60,
+   nameCheck: 'none',
  });
  ```
  */
 export async function startDetachedGuestScript({
-  logDirectory,
-  name,
+  chosen,
   script,
   log,
   timeoutMilliseconds,
-  guestTimeoutMarginSeconds,
+  nameCheck,
 }: {
-  readonly logDirectory: string;
-  readonly name: string;
+  readonly chosen: GuestFacts;
   readonly script: string;
   readonly log: string;
   readonly timeoutMilliseconds: number;
-  readonly guestTimeoutMarginSeconds: number;
+  readonly nameCheck: GuestNameCheck;
 },): Promise<void> {
   /**
-   The guest-side seconds the script's own `timeout` is given.
+   The step and launcher files this script runs from, one of which carries the guest's name check.
    */
-  const guestTimeoutSeconds = secondsOf({ milliseconds: timeoutMilliseconds, },) - guestTimeoutMarginSeconds;
+  const files = detachedScriptFiles({
+    name: chosen.name,
+    script,
+    log,
+    timeoutMilliseconds,
+    nameCheck,
+  },);
   /**
    The file holding the script, its bound and the status line it ends with.
    */
   const stepPath = join(
-    logDirectory,
+    chosen.logDir,
     `${log}.step.sh`,
   );
   await writeFile(
     stepPath,
-    detachedStepText({
-      guestTimeoutSeconds,
-      script,
-      log,
-    },),
-    { mode: LAUNCHER_FILE_MODE, },
+    files.step,
+    { mode: LOG_FILE_MODE, },
   );
   /**
    The file that starts the step file in a session of its own and returns at once.
    */
   const launchPath = join(
-    logDirectory,
+    chosen.logDir,
     `${log}.launch.sh`,
   );
   await writeFile(
     launchPath,
-    detachedLaunchText({ log, },),
-    { mode: LAUNCHER_FILE_MODE, },
+    files.launch,
+    { mode: LOG_FILE_MODE, },
   );
-  // The two pushes go one after the other: both write the same push log, so a second one started beside the first
-  // would truncate the file the first was still writing.
+  // The two pushes go one after the other: both write the same push log, so a second one started beside the first would
+  // truncate the file the first was still writing.
   await pushIntoSharedFolder({
-    logDirectory,
-    name,
+    chosen,
     from: stepPath,
     log: `guest-push-${log}.log`,
   },);
   await pushIntoSharedFolder({
-    logDirectory,
-    name,
+    chosen,
     from: launchPath,
     log: `guest-push-${log}.log`,
   },);
@@ -201,38 +191,38 @@ export async function startDetachedGuestScript({
       '--backend',
       'libvirt',
       'exec',
-      name,
+      chosen.name,
       '--',
       'sh',
       `${GUEST_SHARED_FOLDER}/${log}.launch.sh`,
     ],
-    timeoutMilliseconds: GUEST_COMMAND_TIMEOUT_MS,
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
 }
 
 /**
- The last line of one log inside the guest, as the guest printed it.
+ The last line of one log inside the guest, as the guest agent prints it.
 
  A guest that could not be asked answers empty text, which is not a status line: the wait keeps asking until its own
  deadline passes, as the drivers always did.
 
- @param name - the guest's name
+ @param chosen - the run's guest and log folder
 
- @param path - the log's path inside the guest
+ @param file - the log's name inside the guest's shared folder
 
  @returns the log's last line, or empty text when the guest answered nothing
 
  @example
  ```ts
- const line = await lastGuestLogLine({ name: 'guest-a', path: '/mnt/shared/build.log' });
+ const line = await lastLineFromTheGuest({ chosen, file: 'build.log' });
  ```
  */
-async function lastGuestLogLine({
-  name,
-  path,
+export async function lastLineFromTheGuest({
+  chosen,
+  file,
 }: {
-  readonly name: string;
-  readonly path: string;
+  readonly chosen: GuestFacts;
+  readonly file: string;
 },): Promise<string> {
   /**
    What the guest answered, which is the log's last line once the script has written one.
@@ -243,70 +233,163 @@ async function lastGuestLogLine({
       '--backend',
       'libvirt',
       'exec',
-      name,
+      chosen.name,
       '--',
       'tail',
       '--lines=1',
-      path,
+      `${GUEST_SHARED_FOLDER}/${file}`,
     ],
-    deadlineMilliseconds: GUEST_COMMAND_TIMEOUT_MS,
+    deadlineMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   return answer.stdout;
 }
 
 /**
- Whether the guest's log already ends with the line a finished script writes.
+ Pull one guest log into the run's own log folder with `mvm`'s own copy, and read it back.
 
- @param name - the guest's name
+ @param chosen - the run's guest and log folder
 
- @param path - the log's path inside the guest
+ @param file - the log's name inside the guest's shared folder
+
+ @param log - the name of the pull's own host log
+
+ @returns the log's whole text, as `mvm` copied it out
+
+ @throws GuestDriverError when the pull exited nonzero
+
+ @example
+ ```ts
+ const pulled = await pullGuestLog({ chosen, file: 'adoption-arm.log', log: 'host-pull-adoption.log' });
+ ```
+ */
+export async function pullGuestLog({
+  chosen,
+  file,
+  log,
+}: {
+  readonly chosen: GuestFacts;
+  readonly file: string;
+  readonly log: string;
+},): Promise<string> {
+  /**
+   The host's copy of the guest's log, which the pull writes.
+   */
+  const pulledPath = join(
+    chosen.logDir,
+    file,
+  );
+  /**
+   The status the pull exited with.
+   */
+  const status = await runStepCommand({
+    logDirectory: chosen.logDir,
+    program: 'mvm',
+    argumentWords: [
+      '--backend',
+      'libvirt',
+      'pull',
+      chosen.name,
+      `${GUEST_SHARED_FOLDER}/${file}`,
+      pulledPath,
+    ],
+    log,
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+  },);
+  if (status !== 0) {
+    throw new GuestDriverError(
+      `mvm --backend libvirt pull ${chosen.name} ${GUEST_SHARED_FOLDER}/${file} ${pulledPath} exited ${String(status,)}; see ${log}`,
+    );
+  }
+  return await readLog({ path: pulledPath, },);
+}
+
+/**
+ How one driver learns that a detached script has ended.
+
+ @param chosen - the run's guest and log folder, which a reader asking the guest agent needs
+
+ @param file - the log's name inside the guest's shared folder
+
+ @returns the log's last line, which is the status line once the script has ended
+
+ @example
+ ```ts
+ const line = await lastLine({ chosen, file: 'build.log' });
+ ```
+ */
+export type LastLine = (argumentsRead: {
+  readonly chosen: GuestFacts;
+  readonly file: string;
+},) => Promise<string>;
+
+/**
+ How one driver brings a detached script's log onto this host.
+
+ @param chosen - the run's guest and log folder
+
+ @param file - the log's name inside the guest's shared folder
+
+ @param log - the name of the pull's own host log
+
+ @returns the log's whole text, as the host now holds it
+
+ @example
+ ```ts
+ const pulled = await pull({ chosen, file: 'build.log', log: 'host-pull-build.log' });
+ ```
+ */
+export type Pull = (argumentsRead: {
+  readonly chosen: GuestFacts;
+  readonly file: string;
+  readonly log: string;
+},) => Promise<string>;
+
+/**
+ Whether the log the host can read already ends with the line a finished script writes.
+
+ @param lastLine - how this driver reads the log's last line
+
+ @param file - the log's name inside the guest's shared folder
 
  @param deadline - the wall-clock time, in milliseconds, past which this stops asking
-
- @param pollIntervalMilliseconds - how long to wait between two of those questions
 
  @returns true when the log's last line is a status line, false when the deadline passed first
 
  @example
  ```ts
- const ended = await endedWithin({
-   name: 'guest-a',
-   path: '/mnt/shared/build.log',
-   deadline,
-   pollIntervalMilliseconds: 15_000,
- });
+ const ended = await endedWithin({ lastLine, file: 'build.log', deadline });
  ```
  */
 async function endedWithin({
-  name,
-  path,
+  chosen,
+  lastLine,
+  file,
   deadline,
-  pollIntervalMilliseconds,
 }: {
-  readonly name: string;
-  readonly path: string;
+  readonly chosen: GuestFacts;
+  readonly lastLine: LastLine;
+  readonly file: string;
   readonly deadline: number;
-  readonly pollIntervalMilliseconds: number;
 },): Promise<boolean> {
   if (Date.now() >= deadline)
     return false;
   /**
-   The log's last line, as the guest answered this look.
+   The log's last line, as the host answered this look.
    */
-  const line = await lastGuestLogLine({
-    name,
-    path,
+  const line = await lastLine({
+    chosen,
+    file,
   },);
   if (endedLineHolds({ text: line, },))
     return true;
-  await wait(pollIntervalMilliseconds,);
-  // Each look waits for the one before it, so the next look is asked for here rather than by a loop around both: a
-  // loop holding an `await` would read as work that could have run beside itself, and this one cannot.
+  await wait(POLL_INTERVAL_MS,);
+  // Each look waits for the one before it, so the next look is asked for here rather than by a loop around both: a loop
+  // holding an `await` would read as work that could have run beside itself, and this one cannot.
   return await endedWithin({
-    name,
-    path,
+    chosen,
+    lastLine,
+    file,
     deadline,
-    pollIntervalMilliseconds,
   },);
 }
 
@@ -316,15 +399,15 @@ async function endedWithin({
  The log is pulled and read before either judgement is made, so the failing run's own output is on this host whatever
  the wait found.
 
- @param logDirectory - the directory the script's log is pulled into
-
- @param name - the guest's name
+ @param chosen - the run's guest and log folder
 
  @param log - the log's name inside the guest's shared folder
 
- @param timeoutMilliseconds - milliseconds the host waits before giving up on the script
+ @param finishTimeoutMilliseconds - milliseconds the host waits before giving up on the script
 
- @param pollIntervalMilliseconds - how long to wait between two looks at the log
+ @param lastLine - how this driver learns the script has ended, which asks the guest unless a driver says otherwise
+
+ @param pull - how this driver brings the log onto the host, which is `mvm`'s own copy unless a driver says otherwise
 
  @returns what the script wrote, which is the whole of its pulled log
 
@@ -332,90 +415,57 @@ async function endedWithin({
 
  @example
  ```ts
- const pulled = await awaitDetachedGuestScript({
-   logDirectory: '/logs',
-   name: 'guest-a',
-   log: 'build.log',
-   timeoutMilliseconds: 2_580_000,
-   pollIntervalMilliseconds: 15_000,
- });
+ const pulled = await awaitDetachedGuestScript({ chosen, log: 'build.log', finishTimeoutMilliseconds: 2_580_000 });
  ```
  */
 export async function awaitDetachedGuestScript({
-  logDirectory,
-  name,
+  chosen,
   log,
-  timeoutMilliseconds,
-  pollIntervalMilliseconds,
+  finishTimeoutMilliseconds,
+  lastLine,
+  pull,
 }: {
-  readonly logDirectory: string;
-  readonly name: string;
+  readonly chosen: GuestFacts;
   readonly log: string;
-  readonly timeoutMilliseconds: number;
-  readonly pollIntervalMilliseconds: number;
+  readonly finishTimeoutMilliseconds: number;
+  readonly lastLine?: LastLine;
+  readonly pull?: Pull;
 },): Promise<string> {
   /**
-   The log's path inside the guest, where the step file wrote it.
+   How this run learns the script has ended, which asks the guest agent unless the driver named its own reader.
    */
-  const path = `${GUEST_SHARED_FOLDER}/${log}`;
+  const readLastLine: LastLine = lastLine ?? lastLineFromTheGuest;
   /**
-   The pulled log's own name inside the log directory, which a refusal reports.
+   How this run brings the log onto the host, which is `mvm`'s own copy unless the driver named its own.
    */
-  const pulledName = log;
+  const readPull: Pull = pull ?? pullGuestLog;
   /**
    Whether the script had written its status line before the host stopped asking.
    */
   const finished = await endedWithin({
-    name,
-    path,
-    deadline: Date.now() + timeoutMilliseconds,
-    pollIntervalMilliseconds,
+    chosen,
+    lastLine: readLastLine,
+    file: log,
+    deadline: Date.now() + finishTimeoutMilliseconds,
   },);
-  /**
-   The status the pull exited with.
-   */
-  const status = await runStepCommand({
-    logDirectory,
-    program: 'mvm',
-    argumentWords: [
-      '--backend',
-      'libvirt',
-      'pull',
-      name,
-      path,
-      join(
-        logDirectory,
-        pulledName,
-      ),
-    ],
-    log: `host-pull-${log}`,
-    timeoutMilliseconds: GUEST_COMMAND_TIMEOUT_MS,
-  },);
-  if (status !== 0) {
-    throw new GuestDriverError(
-      `mvm --backend libvirt pull ${name} ${path} ${join(
-        logDirectory,
-        pulledName,
-      )} exited ${String(status,)}; see host-pull-${log}`,
-    );
-  }
   /**
    What the script wrote, which is the whole of its pulled log.
    */
-  const pulled = await readStepLog({
-    logDirectory,
-    log: pulledName,
+  const pulled = await readPull({
+    chosen,
+    file: log,
+    log: `host-pull-${log}`,
   },);
   if (!finished) {
-    throw new GuestDriverError(`${log}: the guest script did not finish inside ${String(timeoutMilliseconds,)} ms; see ${log}`,);
+    throw new GuestDriverError(`${log}: the guest script did not finish inside ${String(finishTimeoutMilliseconds,)} ms; see ${log}`,);
   }
   /**
-   The status the script wrote before it ended, empty when the log holds no status line at all.
+   The status the script wrote before it ended, absent when the log holds no status line at all.
    */
-  const endedStatus = endedStatusText({ text: pulled, },);
-  if (endedStatus !== '0') {
+  const ended = doneStatusOf({ text: pulled, },);
+  if (!(ended.found && (ended.status === '0'))) {
     throw new GuestDriverError(
-      `${log}: the guest script ended ${endedStatus === '' ? 'without a status' : endedStatus}; see ${log}`,
+      `${log}: the guest script ended ${ended.found ? ended.status : 'without a status'}; see ${log}`,
     );
   }
   return pulled;

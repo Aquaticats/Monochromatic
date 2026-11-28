@@ -8,7 +8,14 @@
 
  A driver names its logs and its bounds. A command whose status is the step's own answer is started through
  {@link runStepCommand}, and one whose failure is a refusal with nothing to judge is started through
- {@link runRequiredStepCommand}.
+ {@link runRequiredStepCommand}. A command that prints nothing a run reads is started through
+ {@link runQuietStepCommand}, one whose output belongs on the driver's own terminal through
+ {@link runVisibleStepCommand}, and one whose status is a question the driver asks rather than a refusal it reports
+ through {@link statusOf}.
+
+ The command runs in a process group of its own, and its bound stops that group and everything it started, which is the
+ answer of the three sets of guest helpers that survived: `mvm` starts a guest's command on the far side of a connection,
+ so a bound that reached only the client would leave the guest working with nobody reading it.
  */
 import { spawn, } from 'node:child_process';
 import {
@@ -23,15 +30,12 @@ import {
   type CommandDeadline,
   stopAtDeadline,
 } from './command-deadline.ts';
+import { LOG_FILE_MODE, } from './mvm-guest-bounds.ts';
 import {
   GuestDriverError,
   refusalOf,
 } from './mvm-guest-error.ts';
-
-/**
- Permission bits of every log a step writes: the account that runs the driver reads it, and no other account does.
- */
-const LOG_FILE_MODE = 0o600;
+import { runGateCommand, } from './native-gate-run.ts';
 
 /**
  The status a command that ended without exiting reports: minus one, the value the gate commands use for the same case.
@@ -485,31 +489,102 @@ export async function runVisibleStepCommand({
 }
 
 /**
- Read one step's whole log back.
+ Read one log back, by its own path.
 
- @param logDirectory - the directory the step's logs live in
+ A step keeps one log per command in the run's log folder, and a driver reads the log it judges by the name it gave it;
+ the path is the driver's own `join` because a run also reads a log a pull or a copy put there.
 
- @param log - the log's name inside the log directory
+ @param path - the log's path on this host
 
  @returns the log's whole text
 
  @example
  ```ts
- const printed = await readStepLog({ logDirectory: '/logs', log: 'lock-arm.log' });
+ const printed = await readLog({ path: '/logs/lock-arm.log' });
  ```
  */
-export async function readStepLog({
-  logDirectory,
-  log,
-}: {
-  readonly logDirectory: string;
-  readonly log: string;
-},): Promise<string> {
+export async function readLog({ path, }: { readonly path: string; },): Promise<string> {
   return await readFile(
-    join(
-      logDirectory,
-      log,
-    ),
+    path,
     'utf8',
   );
+}
+
+/**
+ The status one command exited with, for a driver asking a question rather than reporting a refusal.
+
+ A command whose failure is the answer, such as a guest that has not come back from a reboot yet, is asked for its
+ status rather than refused: the caller is waiting for a yes, and every other answer is a no.
+
+ @param command - the program to run, found on `PATH`
+
+ @param args - its arguments, each passed whole
+
+ @param timeoutMilliseconds - how long it may run before it and everything it started are stopped
+
+ @returns the status it exited with, or minus one when a signal ended it or it never ran
+
+ @example
+ ```ts
+ await statusOf({ command: 'mvm', args: ['--backend', 'libvirt', 'exec', 'guest-one', '--', 'true'], timeoutMilliseconds: 10_000 });
+ ```
+ */
+export async function statusOf({
+  command,
+  args,
+  timeoutMilliseconds,
+}: {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly timeoutMilliseconds: number;
+},): Promise<number> {
+  /**
+   How the command ended, which a command that never ran answers with minus one.
+   */
+  const outcome = await runGateCommand({
+    program: command,
+    args,
+    deadlineMilliseconds: timeoutMilliseconds,
+  },);
+  return outcome.status;
+}
+
+/**
+ Everything one command on this host wrote to its standard output, and no log of it.
+
+ The doctor driver asks `mvm list` which guest names are held before it creates one. That question is answered by
+ whatever the listing printed, and by nothing else: a listing that could not run answers empty text, as the capture the
+ drivers used to make did, because it never read the status either.
+
+ @param command - the program to run, found on `PATH`
+
+ @param args - its arguments, each passed whole
+
+ @param timeoutMilliseconds - how long it may run before it and everything it started are stopped
+
+ @returns everything the command wrote to its standard output, empty when it could not run
+
+ @example
+ ```ts
+ const listed = await captureHostCommand({ command: 'mvm', args: ['list'], timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS });
+ ```
+ */
+export async function captureHostCommand({
+  command,
+  args,
+  timeoutMilliseconds,
+}: {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly timeoutMilliseconds: number;
+},): Promise<string> {
+  /**
+   How the command ended, whose standard output is the answer.
+   */
+  const outcome = await runGateCommand({
+    program: command,
+    args,
+    deadlineMilliseconds: timeoutMilliseconds,
+  },);
+  return outcome.stdout;
 }

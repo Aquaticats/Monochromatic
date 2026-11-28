@@ -6,7 +6,12 @@
  wrote. Every pool, root and variable they name lives here beside them, because a name used by one script and not the
  other is still one name.
  */
-import { shellQuote, } from '../bin/mvm-guest-command-line.ts';
+import {
+  SWAP_GIBIBYTES,
+} from '../bin/mvm-guest-bounds.ts';
+import {
+  shellQuote,
+} from '../bin/mvm-guest-command-line.ts';
 
 /**
  Where the wrapper's tree is unpacked and built inside the guest, which every account may traverse.
@@ -22,11 +27,6 @@ export const ARM_LOG = 'removal-lineage-arm.log';
  The word a test binary prints at the start of a line when it returned without running its arm.
  */
 export const SKIP_WORD = 'SKIPPED';
-
-/**
- The swap file the guest adds, in gibibytes, so one rustc at five gigabytes does not exhaust its memory.
- */
-const SWAP_GIB = '6G';
 
 /**
  The environment the arm reads, so it never opens the host's device.
@@ -255,7 +255,7 @@ export function buildScript(): string {
     // One rustc for a crate this size wants more than five gigabytes, and the guest has eight: the first runs compiled
     // two at a time, both together exhausted the guest's memory, and the kernel killed one of them, which looked like
     // a compile failure. One job and a swap file are what make the build fit.
-    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
     'cargo build --release --tests --locked --features test-only-switches --jobs 1',
   ].join('\n',);
@@ -297,7 +297,7 @@ export function armScript({ name, }: { readonly name: string; },): string {
     // A returning arm is not a passing arm, which the binding's own live recipe also holds.
     `if grep --quiet '^${SKIP_WORD}' /root/${ARM_LOG}; then echo 'the arm returned without running'; exit 1; fi`,
     ...EXPECTED_MARKERS.map(function markerLine(marker) {
-      return `grep --quiet --fixed-strings ${shellQuote({ script: marker, },)} /root/${ARM_LOG}`;
+      return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/${ARM_LOG}`;
     },),
     `cp /root/${ARM_LOG} /mnt/shared/${ARM_LOG}`,
     // The pool goes even when the arm left it behind, so the guest is ready for another run.

@@ -14,7 +14,7 @@ import {
  */
 const chosen = {
   name: 'guest-a',
-  logDirectory: '/logs',
+  logDir: '/logs',
 };
 
 /**
@@ -80,20 +80,29 @@ function recordedSteps({
 /**
  The error one of these tests reads back out of a run that refused.
 
- @param work - the work the run was asked to perform
+ @param steps - the four steps the run performs
+
+ @param keepGuest - whether the run keeps the guest instead of destroying it, as `--keep-guest` asks
 
  @returns the error the run refused with
 
  @example
  ```ts
- const refusal = await refusalOf({ work: async function refuse() { throw new Error('no'); } });
+ const refusal = await refusalOfRun({ steps, keepGuest: false });
  ```
  */
-async function refusalOfRun({ steps, }: { readonly steps: GuestRunSteps; },): Promise<unknown> {
+async function refusalOfRun({
+  steps,
+  keepGuest = false,
+}: {
+  readonly steps: GuestRunSteps;
+  readonly keepGuest?: boolean;
+},): Promise<unknown> {
   try {
     await runWholeGuestRun({
       label: 'git-policy test guest',
       chosen,
+      keepGuest,
       steps,
     },);
     return undefined;
@@ -190,6 +199,54 @@ await describe({
         const refusal = await refusalOfRun({ steps: run.steps, },);
         expect(refusal,).toBe(refused,);
         expect(run.calls,).toEqual(['create',],);
+      },
+    },),
+    it({
+      name: 'keeps the guest a run asked to keep, and destroys nothing',
+      fn: async () => {
+        /**
+         The run these steps are handed to.
+         */
+        const run = recordedSteps({ refusals: {}, },);
+        /**
+         What the run refused with, which is nothing when every step passed.
+         */
+        const refusal = await refusalOfRun({
+          steps: run.steps,
+          keepGuest: true,
+        },);
+        expect(refusal,).toBeUndefined();
+        expect(run.calls,).toEqual([
+          'create',
+          'prepare',
+          'work',
+        ],);
+      },
+    },),
+    it({
+      name: 'keeps a guest whose work refused, and reports the work s own refusal',
+      fn: async () => {
+        /**
+         What the work refuses with.
+         */
+        const refused = new Error('the arm refused',);
+        /**
+         The run these steps are handed to.
+         */
+        const run = recordedSteps({ refusals: { work: refused, }, },);
+        /**
+         What the run refused with.
+         */
+        const refusal = await refusalOfRun({
+          steps: run.steps,
+          keepGuest: true,
+        },);
+        expect(refusal,).toBe(refused,);
+        expect(run.calls,).toEqual([
+          'create',
+          'prepare',
+          'work',
+        ],);
       },
     },),
     it({

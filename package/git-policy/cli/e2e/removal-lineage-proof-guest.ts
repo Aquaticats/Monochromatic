@@ -34,33 +34,31 @@
  it carries every `REMOVAL` and `DESTRUCTION` line below and no `SKIPPED` line, so an arm that returned without running
  fails the run instead of reporting a green suite.
  */
-import {
-  mkdir,
-  rm,
-} from 'node:fs/promises';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { mkdir, } from 'node:fs/promises';
+import { resolve, } from 'node:path';
 
-import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
-  holdsWordLine,
-  missingMarkerRefusal,
-  missingMarkers,
+  FOLDER_MODE,
+} from '../bin/mvm-guest-bounds.ts';
+import {
+  holdsLineStartingWith,
+  requireMarkers,
 } from '../bin/mvm-guest-arm-log.ts';
-import { flagValue, } from '../bin/mvm-guest-command-line.ts';
-import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
 import {
-  type GuestFacts,
-  runGuestRecipeStep,
-} from '../bin/mvm-guest-recipe-step.ts';
+  GuestDriverError,
+} from '../bin/mvm-guest-error.ts';
+import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
-  readStepLog,
-  runRequiredStepCommand,
-} from '../bin/mvm-guest-step-command.ts';
+  pushWorktreeSnapshot,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
+import {
+  type GuestDriverOptions,
+  guestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
 import {
   awaitDetachedGuestScript,
+  pullGuestLog,
   startDetachedGuestScript,
 } from '../bin/mvm-guest-detached-script.ts';
 import {
@@ -71,16 +69,10 @@ import {
   buildScript,
 } from './removal-lineage-proof-guest-arm-scripts.ts';
 import {
-  type GuestRunStep,
   runWholeGuestRun,
 } from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
-
-/**
- Milliseconds one host command may take.
- */
-const HOST_COMMAND_TIMEOUT_MS = 120_000;
 
 /**
  Milliseconds the guest's build of the library and its tests may take.
@@ -98,11 +90,6 @@ const CRATE_BUILD_TIMEOUT_MS = 5_400_000;
 const ARM_TIMEOUT_MS = 1_200_000;
 
 /**
- Seconds the guest's own `timeout` fires before `mvm`'s kill, so the guest reports a status rather than dying with it.
- */
-const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
-
-/**
  Milliseconds the host waits past the build's own bound, so the guest can write the status line the host reads.
  */
 const BUILD_FINISH_MARGIN_MS = 180_000;
@@ -111,11 +98,6 @@ const BUILD_FINISH_MARGIN_MS = 180_000;
  Milliseconds the host waits past the arm's own bound, so the guest can write the status line the host reads.
  */
 const ARM_FINISH_MARGIN_MS = 120_000;
-
-/**
- How often the host asks the guest whether a detached script has finished, in milliseconds.
- */
-const POLL_INTERVAL_MS = 15_000;
 
 /**
  The guest name a run takes when the command line names none.
@@ -128,15 +110,6 @@ const DEFAULT_GUEST_NAME = 'removal-lineage-proof';
 const DEFAULT_LOG_DIRECTORY_NAME = 'removal-lineage-guest-logs';
 
 //region Arguments
-
-/**
- The step, the guest name and the log directory.
- */
-type Options = {
-  readonly step: string;
-  readonly name: string;
-  readonly logDirectory: string;
-};
 
 /**
  The log directory a run keeps its logs in, which this package's build folder holds unless the command line names one.
@@ -157,36 +130,6 @@ function defaultLogDirectory(): string {
   );
 }
 
-/**
- The step and the values the command line gave it.
-
- @returns the step, the guest's name and the log directory
-
- @example
- ```ts
- const chosen = options();
- ```
- */
-function options(): Options {
-  /**
-   The words this run was started with, after the program and this file's own path.
-   */
-  const argumentLine = process.argv
-    .slice(2,);
-  return {
-    step: argumentLine[0] ?? '',
-    name: flagValue({
-      argumentWords: argumentLine,
-      flag: '--name',
-      fallback: DEFAULT_GUEST_NAME,
-    },),
-    logDirectory: flagValue({
-      argumentWords: argumentLine,
-      flag: '--log-dir',
-      fallback: defaultLogDirectory(),
-    },),
-  };
-}
 
 
 //endregion Arguments
@@ -206,9 +149,8 @@ function options(): Options {
  ```
  */
 async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+  await recipe({
+    chosen,
     step: 'create',
   },);
 }
@@ -226,9 +168,8 @@ async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<v
  ```
  */
 async function prepare({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+  await recipe({
+    chosen,
     step: 'prepare',
   },);
 }
@@ -248,129 +189,46 @@ async function prepare({ chosen, }: { readonly chosen: GuestFacts; },): Promise<
  ```
  */
 async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
-  /**
-   The build context the wrapper's tree is copied into before it is packed.
-   */
-  const context = join(
-    chosen.logDirectory,
-    'snapshot',
-  );
-  await rm(
-    context,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-  await mkdir(
-    context,
-    {
-      recursive: true,
-      mode: 0o700,
-    },
-  );
-  await copyWrapperSnapshot({ context, },);
-  /**
-   The packed tree this run hands the guest.
-   */
-  const tarball = join(
-    chosen.logDirectory,
-    'subject.tar.gz',
-  );
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'tar',
-    argumentWords: [
-      '--create',
-      '--gzip',
-      '--file',
-      tarball,
-      '--exclude=target',
-      '--directory',
-      context,
-      '.',
-    ],
-    log: 'host-package.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
-  },);
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'mvm',
-    argumentWords: [
-      '--backend',
-      'libvirt',
-      'push',
-      chosen.name,
-      tarball,
-      '/root/subject.tar.gz',
-    ],
-    log: 'guest-push.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
-  },);
+  await pushWorktreeSnapshot({ chosen, },);
   await startDetachedGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+    chosen,
     script: buildScript(),
     log: 'removal-lineage-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
+    nameCheck: 'none',
   },);
   await awaitDetachedGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+    chosen,
     log: 'removal-lineage-build.log',
-    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + BUILD_FINISH_MARGIN_MS,
-    pollIntervalMilliseconds: POLL_INTERVAL_MS,
+    finishTimeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + BUILD_FINISH_MARGIN_MS,
   },);
   await startDetachedGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+    chosen,
     script: armScript({ name: chosen.name, },),
     log: 'removal-lineage-arm-shell.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
+    nameCheck: 'none',
   },);
   await awaitDetachedGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+    chosen,
     log: 'removal-lineage-arm-shell.log',
-    timeoutMilliseconds: ARM_TIMEOUT_MS + ARM_FINISH_MARGIN_MS,
-    pollIntervalMilliseconds: POLL_INTERVAL_MS,
-  },);
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'mvm',
-    argumentWords: [
-      '--backend',
-      'libvirt',
-      'pull',
-      chosen.name,
-      `/mnt/shared/${ARM_LOG}`,
-      join(
-        chosen.logDirectory,
-        ARM_LOG,
-      ),
-    ],
-    log: 'host-pull-arm.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+    finishTimeoutMilliseconds: ARM_TIMEOUT_MS + ARM_FINISH_MARGIN_MS,
   },);
   /**
    The arm's own output, as the host pulled it back.
    */
-  const pulled = await readStepLog({
-    logDirectory: chosen.logDirectory,
-    log: ARM_LOG,
+  const pulled = await pullGuestLog({
+    chosen,
+    file: ARM_LOG,
+    log: 'host-pull-arm.log',
   },);
-  /**
-   The first claim the pulled log lacks a line for, which the run refuses on.
-   */
-  const [firstMissing] = missingMarkers({
+  requireMarkers({
     text: pulled,
     markers: EXPECTED_MARKERS,
+    subject: 'the pulled arm log',
+    because: 'the guest ran the arm without performing it',
   },);
-  if (firstMissing !== undefined)
-    throw missingMarkerRefusal({ marker: firstMissing, },);
-  if (holdsWordLine({
+  if (holdsLineStartingWith({
     text: pulled,
     word: SKIP_WORD,
   },)) {
@@ -391,9 +249,8 @@ async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
  ```
  */
 async function destroy({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+  await recipe({
+    chosen,
     step: 'destroy',
   },);
 }
@@ -410,10 +267,11 @@ async function destroy({ chosen, }: { readonly chosen: GuestFacts; },): Promise<
  await all({ chosen });
  ```
  */
-async function all({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+async function all({ chosen, }: { readonly chosen: GuestDriverOptions; },): Promise<void> {
   await runWholeGuestRun({
     label: 'git-policy removal-lineage guest',
     chosen,
+    keepGuest: chosen.keepGuest,
     steps: {
       create,
       prepare,
@@ -430,33 +288,63 @@ async function all({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
 /**
  The steps this driver knows, and nothing else.
  */
-const steps: Record<string, GuestRunStep> = {
-  create,
-  prepare,
-  run,
-  destroy,
-  all,
-};
+const steps: ReadonlyMap<string, (chosen: GuestDriverOptions,) => Promise<void>> = new Map([
+  [
+    'create',
+    async function createStep(chosen: GuestDriverOptions,) {
+      await create({ chosen, },);
+    },
+  ],
+  [
+    'prepare',
+    async function prepareStep(chosen: GuestDriverOptions,) {
+      await prepare({ chosen, },);
+    },
+  ],
+  [
+    'run',
+    async function runStep(chosen: GuestDriverOptions,) {
+      await run({ chosen, },);
+    },
+  ],
+  [
+    'destroy',
+    async function destroyStep(chosen: GuestDriverOptions,) {
+      await destroy({ chosen, },);
+    },
+  ],
+  [
+    'all',
+    async function allStep(chosen: GuestDriverOptions,) {
+      await all({ chosen, },);
+    },
+  ],
+],);
 
 /**
  The options this run was given.
  */
-const chosen = options();
+const chosen = guestDriverOptions({
+  argv: process.argv
+    .slice(2,),
+  defaultName: DEFAULT_GUEST_NAME,
+  defaultLogDir: defaultLogDirectory(),
+},);
 
 /**
- The step this run performs, or nothing when the command line named one this driver does not know.
+ The step this run performs.
  */
-const step = steps[chosen.step];
+const step = steps.get(chosen.step,);
 if (step === undefined) {
-  throw new GuestDriverError(`unknown step '${chosen.step}'; use create, prepare, run, destroy or all`,);
+  throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }
 await mkdir(
-  chosen.logDirectory,
+  chosen.logDir,
   {
     recursive: true,
-    mode: 0o700,
+    mode: FOLDER_MODE,
   },
 );
-await step({ chosen, },);
+await step(chosen,);
 
 //endregion The command line
