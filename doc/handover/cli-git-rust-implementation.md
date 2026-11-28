@@ -2944,13 +2944,6 @@ and the two `truepeak` files wait on their branch.
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-- Two verification-process unit tests wait for their child by the record it writes (`3dbb56c5a6`,
-  issue 6608),
-  and arm the bound they assert only then;
-  a two-second delay planted in the child's start leaves them green,
-  and each still fails when the code under test is broken the way it exists to catch.
-  `runCommand` was split at the seam where a bound is armed,
-  with two exports more and no change of behaviour.
 - On `main` at `07f9232af0`,
   in a worktree no merge moved,
   the package's whole `test:unit` exited 0 with 176 `[PASS]` suite lines and none failing,
