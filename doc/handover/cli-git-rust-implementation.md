@@ -212,11 +212,24 @@ they are not its own.
 
 Checked on the fixed tree:
 `cargo fmt --check`,
-the three Clippy tasks,
+the Clippy task with the test-only switches,
+and six modules
+(`source_guard`,
+`health::doctor_zfs_route`,
+`worktree_clone_slot_state`,
+`worktree_removal_deferred_origin_check`,
+`worktree_clone_removal_cancel` and `worktree_clone_mount_protocol`:
+829 passed,
+none failed).
+Checked on the tree before the fixes only:
+the other two Clippy tasks,
 the binary's management tests,
 the package's type check,
-and the modules the seven rounds changed.
-No whole gate has run on it.
+and the rest of the modules the seven rounds changed.
+The fix commit's message and an earlier text of this section said all of those ran on the fixed tree;
+they did not,
+and a comment on commit `daa5132fc3` says so.
+A whole gate on `main` waits behind a memory test and runs after it.
 
 What the rounds left,
 by their own reports:
@@ -292,7 +305,11 @@ the shutdown unmount body,
 the two on the forced arm,
 and the guest arms of plan steps 19,
 21 and 22.
-The Dylint driver proposal's revision round is one more.
+The Dylint driver proposal's revision round never ran on 2026-11-27:
+its start ended without a run at 23:03,
+because the secrets file could not be decrypted while the machine was out of memory,
+and the session listed it as running until 2026-11-28T02:49.
+It was started again at 02:50:06.
 
 Owed after them:
 the removal's five-point kill matrix,
@@ -300,13 +317,113 @@ its delegated batch,
 its rollback arm and its split-batch arm in a guest,
 and the removal's own entries in the folder of unanswered requests.
 
+#### Started and done between 02:33 and 02:51
+
+- Four rounds answer two second-pass reads,
+  started at 02:43:02:
+  two on the linter's alpha.24 read
+  (the allow-list reader's cost and sentences;
+  the line-break fix's passes,
+  its line limit and its README)
+  and two on `mpm-shadow`'s alpha.19 read
+  (two installs at once and what the removal keeps;
+  four sentences and a name too long to link).
+  Every finding of both reads is routed to one of them,
+  and each brief says what the session made of it.
+- Two rounds write proposals for the owner,
+  started at 02:45:56:
+  the crate split's five changed signatures of round 4,
+  and what GitHub's hosted runners should carry.
+- `cargo-shadow` `0.1.5-alpha.18` is locked
+  (merge `4cf7cc74b8`)
+  and installed
+  (02:38:02),
+  the session's wrapper link was restored after the install,
+  and a same-vendor second pass reads the release.
+  Issue 6645 is closed with what merged.
+- Issues filed:
+  6649
+  (a 17-byte file named `add_route` appeared in the wrapper's package folder,
+  writer not known),
+  6650
+  (the `cargo-shadow` control that failed once at its 20-second bound),
+  and 6651
+  (a Pi run ends `pi-not-stopped` when Pi outlives SIGKILL by 5000 ms on a host out of memory).
+  Issues 6615 and 6642 have comments with what their rounds measured,
+  and both stay open.
+- Swap was nearly full again at 02:44:23
+  (`SwapFree` 3,280,544 kB),
+  so a 64 GiB swap file on the 860 drive bridges until the old NVMe's partition is up
+  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+  the nineteenth batch).
+  It is in no `fstab`,
+  and while it is on the 860 drive's unit cannot stop.
+- One whole container gate started on `main` at `3d64028ef3` at 02:48:47,
+  after free memory plus free swap read 40,000,000 kB on three readings a minute apart.
+  Its log is `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-3d64028ef3-20261128T024847-0500.log`.
+- The OVHcloud round's brief said its worktree holds no secrets file.
+  It does,
+  because the worktree's creation copies ignored files,
+  and a correction reached the round's inbox at 02:49:15:
+  no call with the keys,
+  and the five names unset in front of every check.
+
+#### Started and done between 02:51 and 03:16
+
+- The wrapper's two second-pass reads of `0.6.1-alpha.52` ended,
+  both by a same-vendor reader,
+  neither with a High finding.
+  The behaviour read found one Medium:
+  with `core.worktree` set in a plain main checkout,
+  a bare `!git` alias typed in a subdirectory with `-C <a clean worktree>` resets the main checkout,
+  and the wrapper judges the clean worktree and lets it run.
+  The release before does the same.
+  The read of the merges that claim no change of a release build found two Mediums in the guest drivers:
+  an interrupted driver leaves its recipe step running,
+  and a launcher that was refused is no longer refused at once.
+  Four rounds answer the two reads,
+  started at 02:55:24 and 03:13:06:
+  the reading of a `!` alias,
+  the `final-newline` hints,
+  the guest drivers' shared steps,
+  and the surface control with three source guards.
+  Two things stay the owner's:
+  whether an alias the wrapper cannot read is refused,
+  and the three refusals that issue 6641's closing comment records.
+- The round on GitHub's hosted runners ended at 03:06:55 and merged as `6b06c7149c`:
+  `doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md`.
+  It measured that `advisory-core`'s window counts skipped runs,
+  so it admitted none of its last 200,
+  and that a standard public runner opens `/dev/kvm` after one `setfacl` and boots a small guest in 44 seconds.
+  A gate read by a same-vendor reader runs,
+  and the owner is asked the proposal's five questions after it.
+- The round that closes the last file loop in `foundation/` started at 03:13:06,
+  on the third way the questions file records,
+  which is the session's pick with the owner's veto open.
+- `mise run //package/toml-edit/core:test:unit` and `mise run //package/logger/core:test:unit` exit 1 on `main`,
+  each against a built copy older than its sources
+  (issue 6637,
+  with a comment that holds the measurement).
+  Built first,
+  the first passes,
+  and the second keeps one failing control on a loaded host
+  (issue 6652).
+
 #### The line-break proposal
 
-Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00,
-and a second gate read by a same-vendor reader started after 02:31.
-Its review lands in
-`~/temp/agent/gate-review-of-the-line-break-proposal-second-read-2026-11-28/keep/review.md`.
-The owner is asked after it.
+Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
+The second gate read,
+by a same-vendor reader,
+found two High findings and says the proposal is not ready for the owner:
+two of the ranking's reasons count another population or unit than the option they judge,
+and the repair option rests on a route that reached 90 of 548 lines,
+on a tree `main` has since left.
+A round revises it,
+started at 03:06:29,
+and runs the survey again at its own commit
+(`docs/planning-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again`).
+A third gate read follows it,
+and the owner is asked after a read that finds it ready.
 
 #### The machine
 
@@ -325,8 +442,8 @@ The owner is asked after it.
 - The swap partition:
   a root unit,
   `old-nvme-btrfs-shrinks-by-128-gib-for-a-plain-swap-partition-2026-11-28`,
-  has been balancing the old NVMe's file system since 01:40:55,
-  before it shrinks device 1 by 128 GiB.
+  balanced the old NVMe's file system from 01:40:55 to 02:07:20,
+  and has been shrinking device 1 by 128 GiB since.
   Its log is `~/temp/agent/old-nvme-shrink-for-a-plain-swap-partition-2026-11-28/keep/shrink.log`.
   After it:
   the partition table,

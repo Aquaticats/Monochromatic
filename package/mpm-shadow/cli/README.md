@@ -1915,8 +1915,11 @@ and it holds one link per declared bin
   and the install's report names each one as it removes it and says where it pointed
   (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
   A run that fails at a later removal still names the removals it made before that failure,
-  and a link another run removed in the instant before this run reached it is no failure here:
-  the name is gone,
+  and a link another run removed or renamed away in the instant before this run reached it is no failure here:
+  the removal reads the entry's own metadata,
+  then the link's target,
+  and then takes the link away,
+  and a name that any of those three calls no longer finds is gone,
   which is what both runs wanted,
   and the run that took it named it.
   A regular file,
@@ -1930,26 +1933,59 @@ and it holds one link per declared bin
     (see "The farm also carries the running `mpm-shadow`");
   - the dotted temporary name of a link an install is in the middle of writing,
     which is that install's while that install may still run,
-    and which a rebuild removes and names once that install has ended
-    (`removed the temporary link .thirdbin.tmp.... (it pointed at ...), which an install that ended left before it gave the link its name`).
-    The name carries the install that wrote it:
+    and which a rebuild removes and names once it can show that install has ended
+    (`removed the temporary link .thirdbin.tmp.... (it pointed at ...), a name of the shape an install writes while it holds a link, and the process that name records is not running`).
+    The name carries the facts that answer that question:
     its process id,
     the moment that process started,
     the process namespace that gave the id out,
     and the boot's identifier,
     the facts a hidden name of an install carries too
     (see "What a kill leaves and what the next install does about it").
+    The sentence says what the name is and what the run could show of the process it records,
+    never that an install wrote it:
+    a person's own dotted link can carry the same shape,
+    and nothing in the folder tells the two apart.
     A name this build cannot judge against those facts,
     such as one from another process namespace,
     keeps its link,
-    and a later rebuild asks again.
+    and every rebuild names it once and says what deleting it by hand would risk:
+
+    ```text
+    toolchain install: left the temporary link <name>: this run cannot judge the install its name records, so it is not removed, and deleting it by hand may make that install fail where it gives the link its name
+    ```
+
     A name an earlier build wrote carries the process id alone,
-    so its link is removed only once no process holds that number,
-    and one whose number some process still holds stays.
+    and the shorter name this build writes when it cannot read its own boot or process namespace carries a process id and a start time and no namespace:
+    no run can show that either name's process is the one that wrote it,
+    or that the process was ever in this run's process namespace,
+    so both stay,
+    named the same way,
+    and a person deletes one by hand once no install is running in the folder.
   The `rustup` link this repository's `rust` row left behind when it stopped declaring it
   (issue 6626) is the case the rule comes from:
   it dangled once the proxies went,
   and `list` said the toolchain was in sync (issue 6634).
+
+#### The upgrade, from a release that removes temporary links by number
+
+A release before this one tells a temporary link from a leftover by the process number alone,
+and takes any such link whose number no process holds in its own process namespace.
+A farm that two sessions rebuild,
+one with this release and one with an earlier one,
+therefore has two removers with two rules:
+
+- The earlier release takes this release's live temporary link wherever the number is free in its own namespace,
+  and the install that holds the link then fails at the rename that gives it its name
+  (`cannot place the link <farm>/thirdbin: No such file or directory`).
+- This release keeps a live temporary link an earlier release wrote,
+  because that name records no process namespace for this run to judge,
+  so an install of this release no longer takes an earlier release's live link.
+
+Nothing here can change what an earlier release's remover does.
+The window closes when every session that rebuilds the farm runs this release,
+and this repository's lock has named `0.2.7-alpha.19` alone since 2026-11-27,
+so the scopes that lock covers are past it.
 
 ### The farm also carries the running `mpm-shadow`
 
@@ -1968,11 +2004,16 @@ makes those names reachable from a fresh shell:
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
-  A rebuild keeps it while it resolves into an installed `mpm-shadow` of either toolchain root,
+  A rebuild keeps it while it resolves into an install of `mpm-shadow` in either toolchain root,
   whatever binary runs that rebuild,
   so a run from a build folder,
   a `cargo install` binary or the bootstrap archive
   no longer takes the name away from a scope that has the program installed.
+  An install of `mpm-shadow` is the program's own install directory below either toolchain root:
+  `<root>/mpm-shadow` for a release archive,
+  or `<root>/cargo/monochromatic-mpm-shadow` for the cargo route.
+  A file named `mpm-shadow` inside another tool's install directory is not one,
+  and the link to it goes with the other links no row declares.
   A scope that has the program installed nowhere,
   or a link that resolves nowhere,
   removes it as a link no row declares

@@ -2549,11 +2549,13 @@ step by step:
   with a fresh all-namespace holder scan and the marked-origin check before each request and before
   the head,
   so a clone a namespace still holds refuses and no snapshot of it is destroyed;
-- the names settled by their recorded GUIDs,
-  a newly created own snapshot added to the plan,
-  and a resumed removal that adopts the plan a killed,
+- the names settled by their recorded GUIDs
+  and a newly created own snapshot added to the plan,
+  and the kept plan a killed,
   refused or cancelled run left,
-  proves every name again and never sends a request for one the plan records as destroyed;
+  which a resume proves again before any request for a name the plan does not record as destroyed,
+  and which no command of this release reaches,
+  because a slot a destruction plan names is one `git worktree remove` leaves to Git;
 - the origin cleanup record,
   published before the first destroy,
   and the attempt that destroys the checkout's origin snapshot under the account's own
@@ -2605,7 +2607,7 @@ The removal itself asks the same reversal through
 so a stop point needs no grammar entry.
 An add that was interrupted keeps its own recovery,
 which still names `git worktree remove <slot>` when the clone must go,
-and the binding record that removal leaves is the settling command's,
+and the binding record Git's own removal leaves is the settling command's,
 which the management grammar admits as well.
 
 The forced arm is built beside the cancel command and reached by no command.
