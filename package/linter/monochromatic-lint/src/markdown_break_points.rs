@@ -50,6 +50,29 @@ fn closing(character: char) -> bool {
     return ['"', '\'', ')', ']', '}', '”', '’', '»', '›'].contains(&character);
 }
 
+/// The punctuation characters this rule breaks after,
+///  which is the same list a fragment join must leave ending its line.
+fn is_break_point(character: char) -> bool {
+    return [',', '.', ';', ':', '?', '!'].contains(&character);
+}
+
+/// What:
+///  Whether written prose ends at a break-point character,
+///  past any closing delimiter a break moves over.
+/// Why:
+///  The rule breaks after such a character the moment prose follows it on the same line,
+///  so a fragment that ends there is where the rule wants the line to end;
+///  a fix that joined it would break it again on the next pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endsAtBreakPoint(text: string): boolean;
+/// ```
+pub(crate) fn ends_at_break_point(text: &str) -> bool {
+    let stripped: &str = text.trim_end_matches(closing);
+    return stripped.chars().next_back().is_some_and(is_break_point);
+}
+
 /// Only written word boundaries permit breaks;
 ///  a glued letter/digit/delimiter keeps the token intact.
 fn separator(character: Option<char>) -> bool {
@@ -100,7 +123,7 @@ pub(crate) fn break_offsets(
     // Own a variable-length result list; usize indexes source bytes rather than UTF-16 columns.
     let mut offsets: Vec<usize> = Vec::<usize>::new();
     for (index, character) in slice.char_indices() {
-        if ![',', '.', ';', ':', '?', '!'].contains(&character) {
+        if !is_break_point(character) {
             continue;
         }
         // All break points are ASCII, so their next byte is also a character boundary.
