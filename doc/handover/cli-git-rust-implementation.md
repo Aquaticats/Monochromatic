@@ -212,11 +212,24 @@ they are not its own.
 
 Checked on the fixed tree:
 `cargo fmt --check`,
-the three Clippy tasks,
+the Clippy task with the test-only switches,
+and six modules
+(`source_guard`,
+`health::doctor_zfs_route`,
+`worktree_clone_slot_state`,
+`worktree_removal_deferred_origin_check`,
+`worktree_clone_removal_cancel` and `worktree_clone_mount_protocol`:
+829 passed,
+none failed).
+Checked on the tree before the fixes only:
+the other two Clippy tasks,
 the binary's management tests,
 the package's type check,
-and the modules the seven rounds changed.
-No whole gate has run on it.
+and the rest of the modules the seven rounds changed.
+The fix commit's message and an earlier text of this section said all of those ran on the fixed tree;
+they did not,
+and a comment on commit `daa5132fc3` says so.
+A whole gate on `main` waits behind a memory test and runs after it.
 
 What the rounds left,
 by their own reports:
