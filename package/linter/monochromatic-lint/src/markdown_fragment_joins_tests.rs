@@ -144,10 +144,12 @@ fn a_join_that_would_pass_the_limit_is_declined() {
 ///  and a CRLF ending loses both of its bytes.
 #[test]
 fn each_answer_belongs_to_its_fragment_and_crlf_is_removed_whole() {
-    let source: &str = "One clause, the\r\nnext clause here\r\nand the rest, the\r\nlast clause.\r\n";
+    let source: &str =
+        "One clause, the\r\nnext clause here\r\nand the rest, the\r\nlast clause.\r\n";
     let first: usize = fragment_at(source, "the\r");
     let second: usize = fragment_at(&source[first + 1..], "the\r") + first + 1;
-    let answers: Vec<Option<FragmentJoin>> = fragment_joins(source, source.len(), &[first, second], 0);
+    let answers: Vec<Option<FragmentJoin>> =
+        fragment_joins(source, source.len(), &[first, second], 0);
     assert_eq!(answers.len(), 2);
     let joined_first: &FragmentJoin = answers[0].as_ref().expect("the first fragment joins");
     assert_eq!(&source[joined_first.start..joined_first.end], "\r\n");
