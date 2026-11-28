@@ -4155,3 +4155,44 @@ Pick for the cure:
 the driver refuses an edit or write call on a main-checkout path > the brief's wording alone,
 because the wording failed twice in one day.
 A round for it starts after the wrapper's release is dispatched.
+
+## Veto open: what two more results of 2026-11-27 left (recorded 2026-11-27T19:25:26-05:00)
+
+### `cargo-shadow`: where the asking again is spent
+
+The Claude Sonnet second pass of `0.1.5-alpha.16` found no High and no Medium point.
+Its Low points say the five asks of the route question,
+about 0.9 s where one ask took about 0.04 s,
+are spent in more states than the records name:
+on hosts with no manager where a socket file,
+a `systemd` directory or a bus was left,
+and on a host whose manager is reachable and refuses at once
+(`app.slice` masked:
+941 ms against 68 ms).
+The picks given to the fix round as its own to show wrong:
+
+- the read of the host counts only the transports the ask can take,
+  shown from systemd's source at the versions met here;
+- an ask the manager answered with a refusal of its own ends the asking,
+  and a failure to reach the manager is asked again,
+  unless a real reexec shows such an answer inside its window,
+  in which case the README names the cost;
+- the README and the package document name every state in which the span is spent.
+
+The way not taken:
+accept the wait everywhere and only correct the sentences,
+which costs each such host about 0.9 s on every call that asks.
+
+### `mpm-shadow`: what the sentences round chose beyond its brief
+
+- The warning states the kept copy's fate only where the publish itself failed.
+  For a failed claim and a failed put-back it says nothing of the copy,
+  because no control can build a state in which the install that follows succeeds there.
+  Not taken:
+  say it in those arms too,
+  on an assertion no test holds.
+- Where the lock was already satisfied,
+  and where the install that followed failed too,
+  the warning claims nothing about a copy.
+- The `prune` line for a second copy keeps its clause on what deleting the directory loses.
+- Two README sentences outside the round's section made the same promise and were corrected with it.
