@@ -863,3 +863,48 @@ and named so:
 - The image was removed with `podman image rm localhost/dylint-probe-2026-11-28c`.
 - The worktree holds only the files this revision wrote,
   and the branch holds them in commits.
+
+## The closing checks
+
+- The repository's linter was run from the worktree root on every Markdown file this revision wrote:
+  the proposal,
+  this file,
+  `../README.md`,
+  `../third-round-2026-11-28/README.md` and `../m7-k-with-minimal-floating-channel/inputs/README.md`.
+  After the repository's own `--fix` pass,
+  each reports no finding.
+- The copied third read,
+  `review.md`,
+  is kept verbatim and carries 779 findings of the formatter's kinds
+  (774 `markdown/semantic-line-breaks`,
+  5 `markdown/single-h1`).
+  It is not edited,
+  because it is another session's text and a reader comparing it with its scratch copy
+  should find it unchanged;
+  the two earlier read copies in this folder carry 1326,
+  8 and 3 of the same kinds.
+- `scripts/check-quotations.ts` reports `92 of 92 quotations matched`.
+  Two rows that quoted `doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md` were removed:
+  the sentences are no longer in that record,
+  and this revision does not quote it.
+- Each of the five Markdown files was rendered once with `pandoc --from=gfm --to=html5` and read.
+  The proposal renders as one `h1`,
+  21 `h2`,
+  38 `h3`,
+  six ordered lists,
+  39 unordered lists,
+  11 blockquotes and three fenced code blocks,
+  with no table and no literal emphasis or backtick left over.
+- `origin/main` was merged again after the commits (66 commits),
+  and the checks were run again on the merged tree.
+  The merge left this round's facts standing:
+  `toolchain.lock.json` still records `nightly-2026-11-16`
+  and `cargo-dylint` and `dylint-link` 6.4.0.
+- Nothing of this round is left:
+  no container named `dylint-*`,
+  no `systemd-run` unit of this round,
+  no process of this round,
+  and no guest.
+  The image was removed with `podman image rm localhost/dylint-probe-2026-11-28c`,
+  by the digest `822e32a11951a20abd04720ca0811b6b6058c45a715b3c96c2449f4ea772677d` its runs printed,
+  so a rerun starts with `podman build` from `../third-round-2026-11-28/Containerfile`.
