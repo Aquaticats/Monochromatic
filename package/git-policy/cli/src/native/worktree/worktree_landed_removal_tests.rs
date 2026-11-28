@@ -3162,10 +3162,10 @@ fn a_btrfs_fixture_root(
 
 /// What:
 ///  The registration directories a repository holds now,
-/// by name.
+///  by name.
 /// Why:
 ///  A removal of the last worktree removes the `worktrees` folder itself,
-/// as Git does,
+///  as Git does,
 ///  so a control that
 ///  listed it unconditionally would fail on the state it means to prove.
 ///

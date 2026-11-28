@@ -96,7 +96,7 @@ fn warnings_about(
 ///  which a ZFS dataset with `utf8only=on` makes refuse a name that is not UTF-8,
 ///  so the control that keeps such a name never reached the product
 ///  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
-/// cause A2).
+///  cause A2).
 fn scratch(name: &str) -> PathBuf {
     let directory: PathBuf = crate::test_support::fixture_root()
         .join("claim-watch-tests")

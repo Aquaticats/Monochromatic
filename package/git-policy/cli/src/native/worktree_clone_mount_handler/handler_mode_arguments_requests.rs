@@ -90,7 +90,7 @@ pub struct RecordCheckoutRequest {
 ///   The dataset names the work and the record names the checkout it is placed
 ///  under,
 ///  so the mode takes no path:
-/// a path a caller gave would be a mountpoint
+///  a path a caller gave would be a mountpoint
 ///  nothing proved.
 ///
 /// In TS you'd write (pseudocode):

@@ -5,7 +5,7 @@
 //! Why:
 //!  The kernel reads a snapshot's deferral from the presence of the `defer`
 //!  key,
-//! never from its value:
+//!  never from its value:
 //! the accepted pair is a bare boolean,
 //! the handler asks
 //!  only whether the key exists,
@@ -13,10 +13,10 @@
 //!  dependent clones instead of refusing it
 //! (`module/zfs/zfs_ioctl.c:4112` to `:4132` and
 //!  `lib/libzfs_core/libzfs_core.c:475` to `:476`,
-//! OpenZFS `zfs-2.4.4`;
+//!  OpenZFS `zfs-2.4.4`;
 //!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Removal and recovery",
-//! step 3).
+//!  step 3).
 //!  The binding's constructor omits the key,
 //! and this file builds every request
 //!  through it so the bytes the planning measures are the bytes the device

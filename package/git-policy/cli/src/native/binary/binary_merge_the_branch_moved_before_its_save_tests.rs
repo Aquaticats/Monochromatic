@@ -16,10 +16,10 @@
 //!  A save is a promise that the next git command finishes this very merge,
 //!  and no command can finish one built on a head the branch has moved past,
 //!  so a caller read success where nothing had landed:
-//! the merge was reported,
-//! the branch was deleted on
+//!  the merge was reported,
+//!  the branch was deleted on
 //!  origin,
-//! and it had to be pushed back.
+//!  and it had to be pushed back.
 //!  The save therefore reads the branch first and refuses when it moved,
 //!  which is the one ending of a merge that changes nothing and leaves nothing to finish.
 //!

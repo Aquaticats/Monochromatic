@@ -2442,11 +2442,10 @@ while it is unmounted Git's own move really moves the registration,
 and the wrapper's refusal is the only protection there.
 The message says the slot is fixed,
 that nothing was moved,
-that moving the work means removing the clone and settling its registration first,
-and that this release has no removal for a clone,
-so the clone and its record stay until it does.
+and that moving the work means removing the clone first,
+which `git worktree remove` of the slot does.
 
-`git worktree remove` is refused for a slot the binding record proves is a whole worktree,
+`git worktree remove` of a slot the binding record proves is a whole worktree removes that clone,
 whatever options the command carries (`-f -f` and every other spelling Git accepts,
 and the global options before `worktree` read by Git's own table:
 `-c`,
@@ -2457,15 +2456,21 @@ which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
 (`SPEC.md`,
 "Removal of a ZFS worktree clone").
-The refusal prints the slot's state,
+The command prints the slot's state,
 its dataset and the one next safe action,
-says that this release has no removal for a clone,
-and prints what a removal would prove and lose:
-the clone and the origin snapshot the lineage proof matched,
-every snapshot of the clone's own history by name,
-and every bookmark the head destroy would take with it,
-with the sentence that nothing was unmounted,
-no removal intent was filed and no destruction plan was written.
+then takes the slot's per-slot claim,
+proves the lineage,
+files the `unmount` request and waits for its verified answer,
+writes the destruction plan,
+and sends the clone's own snapshots in requests split by one 64 KiB budget,
+with a fresh all-namespace holder scan and the marked-origin check before each,
+then destroys the head,
+attempts the origin cleanup,
+settles the Git registration and removes its own records.
+Its report says what was destroyed,
+what went with the head,
+what the origin cleanup did and what a person still has to do,
+in the same invocation.
 A promoted clone,
 or a clone whose recorded identities the pool no longer answers,
 is refused with the check that stopped it and the object it named,
@@ -2527,9 +2532,12 @@ The plan is read through one reader
 (`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
 which plan steps 15 to 18 call rather than reading the folder again.
 
-What this release builds and does not yet run is the rest of that removal,
-on one writing path no command reaches
-(`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`):
+The removal's whole order is
+`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
+and `git worktree remove` runs it over the live seams
+(`worktree_clone_removal_proof_and_plan::removal_command_path::complete_the_bound_clones_removal`).
+What it does,
+step by step:
 
 - the slot's per-slot claim,
   taken before the first read and released after the plan is proved gone,
@@ -2560,35 +2568,52 @@ on one writing path no command reaches
   and the report that names what was destroyed,
   what went with the head and what a person still has to do;
 - the finish pass,
-  which reads the plan folder before a forwarded command once a later step calls it,
+  which reads the plan folder before a forwarded command,
   settles the registration a plan whose head is `gone` still names,
   removes the binding's files and then the plan,
   and releases the slot's claim,
-  so a tail no next removal of that slot can reach is finished without an add.
+  so a tail no next removal of that slot can reach is finished without an add;
+  a repository with no plan folder costs one `stat`,
+  and a command whose output a program reads finishes neither it nor an interrupted destroy.
 
-All of that waits for one thing a person needs:
+A removal that meets a holder cancels itself and puts the clone back at its slot,
+at each of the three stop points `SPEC.md` names:
+the handler's rollback of an unmount a holder kept busy,
+the fresh scan before a snapshot delete,
+and the head destroy refused `dataset is busy` after the clone's own snapshots were gone.
+Its report names the holder,
+what was destroyed and that no cancellation restores it,
+and the way back,
+and the plan it leaves is the loss record unless it witnessed nothing.
+
 `cancel-worktree-removal <slot>`,
-which the record's own sentences and the checks' refusals name.
-Plan step 17 built it.
-The cancel command is built and no management grammar admits it in this release:
-`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` prints the management usage and exits 2,
-so the sentence beside a standing plan says the command cannot be run yet and names the files you read instead.
-A release that printed a command it does not have would make a refused removal worse than today's,
-so the refusal stays,
-and it changes nothing:
+which the record's own sentences and the checks' refusals name,
+is still the manual way back for a removal whose wrapper was killed.
+Plan step 17 built it,
+and this release's management grammar admits it:
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` cancels one removal,
+prints its usage and exits 0 for `--help`,
+and answers the caller's own status for a mistake in the words.
+A slot no removal has touched refuses with the command's own sentence and exit 2.
+A cancel that refuses changes nothing:
 the plan folder is not created,
 no clone is unmounted,
 and every snapshot,
 bookmark and registration still stands.
+The removal itself asks the same reversal through
+`worktree_clone_removal_proof_and_plan::the_self_cancelling_seam`,
+so a stop point needs no grammar entry.
 An add that was interrupted keeps its own recovery,
 which still names `git worktree remove <slot>` when the clone must go,
 and the binding record that removal leaves is the settling command's,
-which no grammar admits either.
+which the management grammar admits as well.
 
 The forced arm is built beside the cancel command and reached by no command.
 With `--force`,
 a removal may end the holders other than the caller and its session,
-once the owed measurement shows it works.
+once the owed measurement shows it works,
+and that is not this release:
+its waits ship with no value.
 What it never ends is the caller's session and every ancestor of the command up to the first process:
 a holder there refuses the removal in both arms,
 and with `--force` the word it answers is `caller-protected-holds`.
@@ -2651,8 +2676,27 @@ so a receipt,
 readiness record or clone record is not printed by `doctor` yet,
 and the sentences that name one say so.
 
+Four of those lines answer from facts this release already carries,
+and one still cannot.
+The boot setup plan step 19 installs is judged against the files the plan writes and against every dataset
+measured under the checkout:
+the provider the gate orders itself on,
+the key-loading unit when the machine has one,
+the two bounds,
+the installed files' identity,
+and each dataset that is not `canmount=noauto`,
+with the `zfs set` that settles it.
+The checkout's covered entry answers the underlay entry's own verdict,
+the cancel command's line answers from the command's own usage,
+and Sanoid's coverage answers from the comparison in `src/native/health/sanoid_coverage/`
+with the correction for each confirmed drift.
+The backup coverage is the line that answers unknown,
+because the arm that reads which paths a configured backup job can see,
+and whether a restore brings the checkout back with its origins still pinned,
+is not built.
+
 A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
-and the command that settles it is built and reachable from nothing:
+and this release's management grammar admits the command that settles it:
 `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`
 takes the slot's claim,
 reads the record,
@@ -2662,11 +2706,9 @@ an origin cleanup record and a destruction plan,
 and removes the registration and the three records once the two flags confirm the record,
 or only the records when a checkout has begun there
 (`SPEC.md`,
-"The settling command,
-built and reachable from no command").
-No management grammar admits it yet,
-so the sentences that name it today still send a person to a command this release does not have,
-and the round that switches removal on adds it to the grammar.
+"The settling command").
+It takes one operand and two flags and has no `--help` of its own,
+so the sentences that name it send a person to a command that answers.
 
 #### The boot and shutdown units, built and reached by no command
 
@@ -2680,6 +2722,87 @@ naming the step whose boot unit runs it.
 The migration,
 the property changes and the install are your own act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+
+#### The event filter and the merge device, built and reached by no command
+
+Plan step 19's lost-event triggers have a handler side in two folders,
+and no command reaches either of them in this release.
+
+`src/native/worktree_clone_mount_event_filter/` is the event filter:
+ZED starts the installed handler for every history event of every pool,
+and this rule reads the delivery's own pool and dataset and drops everything
+that is not about your clone parent or a dataset below it.
+A drop writes one line and opens nothing,
+so a dropped event costs the fork ZED already paid and no pass.
+A delivery that named no pool,
+no dataset,
+or whose parent name could not be read is let through instead,
+because the handler's own checks then decide on live facts.
+The cost of that bound is the accidental recovery an unrelated event would have
+given,
+which the accepted design states.
+
+`src/native/worktree_clone_mount_sweep_merge/` is the merge device:
+two triggers that arrive together need one pass that reads the clone after both
+writes,
+so one event-driven pass holds a run claim under `/run`,
+a trigger that finds the claim held writes the mark `another-pass-is-due` and
+tries once more without waiting,
+and a mark a running pass finds buys it exactly one more pass.
+A mark that survives that second pass waits for the next trigger.
+The device is cost and never safety:
+a record it cannot read is reported and the pass runs,
+and the per-slot claim is what keeps two passes safe on one clone.
+The pass budget and its number are plan step 22's,
+so nothing here reads or writes one.
+
+No command reaches either folder yet:
+the filter's call at the head of the handler's dispatch and the device's call at
+the entry of the default sweep are plan step 19's wiring.
+
+#### The folder of unanswered requests, and the nudge that is off
+
+An add files one entry in its repository's `zfs-unanswered-requests` folder
+before it asks for the clone's mount,
+and the entry is removed when the receipt answers it,
+so a wait killed before its deadline leaves a trigger behind
+(design:
+`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"The record:
+one file per clone";
+step 10 of the plan,
+which merged without it).
+The folder is the account's own,
+made with mode `0700` on its first entry,
+and it holds one file per attempt,
+named for the clone's GUID and the attempt's number,
+with the request's nonce,
+operation and dataset and the attempt's outcome on its one line.
+
+The check every forwarded command makes in that folder,
+one `stat` when no folder stands,
+is built in
+`src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`
+and has no call site yet:
+a use of that folder by `invocation/` is a new use inside a loop the layout
+allow list tolerates,
+and no line of that list may be added,
+so the round that built the check left the call out.
+Such a wiring use may now merge with its layout finding unrecorded,
+and the forwarded path's one line is owed together with the measurement of its cost.
+
+The nudge on Git commands is off.
+It stands behind the compiled switch `zfs-lost-event-nudge`,
+which no shipped build turns on,
+and its first gap,
+longest gap and waiting command's own nudge delay are owed to measurement M8
+and set in plan step 22,
+so `the_gaps` answers nothing even in a build that turns the switch on.
+Until then a lost mount event is recovered by the triggers that exist:
+a ZED delivery or start,
+a start of the checkout provider,
+the boot unit's reconcile,
+or a lever you fire.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
@@ -3534,6 +3657,21 @@ those words may begin with a global option,
 and a value whose own words name another `!` alias is followed through the
 shells it starts,
 up to four of them.
+The guard judges the state the nested `git` acts in:
+the directory Git runs the shell in,
+with the Git directory Git gives that shell,
+then your own options and then your words.
+Git gives the shell a `GIT_DIR` whenever you named a repository or a work tree
+(`--git-dir`,
+`--work-tree` or `GIT_DIR`),
+the repository is bare,
+the shell's directory is inside a Git directory,
+or the working tree's `.git` is a file that points elsewhere;
+from a plain main checkout it gives none.
+So from a linked worktree `git g -C <another worktree> reset --hard` writes that other worktree's files
+with your index and `HEAD`,
+and the guard refuses it as that state,
+while `git -C <another worktree> reset --hard` typed directly writes and resets that worktree alone.
 Every other shell alias runs as Git runs it,
 with no guard:
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
@@ -4803,11 +4941,21 @@ a merge that writes only the copies that side still holds is right and resolves.
 An answer that holds more copies of a line than the two sides leave keeps both sides as well,
 at most as many as the side that holds fewer of them holds
 while neither side wrote more copies of that line than the base held,
+and at most as many as the side that wrote more of them holds
+while exactly one side did,
 which covers a region where one side also wrote a line:
 a copy that side wrote lifts the bound of that one line and no other.
-That bound is the answer's,
-so no resolved file writes back a copy a side removed,
-whether the region it sits in deleted lines only or wrote a line as well.
+That bound is read over the answer of one word merge,
+never over the file you resolve:
+each region Git's line merge left is merged on its own,
+and a region that holds more copies of a line than its own two sides leave
+can be right when another region of the same file holds fewer of them,
+so no region resolves to a copy its own two sides removed.
+The one answer that is a whole file rather than a region
+is a path both sides added,
+whose base is empty;
+no line of that answer is a line of the base,
+so the bound cannot fire there.
 A base line written twice is where the word level cannot tell which copy a side deleted,
 so a region both sides only deleted lines from keeps both sides as well
 when its answer would hold its lines in an order one side does not hold them in,
@@ -7634,6 +7782,9 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   at the commit `main` points at now,
   then starts a gate there labelled `<worktree name minus gate->-on-<sha>`,
   so the log names the commit it tested.
+  The worktree has to exist already:
+  the task moves it and never makes one,
+  so a checkout without one fails before a gate starts.
   It prints `gate worktree at <sha>` and `launch status <n>`,
   and a worktree holding uncommitted work is not moved:
   the status is printed and the command exits 2,

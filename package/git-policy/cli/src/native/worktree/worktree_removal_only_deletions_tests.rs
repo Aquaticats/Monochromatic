@@ -221,7 +221,7 @@ fn an_untracked_entry_inside_a_volume_is_left_out_of_the_question() {
 ///  and from one holding a change.
 /// Why:
 ///   An empty `git status` read as "only deletions" made a fresh,
-/// clean worktree look like one a pass of
+///  clean worktree look like one a pass of
 ///   this program had half emptied,
 /// and the words built on that answer told a person their entries were
 ///  missing when none was;

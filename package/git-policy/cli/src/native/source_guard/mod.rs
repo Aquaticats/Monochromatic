@@ -236,6 +236,13 @@ mod no_release_read_of_a_test_only_switch_tests;
 #[path = "no_release_read_of_the_session_places_tests.rs"]
 mod no_release_read_of_the_session_places_tests;
 
+/// The ban on the event filter opening anything and on the merge device opening the ZFS device:
+/// the filter decides on two strings alone,
+/// and the device decides only how many passes run.
+#[cfg(test)]
+#[path = "event_filter_opens_nothing_tests.rs"]
+mod event_filter_opens_nothing_tests;
+
 /// The ban on a sentence that shows a name another program chose without the one escape:
 /// the list of the sentences this program has,
 /// and the accessors no `format!` may interpolate raw.
@@ -343,13 +350,6 @@ pub(crate) mod no_start_at_login_tests;
 #[cfg(test)]
 #[path = "packaged_uses_links_tests.rs"]
 mod packaged_uses_links_tests;
-
-/// The removal's command path runs the removal's read-only reading and no entry that writes:
-/// plan step 16's wiring is the change that names the writing entry,
-/// and it removes this check with it.
-#[cfg(test)]
-#[path = "removal_command_path_writes_nothing_tests.rs"]
-mod removal_command_path_writes_nothing_tests;
 
 /// The add route names no entry that destroys a clone,
 /// an origin snapshot or a snapshot set,

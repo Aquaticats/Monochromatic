@@ -467,6 +467,9 @@ pub struct TheCompletion<'a> {
     pub holders: &'a dyn FreshHolderScan,
     /// The Git settle.
     pub settle: &'a dyn RegistrationSettle,
+    /// The answer a stop point asks,
+    /// and nothing for a control that is not about one.
+    pub cancelling: Option<&'a dyn crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheRemovalCancelling>,
     /// The bytes one request may carry.
     pub budget: RequestBudget,
 }
@@ -504,6 +507,7 @@ pub fn complete(
         head: the.head,
         holders: the.holders,
         settle: the.settle,
+        cancelling: the.cancelling,
         budget: the.budget,
         now: NOW,
     };

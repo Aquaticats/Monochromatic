@@ -43,6 +43,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_resume::{
     TheStart,
     start_the_removal,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_self_cancelling_step::at_the_unmount;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{
     RemovalClaim,
     release_at_the_last_step,
@@ -77,7 +78,8 @@ pub fn complete_the_removal(input: &RemovalCompletion<'_>) -> Result<TheRemovalD
         input.unmount,
         input.clock,
         input.probe,
-    )?;
+    )
+    .map_err(|stop| return at_the_unmount(input, stop))?;
     let folder: PlanFolder =
         PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
             return RemovalStop::PlanUnreadable {

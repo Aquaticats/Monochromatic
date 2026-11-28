@@ -1,0 +1,234 @@
+   Compiling monochromatic-lint v0.5.2-alpha.24 (/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept/package/linter/monochromatic-lint)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.02s
+────────────
+ Nextest run ID 6906d041-8f09-40f2-b625-139bdcd8cc82 with nextest profile: default
+    Starting 2 tests across 1 binary (1081 tests skipped)
+       START [         ] (1/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+
+running 1 test
+        SLOW [> 60.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+test markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary has been running for over 60 seconds
+        SLOW [>120.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>180.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>240.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>300.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>360.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>420.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>480.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>540.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>600.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>660.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>720.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>780.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>840.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>900.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>960.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1020.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1080.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1140.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1200.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1260.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1320.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1380.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1440.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+        SLOW [>1500.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+SURVEY_ROOT=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept
+SURVEY_LIST=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept/package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt
+SURVEY_COMMIT=c8545f91b8c79a8064490bcffa667d6ea79b83df
+paths in the kept list: 10472
+paths the configuration ignores: 66
+paths the configuration turns the rule off for: 1
+paths no configuration selected: 0
+paths surveyed: 10272
+paths that failed to parse: 0
+ADDITIVE
+breaks inside paragraphs: 1541282
+breaks whose line ends at a break point: 1320034
+breaks at no boundary: 221248
+  in paragraphs the rule reports nothing for: 209657
+    ending in a closing bracket or quote: 9587
+    ending otherwise: 200070
+    of the quiet, ending in a hard break: 0
+      hard and ending in a closer: 0
+      hard and ending otherwise: 0
+  in paragraphs the rule already reports: 11591
+    ending in a closing bracket or quote: 260
+    ending otherwise: 11331
+    of the reported, ending in a hard break: 0
+no-boundary breaks whose line ends inside emphasis: 3423
+  of the quiet, ending inside emphasis: 3383
+  of the reported, ending inside emphasis: 40
+files holding at least one break: 10202
+files holding at least one quiet no-boundary break: 8643
+CLASSES
+class block-marker: 1275; clause at or over 120: 645; shipped join removes: 38
+class conjunction: 19647; clause at or over 120: 8802; shipped join removes: 12355
+class dash: 20; clause at or over 120: 5; shipped join removes: 17
+class inline-span: 24994; clause at or over 120: 9784; shipped join removes: 17473
+class ordinary: 127298; clause at or over 120: 26296; shipped join removes: 106467
+class parenthesis: 36423; clause at or over 120: 13256; shipped join removes: 25935
+quiet non-hard breaks whose clause reaches the limit: 58788
+quiet non-hard clauses that reach the limit: 47103
+OPTIONS
+A findings (quiet non-hard breaks at no boundary): 209657
+A durable findings (A minus the quiet emphasis ending): 206274
+A durable files: 8643
+A files: 8643
+B findings (A findings the shipped join removes): 162285
+B files: 8109
+B findings that end inside emphasis, which the rule breaks again: 2997
+B durable findings (B minus the emphasis ending): 159288
+B durable files: 8088
+D findings (quiet clauses under the limit): 144483
+D files: 8015
+D2 findings (D without a span, parenthesis or dash edge): 107302
+D2 files: 7329
+F1 findings (break before a one-or-two-word line): 72913
+F1 files: 6998
+F1 of those the shipped join removes: 62283
+F2 findings (one-or-two-word line at no boundary): 39501
+F2 files: 4745
+F2 of those the shipped join removes: 36599
+F2 of those that end inside emphasis: 1096
+F2 durable findings (F2 minus the emphasis ending): 38405
+F2 durable of those the shipped join removes: 35503
+F2 durable files: 4508
+G findings (F2 inside package/git-policy/cli): 4077
+G files: 1503
+IGNORED
+IGNORED .out-of-scope/bun-install.md
+IGNORED .out-of-scope/cargo-workspace.md
+IGNORED .out-of-scope/claude-code-upstream-bugs.md
+IGNORED .out-of-scope/codex-harness.md
+IGNORED .out-of-scope/jsr.md
+IGNORED .out-of-scope/lightningcss.md
+IGNORED .out-of-scope/low-impact-typescript-formatting.md
+IGNORED .out-of-scope/module-es-monolith.md
+IGNORED .out-of-scope/pi-gpt55-long-context.md
+IGNORED .out-of-scope/terminal-title-fork-parity-tests.md
+IGNORED .out-of-scope/typescript-project-references.md
+IGNORED package-deprecated/audit/oph-common-look-and-feel/README.md
+IGNORED package-deprecated/mcp/nvim/README.md
+IGNORED package-paused/README.md
+IGNORED package-paused/desktop-daemon/editord/HANDOVER.chokidar-atomic-migration.md
+IGNORED package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md
+IGNORED package-paused/desktop-daemon/editord/HANDOVER.typed-rpc-wrapper.md
+IGNORED package-paused/desktop-daemon/editord/PHILOSOPHY.md
+IGNORED package-paused/desktop-daemon/editord/PLAN.md
+IGNORED package-paused/desktop-daemon/editord/README.md
+IGNORED package-paused/desktop-daemon/editord/TODO.md
+IGNORED package-paused/desktop-daemon/editord/docs/decisions/cli.md
+IGNORED package-paused/desktop-daemon/editord/docs/decisions/webstorm-comparison.md
+IGNORED package-paused/dev-script/inference-canary-viewer/README.md
+IGNORED package-paused/dev-script/inference-canary/README.md
+IGNORED package-paused/dev-script/inference-canary/RESEARCH.md
+IGNORED package-paused/dev-script/inference-canary/TODO.md
+IGNORED package-paused/module/es/README.md
+IGNORED package-paused/module/es/TODO.2-week-presentability.md
+IGNORED package-paused/module/es/TODO.3-month-aggressive-plan.md
+IGNORED package-paused/module/es/TODO.api-refactors.md
+IGNORED package-paused/module/es/TODO.code-review.md
+IGNORED package-paused/module/es/TODO.development-workflow.md
+IGNORED package-paused/module/es/TODO.ecosystem-integration.md
+IGNORED package-paused/module/es/TODO.exports-fixes.md
+IGNORED package-paused/module/es/TODO.governance-strategy.md
+IGNORED package-paused/module/es/TODO.h-css-strict-selectors.md
+IGNORED package-paused/module/es/TODO.improvements.md
+IGNORED package-paused/module/es/TODO.jsonc-parser.step-01.changes.md
+IGNORED package-paused/module/es/TODO.jsonc-parser.step-01a.changes.md
+IGNORED package-paused/module/es/TODO.md
+IGNORED package-paused/module/es/TODO.missing-implementations.md
+IGNORED package-paused/module/es/TODO.package-infrastructure.md
+IGNORED package-paused/module/es/TODO.testing.md
+IGNORED package-paused/module/es/TODO.tsdoc-improvements.md
+IGNORED package-paused/module/es/TODO.typeguard-refactor.md
+IGNORED package-paused/module/es/src/types/README.md
+IGNORED package-paused/module/es/src/types/t string/f/README.md
+IGNORED package-paused/module/es/src/types/t string/t hasQuotedSyntax/README.md
+IGNORED package-paused/pi-plugin/morph-compact/README.md
+IGNORED package-paused/stylesheet/monochromatic/README.md
+IGNORED package-paused/web-demo/glass/README.md
+IGNORED package-paused/webapp-content/messages-demo/README.md
+IGNORED package-paused/webapp-edu/paper2vn/README.md
+IGNORED package-paused/webapp-edu/paper2vn/TODO.lint-cleanup.md
+IGNORED package-paused/webapp-forge/PHASE-2-DEFERRED.md
+IGNORED package-paused/webapp-forge/seed/README.md
+IGNORED package-paused/webapp-forge/server/README.md
+IGNORED package-paused/webapp-forge/server/TROUBLESHOOTING.isomorphic-git.md
+IGNORED package-paused/webapp-forge/stress/README.md
+IGNORED package-paused/webapp-search/ai-tree/README.md
+IGNORED package-paused/webapp-search/exa-search/README.md
+IGNORED package/linter/monochromatic-lint.fuzz/seed/markdown/boundaries.md
+IGNORED package/linter/monochromatic-lint.fuzz/seed/orchestration/nested.rs
+IGNORED package/linter/monochromatic-lint.fuzz/seed/orchestration/quoted.md
+IGNORED package/linter/monochromatic-lint.fuzz/seed/rust_style/sidecars.rs
+RULE-OFF package/music-player/desktop-app/notices/slint-royalty-free-2.0.md
+EXAMPLES
+EXAMPLE block-marker
+doc/audit/2026-05-14-repo-assessment.md:3
+  line the break ends: Moved 2026-10-29 by the generic package category elimination
+  next line:           > (`doc/planning/generic-category-elimination.md`);
+EXAMPLE closer
+.agents/skills/choosing-technology/SKILL.md:152
+  line the break ends: (not necessarily Haiku)
+  next line:           or run it themselves.
+EXAMPLE conjunction
+.agents/skills/choosing-technology/SKILL.md:152
+  line the break ends: (not necessarily Haiku)
+  next line:           or run it themselves.
+EXAMPLE dash
+.agents/skills/project-code-review/PHILOSOPHY.md:24
+  line the break ends: The alternative -- referencing `AGENTS.md` sections by name ("apply the rules from the TypeScript Standards section") --
+  next line:           assumes the agent will cross-reference accurately across documents under context pressure.
+EXAMPLE emphasis
+doc/audit/deepseek-harness-node-domexception.md:182
+  line the break ends: **Install and audit surface:**
+  next line:              present for every published CLI install.
+EXAMPLE f1-short-next-line
+.agents/skills/android-emulator/SKILL.md:22
+  line the break ends:  Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+  next line:            `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+EXAMPLE f2-short-own-line
+.agents/skills/css/SKILL.md:170
+  line the break ends:  user-configurable properties
+  next line:           where the fallback represents the default user choice.
+EXAMPLE forced-clause
+.agents/skills/android-emulator/SKILL.md:22
+  line the break ends:  Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+  next line:            `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+EXAMPLE inline-span
+.agents/skills/android-emulator/SKILL.md:22
+  line the break ends:  Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+  next line:            `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+EXAMPLE ordinary
+.agents/skills/choosing-technology/SKILL.md:688
+  line the break ends: Clone every serious alternative and finalist under a private `~/temp/agent/` root using the repository
+  next line:           cloning convention.
+EXAMPLE parenthesis
+.agents/skills/choosing-technology/SKILL.md:151
+  line the break ends: because the user may delegate the enumeration to a cheaper model of their choosing
+  next line:           (not necessarily Haiku)
+EXAMPLE refused-block-marker
+doc/audit/2026-05-14-repo-assessment.md:3
+  line the break ends: Moved 2026-10-29 by the generic package category elimination
+  next line:           > (`doc/planning/generic-category-elimination.md`);
+EXAMPLE refused-width
+.agents/skills/android-emulator/SKILL.md:22
+  line the break ends:  Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+  next line:            `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+test markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1082 filtered out; finished in 1548.57s
+
+        PASS [1548.637s] (1/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+       START [         ] (2/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture
+
+running 1 test
+PROBE classes={"conjunction": 3, "dash": 1, "inline-span": 1, "ordinary": 10, "parenthesis": 1} no_boundary=17 closer=1 emphasis=1 hard=1 f1=2 f2=2 forced_breaks=15 forced_clauses=1 A=16 B=15 D=1 D2=1
+test markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1082 filtered out; finished in 0.00s
+
+        PASS [   0.162s] (2/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture
+────────────
+     Summary [1548.963s] 2 tests run: 2 passed (1 slow), 1081 skipped

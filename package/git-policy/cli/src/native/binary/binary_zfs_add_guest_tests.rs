@@ -11,27 +11,24 @@
 //!  and T28's flushed write read back after the guest lost power.
 //! Why:
 //!  The route writes a real registration,
-//! a real snapshot,
-//! a real clone and a
+//!  a real snapshot,
+//!  a real clone and a
 //!  real mount,
-//! so no control on a person's machine may run it:
+//!  so no control on a person's machine may run it:
 //!  these arms run only where `CLI_GIT_ZFS_ADD_GUEST` names a disposable guest
 //!  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`,
-//! the
-//!  `zfs-add-*` steps,
-//! on OpenZFS 2.4.4 in an `mvm` Ubuntu guest).
+//!  the `zfs-add-*` steps,
+//!  on OpenZFS 2.4.4 in an `mvm` Ubuntu guest).
 //!  A run without the variable prints `SKIP` and returns,
-//! and the driver's
+//!  and the driver's
 //!  suite step refuses to count that as a pass.
 //!  The arm mounts the clone with the kernel's own `mount` as root rather than
 //!  through the handler's attach:
-//! the attach is step 4's arm,
-//! already green,
+//!  the attach is step 4's arm,
+//!  already green,
 //!  and this step's subject is the order from the claim to the fill.
-//! The add's
-//!  own wait and verification read the mount the table shows,
-//! whichever
-//!  program made it.
+//!  The add's own wait and verification read the mount the table shows,
+//!  whichever program made it.
 //!  T27 and T28 each span a reboot or a power cut,
 //!  so each is split into a `before` half and an `after` half,
 //!  which `CLI_GIT_ZFS_ADD_PHASE` names.
@@ -615,8 +612,7 @@ impl Fixture {
 
     /// Unmount the slot,
     /// destroy the clone and the origin snapshot,
-    /// remove the
-    /// registration and the records,
+    /// remove the registration and the records,
     /// so the next arm starts from nothing.
     fn clear_the_slot(
         &self,
@@ -1359,18 +1355,18 @@ impl Fixture {
 
 /// What:
 ///  T9,
-/// in the guest where a real clone and a real mount exist:
+///  in the guest where a real clone and a real mount exist:
 ///  an add from a main checkout with uncommitted edits and a `HEAD` other than
 ///  the commit it asks for makes a worktree equal to Git's own checkout of that
 ///  commit,
 ///  carrying the ignored files and none of the edits.
 /// Why:
 ///  This is plan step 11's own subject,
-/// and the interim it replaces sent such an
+///  and the interim it replaces sent such an
 ///  add to Git's own checkout:
-/// a route that restored nothing would pass a test
+///  a route that restored nothing would pass a test
 ///  that only asserted the add succeeded,
-/// so the arm compares the tree with what
+///  so the arm compares the tree with what
 ///  Git's checkout of the same commit holds and asserts each kind of change was
 ///  undone.
 ///  The clean control is the same fixture and the same commit with no edits,

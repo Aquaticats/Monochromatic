@@ -496,7 +496,7 @@ fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
     write_complete_marker(&tool_dir.join("0.2.0"), ID, "0.2.0", A_TEST_SHA256)
         .expect("write the marker");
     std::os::unix::fs::symlink("0.2.0", &link).expect("link current");
-    let named = find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[]).expect("a program");
+    let named = find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[], None).expect("a program");
     assert_eq!(
         named,
         link.join(folder("0.2.0")).join(BIN),
@@ -516,7 +516,7 @@ fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
         named.display()
     );
     assert!(
-        find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[])
+        find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[], None)
             .is_some_and(|found| return found.is_file()),
         "a launcher follows current to the program that is there"
     );

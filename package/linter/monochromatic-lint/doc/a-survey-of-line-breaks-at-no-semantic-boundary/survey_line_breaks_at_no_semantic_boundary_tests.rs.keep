@@ -1,0 +1,960 @@
+//! A survey of line breaks that fall at no semantic boundary.
+//! Why:
+//!  The proposal on whether the rule should report such a break needs counts that add up,
+//!  a class for every break, a positive control that the reader can see each class,
+//!  and a removal count taken from the shipped join rather than from a model.
+//! How to run it:
+//!  `README.md` in this folder names the two temporary source edits and the command.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // Walk the kept file list, resolve each file's configuration, and tally every authored break.
+//! ```
+
+/// The shipped join, called for every removal this survey counts.
+///  The runner lifts its two-word fragment limit in the source it temporarily wires,
+///  so the remaining guards are the shipped ones.
+use super::fragment_join;
+/// The rule's own break-point ending test, so a boundary is the rule's boundary.
+use crate::markdown_break_points::ends_at_break_point;
+/// The paragraph indent a join is written with.
+use crate::markdown_prose_context::continuation_indent;
+/// The rule that decides which paragraphs already carry a finding.
+use crate::markdown_semantic_breaks::semantic_line_breaks;
+/// The block-start guard the shipped join applies to the following line.
+use crate::markdown_block_start::starts_block_construct;
+/// Configuration resolution, so ignored paths and rule-off paths are netted out.
+use crate::config_lookup::discover_configuration;
+use crate::config_match::{
+    FileConfiguration,
+    PreparedConfiguration,
+    prepare_configuration,
+};
+/// The parsed source and its node and span accessors.
+use crate::markdown_source::MarkdownSource;
+/// The Rust doc-comment processor that gives the rule the Markdown it sees.
+use crate::processors::{
+    ProcessorLanguage,
+    extract,
+};
+/// The finding severity the rule is asked for, whatever the configuration says.
+use crate::diagnostic::Severity;
+/// Import the typed JSONC value the effective rule settings arrive in.
+use monochromatic_jsonc_edit::JsoncValue;
+/// Import the node kind catalog a paragraph is found by.
+use satteri_ast::mdast::MdastNodeType;
+/// Deterministic maps and sets keep the output stable across runs.
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+/// Native path types for the kept file list and the configuration base.
+use std::path::{
+    Path,
+    PathBuf,
+};
+
+/// The rule under survey.
+const RULE: &str = "markdown/semantic-line-breaks";
+
+/// Read one path as the recorded commit holds it,
+///  so a later edit to a record cannot move a count.
+fn read_at_commit(
+    root: &Path,
+    commit: &str,
+    relative: &str,
+) -> Option<String> {
+    let output: std::process::Output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["show", format!("{commit}:{relative}").as_str()])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    return String::from_utf8(output.stdout).ok();
+}
+
+/// Words that open a clause the proposal calls a conjunction or a subordinator.
+///  A fixed list, not a grammar: the owner decides whether these are boundaries.
+const CONJUNCTIONS: &[&str] = &[
+    "and", "but", "or", "nor", "yet", "so", "for", "because", "although", "though", "while",
+    "when", "where", "which", "who", "whom", "whose", "that", "if", "unless", "until", "since",
+    "as", "before", "after", "whether", "than", "then", "plus", "versus", "via",
+];
+
+/// The most characters MD1 asks a line to stay under.
+const LINE_LIMIT: usize = 120;
+
+/// Whether the line's last visible character closes a bracket or a quote,
+///  which the survey reports apart because it reads as a boundary of its own.
+fn closes_at_the_end(text: &str) -> bool {
+    let Some(last): Option<char> = text.chars().next_back() else {
+        return false;
+    };
+    return ['"', '\'', ')', ']', '}', '\u{201d}', '\u{2019}', '\u{bb}', '\u{203a}'].contains(&last);
+}
+
+/// Whether the authored line ends in a Markdown hard break,
+///  which the survey counts and every option leaves alone.
+fn holds_hard_break(raw: &str, trimmed: &str) -> bool {
+    return raw.len() - trimmed.len() >= 2 || trimmed.ends_with('\\');
+}
+
+/// Whether the line ends a sentence inside emphasis or strong emphasis,
+///  so the rule itself would break after the closing delimiter.
+fn ends_inside_emphasis(text: &str) -> bool {
+    let stripped: &str = text.trim_end_matches(['*', '_', '~']);
+    return stripped.len() != text.len() && ends_at_break_point(stripped);
+}
+
+/// Whether a following line opens a block marker a whitespace-only join may not move.
+fn opens_a_block_marker(text: &str) -> bool {
+    let line: &str = text.trim_start();
+    if line.starts_with('>') || line.starts_with('#') || line.starts_with('|') {
+        return true;
+    }
+    if line.starts_with("```") || line.starts_with("~~~") {
+        return true;
+    }
+    if line.starts_with("- ") || line.starts_with("* ") || line.starts_with("+ ") {
+        return true;
+    }
+    let digits: usize = line.chars().take_while(char::is_ascii_digit).count();
+    if digits > 0 {
+        let rest: &str = &line[digits..];
+        if rest.starts_with(". ") || rest.starts_with(") ") {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Classify a break by the first token of the next line,
+///  with the previous line's dash as the last test.
+fn first_token_class(
+    previous: &str,
+    next: &str,
+) -> &'static str {
+    let line: &str = next.trim_start();
+    if opens_a_block_marker(line) {
+        return "block-marker";
+    }
+    if line.starts_with('(') {
+        return "parenthesis";
+    }
+    if line.starts_with('`')
+        || line.starts_with('*')
+        || line.starts_with('_')
+        || line.starts_with('~')
+        || line.starts_with('[')
+        || line.starts_with('!')
+    {
+        return "inline-span";
+    }
+    let first: &str = line.split_whitespace().next().unwrap_or("");
+    let word: String = first
+        .trim_matches(|character: char| !character.is_alphanumeric() && character != '-')
+        .to_lowercase();
+    if CONJUNCTIONS.contains(&word.as_str()) {
+        return "conjunction";
+    }
+    let previous: &str = previous.trim_end();
+    if previous.ends_with("--") || previous.ends_with('\u{2014}') || previous.ends_with('\u{2013}') {
+        return "dash";
+    }
+    return "ordinary";
+}
+
+/// Map a virtual rustdoc line to its host line,
+///  using the processor's `host.rs/<first host line>.md` name.
+fn host_line(
+    name: &str,
+    virtual_line: usize,
+) -> Option<(String, usize)> {
+    let (host, rest): (&str, &str) = name.rsplit_once('/')?;
+    let first: usize = rest.strip_suffix(".md")?.parse::<usize>().ok()?;
+    return Some((String::from(host), first + virtual_line - 1));
+}
+
+/// Read a rule's configured severity out of the effective file settings.
+fn configured_severity(
+    rules: &JsoncValue,
+    rule: &str,
+) -> Option<String> {
+    let entries: &[monochromatic_jsonc_edit::JsoncEntry] = rules.entries()?;
+    for entry in entries {
+        let key: String = String::from_utf16_lossy(&entry.key.units);
+        if key != rule {
+            continue;
+        }
+        for setting in entry.value.entries()? {
+            let name: String = String::from_utf16_lossy(&setting.key.units);
+            if name == "severity" {
+                return setting
+                    .value
+                    .text_units()
+                    .and_then(|units| String::from_utf16(units).ok());
+            }
+        }
+    }
+    return None;
+}
+
+/// A cache of prepared configurations, one per discovered configuration file.
+struct Configurations {
+    /// The surveyed worktree root.
+    root: PathBuf,
+    /// Prepared configurations keyed by their own source path.
+    prepared: BTreeMap<PathBuf, PreparedConfiguration>,
+}
+
+/// One file's configuration decision.
+enum Selection {
+    /// The configuration excludes the path entirely.
+    Ignored,
+    /// The configuration selects the file but turns the rule off.
+    RuleOff,
+    /// The rule would run on the path.
+    Runs,
+    /// No configuration selected the path.
+    Unconfigured,
+}
+
+impl Configurations {
+    /// Discover and prepare the configuration for one host file,
+    ///  then resolve the logical path the rule reads.
+    fn select(
+        &mut self,
+        host: &Path,
+        logical: &Path,
+    ) -> Result<Selection, String> {
+        let discovered = discover_configuration(host, self.root.as_path(), None)
+            .map_err(|error| format!("configuration for {}: {error}", host.display()))?;
+        let Some(source) = discovered else {
+            return Ok(Selection::Unconfigured);
+        };
+        let path: PathBuf = source.path.clone();
+        if !self.prepared.contains_key(&path) {
+            let prepared: PreparedConfiguration = prepare_configuration(source)
+                .map_err(|error| format!("configuration {}: {error}", path.display()))?;
+            self.prepared.insert(path.clone(), prepared);
+        }
+        let prepared: &PreparedConfiguration = self.prepared.get(&path).expect("just inserted");
+        let relative: &Path = logical.strip_prefix(prepared.base.as_path()).unwrap_or(logical);
+        let resolved: FileConfiguration = prepared
+            .resolve(relative)
+            .map_err(|error| format!("resolve {}: {error}", logical.display()))?;
+        return Ok(match resolved {
+            FileConfiguration::Ignored => Selection::Ignored,
+            FileConfiguration::Unconfigured => Selection::Unconfigured,
+            FileConfiguration::Configured { rules } => {
+                match configured_severity(&rules, RULE).as_deref() {
+                    Some("off") | Some("allow") | None => Selection::RuleOff,
+                    Some("warn") | Some("error") => Selection::Runs,
+                    Some(_) => Selection::RuleOff,
+                }
+            }
+        });
+    }
+}
+
+/// One paragraph line, in relative offsets inside the paragraph slice.
+struct Line {
+    /// First byte of the line.
+    from: usize,
+    /// The line with trailing spacing removed.
+    visible: String,
+    /// How many words the line holds.
+    words: usize,
+    /// Whether the line ends in an authored hard break.
+    hard: bool,
+    /// Whether the line ends at one of the rule's break points.
+    boundary: bool,
+    /// Whether the line ends in a closing bracket or quote.
+    closer: bool,
+    /// Whether the rule would break after an emphasis delimiter at this ending.
+    emphasis: bool,
+}
+
+/// The survey's running counts.
+#[derive(Default)]
+struct Tally {
+    /// Every break inside a paragraph.
+    breaks: usize,
+    /// Breaks whose line ends at a break point.
+    boundary: usize,
+    /// Breaks at no boundary.
+    no_boundary: usize,
+    /// No-boundary breaks whose line ends in a hard break.
+    hard: usize,
+    /// No-boundary breaks whose line ends in a closing bracket or quote.
+    closer: usize,
+    /// No-boundary breaks whose line ends inside emphasis.
+    emphasis: usize,
+    /// No-boundary breaks in paragraphs the rule reports nothing for.
+    quiet: usize,
+    /// No-boundary breaks in paragraphs the rule already reports.
+    reported: usize,
+    /// Quiet no-boundary breaks ending in a closer.
+    quiet_closer: usize,
+    /// Quiet no-boundary breaks not ending in a closer.
+    quiet_other: usize,
+    /// Reported no-boundary breaks ending in a closer.
+    reported_closer: usize,
+    /// Reported no-boundary breaks not ending in a closer.
+    reported_other: usize,
+    /// Quiet no-boundary breaks that end inside emphasis.
+    quiet_emphasis: usize,
+    /// Quiet no-boundary breaks with a hard break.
+    quiet_hard: usize,
+    /// Quiet no-boundary breaks with a hard break, ending in a closer.
+    quiet_hard_closer: usize,
+    /// Quiet no-boundary breaks with a hard break, not a closer.
+    quiet_hard_other: usize,
+    /// Reported no-boundary breaks with a hard break.
+    reported_hard: usize,
+    /// Quiet non-hard breaks in a clause at or over the line limit.
+    forced_breaks: usize,
+    /// Quiet non-hard clauses at or over the line limit.
+    forced_clauses: usize,
+    /// Counts by first-token class, quiet and non-hard.
+    class: BTreeMap<&'static str, usize>,
+    /// Counts by first-token class whose clause reaches the line limit.
+    class_forced: BTreeMap<&'static str, usize>,
+    /// Counts by first-token class the shipped join would remove.
+    class_removable: BTreeMap<&'static str, usize>,
+    /// Option A findings and files.
+    option_a: usize,
+    option_a_files: BTreeSet<String>,
+    /// Option B findings and files.
+    option_b: usize,
+    option_b_files: BTreeSet<String>,
+    /// Option B findings the existing rule would break again (an emphasis ending).
+    option_b_emphasis: usize,
+    /// Option B files after the emphasis endings are excluded.
+    option_b_durable_files: BTreeSet<String>,
+    /// Option D clauses and files.
+    option_d: usize,
+    option_d_files: BTreeSet<String>,
+    /// Option D2 clauses and files.
+    option_d2: usize,
+    option_d2_files: BTreeSet<String>,
+    /// Option F1 breaks and files.
+    option_f1: usize,
+    option_f1_files: BTreeSet<String>,
+    option_f1_removable: usize,
+    /// Option F2 breaks and files.
+    option_f2: usize,
+    option_f2_files: BTreeSet<String>,
+    option_f2_removable: usize,
+    option_f2_emphasis: usize,
+    /// Option F2 files after the emphasis endings are excluded.
+    option_f2_durable_files: BTreeSet<String>,
+    /// Option G's scoped class inside the wrapper package.
+    option_g: usize,
+    option_g_files: BTreeSet<String>,
+    /// Files holding at least one quiet no-boundary break.
+    quiet_files: BTreeSet<String>,
+    /// Files holding at least one break at all.
+    all_files: BTreeSet<String>,
+    /// Ignored and rule-off paths, for the netting record.
+    ignored: BTreeSet<String>,
+    rule_off: BTreeSet<String>,
+    unconfigured: BTreeSet<String>,
+    parse_failures: BTreeSet<String>,
+    /// One whole example per class, first in sorted path order.
+    examples: BTreeMap<&'static str, String>,
+}
+
+/// One clause of a paragraph:
+///  the run of lines between neighbouring rule boundaries.
+struct ClauseStat {
+    /// Whether the paragraph carries a rule finding.
+    quiet: bool,
+    /// Whether any line in the clause ends in a hard break.
+    hard: bool,
+    /// Whether any line in the clause ends inside emphasis.
+    emphasis: bool,
+    /// Width if the whole clause were joined with single spaces.
+    width: usize,
+    /// Number of no-boundary breaks inside the clause.
+    breaks: usize,
+    /// Class of the clause's first no-boundary break.
+    first_class: &'static str,
+    /// Whether the line before the clause's first break ends in a dash.
+    first_after_dash: bool,
+}
+
+/// Keep the first whole example for a class.
+fn remember_example(
+    examples: &mut BTreeMap<&'static str, String>,
+    class: &'static str,
+    named: &str,
+    previous: &str,
+    next: &str,
+) {
+    if examples.contains_key(class) {
+        return;
+    }
+    examples.insert(
+        class,
+        format!("{named}\n  line the break ends: {previous}\n  next line:           {next}"),
+    );
+}
+
+/// The paragraph's lines, with the paragraph's last line and empty lines kept for width.
+fn paragraph_lines(slice: &str) -> Vec<Line> {
+    let mut bounds: Vec<(usize, usize)> = Vec::<(usize, usize)>::new();
+    let mut start: usize = 0;
+    for (index, character) in slice.char_indices() {
+        if character != '\n' && character != '\r' {
+            continue;
+        }
+        if character == '\r' && slice[index..].starts_with("\r\n") {
+            continue;
+        }
+        bounds.push((start, index));
+        start = index + 1;
+    }
+    if start < slice.len() {
+        bounds.push((start, slice.len()));
+    }
+    let mut lines: Vec<Line> = Vec::<Line>::new();
+    for (from, to) in bounds {
+        let raw: &str = &slice[from..to];
+        let visible: &str = raw.trim_end_matches([' ', '\t']);
+        let hard: bool = holds_hard_break(raw, visible);
+        lines.push(Line {
+            from,
+            visible: String::from(visible),
+            words: visible.split_whitespace().count(),
+            hard,
+            boundary: ends_at_break_point(visible),
+            closer: closes_at_the_end(visible),
+            emphasis: ends_inside_emphasis(visible),
+        });
+    }
+    return lines;
+}
+
+/// Tally every break in one parsed source.
+fn survey_source(
+    context: &MarkdownSource,
+    host: &str,
+    force_quiet: bool,
+    tally: &mut Tally,
+) {
+    let findings = semantic_line_breaks(context, Severity::Error);
+    let mut reported: Vec<usize> = Vec::<usize>::new();
+    for finding in &findings {
+        if finding.code != RULE {
+            continue;
+        }
+        for label in &finding.labels {
+            reported.push(label.span.offset);
+        }
+    }
+    for id in context.visible_nodes() {
+        if context.kind(*id) != MdastNodeType::Paragraph {
+            continue;
+        }
+        let (start, end): (usize, usize) = context.offsets(*id);
+        let slice: &str = &context.source[start..end];
+        let touched: bool =
+            !force_quiet && reported.iter().any(|at| *at >= start && *at <= end);
+        let indent_width: usize = continuation_indent(context, *id).chars().count();
+        let lines: Vec<Line> = paragraph_lines(slice);
+        let mut clauses: BTreeMap<(usize, usize), ClauseStat> = BTreeMap::new();
+        for (number, line) in lines.iter().enumerate() {
+            if number + 1 == lines.len() {
+                continue;
+            }
+            if line.visible.trim().is_empty() {
+                continue;
+            }
+            let next: &Line = &lines[number + 1];
+            tally.breaks += 1;
+            tally.all_files.insert(String::from(host));
+            if line.boundary {
+                tally.boundary += 1;
+                continue;
+            }
+            tally.no_boundary += 1;
+            if line.hard {
+                tally.hard += 1;
+            }
+            if line.closer {
+                tally.closer += 1;
+            }
+            if line.emphasis {
+                tally.emphasis += 1;
+            }
+            if touched {
+                tally.reported += 1;
+                if line.closer {
+                    tally.reported_closer += 1;
+                } else {
+                    tally.reported_other += 1;
+                }
+                if line.hard {
+                    tally.reported_hard += 1;
+                }
+                continue;
+            }
+            tally.quiet += 1;
+            tally.quiet_files.insert(String::from(host));
+            if line.emphasis {
+                tally.quiet_emphasis += 1;
+            }
+            if line.closer {
+                tally.quiet_closer += 1;
+            } else {
+                tally.quiet_other += 1;
+            }
+            if line.hard {
+                tally.quiet_hard += 1;
+                if line.closer {
+                    tally.quiet_hard_closer += 1;
+                } else {
+                    tally.quiet_hard_other += 1;
+                }
+                continue;
+            }
+            // Clause bounds: the run of lines from the previous boundary to the next one.
+            let mut first_line: usize = number;
+            while first_line > 0 && !lines[first_line - 1].boundary && !lines[first_line - 1].hard {
+                first_line -= 1;
+            }
+            let mut last_line: usize = number;
+            while last_line + 1 < lines.len() && !lines[last_line].boundary && !lines[last_line].hard {
+                last_line += 1;
+            }
+            let mut width: usize = indent_width;
+            for (offset, clause_line) in lines[first_line..=last_line].iter().enumerate() {
+                if offset > 0 {
+                    width += 1;
+                }
+                width += clause_line.visible.trim().chars().count();
+            }
+            let class: &'static str = first_token_class(line.visible.as_str(), next.visible.as_str());
+            *tally.class.entry(class).or_insert(0) += 1;
+            if width >= LINE_LIMIT {
+                tally.forced_breaks += 1;
+                *tally.class_forced.entry(class).or_insert(0) += 1;
+            }
+            let absolute: usize = start + line.from;
+            let span = context.span(absolute, 0);
+            let named: String = match host_line(context.filename.as_str(), span.line) {
+                Some((host, host_line_number)) => format!("{host}:{host_line_number}"),
+                None => format!("{}:{}", context.filename, span.line),
+            };
+            remember_example(&mut tally.examples, class, named.as_str(), line.visible.as_str(), next.visible.as_str());
+            if line.closer {
+                remember_example(&mut tally.examples, "closer", named.as_str(), line.visible.as_str(), next.visible.as_str());
+            }
+            if line.emphasis {
+                remember_example(&mut tally.examples, "emphasis", named.as_str(), line.visible.as_str(), next.visible.as_str());
+            }
+            if line.words <= 2 {
+                remember_example(&mut tally.examples, "f2-short-own-line", named.as_str(), line.visible.as_str(), next.visible.as_str());
+            }
+            if next.words <= 2 {
+                remember_example(&mut tally.examples, "f1-short-next-line", named.as_str(), line.visible.as_str(), next.visible.as_str());
+            }
+            let removable: bool = fragment_join(
+                context.source.as_str(),
+                end,
+                absolute,
+                indent_width,
+            )
+            .is_some();
+            if removable {
+                *tally.class_removable.entry(class).or_insert(0) += 1;
+            } else {
+                let text_start: usize = start + next.from
+                    + (next.visible.len() - next.visible.trim_start().len());
+                if starts_block_construct(context.source.as_str(), text_start) {
+                    remember_example(&mut tally.examples, "refused-block-marker", named.as_str(), line.visible.as_str(), next.visible.as_str());
+                }
+            }
+            // Option A: every quiet, non-hard break at no boundary.
+            tally.option_a += 1;
+            tally.option_a_files.insert(String::from(host));
+            // Option B: every quiet removal the shipped join allows.
+            if removable {
+                tally.option_b += 1;
+                tally.option_b_files.insert(String::from(host));
+                if line.emphasis {
+                    tally.option_b_emphasis += 1;
+                } else {
+                    tally.option_b_durable_files.insert(String::from(host));
+                }
+            } else if width >= LINE_LIMIT {
+                remember_example(&mut tally.examples, "refused-width", named.as_str(), line.visible.as_str(), next.visible.as_str());
+            }
+            // Options F1 and F2.
+            if next.words <= 2 {
+                tally.option_f1 += 1;
+                tally.option_f1_files.insert(String::from(host));
+                if removable {
+                    tally.option_f1_removable += 1;
+                }
+            }
+            if line.words <= 2 {
+                tally.option_f2 += 1;
+                tally.option_f2_files.insert(String::from(host));
+                if removable {
+                    tally.option_f2_removable += 1;
+                    if line.emphasis {
+                        tally.option_f2_emphasis += 1;
+                    } else {
+                        tally.option_f2_durable_files.insert(String::from(host));
+                    }
+                }
+                if host.starts_with("package/git-policy/cli/") {
+                    tally.option_g += 1;
+                    tally.option_g_files.insert(String::from(host));
+                }
+            }
+            let clause = clauses.entry((first_line, last_line)).or_insert(ClauseStat {
+                quiet: true,
+                hard: false,
+                emphasis: false,
+                width,
+                breaks: 0,
+                first_class: class,
+                first_after_dash: line.visible.trim_end().ends_with("--")
+                    || line.visible.trim_end().ends_with('\u{2014}')
+                    || line.visible.trim_end().ends_with('\u{2013}'),
+            });
+            clause.breaks += 1;
+            clause.hard = clause.hard || line.hard;
+            clause.emphasis = clause.emphasis || line.emphasis;
+            clause.quiet = clause.quiet && !touched;
+            if width >= LINE_LIMIT {
+                // One forced-clause example is enough; the counters hold the size.
+                remember_example(&mut tally.examples, "forced-clause", named.as_str(), line.visible.as_str(), next.visible.as_str());
+            }
+        }
+        for clause in clauses.values() {
+            if !clause.quiet || clause.hard || clause.emphasis || clause.breaks == 0 {
+                continue;
+            }
+            if clause.width >= LINE_LIMIT {
+                tally.forced_clauses += 1;
+                continue;
+            }
+            tally.option_d += 1;
+            tally.option_d_files.insert(String::from(host));
+            let opens_structural: bool = clause.first_class == "parenthesis"
+                || clause.first_class == "inline-span";
+            if !opens_structural && !clause.first_after_dash {
+                tally.option_d2 += 1;
+                tally.option_d2_files.insert(String::from(host));
+            }
+        }
+    }
+}
+
+/// The positive control's fixture:
+///  one example of every class the survey distinguishes, in one paragraph.
+const PROBE_FIXTURE: &str = "\
+first line ends at a boundary,
+ordinary continuation words begin the next line
+and this line follows a conjunction here
+(and this line follows a parenthesis
+`and this line follows a code span`
+words that come before a dash --
+continuing after the dash this line goes
+a line that ends with a quote\"
+the
+three words on this next line now
+one two
+three four five six seven
+a line with a hard break written  \n\
+after the hard break this line continues
+a line ending in bold text.**
+and the text after the bold run
+this clause runs on with no punctuation inside it at all and keeps going until
+its width passes one hundred and twenty characters before the final line ends.
+last line of the probe paragraph.
+
+a short second paragraph line that runs on
+and ends here under the limit.
+";
+
+/// Read one source from the fixture and check that every class is visible.
+#[test]
+fn survey_probe_sees_every_class_on_its_fixture() {
+    let context: MarkdownSource = MarkdownSource::new(String::from("probe.md"), String::from(PROBE_FIXTURE), false)
+        .expect("the probe fixture parses as Markdown");
+    let mut tally: Tally = Tally::default();
+    survey_source(&context, "probe.md", true, &mut tally);
+    for class in ["ordinary", "conjunction", "parenthesis", "inline-span", "dash"] {
+        assert!(
+            tally.class.get(class).copied().unwrap_or(0) > 0,
+            "the probe must see the {class} class: {:?}",
+            tally.class,
+        );
+    }
+    assert!(tally.no_boundary > 0, "the probe must see a break at no boundary");
+    assert!(tally.closer > 0, "the probe must see a closer-ended break");
+    assert!(tally.emphasis > 0, "the probe must see an emphasis-ended break");
+    assert!(tally.hard > 0, "the probe must see an authored hard break");
+    assert!(tally.option_f1 > 0, "the probe must see a short following line");
+    assert!(tally.option_f2 > 0, "the probe must see a short line that ends at no boundary");
+    assert!(tally.forced_breaks > 0, "the probe must see a clause forced past the limit");
+    assert!(tally.forced_clauses > 0, "the probe must see a forced clause");
+    assert!(tally.option_b > 0, "the probe must see a removal the shipped join allows");
+    assert!(tally.option_a > tally.option_b, "the probe must see a removal the join refuses");
+    println!(
+        "PROBE classes={:?} no_boundary={} closer={} emphasis={} hard={} f1={} f2={} forced_breaks={} forced_clauses={} A={} B={} D={} D2={}",
+        tally.class,
+        tally.no_boundary,
+        tally.closer,
+        tally.emphasis,
+        tally.hard,
+        tally.option_f1,
+        tally.option_f2,
+        tally.forced_breaks,
+        tally.forced_clauses,
+        tally.option_a,
+        tally.option_b,
+        tally.option_d,
+        tally.option_d2,
+    );
+}
+
+/// Print a count with its label, so the kept output reads on its own.
+fn row(
+    label: &str,
+    count: usize,
+) {
+    println!("{label}: {count}");
+}
+
+/// Survey every path in the kept list.
+#[test]
+fn survey_breaks_at_no_semantic_boundary() {
+    let list_path: PathBuf = std::env::var("SURVEY_LIST")
+        .expect("SURVEY_LIST names the kept list of tracked paths")
+        .into();
+    let root: PathBuf = std::env::var("SURVEY_ROOT")
+        .expect("SURVEY_ROOT names the worktree root")
+        .into();
+    let commit: String = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root.as_path())
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|text| String::from(text.trim()))
+        .unwrap_or_default();
+    let list: String = std::fs::read_to_string(list_path.as_path()).expect("the kept list is readable");
+    let paths: Vec<&str> = list.lines().filter(|line| !line.trim().is_empty()).collect();
+    let mut configurations: Configurations = Configurations {
+        root: root.clone(),
+        prepared: BTreeMap::<PathBuf, PreparedConfiguration>::new(),
+    };
+    let mut tally: Tally = Tally::default();
+    let mut surveyed: BTreeSet<String> = BTreeSet::<String>::new();
+    for relative in &paths {
+        let host: PathBuf = root.join(relative);
+        let Some(text): Option<String> = read_at_commit(root.as_path(), commit.as_str(), relative) else {
+            tally.parse_failures.insert(String::from(*relative));
+            continue;
+        };
+        let host_selection: Selection = match configurations.select(host.as_path(), Path::new(relative)) {
+            Ok(value) => value,
+            Err(error) => {
+                panic!("{error}");
+            }
+        };
+        match host_selection {
+            Selection::Ignored => {
+                tally.ignored.insert(String::from(*relative));
+                continue;
+            }
+            Selection::Unconfigured => {
+                tally.unconfigured.insert(String::from(*relative));
+                continue;
+            }
+            Selection::RuleOff => {
+                // A Rust host resolves the Markdown rule off, because the rule is configured for
+                //  its virtual doc-comment files; the virtual paths are resolved below.
+                if !relative.ends_with(".rs") {
+                    tally.rule_off.insert(String::from(*relative));
+                    continue;
+                }
+            }
+            Selection::Runs => {}
+        }
+        if relative.ends_with(".md") || relative.ends_with(".mdx") {
+            let mdx: bool = relative.ends_with(".mdx");
+            if let Ok(context) = MarkdownSource::new(String::from(*relative), text, mdx) {
+                surveyed.insert(String::from(*relative));
+                survey_source(&context, relative, false, &mut tally);
+            } else {
+                tally.parse_failures.insert(String::from(*relative));
+            }
+            continue;
+        }
+        let Ok(virtuals) = extract(String::from(*relative), text, ProcessorLanguage::Rust) else {
+            tally.parse_failures.insert(String::from(*relative));
+            continue;
+        };
+        for virtual_source in virtuals {
+            if !virtual_source.is_rustdoc() {
+                continue;
+            }
+            let name: String = String::from(virtual_source.filename());
+            let selection: Selection = match configurations.select(host.as_path(), Path::new(name.as_str())) {
+                Ok(value) => value,
+                Err(error) => {
+                    panic!("{error}");
+                }
+            };
+            match selection {
+                Selection::Ignored => {
+                    tally.ignored.insert(name.clone());
+                    continue;
+                }
+                Selection::RuleOff | Selection::Unconfigured => {
+                    tally.rule_off.insert(name.clone());
+                    continue;
+                }
+                Selection::Runs => {}
+            }
+            let body: String = String::from(virtual_source.source());
+            if let Ok(context) = MarkdownSource::new(name, body, false) {
+                surveyed.insert(String::from(*relative));
+                survey_source(&context, relative, false, &mut tally);
+            } else {
+                tally.parse_failures.insert(String::from(*relative));
+            }
+        }
+    }
+    println!("SURVEY_ROOT={}", root.display());
+    println!("SURVEY_LIST={}", list_path.display());
+    println!("SURVEY_COMMIT={commit}");
+    row("paths in the kept list", paths.len());
+    row("paths the configuration ignores", tally.ignored.len());
+    row("paths the configuration turns the rule off for", tally.rule_off.len());
+    row("paths no configuration selected", tally.unconfigured.len());
+    row("paths surveyed", surveyed.len());
+    row("paths that failed to parse", tally.parse_failures.len());
+    println!("ADDITIVE");
+    assert_eq!(
+        tally.breaks,
+        tally.boundary + tally.no_boundary,
+        "every break is a boundary or not"
+    );
+    assert_eq!(
+        tally.no_boundary,
+        tally.quiet + tally.reported,
+        "every no-boundary break is quiet or reported"
+    );
+    assert_eq!(
+        tally.quiet,
+        tally.quiet_closer + tally.quiet_other,
+        "every quiet break is a closer or not"
+    );
+    assert_eq!(
+        tally.reported,
+        tally.reported_closer + tally.reported_other,
+        "every reported break is a closer or not"
+    );
+    assert_eq!(
+        tally.no_boundary,
+        tally.quiet_closer
+            + tally.quiet_other
+            + tally.reported_closer
+            + tally.reported_other,
+        "the four cells add to the no-boundary total"
+    );
+    assert_eq!(
+        tally.quiet_hard,
+        tally.quiet_hard_closer + tally.quiet_hard_other,
+        "every hard quiet break is a closer or not"
+    );
+    row("breaks inside paragraphs", tally.breaks);
+    row("breaks whose line ends at a break point", tally.boundary);
+    row("breaks at no boundary", tally.no_boundary);
+    row("  in paragraphs the rule reports nothing for", tally.quiet);
+    row("    ending in a closing bracket or quote", tally.quiet_closer);
+    row("    ending otherwise", tally.quiet_other);
+    row("    of the quiet, ending in a hard break", tally.quiet_hard);
+    row("      hard and ending in a closer", tally.quiet_hard_closer);
+    row("      hard and ending otherwise", tally.quiet_hard_other);
+    row("  in paragraphs the rule already reports", tally.reported);
+    row("    ending in a closing bracket or quote", tally.reported_closer);
+    row("    ending otherwise", tally.reported_other);
+    row("    of the reported, ending in a hard break", tally.reported_hard);
+    row("no-boundary breaks whose line ends inside emphasis", tally.emphasis);
+    row("  of the quiet, ending inside emphasis", tally.quiet_emphasis);
+    row("  of the reported, ending inside emphasis", tally.emphasis - tally.quiet_emphasis);
+    row("files holding at least one break", tally.all_files.len());
+    row("files holding at least one quiet no-boundary break", tally.quiet_files.len());
+    println!("CLASSES");
+    let mut class_total: usize = 0;
+    for (class, count) in &tally.class {
+        class_total += count;
+        println!(
+            "class {class}: {count}; clause at or over {LINE_LIMIT}: {}; shipped join removes: {}",
+            tally.class_forced.get(class).copied().unwrap_or(0),
+            tally.class_removable.get(class).copied().unwrap_or(0),
+        );
+    }
+    assert_eq!(class_total, tally.quiet - tally.quiet_hard, "every quiet non-hard break has one class");
+    row("quiet non-hard breaks whose clause reaches the limit", tally.forced_breaks);
+    row("quiet non-hard clauses that reach the limit", tally.forced_clauses);
+    println!("OPTIONS");
+    row("A findings (quiet non-hard breaks at no boundary)", tally.option_a);
+    row("A durable findings (A minus the quiet emphasis ending)", tally.option_a - tally.quiet_emphasis);
+    row("A durable files", tally.option_a_files.len());
+    row("A files", tally.option_a_files.len());
+    row("B findings (A findings the shipped join removes)", tally.option_b);
+    row("B files", tally.option_b_files.len());
+    row("B findings that end inside emphasis, which the rule breaks again", tally.option_b_emphasis);
+    row("B durable findings (B minus the emphasis ending)", tally.option_b - tally.option_b_emphasis);
+    row("B durable files", tally.option_b_durable_files.len());
+    row("D findings (quiet clauses under the limit)", tally.option_d);
+    row("D files", tally.option_d_files.len());
+    row("D2 findings (D without a span, parenthesis or dash edge)", tally.option_d2);
+    row("D2 files", tally.option_d2_files.len());
+    row("F1 findings (break before a one-or-two-word line)", tally.option_f1);
+    row("F1 files", tally.option_f1_files.len());
+    row("F1 of those the shipped join removes", tally.option_f1_removable);
+    row("F2 findings (one-or-two-word line at no boundary)", tally.option_f2);
+    row("F2 files", tally.option_f2_files.len());
+    row("F2 of those the shipped join removes", tally.option_f2_removable);
+    row("F2 of those that end inside emphasis", tally.option_f2_emphasis);
+    row("F2 durable findings (F2 minus the emphasis ending)", tally.option_f2 - tally.option_f2_emphasis);
+    row("F2 durable of those the shipped join removes", tally.option_f2_removable - tally.option_f2_emphasis);
+    row("F2 durable files", tally.option_f2_durable_files.len());
+    row("G findings (F2 inside package/git-policy/cli)", tally.option_g);
+    row("G files", tally.option_g_files.len());
+    println!("IGNORED");
+    for path in &tally.ignored {
+        println!("IGNORED {path}");
+    }
+    for path in &tally.rule_off {
+        println!("RULE-OFF {path}");
+    }
+    for path in &tally.unconfigured {
+        println!("UNCONFIGURED {path}");
+    }
+    for path in &tally.parse_failures {
+        println!("PARSE-FAILED {path}");
+    }
+    println!("EXAMPLES");
+    for (class, example) in &tally.examples {
+        println!("EXAMPLE {class}");
+        println!("{example}");
+    }
+    assert!(tally.option_b <= tally.option_a, "B is a subset of A");
+    assert!(tally.option_d <= tally.option_a, "one D finding covers at least one A finding");
+}

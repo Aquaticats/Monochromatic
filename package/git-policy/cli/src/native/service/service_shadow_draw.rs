@@ -73,7 +73,7 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 /// What:
 ///  The drawn shadows this service holds ready,
 ///  one worktree's,
-/// since a service serves one.
+///  since a service serves one.
 /// Why:
 ///   A commit's question is answered from memory and not from the disk:
 ///  a listing of the drawn folder can wait on the volume,
@@ -94,7 +94,7 @@ pub struct DrawnShadows {
     ///  Under it the list is changed and nothing else:
     ///  one `push` on the draw's thread and one `pop` where a commit's question is answered,
     ///  with no Git process,
-    /// no file and no other lock,
+    ///  no file and no other lock,
     ///  and it guards nothing on disk and dies with the process,
     ///  so it is never a lock a commit can be left waiting on.
     ///
@@ -123,7 +123,7 @@ impl DrawnShadows {
 
     /// What:
     ///  Records a tree the draw made,
-    /// for the next commit that asks.
+    ///  for the next commit that asks.
     /// Why:
     ///   Only the draw and the answers touch the list,
     ///  and a poisoned lock is still a list of paths.
@@ -166,7 +166,7 @@ impl DrawnShadows {
 
     /// How many trees the stock holds now.
     ///  The draw asks it,
-    /// and a control reads it.
+    ///  and a control reads it.
     pub fn ready(&self) -> usize {
         let ready = self
             .ready

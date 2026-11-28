@@ -4,7 +4,7 @@
 //!  a peer shape names the host and leaves way 8 unusable,
 //!  a member with no mount at the slot is not a receiver,
 //!  a covered member is named,
-//! and a parent that shares with nothing takes way 7.
+//!  and a parent that shares with nothing takes way 7.
 
 use crate::worktree_clone_forced_removal::receiver_closure::*;
 

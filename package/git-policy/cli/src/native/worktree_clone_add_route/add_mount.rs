@@ -1,26 +1,25 @@
 //! What:
 //!  The add's wait for the clone's mount,
-//! verified at the slot in the caller's
+//!  verified at the slot in the caller's
 //!  own namespace.
 //! Why:
 //!  A clone that exists is not a mounted clone,
-//! and only the caller's view says
+//!  and only the caller's view says
 //!  whether the slot holds the clone's root
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Add and Git registration",
-//! step 4).
+//!  step 4).
 //!  The handler attaches through the durable intent and files a receipt,
-//! but the
-//!  add reads the mount table through the slot itself:
-//! the wait must end on what
+//!  but the add reads the mount table through the slot itself:
+//!  the wait must end on what
 //!  the person's own namespace shows,
-//! and the receipt is the handler's account
+//!  and the receipt is the handler's account
 //!  of the same fact.
 //!  The deadline is the protocol's provisional request deadline,
-//! which step 22
+//!  which step 22
 //!  sizes;
-//! a deadline is not cancellation,
-//! so the report says the request stays.
+//!  a deadline is not cancellation,
+//!  so the report says the request stays.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -48,7 +47,7 @@ pub const MOUNT_WAIT: Duration =
 
 /// What:
 ///  The slot's own mount,
-/// once it shows the clone's root.
+///  once it shows the clone's root.
 /// Why:
 ///  The mount's source names the dataset,
 ///  its mount point names the slot,
@@ -68,14 +67,13 @@ pub struct MountedHere {
 
 /// What:
 ///  Wait until the slot shows the clone's own mount,
-/// or report what it showed.
+///  or report what it showed.
 /// Why:
 ///  The one fact that ends the wait is the caller's own mount view:
-/// a source
-///  that is the clone's dataset and a mount point that is the slot.
+///  a source that is the clone's dataset and a mount point that is the slot.
 ///  The pause holds this command's own thread,
-/// which runs no task of the runtime;
-/// the guard's exception list
+///  which runs no task of the runtime;
+///  the guard's exception list
 ///  names it for that reason and awaits it when the route is a task
 ///  (`source_guard/blocking_code_off_the_runtime_rules_tests.rs`).
 ///
@@ -134,11 +132,11 @@ fn one_look(
 
 /// What:
 ///  The slot's mount as a resume finds it,
-/// without waiting.
+///  without waiting.
 /// Why:
 ///  A resumed add reads whether its clone is mounted before it decides where it
 ///  is,
-/// and a slot that shows the clone is the state the phase records.
+///  and a slot that shows the clone is the state the phase records.
 ///
 /// # Errors
 /// The slot or its mount cannot be read.

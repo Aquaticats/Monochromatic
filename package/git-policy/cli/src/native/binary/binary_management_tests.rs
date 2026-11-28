@@ -590,3 +590,98 @@ fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
     assert_eq!(refused.code, Some(2), "{}", stderr_text(&refused));
     remove(&fixture);
 }
+
+/// What:
+///  That each of the two ZFS route words is answered by its own command,
+///  and that neither answers the namespace's usage text any more.
+/// Why:
+///  Before the round that added these words,
+///  the binary printed the namespace's usage and exited `2` for each of them,
+///  and that is the answer a control has to see gone.
+///  Every word here is decided from the arguments alone,
+///  so no control of this test reads a record or opens this machine's pool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'cancel-worktree-removal']).stderr).toContain('no slot was named');
+/// ```
+#[test]
+fn the_two_zfs_route_words_answer_their_own_commands() {
+    let fixture: Fixture = fixture("management-zfs-words");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    // The namespace's usage refusal is one sentence for every unknown word, and it is the answer these words lost.
+    let usage_prefix: &str =
+        "Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...)";
+    let help: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &[
+            "monochromatic-git-policy-cli",
+            "cancel-worktree-removal",
+            "--help",
+        ],
+    );
+    assert_eq!(help.code, Some(0), "--help exits zero");
+    assert_eq!(
+        help.stderr,
+        Vec::<u8>::new(),
+        "--help writes nothing on standard error"
+    );
+    let usage: String = stdout_text(&help);
+    assert!(
+        usage.starts_with(
+            "usage: git monochromatic-git-policy-cli cancel-worktree-removal <slot>\n"
+        ),
+        "--help prints the command's own usage: {usage}"
+    );
+    for (arguments, fragment) in [
+        (
+            vec!["monochromatic-git-policy-cli", "cancel-worktree-removal"],
+            "no slot was named",
+        ),
+        (
+            vec![
+                "monochromatic-git-policy-cli",
+                "cancel-worktree-removal",
+                "one",
+                "two",
+            ],
+            "two words were named",
+        ),
+        (
+            vec![
+                "monochromatic-git-policy-cli",
+                "cancel-worktree-removal",
+                "--force",
+            ],
+            "is an option, and this command takes none",
+        ),
+        (
+            vec![
+                "monochromatic-git-policy-cli",
+                "settle-worktree-clone-record",
+                "one",
+            ],
+            "--confirm-removal-of",
+        ),
+        (
+            vec![
+                "monochromatic-git-policy-cli",
+                "settle-worktree-clone-record",
+                "--help",
+            ],
+            "`--help` is no option of this command",
+        ),
+    ] {
+        let observed: Observed = run(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(2), "{arguments:?}");
+        assert_eq!(observed.stdout, Vec::<u8>::new(), "{arguments:?}");
+        let said: String = stderr_text(&observed);
+        assert!(
+            !said.starts_with(usage_prefix),
+            "{arguments:?} answers the command's own sentence rather than the namespace's usage: {said}"
+        );
+        assert!(said.contains(fragment), "{arguments:?} answered: {said}");
+    }
+    remove(&fixture);
+}

@@ -289,6 +289,12 @@ pub fn live_owner_of(
 }
 
 impl OwnerClaim {
+    /// The claim file this hold created,
+    /// which a caller names in a line about the item's owner.
+    pub(crate) fn path(&self) -> &Path {
+        return self.path.as_path();
+    }
+
     /// Give the item back:
     /// the claim file is rewritten,
     /// atomically,

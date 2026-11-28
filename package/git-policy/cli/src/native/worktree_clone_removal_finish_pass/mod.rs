@@ -64,6 +64,9 @@
 //! - `pass_over_the_plans.rs`:
 //!   the folder's listing read as plans,
 //!   and the pass's entry point.
+//! - `the_live_pass.rs`:
+//!   the pass over this machine's own seams,
+//!   which is what a command runs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -75,6 +78,7 @@ pub mod pass_done_lines;
 pub mod pass_on_one_plan;
 pub mod pass_over_the_plans;
 pub mod pass_refusal_lines;
+pub mod the_live_pass;
 pub mod the_pass_seams;
 pub mod the_plans_binding;
 pub mod the_plans_file;
@@ -83,6 +87,7 @@ pub mod the_plans_registration;
 pub mod the_slots_claim;
 
 pub use pass_over_the_plans::finish_the_removal_plans;
+pub use the_live_pass::finish_the_removal_plans_live;
 pub use the_pass_seams::FinishPass;
 
 /// The repository,

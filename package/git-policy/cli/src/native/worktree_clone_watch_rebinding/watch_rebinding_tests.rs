@@ -28,7 +28,7 @@ use std::time::{
 
 /// How long a control waits for one inotify event before it calls the wait a silence.
 ///  Short,
-/// because the write it waits for follows at once and the wait only has to
+///  because the write it waits for follows at once and the wait only has to
 /// outlast the kernel's own delivery.
 const PATIENCE: Duration = Duration::from_millis(500);
 
@@ -38,11 +38,11 @@ const WRITTEN: &str = "written-through-the-slot";
 
 /// What:
 ///  An inotify watch on one directory's new entries,
-/// closed however the control ends.
+///  closed however the control ends.
 /// Why:
 ///  The controls need the one answer `landing/service_index_watch.rs` does not give
 ///  (whether the event arrived,
-/// rather than whether to look again),
+///  rather than whether to look again),
 ///  and a descriptor held across an assertion that fails must still be closed.
 ///
 /// In TS you'd write (pseudocode):
@@ -95,7 +95,7 @@ impl Probe {
     ///  Whether an event naming the control's file arrives inside `PATIENCE`.
     /// Why:
     ///  The wait is bounded,
-    /// and a silence is one answer rather than a failure of
+    ///  and a silence is one answer rather than a failure of
     ///  this process:
     /// the control that expects a silence proves its watch works by the same call
     /// answering true on the tree the path names now.

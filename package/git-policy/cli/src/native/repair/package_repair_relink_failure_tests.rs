@@ -5,8 +5,8 @@
 //!  The words a person reads about a worktree whose links still name another checkout must say what failed,
 //!  and the answer the tool gave is the only thing that does;
 //!  a reason that is lost,
-//! or read twice,
-//! or left behind after the record settled,
+//!  or read twice,
+//!  or left behind after the record settled,
 //!  is a line the person cannot act on.
 
 use super::*;
@@ -106,7 +106,7 @@ fn make_pipe(path: &Path) {
 ///   The reason is read on the path a command's notice is worded on,
 ///  and a name another process may make anything is the class of read this branch added:
 ///  the file beside it and the lock are read the same way,
-/// for the same reason.
+///  for the same reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

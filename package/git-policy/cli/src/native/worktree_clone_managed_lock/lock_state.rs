@@ -7,7 +7,7 @@
 //!  and says one function answers with them so no caller invents its own order
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //!  "The states,
-//! the checks and the words",
+//!  the checks and the words",
 //!  and "Where the code goes").
 //!  The slot's missing `.git` is a state beside the lock's rather than instead of it,
 //!  so it travels with every answer and is printed as its own line.

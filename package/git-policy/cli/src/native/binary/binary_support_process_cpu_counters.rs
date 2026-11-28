@@ -73,7 +73,7 @@ pub fn thread_numbers(pid: u32) -> std::io::Result<Vec<u32>> {
 ///   A thread that went between the listing and its own read spent nothing more,
 /// and the process that had it is still there:
 /// the sum is of the threads this moment has,
-/// and no absence among them is a reason to answer nothing.
+///  and no absence among them is a reason to answer nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

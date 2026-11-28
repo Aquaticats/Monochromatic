@@ -54,7 +54,7 @@ use std::path::{
 };
 /// What:
 ///  Remove the launcher records,
-/// and the launchers beside them,
+///  and the launchers beside them,
 ///  that this worktree's lock declares nowhere,
 ///  once the bytes being removed are proved to be that copy and not what another command wrote.
 /// Why:
@@ -66,7 +66,7 @@ use std::path::{
 ///  so leaving them would keep a record that names another checkout in every worktree copied from this one.
 ///  A record that cannot be removed is said and left:
 ///  it is no install's work,
-/// so the relink neither fails nor waits on it.
+///  so the relink neither fails nor waits on it.
 ///  The classification reads the lock and the directory once,
 ///  and a person's `toolchain:update` and install can write a correct record and launcher for a name the lock
 ///  declares after that read,
@@ -76,7 +76,7 @@ use std::path::{
 ///  the launcher goes only when it is the object this pass read beside the record.
 ///  Nothing taken aside is ever discarded unread:
 ///  a pass killed with a record aside leaves it for the next pass,
-/// which reads it and puts it back,
+///  which reads it and puts it back,
 ///  or keeps it and names it for the person when the record's own name holds another record by then.
 ///
 /// In TS you'd write (pseudocode):
@@ -188,10 +188,10 @@ pub(super) fn remove_what_no_install_rewrites(
 ///  A record another command wrote at that name since the classification is another object,
 ///  and taking it would put an install's record out of its place for a reason that was not about it;
 ///  the object is looked at before the take and again after it,
-/// because a name can be written between the two.
+///  because a name can be written between the two.
 ///  A record put back after that second look is restored by a name taken only when it is free,
 ///  and one that cannot be restored stays kept for the next pass,
-/// which reads it.
+///  which reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -265,7 +265,7 @@ fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
 ///   a name taken only when it is free leaves the newer record and drops the copy this pass holds,
 ///   whose bytes this pass has read and judged a copy of another checkout's layout.
 ///   A record that cannot be put back stays where it is,
-/// and the next pass reads it.
+///  and the next pass reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -292,13 +292,13 @@ fn put_back(
 ///  Whether the record this pass took aside still says it is a copy no install rewrites:
 ///  it names a lock other than this worktree's,
 ///  and the worktree's lock,
-/// as the removal read it,
-/// declares no launcher of its name.
+///  as the removal read it,
+///  declares no launcher of its name.
 /// Why:
 ///   The record is read again here because it may have changed since the classification,
 ///   and a record an install has just written for a name the lock declares is not this pass's to remove.
 ///   A lock that cannot be read keeps the rule the classification used:
-/// every record counts as one an install answers,
+///  every record counts as one an install answers,
 ///  so a copy is still a copy.
 ///
 /// In TS you'd write (pseudocode):
@@ -330,12 +330,12 @@ fn still_a_copy_of_an_earlier_layout(
 ///   A pass killed between taking a record aside and removing or putting it back leaves that name behind,
 ///   and nothing else would read it:
 ///   it may be a copy of an earlier layout,
-/// which a later pass removes under its own proof,
+///  which a later pass removes under its own proof,
 ///   or the record a concurrent install had just written,
-/// which nothing else would recreate.
+///  which nothing else would recreate.
 ///   So it is read and put back by a name taken only when it is free,
 ///   and one whose name is taken by then is kept rather than replaced or discarded,
-/// and named for the person.
+///  and named for the person.
 ///   A name whose process still runs is a pass in flight and is left to it.
 ///
 /// In TS you'd write (pseudocode):
@@ -401,10 +401,10 @@ fn restore_what_a_kill_left_aside(destination: &Path) {
 /// Why:
 ///   The wrapper could not put it back because the record's own name holds another record by then,
 ///   and it may not replace that one,
-/// nor discard what it holds:
+///  nor discard what it holds:
 ///   the person is the one who can say which record their worktree needs.
 ///   The line waits in the worktree's own Git directory,
-/// where the next command there shows it once.
+///  where the next command there shows it once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

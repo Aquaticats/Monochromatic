@@ -267,8 +267,8 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         isolated_overlay().as_slice(),
         Some(&facts),
         TheRunsOwnSteps {
-            refuse_a_bound_slots_removal:
-                &crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone,
+            the_bound_slots_removal:
+                &crate::worktree_removal_of_a_bound_clone::the_removal_of_a_bound_clone,
             stop_units: &|about: &WorktreeAboutToGo| asked.borrow_mut().push(about.clone()),
         },
     );
@@ -340,8 +340,8 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         isolated_overlay().as_slice(),
         Some(&facts),
         TheRunsOwnSteps {
-            refuse_a_bound_slots_removal:
-                &crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone,
+            the_bound_slots_removal:
+                &crate::worktree_removal_of_a_bound_clone::the_removal_of_a_bound_clone,
             stop_units: &|_about: &WorktreeAboutToGo| {},
         },
     );

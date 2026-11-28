@@ -1418,7 +1418,10 @@ and a line that reads as none of them fails the run:
   because no folder name it names holds an arrow word,
   and a `uses` line that sets two of them off with whitespace is refused,
   with a sentence that says so.
-  The file rule reads no `uses` line,
+  The file rule's list tolerates no `uses` line:
+  its reader reads one as it reads any other entry,
+  and the rule matches one use between two files and one finding's key,
+  so a `uses` line of that list is reported as tolerating nothing,
   and a `file-uses` line whose folder name holds a set-off arrow is read from its last arrow,
   whose place a file name cannot take.
   A line stays alive while its two folders still make that use and still sit in one loop together,
@@ -1579,7 +1582,8 @@ Every key names exactly one finding:
   so no later edit of a tree can print a line that the next run cannot read,
   and the price is that a package selecting the folder rule stops on such a name
   even where no line of its list carries it.
-  The file rule reads no `uses` line and names such a folder in a key,
+  No `uses` line of the file rule's list is ever tolerated,
+  and such a folder is named in a key,
   which holds the name as written,
   so the arrow words of a folder name are refused only while the folder rule is selected.
   A file name and an entry of a `uses` folder keep their backslashes and arrow words as the source writes them,
@@ -1955,6 +1959,15 @@ and every other line stays as it is.
   and 71 file findings over it,
   which those lists tolerate
   (measured on 2026-11-27 with the release build of this branch on the tree of its last merge from `main`).
+  The search for a near miss costs 0.93 to 1.07 times `0.5.2-alpha.17`'s on the same tree,
+  where alpha.18's cost 69 times as much (measured on 2026-11-27,
+  the two binaries and their control arms rotated through three interleaved rounds).
+  The same pass measured the layout gate over `package/git-policy/cli` and over the ZFS binding
+  reporting nothing,
+  and its control,
+  which removes the crate's two lists,
+  reports 558 folder findings
+  and 16 file findings under the alpha.19 build.
 - A folder name that begins with `-> `,
   ends with ` ->`,
   or is `->`
@@ -2026,7 +2039,7 @@ what they say and what a walk costs.
   ends with ` ->`,
   or is `->` stops the run only while the folder rule is selected.
   A package that selects the file rule alone reads such a tree as alpha.17 did,
-  because that rule reads no `uses` line and names such a folder in a key,
+  because no `uses` line of that rule's list is tolerated and such a folder is named in a key,
   which holds the name as written.
   A folder name that holds ` -> ` between two names stops the run under the same condition,
   while alpha.17 refused that one even under the file rule alone:
@@ -2153,6 +2166,9 @@ and what the messages say.
   only while the words joined with one space named another folder the tree held,
   and answered the others with that sentence;
   it named a folder whose own name begins with whitespace only while the character beside it was one.
+  Over the 1,296 lines the `0.5.2-alpha.21` read wrote,
+  the release of `0.5.2-alpha.22` named the folder in 1,152 where `0.5.2-alpha.21` named 324,
+  and the other 144 name a folder that holds no whitespace and read as an entry.
   This release reads the line's own arrow as the last one whitespace sets off,
   takes the whitespace a doubled gap left off one character at a time at the start and as a whole run before the file,
   names such a folder in both shapes,
@@ -2194,6 +2210,66 @@ and what the messages say.
   where alpha.19 told it to keep no arrow word at its beginning or its end and left the middle one in place,
   and an entry of a `uses` folder is named as that entry of a `uses` folder,
   where alpha.19 called it a file.
+
+`0.5.2-alpha.22`,
+reading a list written for `0.5.2-alpha.21`,
+moved no line between read and refused over 6,293 lists,
+with a byte-identical copy of `0.5.2-alpha.21` as the control;
+`0.5.2-alpha.23`,
+reading a list written for `0.5.2-alpha.22`,
+moved none over 10,081 lists against `0.5.2-alpha.22` and a byte-identical copy of it,
+and changed no list's exit status or set of findings.
+Both measured on 2026-11-27.
+
+What the second passes over these three releases measured with the released
+binaries
+(each a same-vendor pass and not an independent review):
+
+- `0.5.2-alpha.20` against `0.5.2-alpha.19`,
+  over 4,092 lists:
+  none that alpha.19 read clean is unclean here,
+  the keys it prints read back with no dead line,
+  the two allow lists of `package/git-policy/cli` give identical output in alpha.16,
+  alpha.19 and alpha.20,
+  and CPU time was 0.89 to 1.08 over five interleaved rounds,
+  against a byte-identical copy of alpha.19 as the control at 0.90 to 1.11,
+  so no cost was measurable.
+- `0.5.2-alpha.21` against `0.5.2-alpha.20`,
+  over 5,161 lists:
+  no line changed from read to refused or back,
+  so only texts changed,
+  the repository copy's findings are byte-identical in alpha.19,
+  alpha.20 and alpha.21,
+  and no cost shows on a package-sized run.
+  Of 1,296 six-word `file-uses` lines over real folders named with a space,
+  a tab,
+  two spaces,
+  a no-break space and an arrow,
+  alpha.21 lost the folder's name alpha.20 gave 558 of them,
+  and put right the lines for which alpha.20 named a wrong folder.
+  Alpha.21 spells six unseen code points and prints the rest raw,
+  4,232 by that pass's count.
+  A list of 30,000 dead lines took 1.18 times alpha.20's wall time
+  (range 1.10 to 1.34,
+  its control 0.96 to 1.14),
+  and 1.06 where both print sentences of equal size.
+- `0.5.2-alpha.22` against `0.5.2-alpha.21`,
+  over 10,081 lists:
+  no line moved between read and refused,
+  no exit status or set of findings changed,
+  a probe first showed that the comparison sees a move (alpha.19 against alpha.21 moves 163 lists),
+  and on a clean tree only `--version` differs.
+  The table of unseen characters equals Unicode 17.0.0's own data,
+  and over every scalar value alpha.22 spells 4,288 where alpha.21 spelled 29.
+  A `file-uses` line of six words names the folder it wrote in 1,152 of 1,296 lines against 324,
+  and the help of a dead line names every character a gap kept,
+  in 992 of 992 lines.
+
+The second pass over `0.5.2-alpha.21` did not review the closure check,
+the rules outside the layout rules beyond a byte comparison,
+the test suite as run,
+Windows and macOS,
+or how `package/git-policy/cli` uses this library.
 
 ### Known limits
 
@@ -2237,7 +2313,12 @@ and what the messages say.
   and a folder name holding a space makes a sixth,
   so the whole list is refused,
   and the refusal names that folder and says that the space in its name is why:
-  a loop of files in such a folder is untangled or the folder is renamed.
+  a loop of files in such a folder is untangled or the folder is renamed,
+  and a folder that holds no module file is told the rename alone,
+  because no loop of files is inside it to untangle.
+  A character a reader cannot see that stands in that folder's own name is named with its place,
+  and the note leaves the taking out of the line out of its advice there,
+  because renaming the folder is the edit that takes the character out.
   A folder name holding a tab,
   a no-break space or a doubled space is refused the same way,
   and the refusal spells that character and says what renaming must give.
@@ -2264,9 +2345,21 @@ and what the messages say.
   The second reading takes the whole run of whitespace the gap before the file left,
   because no folder name the rules accept ends in whitespace,
   and at the start one character of its run at a time,
+  from the fewest characters taken off to the most,
   because a folder name may begin with whitespace and only the tree says how much of the run is its own:
   so a folder named ` src/c d` is named for every gap spelling
-  whose extra character can be told from that name's own whitespace.
+  whose extra character can be told from that name's own whitespace,
+  and between two names the one that keeps more of that run is named first.
+  Each name those readings give is offered to the file system one at a time and none is kept,
+  and a name whose first folder is longer than the longest name the package folder holds is not offered at all,
+  because no folder of the package can be called it:
+  so a gap of 64,000 whitespace characters costs one pass over the line
+  and one question per name the package folder's own names allow,
+  where `0.5.2-alpha.23` built one name per character of the gap and kept them all.
+  Measured on 2026-11-27 over three rounds of three arms on a line of 64,033 characters,
+  this release's wall time was 1.10 times `0.5.2-alpha.22`'s (range 0.73 to 1.21)
+  and its peak resident memory 0.97 times that release's (range 0.95 to 1.02),
+  against 981 times (range 580 to 1,071) and 180 times (range 179 to 195) for `0.5.2-alpha.23`.
   Where the same text is the line for two folders,
   the first reading names the folder whose own name begins with the character,
   and the third reading is the one that can name a folder the line was not written for:
@@ -2336,17 +2429,53 @@ and what the messages say.
   and no message says which column an editor shows.
   A character with no plain name is named by its code point in the same sentence,
   where the quote spells it.
+  A line holding more than one of them says how many stand beside the first,
+  and its sentence names the edit as the one that takes both or all of them out,
+  because that is the edit the sentence describes.
   A line whose only fault is that character is told to take it out:
   a dead line the reader took for one finding's key,
   a line the reader refuses,
   and a dead `file-uses` line whose file name holds one that no module of its folder holds.
+  A file name takes that character out and no whitespace character with it,
+  and its line says the entry is live again only if the use still exists.
   A line that spells a real module file's own name,
   and one whose character stands in the folder's name rather than a file's,
   is told to be deleted,
   because taking the character out would name another file or folder.
   A whitespace character where one belongs replaces it,
   and a sentence about what the line would read as after that edit
-  is said only when the edited text does read as a line of the list.
+  is said only when the edited text does read as a line of the list:
+  the reader that reads the list is asked about that text,
+  and a text it refuses,
+  or one that would repeat a line already on the list,
+  is answered by telling the reader to delete the line instead.
+  A blank cell of the Braille block is left as written,
+  because it is a character with a glyph of its own:
+  the set is Unicode's `Cf`,
+  `Cc` and `Default_Ignorable_Code_Point`,
+  and no one of them names U+2800,
+  so the quote keeps it and no sentence calls it unseen.
+  `0.5.2-alpha.22` spells every one of the 4,266 candidates of Unicode 17.0.0 among those three sets,
+  where `0.5.2-alpha.21` spelled 7.
+- A folder name that holds two arrow shapes needs a rename for each,
+  and it stays so:
+  each sentence such a name gets is true,
+  and such names are rare.
+- A longer dead list takes longer to read than it did,
+  and the longer sentences are the cause the pass could show:
+  a list of 30,000 dead lines took 1.18 times `0.5.2-alpha.20`'s wall time,
+  against a control of that release's own copy at 0.96 to 1.14,
+  and 1.06 where both print sentences of equal size.
+- A constructed walk shape costs 1.64 times `0.5.2-alpha.16`'s time on it
+  (measured by the `0.5.2-alpha.19` release pass on 2026-11-27),
+  and no package of this repository has that shape,
+  so no tree here measures it.
+- Two costs of the `0.5.2-alpha.19` release are unmeasured:
+  the walk's peak memory,
+  and a file-rule list that holds tens of thousands of keys once its key index is built.
+  The index is built from the entries once,
+  so one question never walks a list that holds tens of thousands of lines,
+  and what building it costs in memory and in time is not measured.
 
 ### Links and other tools
 
@@ -2472,6 +2601,47 @@ The grouped editor refuses a nonempty-to-empty file rewrite.
 
 Pipe-table conversion and semantic line breaks are implemented.
 Production Rust and Markdown commands have not been replaced.
+A probe of `0.5.2-alpha.21` on 2026-11-27 found no `markdown/semantic-line-breaks` finding
+for a comma inside an inline code span,
+beside two findings for a plain sentence on the next line,
+so a report that the rule broke an inline code span was not reproduced.
+
+The semantic break fix also joins the fragment an old hard wrap cut off.
+Only a fragment a break of the same pass cut joins:
+the joins hang on the breaks one pass plans
+(`markdown_semantic_breaks.rs`,
+the `breaks` list that feeds `fragment_joins`),
+so a line already alone in the input is never joined by itself,
+and a fragment an earlier sweep left stays where it is until a break above it is planned again.
+When the rest of the author's line holds one or two words that do not end at a break-point
+character,
+is not the paragraph's last line,
+carries no hard break,
+and the following line carries no block marker,
+the fragment joins the line that continues its clause through one space,
+where the joined line stays under 120 characters.
+A fragment that ends at a break-point character stays alone,
+because the rule wants a line to end there and would break it again on the next pass,
+so `4,` and `held,` keep their lines.
+A line the fix writes takes the indent the paragraph's first continuation line carries,
+so the lines of one paragraph are written at one depth,
+which is what a Rust doc comment keeps when its old lines were written one space deeper.
+The fix never rewrites a line the author wrote.
+Removing the deepest indent of a rustdoc run re-projects every line of that run
+(`processors_docs.rs`,
+`run_margin`),
+so such an edit would be refused instead of applied.
+
+A fence is closed by the author's own line,
+and no rule here reports one that is never closed:
+CommonMark runs an unterminated fence to the end of its container,
+so the lines after it are code to every Markdown rule,
+and a fix has nothing to say about the missing closing line.
+The wrapper's round on issue 6642 measured this on 2026-11-27:
+a `//!` fence with the info string `ts` stayed open in
+`package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`,
+the linter reported no finding on that file,
+and a break planted in the same source was reported in the same run.
 
 ## LFS image URLs
 

@@ -1,7 +1,7 @@
 //! Controls for one slot's report:
 //!  one report for each state the classification names,
 //!  with its slot,
-//! its dataset and pool,
+//!  its dataset and pool,
 //!  the evidence each state came from,
 //!  and the one next safe action,
 //!  plus the lines a command prints.
@@ -251,7 +251,10 @@ fn a_known_unmounted_clone_reports_its_files_and_each_intent() {
     };
     let parked: String = report_of(&unmounting).next_safe_action;
     assert!(parked.contains("keeps it unmounted"), "{parked}");
-    assert!(parked.contains("no removal for a clone"), "{parked}");
+    assert!(
+        parked.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        "{parked}"
+    );
     assert!(
         !parked.contains("run the removal"),
         "no text names a removal this release has not: {parked}"

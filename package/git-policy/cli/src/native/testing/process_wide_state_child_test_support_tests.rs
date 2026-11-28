@@ -42,11 +42,11 @@ fn setting_that_state_outside_a_child_of_its_own_is_refused() {
 
 /// What:
 ///  The child this test starts is the only test of its process,
-/// and the refusal lets it set its state.
+///  and the refusal lets it set its state.
 /// Why:
 ///  The parent's half is every control that starts such a child;
 ///  this is the child's half,
-/// so a marker that never reached the child would fail here instead of in the control that
+///  so a marker that never reached the child would fail here instead of in the control that
 ///  waited for state it could not set.
 ///
 /// In TS you'd write (pseudocode):

@@ -10,7 +10,7 @@
 //!  so each term of the reader is a way an account could choose them;
 //!  every control here is reachable as an ordinary account,
 //!  and the positive control proves the reader can answer,
-//! not only refuse
+//!  not only refuse
 //!  (`file_only_root_may_write`).
 //!
 //! In TS you'd write (pseudocode):

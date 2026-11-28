@@ -253,6 +253,7 @@ fn complete(
         head: device.live,
         holders: &TheLiveHolderScan,
         settle,
+        cancelling: None,
         budget: the_budget(fixture),
         now: "2026-11-25T09:12:44-05:00",
     };

@@ -405,7 +405,7 @@ fn calls_in(text: &str) -> usize {
 /// What:
 ///  `fn counts_in(root, roots) -> Result<Vec<(String, usize)>, String>` is every release file that makes a
 ///  call that can wait,
-/// with how many it makes.
+///  with how many it makes.
 /// Why:
 ///  Both halves of the check read one measurement,
 ///  so a file it cannot read stops it rather than passing as a file with no calls.

@@ -101,13 +101,13 @@ pub(super) struct ForwardedGit<'a> {
 
 /// What:
 ///  The relayed run of one step of the copy route,
-/// when the step and its words are a typed network command ssh carries.
+///  when the step and its words are a typed network command ssh carries.
 /// Why:
 ///  The copy route starts the person's step itself,
-/// so it is the third place a typed network command reaches Git;
+///  so it is the third place a typed network command reaches Git;
 ///  a step that is not the person's own,
-/// or whose remote ssh does not carry,
-/// answers nothing and keeps the inherited
+///  or whose remote ssh does not carry,
+///  answers nothing and keeps the inherited
 ///  streams.
 ///
 /// In TS you'd write (pseudocode):
