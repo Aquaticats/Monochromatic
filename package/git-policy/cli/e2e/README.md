@@ -1883,9 +1883,17 @@ so an arm about a slot no removal has touched names a slot the fixture built.
 A run passes only when the pulled `grammar-commands-arm.log` carries every
 `GRAMMAR` line and no `SKIPPED` line.
 
+Each arm compares `/etc/hostname` to `CLI_GIT_ZFS_GRAMMAR_GUEST` itself,
+before it builds anything,
+so the driver exports the hostname form the backend answers on
+(`bin/mvm-guest-backend.ts`,
+`hostnameOf`),
+which is the run's name on a libvirt guest and `mvm-<name>` on an OVHcloud
+instance.
+
 ```sh
 # package/git-policy/cli: one throwaway guest for all three arms
-node e2e/cancel-and-settle-commands-guest.ts all --name <guest> --log-dir <dir>
+MVM_BACKEND=ovh MVM_OVH_FLAVOR=b3-16 mise run //package/git-policy/cli:e2e:cancel-and-settle-commands -- all --name <guest> --log-dir <dir>
 ```
 
 ## The step 22 measurement driver
