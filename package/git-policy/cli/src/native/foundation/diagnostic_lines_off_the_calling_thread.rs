@@ -311,7 +311,7 @@ static THE_NOTICE_IS_SAID: std::sync::atomic::AtomicBool =
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// once(() => { if (!DEBUG_ON) return; writeLine(diagnosticLine('debug', nowIso(), 'diagnosticLines', readerStoppedSentence(WARNING_WRITE_CEILING))) })
+/// const sayTheReaderStopped = () => { if (said.swap(true)) return; if (!DEBUG_ON) return; writeLine(diagnosticLine('debug', nowIso(), tag, readerStoppedSentence(WARNING_WRITE_CEILING))) }
 /// ```
 fn say_the_reader_stopped() {
     // What:     `swap(true, ...)` is this call's claim on saying the notice, and every other caller reads a yes.
