@@ -253,6 +253,31 @@ pub mod worktree_clone_mount_protocol;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount_protocol::*;
 
+/// The clone-mount route's event filter,
+/// which plan step 19 builds ahead of the dispatch that calls it:
+///  the pool and dataset one ZED delivery carries,
+///  the two names the route's clone parent has,
+///  and the decision that drops every history event which is not about the
+///  parent or a dataset below it.
+/// No command reaches it in this release:
+///  step 19's wiring calls it at the head of the handler's dispatch.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_event_filter;
+
+/// The clone-mount route's merge device,
+/// which plan step 19 builds ahead of the sweep entry that would call it:
+///  the one root-owned folder under `/run`,
+///  the route-wide run claim of one event-driven pass,
+///  the mark a trigger writes when it asked for a pass,
+///  the one extra pass that mark buys,
+///  and every line the device answers with.
+/// The pass budget and its number are plan step 22's,
+/// so nothing here reads or writes one.
+/// No command reaches it in this release:
+///  step 19's wiring calls its taker at the entry of the default sweep.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_sweep_merge;
+
 /// The unmount half of the ZFS worktree clone route:
 ///  one removal's staging folder under the account's `~/.cache`,
 ///  the record beside it,
