@@ -8443,6 +8443,91 @@ The migration,
 the property changes and the install are the owner's act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
 
+#### The event filter and the merge device, built and reached by no command
+
+Plan step 19's lost-event triggers have a handler side that lives in two folders,
+and no command reaches either of them in this release.
+
+`src/native/worktree_clone_mount_event_filter/` is the event filter:
+
+- the pool and the dataset one ZED delivery carries,
+  read from the `ZEVENT_POOL` and `ZEVENT_HISTORY_DSNAME` variables ZED sets for a
+  zedlet,
+  which are the names the distribution's own zedlets read;
+- the pool and the dataset the route's clone parent has,
+  read from the one dataset name the configuration carries,
+  whose first `/`-separated component is its pool;
+- and the rule that lets an event through when it is about the clone parent or a
+  dataset below it,
+  and drops every other history event.
+
+A snapshot's `@` name is cut off before the dataset is compared,
+so a snapshot of a clone is that clone's own event,
+and a dataset name that only begins like the parent's is another dataset.
+An event about another pool is dropped.
+Each drop is reported in one line that names both sides of the comparison and
+says that no pass ran,
+and the drop happens before the compatibility gate and before `/dev/zfs` is
+opened,
+so a dropped event costs the fork ZED already paid and nothing more.
+Two deliveries pass that the route's scope does not name:
+one whose parent name could not be read,
+and one that carried no pool or no dataset.
+Both pass because the handler's own checks decide on live facts,
+so the filter never fails closed,
+and what it gives up is the accidental recovery an unrelated event would have
+provided,
+which is the price the accepted design states for the bound.
+
+`src/native/worktree_clone_mount_sweep_merge/` is the merge device:
+
+- one root-owned folder under `/run`,
+  `git-worktree-clone-mount-sweeps`,
+  made at mode `0755` when a fresh boot has none;
+- the run claim of one event-driven pass,
+  published by the repository's numbered claim as `run.<generation>` at mode
+  `0600`;
+- the mark `another-pass-is-due` at mode `0644`,
+  holding the one line `v1`,
+  whose presence is its whole meaning;
+- and the pass budget,
+  which plan step 22 builds.
+
+A trigger takes the run claim without waiting.
+A trigger whose attempt finds a live pass writes the mark and tries the claim
+once more,
+and whether that second attempt wins or loses it never waits.
+A trigger that holds the claim drops the mark,
+runs its pass,
+gives the claim back and looks for the mark again,
+and a mark it finds buys exactly one more pass,
+which is the most one invocation runs.
+A mark that survives that second pass is left standing for the next trigger,
+so the mark is never lost,
+only the pass that would answer it made later.
+Only event-driven passes take the claim and the mark.
+A readiness pass removes the mark and enumerates,
+so a boot or a provider transition is never held.
+
+The device is cost and never safety.
+A record it cannot read is reported beside the pass's own line and the pass
+runs,
+which is why an unreadable folder under `/run` never decides whether a worktree
+is available.
+What keeps two passes safe on one clone is the per-slot claim,
+not this device.
+The pass budget and its number are plan step 22's,
+so nothing in this build reads or writes one,
+no number ships here,
+and the rule is not in force until that step lands.
+
+No command reaches either folder.
+The filter's call at the head of the handler's dispatch and the device's call at
+the entry of the default sweep are plan step 19's wiring,
+which is the round that calls them,
+so until it lands the default sweep runs one pass per trigger with no filter,
+no claim and no mark.
+
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
 Plan step 20's checks live in `src/native/health/sanoid_coverage/`:

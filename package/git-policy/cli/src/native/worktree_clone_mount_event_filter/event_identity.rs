@@ -164,11 +164,11 @@ impl EventIdentity {
 /// const name = (value?: string) => (value === undefined || value === '') ? undefined : value;
 /// ```
 fn a_name(value: Option<&str>) -> Option<String> {
-    let value: &str = value?;
-    if value.is_empty() {
+    let named: &str = value?;
+    if named.is_empty() {
         return None;
     }
-    return Some(String::from(value));
+    return Some(String::from(named));
 }
 
 /// Controls stay out of the release executable.

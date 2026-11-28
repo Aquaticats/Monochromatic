@@ -144,33 +144,36 @@ fn two_takers_started_together_run_one_pass_and_one_extra() {
             return (answer, first_runs);
         });
         entered_rx.recv().expect("the first taker entered its pass");
-        let held: String = run_a_merge_pass(&folder, || {
+        let held: Result<String, String> = run_a_merge_pass(&folder, || {
             second_runs += 1;
             return Ok(String::from(REPORT));
-        })
-        .expect_err("the second taker ran no pass");
-        assert!(
-            held.contains("another event-driven pass holds the run claim"),
-            "the second taker names the pass it found: {held}"
-        );
-        assert_eq!(
-            the_mark_is_there(&folder),
-            MarkReading::Present,
-            "the second taker left its request as the mark"
-        );
+        });
+        let mark_while_the_first_pass_runs: MarkReading = the_mark_is_there(&folder);
+        // The first pass is let go before anything is asserted: a control that failed here would leave its own thread
+        // inside that pass, and a thread this one waits on is a test the run's watchdog has to end.
         may_finish.send(()).expect("the first pass may finish");
         let (answer, first_runs): (Result<String, String>, usize) =
             worker.join().expect("the first taker's thread");
-        let answer: String = answer.expect("a pass that answered 0");
+        let held_answer: String = held.expect_err("the second taker ran no pass");
         assert!(
-            answer.contains("one more pass"),
-            "the first taker answered the mark with one more pass: {answer}"
+            held_answer.contains("another event-driven pass holds the run claim"),
+            "the second taker names the pass it found: {held_answer}"
+        );
+        assert_eq!(
+            mark_while_the_first_pass_runs,
+            MarkReading::Present,
+            "the second taker left its request as the mark"
+        );
+        let pass_report: String = answer.expect("a pass that answered 0");
+        assert!(
+            pass_report.contains("one more pass"),
+            "the first taker answered the mark with one more pass: {pass_report}"
         );
         assert_eq!(
             first_runs, MOST_PASSES,
             "one pass and one more, and no third"
         );
+        assert_eq!(second_runs, 0, "the held taker ran no pass");
+        assert_eq!(the_mark_is_there(&folder), MarkReading::Absent);
     });
-    assert_eq!(second_runs, 0, "the held taker ran no pass");
-    assert_eq!(the_mark_is_there(&folder), MarkReading::Absent);
 }

@@ -12546,3 +12546,62 @@ policy::policy_engine field PolicyFinding::commit_correction
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the same answer as the event carries it, for the renderer that chooses the hint
 policy::policy_events_kinds field FindingEvent::commit_correction
+
+# New code of commit dfbcbc3e0a, published because the commit's own code is, one reason per name:
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the event filter's rule and the two values it reads, which this release's guest arm
+#   drives with a real ZED delivery and which plan step 19's wiring calls at the head of the dispatch
+worktree_clone_mount_event_filter::event_filter_decision enum DroppedWhy
+worktree_clone_mount_event_filter::event_filter_decision enum FilterDecision
+worktree_clone_mount_event_filter::event_filter_decision enum PassedWhy
+worktree_clone_mount_event_filter::event_filter_decision fn FilterDecision::line
+worktree_clone_mount_event_filter::event_filter_decision fn FilterDecision::passes
+worktree_clone_mount_event_filter::event_filter_scope const SNAPSHOT_MARKER
+worktree_clone_mount_event_filter::event_filter_scope fn decide_about_the_event
+worktree_clone_mount_event_filter::event_identity const DATASET_VARIABLE
+worktree_clone_mount_event_filter::event_identity const POOL_VARIABLE
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::dataset
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::live
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::of
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::pool
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::read
+worktree_clone_mount_event_filter::event_identity struct EventIdentity
+worktree_clone_mount_event_filter::parent_scope fn ParentScope::dataset
+worktree_clone_mount_event_filter::parent_scope fn ParentScope::of_dataset
+worktree_clone_mount_event_filter::parent_scope fn ParentScope::pool
+worktree_clone_mount_event_filter::parent_scope struct ParentScope
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the merge device's folder and the two records it keeps there, which the guest arm
+#   drives as root and which plan step 19's wiring calls at the entry of the default sweep
+worktree_clone_mount_sweep_merge::sweeps_folder const PASS_MARK_MODE
+worktree_clone_mount_sweep_merge::sweeps_folder const PASS_MARK_NAME
+worktree_clone_mount_sweep_merge::sweeps_folder const PASS_MARK_TEXT
+worktree_clone_mount_sweep_merge::sweeps_folder const RUN_CLAIM_PREFIX
+worktree_clone_mount_sweep_merge::sweeps_folder const SWEEPS_FOLDER
+worktree_clone_mount_sweep_merge::sweeps_folder const SWEEPS_FOLDER_MODE
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::at
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::directory
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::live
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::pass_mark_path
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::prepare
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::run_claim_file
+worktree_clone_mount_sweep_merge::sweeps_folder struct SweepsFolder
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the run claim and the mark one event-driven pass uses, which the guest arm holds and
+#   plants to force the device's contended paths and which `doctor` will read in plan step 18
+worktree_clone_mount_sweep_merge::pass_mark enum MarkReading
+worktree_clone_mount_sweep_merge::pass_mark fn MarkReading::asks_for_a_pass
+worktree_clone_mount_sweep_merge::pass_mark fn remove_the_mark
+worktree_clone_mount_sweep_merge::pass_mark fn the_mark_is_there
+worktree_clone_mount_sweep_merge::pass_mark fn write_the_mark
+worktree_clone_mount_sweep_merge::run_claim enum ClaimAnswer
+worktree_clone_mount_sweep_merge::run_claim fn HeldRunClaim::path
+worktree_clone_mount_sweep_merge::run_claim fn HeldRunClaim::release
+worktree_clone_mount_sweep_merge::run_claim fn take_the_run_claim
+worktree_clone_mount_sweep_merge::run_claim struct HeldRunClaim
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the taker and the count of passes one invocation runs, which the wiring round calls
+#   and the guest arm drives as root
+worktree_clone_mount_sweep_merge::merge_pass const MOST_PASSES
+worktree_clone_mount_sweep_merge::merge_pass fn run_a_merge_pass
+worktree_clone_mount_sweep_merge::merge_pass fn run_a_merge_pass_seamed

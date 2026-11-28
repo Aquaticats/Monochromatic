@@ -65,15 +65,15 @@ pub fn decide_about_the_event(
     event: &EventIdentity,
     parent: Option<&ParentScope>,
 ) -> FilterDecision {
-    let Some(parent) = parent else {
+    let Some(route_parent) = parent else {
         return FilterDecision::Passed(PassedWhy::TheParentCouldNotBeResolved);
     };
     let Some(pool) = event.pool() else {
         return FilterDecision::Passed(PassedWhy::TheEventNamedNoPool);
     };
-    if pool != parent.pool() {
+    if pool != route_parent.pool() {
         return FilterDecision::Dropped(DroppedWhy::AnotherPool {
-            parent_pool: String::from(parent.pool()),
+            parent_pool: String::from(route_parent.pool()),
             event_pool: String::from(pool),
         });
     }
@@ -81,14 +81,14 @@ pub fn decide_about_the_event(
         return FilterDecision::Passed(PassedWhy::TheEventNamedNoDataset);
     };
     let named: &str = before_its_snapshot(dataset);
-    if named == parent.dataset() {
+    if named == route_parent.dataset() {
         return FilterDecision::Passed(PassedWhy::TheParentsOwnDataset);
     }
-    if is_below(named, parent.dataset()) {
+    if is_below(named, route_parent.dataset()) {
         return FilterDecision::Passed(PassedWhy::BelowTheParent);
     }
     return FilterDecision::Dropped(DroppedWhy::OutsideTheParent {
-        parent: String::from(parent.dataset()),
+        parent: String::from(route_parent.dataset()),
         dataset: String::from(named),
     });
 }

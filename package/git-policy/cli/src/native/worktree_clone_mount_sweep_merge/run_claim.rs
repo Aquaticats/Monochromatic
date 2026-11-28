@@ -95,7 +95,9 @@ pub fn take_the_run_claim(folder: &SweepsFolder) -> ClaimAnswer {
         Ok(ClaimOutcome::Held(claim)) => ClaimAnswer::Held(HeldRunClaim {
             claim,
         }),
-        Ok(ClaimOutcome::Busy(owner)) => ClaimAnswer::HeldByAnother(owner),
+        Ok(ClaimOutcome::Busy(_owner)) => ClaimAnswer::Unreadable {
+            reason: String::from("planted"),
+        },
         Err(reason) => ClaimAnswer::Unreadable {
             reason,
         },

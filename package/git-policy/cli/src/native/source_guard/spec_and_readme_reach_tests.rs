@@ -71,6 +71,11 @@ const REACH_PASSAGES: &[ReachPassage] = &[
         in_spec: "#### The clone route's repair and its watches, built and reached by no command",
         in_readme: "#### The clone route's repair and its watches, built and reached by no command",
     },
+    ReachPassage {
+        topic: "the lost-event triggers' event filter and merge device",
+        in_spec: "#### The event filter and the merge device, built and reached by no command",
+        in_readme: "#### The event filter and the merge device, built and reached by no command",
+    },
 ];
 
 /// What:
