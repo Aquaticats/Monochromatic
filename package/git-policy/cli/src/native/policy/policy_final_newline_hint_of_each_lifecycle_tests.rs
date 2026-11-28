@@ -376,7 +376,8 @@ fn the_config_with(severity: Severity) -> PolicyConfig {
 
 /// An `add` leads with the two steps that correct the file where it is refused,
 ///  says why staging follows the fix,
-///  and names a commit that names the file, with the read-only selection that records the bytes instead.
+///  and names a commit that names the file,
+///  with the read-only selection that records the bytes instead.
 ///  The hint is the same at `warn`,
 ///  where the add runs,
 ///  and at `error`,
