@@ -1,6 +1,11 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { join, } from 'node:path';
 
-import { VM_PREFIX, } from './config.ts';
+import {
+  VM_PREFIX,
+  VMS_DIR,
+} from './config.ts';
+import { readVmSizes, } from './vm-sizes.ts';
 import { virsh, } from './virsh.ts';
 
 /**
@@ -19,6 +24,15 @@ const l = tagged({ tag: 'mvm', },);
 export type VmInfo = {
   name: string;
   state: string;
+  /**
+   Memory the guest was given, in gibibytes, or absent when the backend cannot
+   tell.
+   */
+  memoryGiB?: number;
+  /**
+   Virtual CPUs the guest was given, or absent when the backend cannot tell.
+   */
+  vcpus?: number;
 };
 
 /**
@@ -187,12 +201,13 @@ function parseVirshRow(
  Queries libvirt for all managed VMs and returns structured info.
  Parses `virsh list --all` output and filters for VMs with the `mvm-` prefix.
  
- @returns Array of VM entries with name (without prefix) and state
+ @returns Array of VM entries with name (without prefix) and state, plus the
+ size the VM was made with where mvm recorded one
  
  @example
  ```ts
  const vms = await list();
- // [{ name: 'dev-01', state: 'running' }, { name: 'dev-02', state: 'shut off' }]
+ // [{ name: 'dev-01', state: 'running', vcpus: 4, memoryGiB: 8 }]
  ```
  */
 export async function list(): Promise<readonly VmInfo[]> {
@@ -246,5 +261,15 @@ export async function list(): Promise<readonly VmInfo[]> {
   }
 
   rl.debug(`found ${String(vms.length,)} managed VMs`,);
-  return vms;
+  return await Promise.all(vms.map(async function withSize(vm,) {
+    return {
+      ...vm,
+      ...(await readVmSizes({
+        vmDir: join(
+          VMS_DIR,
+          vm.name,
+        ),
+      },)),
+    };
+  },));
 }

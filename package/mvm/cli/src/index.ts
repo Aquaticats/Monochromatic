@@ -256,6 +256,9 @@ export {
  @internal
  */
 export {
+  DEFAULT_MEMORY_MIB,
+  DEFAULT_VCPUS,
+  MEBIBYTES_PER_GIBIBYTE,
   SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,
   SESSION_DAEMON_UNIT,
 } from './config.ts';
@@ -312,6 +315,7 @@ export * from './update.ts';
 
  @internal
  */
+export * from './vm-sizes.ts';
 export * from './virsh-wait.ts';
 /**
  The virsh wrapper, exposed for built-artifact verification.

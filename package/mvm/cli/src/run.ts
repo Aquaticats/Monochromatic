@@ -20,6 +20,10 @@ import {
  
  @param from - source VM to clone from (creates fresh VM when undefined)
  
+ @param memoryGiB - least memory a fresh VM must have, in gibibytes
+ 
+ @param vcpus - fewest virtual CPUs a fresh VM must have
+ 
  @returns captured stdout, stderr, and exit code from the command
  
  @throws Error when VM creation, command execution, or cleanup fails
@@ -37,14 +41,20 @@ export function run(
   {
     command,
     from,
+    memoryGiB,
+    vcpus,
   }: {
     readonly command: string;
     readonly from?: string;
+    readonly memoryGiB?: number;
+    readonly vcpus?: number;
   },
 ): Promise<ExecResult> {
   return ephemeralRun({
     command,
     ...(from !== undefined ? { from, } : {}),
+    ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
+    ...((vcpus === undefined) ? {} : { vcpus, }),
     ops: {
       clone,
       create,

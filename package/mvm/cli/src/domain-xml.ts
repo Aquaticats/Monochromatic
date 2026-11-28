@@ -98,10 +98,12 @@ export function domainXml(
     cdroms = [],
     diskBus = 'virtio',
     diskPath,
+    memoryMiB = DEFAULT_MEMORY_MIB,
     name,
     osFamily = 'linux',
     seedIsoPath,
     sharedDir,
+    vcpus = DEFAULT_VCPUS,
   }: {
     /**
      Boot device: `hd` for normal operation, `cdrom` for ISO-based installation.
@@ -124,6 +126,12 @@ export function domainXml(
      */
     readonly diskPath: string;
     /**
+     Memory the guest gets, in mebibytes, which is the unit libvirt's domain XML
+     states it in. A create that asked for a number of gibibytes converts once,
+     where the request meets this builder.
+     */
+    readonly memoryMiB?: number;
+    /**
      VM name without the mvm- prefix.
      */
     readonly name: string;
@@ -141,6 +149,10 @@ export function domainXml(
      neither the share nor the shared memory backing the share needs.
      */
     readonly sharedDir?: string;
+    /**
+     Virtual CPUs the guest gets.
+     */
+    readonly vcpus?: number;
   },
 ): string {
   /**
@@ -244,11 +256,11 @@ export function domainXml(
     h({
       tag: 'memory',
       attrs: { unit: 'MiB', },
-      text: String(DEFAULT_MEMORY_MIB,),
+      text: String(memoryMiB,),
     },),
     h({
       tag: 'vcpu',
-      text: String(DEFAULT_VCPUS,),
+      text: String(vcpus,),
     },),
   ];
 
