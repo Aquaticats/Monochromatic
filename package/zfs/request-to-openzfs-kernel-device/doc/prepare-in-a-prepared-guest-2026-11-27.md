@@ -27,6 +27,14 @@ run by
 `mise run //package/zfs/request-to-openzfs-kernel-device:test:tooling`,
 and both of this package's READMEs state what it does.
 
+The section
+"The template guest's prepare,
+issue 6644"
+below records the custom-template `prepare`,
+which this round left as it was
+and issue 6644 changed:
+it loaded the template's module with a failure hidden.
+
 ## Where and how
 
 Every run was in a throwaway `mvm` guest on the `libvirt` backend,
@@ -138,7 +146,10 @@ A fourth place,
 loads a module with `modprobe --quiet zfs 2>/dev/null || true`
 and removes nothing;
 it is unchanged here,
-and this change's refusal does not reach it.
+and this change's refusal does not reach it
+(changed since by issue 6644,
+in "The template guest's prepare,
+issue 6644" below).
 
 ## The change
 
@@ -358,6 +369,323 @@ The stand-ins are stand-ins:
 what they prove is the step's decision,
 not the kernel's answer,
 and the guest runs above are what show the kernel answering.
+
+`test:tooling` also runs
+`e2e/load-the-template-module-step.check.ts`,
+issue 6644's step,
+the same way;
+its states and the guest runs are in the section after this one.
+
+## The template guest's prepare, issue 6644
+
+**Non-final,
+unapproved.**
+Recorded on 2026-11-27,
+the host's own day,
+between 21:40 and 21:54 by the log files' own times.
+
+A custom template is what `--image` names,
+and the template here is the image plan step 23 built,
+`~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4.qcow2`,
+whose guest boots `7.3.5-1-cachyos`
+and carries OpenZFS `2.4.4-1`
+in both the module and the userspace
+(`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`).
+
+### What the template holds
+
+Measured in the guests below,
+which are what the step reads:
+
+- `modinfo --field filename zfs` reads
+  `/lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst`,
+  and `modinfo --field version zfs` and `--field version spl` both read `2.4.4-1`;
+- the package's two module files sit in `extramodules/`,
+  compressed with zstd,
+  and `/lib` is a link to `usr/lib`;
+- `/etc/modules-load.d/zfs.conf` names `zfs`,
+  so a guest boots with `/sys/module/zfs/version` and
+  `/sys/module/spl/version` both reading `2.4.4-1`;
+- `zfs-zed.service`,
+  `zfs-mount.service`,
+  `zfs-import-cache.service` and `zfs.target` are disabled,
+  and `/dev/zfs` is a character device with mode `0666`;
+- `modprobe --remove zfs` then `modprobe --remove spl` took both modules out
+  (`/sys/module/zfs/refcnt` read `0`),
+  which is how the states below were made.
+
+### Before the change
+
+`prepareFromTemplate` loaded the module with
+
+```text
+modprobe --quiet zfs 2>/dev/null || true
+```
+
+then read `/sys/module/zfs/version` and compared it with `2.4.4-1`.
+Both runs were the recipe's own `prepare` step,
+`mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- prepare --image cachyos-7.3.5-1-zfs-2.4.4 --kernel-release 7.3.5-1-cachyos`,
+in one guest,
+`template-prepare-before`,
+made from the template and renamed to its `mvm` name,
+and each is quoted from that step's log,
+`guest-prepare-template.log`:
+
+- the fresh guest,
+  whose module the template had already loaded at boot:
+  exit 0,
+  and its log read
+
+  ```text
+  == the release this guest boots
+  7.3.5-1-cachyos
+  == the module and userspace the design pins
+  2.4.4-1
+  zfs-2.4.4-1
+  zfs-kmod-2.4.4-1
+  ```
+
+  So it printed the version the module reports,
+  and nothing about a load:
+  `modprobe --quiet` had nothing to load and said nothing.
+
+- a guest where the load fails,
+  made to fail by taking the module file the package installed out of the kernel
+  tree and recording that with `depmod`:
+
+  ```text
+  modprobe --remove zfs
+  modprobe --remove spl
+  mv /lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst /root/zfs.ko.zst.moved
+  depmod --all
+  ```
+
+  `modprobe zfs` then said
+  `modprobe: FATAL: Module zfs not found in directory /lib/modules/7.3.5-1-cachyos`,
+  and the step exited 1 with
+
+  ```text
+  == the release this guest boots
+  7.3.5-1-cachyos
+  == the module and userspace the design pins
+  cat: /sys/module/zfs/version: No such file or directory
+  ```
+
+  `modprobe`'s own words are nowhere in that log:
+  the load failed and said nothing,
+  and the version read after it failed without saying why,
+  which is the issue.
+
+### The change
+
+The template's prepare calls the step in
+`e2e/load-the-template-module-step.ts`,
+a step of its own rather than the built module's step the other four places call,
+because the template holds none of what that step assumes:
+it builds no module,
+so there is no `extra/zfs.ko` and no `extra/spl.ko` to compare against;
+its module files are zstd-compressed package files in `extramodules/`,
+which `insmod` cannot load;
+and `modprobe zfs`,
+the package's own route through `modules.dep`,
+is what loads it.
+The smaller step therefore inserts nothing,
+removes nothing,
+and reads the file `modinfo --field filename zfs` names
+and the version that file states.
+
+It keeps `modprobe`'s status and its output,
+and it refuses in words when:
+
+- `modprobe zfs` reports a failure,
+  naming `modprobe`'s own words,
+  the modules loaded after it,
+  the file the template installs,
+  and the release this recipe pins;
+- nothing readable says which module the template installs,
+  because `modinfo` cannot name or read the file;
+- the file states a release other than the one this recipe pins;
+- `modprobe` exits 0 and no zfs module is loaded;
+- a loaded module is not the version the file states,
+  naming both versions,
+  the file,
+  the pin,
+  and the two ways out:
+  reboot the guest,
+  or `modprobe --remove zfs`,
+  then `modprobe --remove spl`,
+  when nothing holds them,
+  and run the step again.
+
+It ends well in two states,
+and says which one:
+the guest already ran the module the template installs,
+and nothing was removed and nothing was inserted;
+or no zfs module was loaded,
+and `modprobe zfs` loaded it,
+with the versions and the file named.
+
+`prepareFromTemplate` no longer reads `/sys/module/zfs/version`
+and compares it with a bare `test`:
+the step's own lines say the version it read and refuse with words,
+so the same reading is said once.
+
+### After the change
+
+Four guest runs,
+all through the same `prepare` step and flags,
+quoted from each step's `guest-prepare-template.log`:
+
+- a fresh guest,
+  `template-prepare-after`,
+  made from the template and renamed to its `mvm` name,
+  where the module is loaded at boot,
+  exit 0:
+
+  ```text
+  prepare: the guest already ran the module this template installs (zfs 2.4.4-1, spl 2.4.4-1), which is what /lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst states (zfs 2.4.4-1, spl 2.4.4-1); modprobe zfs had nothing to load, nothing was removed and nothing was inserted
+  ```
+
+- a fresh guest,
+  `template-prepare-third`,
+  whose two modules were taken out with `modprobe --remove`,
+  so the step has to load them,
+  exit 0:
+
+  ```text
+  prepare: no zfs module was loaded; modprobe zfs loaded the module this template installs (zfs 2.4.4-1 from /lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst stating 2.4.4-1, spl 2.4.4-1 stating 2.4.4-1)
+  ```
+
+- the load that fails,
+  the first guest's state above,
+  now in `template-prepare-before`,
+  exit 1:
+
+  ```text
+  prepare: refusing to go on: modprobe zfs could not load the module this template installs.
+    modprobe zfs said: modprobe: FATAL: Module zfs not found in directory /lib/modules/7.3.5-1-cachyos
+    loaded now: zfs none, spl none
+    this recipe pins OpenZFS 2.4.4-1
+    and reading it: modinfo --field filename zfs said: modinfo: ERROR: Module alias zfs: No such file or directory.
+    to load it: check that the module file this template installs and its spl module are there and that depmod --all has recorded them, then run this step again; a guest made from the template again starts with them as the template shipped them
+  ```
+
+  The module file was then put back and `depmod --all` run,
+  and the same step in the same guest exited 0 and said
+  it had loaded the module,
+  which is the second run above.
+
+- the installed file stating another release than this recipe pins,
+  in `template-prepare-after`:
+  the packaged module's release text was changed from
+  `2.4.4-1` to `2.4.4-2` in the decompressed file,
+  the file recompressed and installed over the packaged one,
+  and `depmod --all` run,
+  so the file stated `2.4.4-2` while the loaded module was still `2.4.4-1`.
+  Exit 1:
+
+  ```text
+  prepare: refusing to go on: the file this template installs states zfs 2.4.4-2 where this recipe pins OpenZFS 2.4.4-1
+    the file: /lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst
+    loaded now: zfs 2.4.4-1, spl 2.4.4-1
+    a template that carries another release is another template: make the image with OpenZFS 2.4.4-1, or move the release this recipe pins, and run this step again
+  ```
+
+- a load the kernel refuses,
+  in the same guest:
+  with that repacked file installed and nothing loaded,
+  `modprobe zfs` was rejected,
+  because the template's kernel checks the module's signature and the repack broke it.
+  Exit 1:
+
+  ```text
+  prepare: refusing to go on: modprobe zfs could not load the module this template installs.
+    modprobe zfs said: modprobe: ERROR: could not insert 'zfs': Key was rejected by service
+    loaded now: zfs none, spl 2.4.4-1
+    this recipe pins OpenZFS 2.4.4-1
+    the file this template installs: /lib/modules/7.3.5-1-cachyos/extramodules/zfs.ko.zst stating 2.4.4-2
+    to load it: check that the module file this template installs and its spl module are there and that depmod --all has recorded them, then run this step again; a guest made from the template again starts with them as the template shipped them
+  ```
+
+  The packaged module was put back,
+  `depmod --all` run and `modprobe zfs` asked again,
+  which loaded `2.4.4-1`,
+  and the same step then exited 0 and said the guest already ran the module
+  the template installs.
+
+### What this could not show
+
+- The refusal for a loaded module that is not the one the file states,
+  in a guest.
+  Reaching that state needs a loaded module whose version differs from the
+  installed file's,
+  and this template's kernel refuses a repacked module's signature
+  (`modprobe: ERROR: could not insert 'zfs': Key was rejected by service`).
+  A module built for this kernel and signed with an enrolled key would be needed,
+  which is a template build and not this round's.
+  The host check holds that state against stand-ins.
+- The same identity limit as the built step's:
+  two builds of one release read alike,
+  so a rebuilt module of the same release reads as already loaded.
+
+### The host check of the template step
+
+`mise run //package/zfs/request-to-openzfs-kernel-device:test:tooling`
+runs `e2e/load-the-template-module-step.check.ts` beside the built step's check.
+It runs the step's own shell in `sh` with `set -eu`
+against a stand-in `/sys/module` tree and stand-in `modinfo` and `modprobe`,
+once per state:
+
+- a fresh guest with nothing loaded,
+  which gets the module the template installs;
+- a guest already running it,
+  which is left alone and said so;
+- a load that fails with `modprobe`'s own words,
+  and one that fails without a word;
+- another zfs module already loaded,
+  and a loaded spl that publishes another version than its file;
+- an spl file that states no version,
+  with a loaded spl that publishes none;
+- a file that states another release than this recipe pins;
+- a `modinfo` that refuses to answer;
+- a `modprobe` that exits 0 and loads nothing.
+
+It also reads `run-fixture.ts` and holds that the recipe imports the step,
+that `prepareFromTemplate` calls it,
+that no line of that function loads a module itself,
+and that `modprobe --quiet zfs` is gone from the recipe.
+The check was written and run red first:
+with the step file absent it ended
+`ERR_MODULE_NOT_FOUND: Cannot find module ... e2e/load-the-template-module-step.ts`.
+A planted return of the old line,
+`modprobe --quiet zfs 2>/dev/null || true` in place of the kept status and output,
+made it fail again
+(`the template module step no longer holds: a fresh guest with nothing loaded gets the module the template installs: runs ...`),
+and the line was then taken back out.
+
+### The guests
+
+Three guests,
+one at a time,
+each made from
+`cachyos-7.3.5-1-zfs-2.4.4` through the recipe's own `create` step with
+`--image` and `--kernel-release 7.3.5-1-cachyos`,
+each renamed to its `mvm` name before any step,
+and each destroyed through the recipe's `destroy` step:
+
+- `template-prepare-before`,
+  the two before runs and the two after runs above;
+- `template-prepare-after`,
+  the fresh after run and the two refusals;
+- `template-prepare-third`,
+  the after run where the step has to load the module.
+
+`mvm --backend libvirt list` after each destruction held none of them;
+the guests other rounds hold were listed before and after,
+untouched.
+No host command touched ZFS or opened `/dev/zfs`,
+and no mount,
+`sudo` or bare `virsh` ran.
 
 ## Limits
 

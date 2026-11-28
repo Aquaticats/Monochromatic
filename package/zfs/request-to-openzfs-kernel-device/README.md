@@ -385,6 +385,28 @@ and
 `mise run //package/zfs/request-to-openzfs-kernel-device:test:tooling`
 checks that step on the host without a guest.
 
+### `prepare` in a guest made from a custom template
+
+`prepare --image <template>` runs `prepareFromTemplate`,
+and a guest made from the step 23 template already runs the module that template installs,
+because the template loads it at boot.
+That load is the step in `e2e/load-the-template-module-step.ts`:
+it keeps `modprobe`'s own words,
+reads the version the file the template installs states,
+and compares the loaded module with that file and with this recipe's OpenZFS release.
+It says the guest already ran that module and changes nothing,
+says which module `modprobe` loaded where nothing was loaded,
+or refuses in words:
+when the load fails,
+when the installed file states another release than this recipe pins,
+when a loaded module is not the one the file states,
+and when `modinfo` cannot read the file.
+It loads and removes nothing else,
+so a guest it refuses is left as it was found.
+`e2e/README.md` states each state and the words it prints,
+and `test:tooling` checks that step on the host too,
+against stand-in trees and stand-in `modinfo` and `modprobe`.
+
 ## What this crate does not do
 
 - It proves no module release.
