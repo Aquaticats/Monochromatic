@@ -9,8 +9,10 @@ use crate::test_support::{
     fixture,
     git_output,
     remove,
+    repository,
 };
 use std::path::PathBuf;
+use std::process::Output;
 
 /// A repository-less fixture directory,
 ///  where Git resolves commands without needing one.
@@ -426,4 +428,379 @@ fn git_reports_the_exec_path_the_search_uses() {
         None => panic!("Git reported no exec path"),
     }
     remove(root.as_path());
+}
+
+/// What:
+///  What real Git answers about one place a command can be typed:
+///  the working directory the shell of a `!` alias printed,
+///  and the `rev-parse` questions the wrapper's reading decides from.
+///  `(bool, String)` is whether Git succeeded, and what it printed.
+/// Why:
+///  `alias_run_directory` decides the directory from those answers,
+///  so a control holds the wrapper's answer against Git's own answer in the
+///  same place,
+///  never against a second reading of Git's rules.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AnswersInOnePlace = {
+///   shellDirectory: string;
+///   topOfTheWorkingTree: [boolean, string];
+///   gitDirectory: [boolean, string];
+///   isBareRepository: [boolean, string];
+///   theQuestionTheReaderAsks: [boolean, string];
+/// };
+/// ```
+struct AnswersInOnePlace {
+    /// The directory the shell of the alias printed,
+    ///  which is where Git put that shell.
+    shell_directory: PathBuf,
+    /// `rev-parse --show-toplevel`.
+    top_of_the_working_tree: (bool, String),
+    /// `rev-parse --git-dir`.
+    git_directory: (bool, String),
+    /// `rev-parse --is-bare-repository`.
+    is_bare_repository: (bool, String),
+    /// `rev-parse --path-format=absolute --show-toplevel --show-prefix`,
+    ///  which is the one question `alias_run_directory` asks Git.
+    the_question_the_reader_asks: (bool, String),
+}
+
+/// What:
+///  The `-c` value whose shell prints the directory Git started it in.
+/// Why:
+///  Git runs an alias value through a shell only when the value holds one of the
+///  bytes `prepare_shell_cmd` lists (`run-command.c:293` to `run-command.c:305`),
+///  and a space is one of them,
+///  so a value of `!pwd` alone would be exec'd as a program instead of run by a
+///  shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ALIAS_PRINTS_ITS_DIRECTORY = 'alias.where=!pwd -P';
+/// ```
+const ALIAS_PRINTS_ITS_DIRECTORY: &str = "alias.where=!pwd -P";
+
+/// What:
+///  One `rev-parse` question's answer from `directory`:
+///  whether Git succeeded,
+///  and what it printed without the line breaks each answer ends with.
+/// Why:
+///  A reader that looked at only one of the two could take a failure's empty
+///  answer for an empty path,
+///  which is the difference between a bare repository and the top of a worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theAnswer = (directory: string, question: string[]): [boolean, string] => {
+///   const output = gitOutput(directory, question);
+///   return [output.status.success, output.stdout.trimEnd()];
+/// };
+/// ```
+fn the_answer_one_question_got(
+    directory: &Path,
+    question: &[&str],
+) -> (bool, String) {
+    let output: Output = git_output(directory, question);
+    // `.into_owned()` copies the lossy text so the answer outlives the child's buffer.
+    let printed: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    // `.to_owned()` copies the trimmed text into the value this function returns.
+    return (output.status.success(), printed.trim_end_matches('\n').to_owned());
+}
+
+/// What:
+///  Git's own answers about one place a command can be typed.
+/// Why:
+///  One helper keeps every control of these shapes asking Git the same questions
+///  in the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answersIn = (directory: string): AnswersInOnePlace => ({ ... });
+/// ```
+fn answers_in(directory: &Path) -> AnswersInOnePlace {
+    let alias: Output = crate::test_support::git(
+        directory,
+        &["-c", ALIAS_PRINTS_ITS_DIRECTORY, "where"],
+    );
+    // `.trim_end_matches('\n')` drops the one newline the shell's answer ends with.
+    let printed: String = String::from_utf8_lossy(alias.stdout.as_slice()).into_owned();
+    let shell_directory: PathBuf = PathBuf::from(printed.trim_end_matches('\n'));
+    return AnswersInOnePlace {
+        shell_directory,
+        top_of_the_working_tree: the_answer_one_question_got(
+            directory,
+            &["rev-parse", "--show-toplevel"],
+        ),
+        git_directory: the_answer_one_question_got(directory, &["rev-parse", "--git-dir"]),
+        is_bare_repository: the_answer_one_question_got(
+            directory,
+            &["rev-parse", "--is-bare-repository"],
+        ),
+        the_question_the_reader_asks: the_answer_one_question_got(
+            directory,
+            &[
+                "rev-parse",
+                "--path-format=absolute",
+                "--show-toplevel",
+                "--show-prefix",
+            ],
+        ),
+    };
+}
+
+/// What:
+///  The directory Git names as the repository's Git directory at `place`,
+///  read from Git's own answer there.
+///  `&Path` borrows the place the command would be typed in.
+/// Why:
+///  `--git-dir` answers `.` where the command stands in the Git directory and a
+///  full path where it stands below it,
+///  so a control compares the directory each answer names rather than the bytes
+///  Git chose,
+///  and the answer still has to name the repository the shape belongs to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theGitDirectoryNamedAt = (place: string): string => realpath(join(place, answersIn(place).gitDirectory[1]));
+/// ```
+fn the_git_directory_named_at(place: &Path) -> PathBuf {
+    let answers: AnswersInOnePlace = answers_in(place);
+    assert!(
+        answers.git_directory.0,
+        "Git names the Git directory at {}",
+        place.display()
+    );
+    // `.join(...)` reads a relative answer from the directory the command was typed in, as Git does.
+    let named: PathBuf = place.join(answers.git_directory.1.as_str());
+    // `.expect(...)` unwraps the canonical path or fails with this sentence.
+    return std::fs::canonicalize(named.as_path()).expect("the Git directory Git named reads");
+}
+
+/// What:
+///  Seven places a command can be typed, and the fixture they are made in.
+/// Why:
+///  The two shapes issue 6625 named sit beside the shapes a control already
+///  stood in,
+///  so one fixture answers whichever of them a reading gets wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shapes = shapesAPlaceCanBeTyped('name'); // { root, repository, belowTheTop, gitDirectory, ... }
+/// ```
+struct ShapesAPlaceCanBeTyped {
+    /// The fixture's own directory, which is outside every repository.
+    root: PathBuf,
+    /// The repository Git made.
+    repository: PathBuf,
+    /// A subdirectory below the top of that repository.
+    below_the_top: PathBuf,
+    /// The repository's Git directory.
+    git_directory: PathBuf,
+    /// A folder inside that Git directory.
+    inside_the_git_directory: PathBuf,
+    /// A bare repository.
+    bare: PathBuf,
+    /// A folder inside the bare repository.
+    inside_the_bare: PathBuf,
+}
+
+/// What:
+///  The fixture the record above describes.
+/// Why:
+///  Every control of these shapes starts from the same seven places,
+///  and a folder inside a Git directory is a place Git answers about
+///  differently from the directory itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shapes = shapesAPlaceCanBeTyped('external-alias-directory');
+/// ```
+fn shapes_a_place_can_be_typed(name: &str) -> ShapesAPlaceCanBeTyped {
+    let root: PathBuf = scratch(name);
+    let repository: PathBuf = repository(root.as_path(), "repository");
+    let below_the_top: PathBuf = repository.join("sub");
+    std::fs::create_dir_all(below_the_top.as_path()).expect("the subdirectory below the top");
+    let git_directory: PathBuf = repository.join(".git");
+    let inside_the_git_directory: PathBuf = git_directory.join("refs");
+    let bare: PathBuf = root.join("bare.git");
+    crate::test_support::git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            bare.to_str().expect("the fixture's path is UTF-8"),
+        ],
+    );
+    let inside_the_bare: PathBuf = bare.join("refs");
+    return ShapesAPlaceCanBeTyped {
+        root,
+        repository,
+        below_the_top,
+        git_directory,
+        inside_the_git_directory,
+        bare,
+        inside_the_bare,
+    };
+}
+
+/// What:
+///  The shell of a `!` alias runs where `alias_run_directory` answers,
+///  in every shape a command can be typed in:
+///  at the top of a worktree,
+///  below that top,
+///  inside a repository's Git directory,
+///  inside a folder of that directory,
+///  in a bare repository,
+///  and inside a folder of that one.
+/// Why:
+///  Issue 6625:
+///  the reading names a top only where Git's discovery walked up to a worktree,
+///  and Git names no top at all in the last four shapes,
+///  so the reading answers the directory the command's options left it in.
+///  That sentence was never run in exactly the Git directory and the bare
+///  repository,
+///  and the comparison here is Git's own printed directory rather than another
+///  reading of Git's rules.
+///  Measured on 2026-11-27 with Git 2.56.1.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const place of theSevenPlaces)
+///   expect(aliasRunDirectory(context, [], place)).toBe(answersIn(place).shellDirectory);
+/// ```
+#[test]
+fn a_shell_alias_runs_where_the_reader_answers_in_a_git_directory_and_a_bare_repository() {
+    let shapes: ShapesAPlaceCanBeTyped =
+        shapes_a_place_can_be_typed("external-alias-directory-outside-a-worktree");
+    let places: Vec<PathBuf> = vec![
+        shapes.repository.clone(),
+        shapes.below_the_top.clone(),
+        shapes.git_directory.clone(),
+        shapes.inside_the_git_directory.clone(),
+        shapes.bare.clone(),
+        shapes.inside_the_bare.clone(),
+    ];
+    for place in &places {
+        let answers: AnswersInOnePlace = answers_in(place);
+        let read: Option<PathBuf> = alias_run_directory(&context(), &[], Some(place.as_path()));
+        assert_eq!(
+            read.as_deref(),
+            Some(answers.shell_directory.as_path()),
+            "the reading names the directory Git starts an alias's shell in at {}",
+            place.display()
+        );
+    }
+    remove(shapes.root.as_path());
+}
+
+/// What:
+///  What Git answers in each of those places:
+///  a worktree names its top,
+///  and neither a Git directory nor a bare repository names one.
+///  A bare repository answers `true` to `--is-bare-repository` where a worktree
+///  answers `false`,
+///  which is the other difference these two shapes carry.
+/// Why:
+///  The reading's failure branch is the leaf the two shapes of issue 6625 take,
+///  so the answers it fails on are pinned once, beside the control that reads
+///  them:
+///  the failing question prints `fatal: this operation must be run in a work
+///  tree` and the reading keeps only the status and the printed paths.
+///  Measured on 2026-11-27 with Git 2.56.1.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(answersIn(gitDirectory).topOfTheWorkingTree).toEqual([false, '']);
+/// expect(answersIn(bare).isBareRepository).toEqual([true, 'true']);
+/// ```
+#[test]
+fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() {
+    let shapes: ShapesAPlaceCanBeTyped =
+        shapes_a_place_can_be_typed("external-alias-directory-where-git-names-a-top");
+    let top: String = shapes.repository.display().to_string();
+    for place in [&shapes.repository, &shapes.below_the_top] {
+        let answers: AnswersInOnePlace = answers_in(place);
+        assert_eq!(
+            answers.top_of_the_working_tree,
+            (true, top.clone()),
+            "the top of the worktree is named at {}",
+            place.display()
+        );
+        assert_eq!(
+            answers.the_question_the_reader_asks.0, true,
+            "both questions answer at {}",
+            place.display()
+        );
+        assert_eq!(
+            answers.is_bare_repository,
+            (true, String::from("false")),
+            "a worktree is no bare repository at {}",
+            place.display()
+        );
+    }
+    for place in [
+        &shapes.git_directory,
+        &shapes.inside_the_git_directory,
+        &shapes.bare,
+        &shapes.inside_the_bare,
+    ] {
+        let answers: AnswersInOnePlace = answers_in(place);
+        assert_eq!(
+            answers.top_of_the_working_tree,
+            (false, String::new()),
+            "Git names no top at {}",
+            place.display()
+        );
+        assert_eq!(
+            answers.the_question_the_reader_asks.0, false,
+            "the question the reading asks fails at {}",
+            place.display()
+        );
+    }
+    for place in [&shapes.git_directory, &shapes.inside_the_git_directory] {
+        assert_eq!(
+            answers_in(place).is_bare_repository,
+            (true, String::from("false")),
+            "the Git directory is no bare repository at {}",
+            place.display()
+        );
+    }
+    for place in [&shapes.bare, &shapes.inside_the_bare] {
+        assert_eq!(
+            answers_in(place).is_bare_repository,
+            (true, String::from("true")),
+            "the bare repository answers so at {}",
+            place.display()
+        );
+    }
+    // `.expect(...)` unwraps the canonical path or fails with this sentence.
+    let the_repositorys_git_directory: PathBuf =
+        std::fs::canonicalize(shapes.repository.join(".git")).expect("the repository's Git directory reads");
+    for place in [
+        &shapes.repository,
+        &shapes.below_the_top,
+        &shapes.git_directory,
+        &shapes.inside_the_git_directory,
+    ] {
+        assert_eq!(
+            the_git_directory_named_at(place),
+            the_repositorys_git_directory,
+            "Git names the repository's own Git directory at {}",
+            place.display()
+        );
+    }
+    // `.expect(...)` unwraps the canonical path or fails with this sentence.
+    let the_bare_directory: PathBuf =
+        std::fs::canonicalize(shapes.bare.as_path()).expect("the bare repository reads");
+    for place in [&shapes.bare, &shapes.inside_the_bare] {
+        assert_eq!(
+            the_git_directory_named_at(place),
+            the_bare_directory,
+            "Git names the bare repository itself at {}",
+            place.display()
+        );
+    }
+    remove(shapes.root.as_path());
 }
