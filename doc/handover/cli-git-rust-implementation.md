@@ -1613,61 +1613,7 @@ by the two rounds the `mpm-shadow` alpha.17 release's passage names;
 their picks are the coordinator's with the veto open,
 and are written into `doc/handover/questions-for-the-owner.md` when the rounds' reports are read.
 
-What the linter's alpha.22 read found
-(`~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`,
-a same-vendor second pass,
-written 2026-11-27T18:12:31-05:00):
-no High finding,
-no Medium and nine Low.
-What it confirmed with the released binaries:
-over 10,081 lists no line moved between read and refused between alpha.21 and alpha.22,
-and no exit status or set of findings changed,
-with a probe first that shows the comparison sees a move (alpha.19 against alpha.21 moves 163 lists);
-on a clean tree only `--version` differs;
-the table of unseen characters equals Unicode 17.0.0's own data,
-and over every scalar value alpha.22 spells 4,288 where alpha.21 spelled 29;
-a `file-uses` line of six words names the folder it wrote in 1,152 of 1,296 lines against 324;
-and the help of a dead line names every character a gap kept,
-in 992 of 992 lines.
-Its Low findings:
-a folder named with an arrow that a tab,
-a no-break space or two spaces set off is still told its line holds two arrows;
-a folder whose own name begins with whitespace is named for single gaps only,
-72 of 200 lines,
-and with a sibling the sibling is named;
-a line written for a folder the tree does not hold names the folder its words make;
-the name is judged against any directory on disk,
-so an absolute path in a six-word line is told to be renamed for a space;
-a dead `file-uses` line is told to take a character out whenever the line holds one,
-also where the file is really named so,
-which alpha.21 answered rightly;
-the loop and missing-link messages,
-the commands they give and the help of a dead `uses` line still print such characters raw;
-three refusals quote no line and one names no character;
-the README says the place is "the column an editor shows",
-where `vim` shows a byte column and a tab's width,
-and a sentence says a line "reads as a `uses` line" that is refused after the edit;
-and three controls stay green under a named edit,
-the ones on the range table among them,
-because they read the table they hold.
-Of the alpha.21 read's points,
-its two Medium are closed for the shapes it named,
-and the rename for each arrow shape and the wall time of a long dead list are as they were,
-the second inside its control's spread.
-The read's `vim` runs,
-headless,
-rewrote `~/.viminfo` in the account's home at 2026-11-27T18:09:40-05:00;
-the brief of the round that follows forbids running an editor.
-The coordinator's weighing:
-one round takes the dead `file-uses` advice,
-the refusals that quote no line,
-the README's and the sentences' overstatements,
-the controls,
-the two shapes of the readings,
-and the absolute path in a six-word line;
-a line for a folder the tree does not hold keeps its reading,
-and the README says so;
-and the raw characters in the other messages wait for the owner,
+The raw characters in the linter's other messages wait for the owner,
 because a command a person copies must hold the name raw
 (`doc/handover/questions-for-the-owner.md`).
 
