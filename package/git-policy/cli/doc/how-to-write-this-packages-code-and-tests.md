@@ -1141,7 +1141,7 @@ bare or as a path,
 on the call's own line or on the next one,
 and refuses the import that brings the type of a start in under another name;
 and the note guard reads a write by descriptor number (`libc::STDERR_FILENO`),
-the two macros that write standard error without asking for a stream,
+the three macros that write standard error without asking for a stream,
 and the paths that open the same handle.
 The read of alpha.52 planted six spellings the guards let through and each is read now:
 the link guard reads `std::fs::soft_link`;
@@ -1152,6 +1152,10 @@ the note guard reads `eprintln!`,
 and `eprintln!` is refused in every release source by the door's own guard
 (`source_guard/diagnostic_door_tests.rs`) besides;
 and the login guard reads the import that renames the type and a literal on the line after its `(`.
+The read of alpha.53 found `dbg!` read by nothing while it writes standard error on the caller's own thread,
+so the note guard reads it now (that read's L5),
+and it found the login guard answering one start three times,
+so that reading answers one finding per start (its L6).
 
 ## Walk the sources through the one walk, never a recursive read
 

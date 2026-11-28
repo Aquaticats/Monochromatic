@@ -44,15 +44,20 @@
 //! a write to the number itself (`libc::write(2, ...)`) names no constant and no call,
 //! and this ban reads nothing of it.
 //! The terse ways to say a note are read as well:
-//! `eprintln!` and `eprint!` (`THE_TERSE_WAYS_TO_SAY_A_NOTE`),
+//! `eprintln!`,
+//! `eprint!` and `dbg!` (`THE_TERSE_WAYS_TO_SAY_A_NOTE`),
 //! and the paths that open the same handle (`THE_SHARED_HANDLE_BY_PATH`).
+//! `dbg!` is the macro that looks least like a note:
+//! it writes standard error through the shared handle on the caller's own thread,
+//! and neither of the other two says so in its name.
 //! `eprintln!` is refused in every release source by the door's own guard
 //! (`source_guard/diagnostic_door_tests.rs`);
 //! this guard reads it in the files that say a note,
 //! so a note file that spells it fails here too,
 //! and this is the guard that says the note was written on the command's own thread.
 //! A path this ban misses is one built from parts (`concat!("/dev/", "stderr")`)
-//! and one a variable holds rather than a literal.
+//! and one a variable holds rather than a literal,
+//! and a macro written with a space before its `!` (`eprintln !("one")`) is no call this reading spells.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -135,20 +140,23 @@ const THE_SHARED_HANDLE_TYPES: &[&str] = &["Stderr"];
 const THE_SHARED_HANDLE_BY_NUMBER: &[&str] = &["STDERR_FILENO"];
 
 /// What:
-///  `THE_TERSE_WAYS_TO_SAY_A_NOTE` is the two macros that write standard error without asking for a stream.
+///  `THE_TERSE_WAYS_TO_SAY_A_NOTE` is the three macros that write standard error without asking for a stream.
 /// Why:
-///  `eprintln!` and `eprint!` write this process's shared standard error on the caller's own thread,
+///  `eprintln!`,
+///  `eprint!` and `dbg!` write this process's shared standard error on the caller's own thread,
 ///  which is the write this ban exists for,
-///  and neither names the handle,
+///  and none names the handle,
 ///  the type or the descriptor number.
 ///  The door's own guard refuses `eprintln!` in every release source;
-///  this list is what says a note file may not spell it either.
+///  this list is what says a note file may not spell any of the three either.
+///  `dbg!` was read by no rule of this crate until the alpha.53 no-change read (its L5),
+///  and it is the one of the three whose name says nothing about a stream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_TERSE_WAYS_TO_SAY_A_NOTE = ['eprintln!', 'eprint!'];
+/// const THE_TERSE_WAYS_TO_SAY_A_NOTE = ['eprintln!', 'eprint!', 'dbg!'];
 /// ```
-const THE_TERSE_WAYS_TO_SAY_A_NOTE: &[&str] = &["eprintln!", "eprint!"];
+const THE_TERSE_WAYS_TO_SAY_A_NOTE: &[&str] = &["eprintln!", "eprint!", "dbg!"];
 
 /// What:
 ///  `THE_SHARED_HANDLE_BY_PATH` is every path a file can open this process's standard error by.
@@ -340,12 +348,13 @@ fn the_lane_still_reads_every_file_that_says_a_note() {
 ///  the import a rename is made from,
 ///  the type kept in a value,
 ///  the descriptor number,
-///  the two macros that write it,
+///  the three macros that write it,
 ///  and the paths that open it.
 /// Why:
 ///  The review of release 0.6.1-alpha.50 found that `use std::io; io::stderr().write_all(..)` held neither text the
 ///  ban read (issue 6613),
-///  and the read of release 0.6.1-alpha.52 found the macros and the paths (its L2).
+///  the read of release 0.6.1-alpha.52 found the macros and the paths (its L2),
+///  and the read of release 0.6.1-alpha.53 found `dbg!` (its L5).
 const SPELLINGS_OF_THE_SHARED_HANDLE: &[&str] = &[
     "let _ = writeln!(std::io::stderr(), \"one\");",
     "let _ = io::stderr().write_all(b\"one\");",
@@ -354,6 +363,7 @@ const SPELLINGS_OF_THE_SHARED_HANDLE: &[&str] = &[
     "let _ = unsafe { libc::write(libc::STDERR_FILENO, bytes.as_ptr().cast(), bytes.len()) };",
     "eprintln!(\"one\");",
     "eprint!(\"one\");",
+    "dbg!(one);",
     "let _ = std::fs::File::create(\"/dev/stderr\");",
     "let _ = std::fs::write(\"/dev/fd/2\", b\"one\");",
     "let _ = std::fs::File::create(\"/proc/self/fd/2\");",
