@@ -202,6 +202,8 @@ export type {
   OvhInstanceState,
   OvhQuotas,
   OvhRegion,
+  OvhRegionService,
+  OvhRegionServiceStatus,
   OvhRegionStatus,
   OvhSshKey,
   OvhSshKeyDetail,

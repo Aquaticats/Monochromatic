@@ -340,6 +340,42 @@ export type OvhFlavor = {
 export type OvhRegionStatus = 'DOWN' | 'MAINTENANCE' | 'UP';
 
 /**
+ Status of one service of a region, exactly the values of the schema's
+ `cloud.ServiceStatusEnum`.
+ */
+export type OvhRegionServiceStatus = 'DOWN' | 'UP';
+
+/**
+ One service a region offers, from the schema's `cloud.Component`.
+
+ A project lists regions that offer storage only beside the regions that create
+ instances, under names that differ by a digit (`BHS` beside `BHS5`). The
+ service named `instance` tells them apart: read from a live project on
+ 2026-11-28, every region that listed it answered the flavor list, and every
+ region that did not answered 404. The schema types `name` as a bare string, so
+ that name is taken from the live answer and not from the schema.
+
+ @example
+ ```ts
+ const createsInstances = region.services.some(function isInstance(service) { return service.name === 'instance'; });
+ ```
+ */
+export type OvhRegionService = {
+  /**
+   Service name; `instance` is the service that creates machines.
+   */
+  readonly name: string;
+  /**
+   Service status.
+   */
+  readonly status: OvhRegionServiceStatus;
+  /**
+   Endpoint URL of the service.
+   */
+  readonly endpoint: string;
+};
+
+/**
  Region detail, from the schema's `cloud.Region`.
 
  `countryCode` is the field that decides which regions an operator's decision
@@ -382,6 +418,11 @@ export type OvhRegion = {
    Availability zones of the region.
    */
   readonly availabilityZones: readonly string[];
+  /**
+   Services the region offers; a region with no `instance` service that is `UP`
+   cannot take an instance.
+   */
+  readonly services: readonly OvhRegionService[];
 };
 
 //endregion Region

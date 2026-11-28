@@ -1,8 +1,8 @@
 /**
  Unit tests for region selection: the country comes from the API's own
  `countryCode` field and never from a region's name, an unusable region is left
- out, and an explicit `--location` or `MVM_OVH_REGIONS` replaces the default list
- in that order.
+ out, a region that offers no instance service is left out, and an explicit
+ `--location` or `MVM_OVH_REGIONS` replaces the default list in that order.
 
  Region bodies here are stand-ins written by hand from OVHcloud's schema
  (`cloud.Region`), never a recording, so nothing in this file claims what
@@ -40,6 +40,9 @@ import {
  Regions whose names would mislead a reader and whose country codes are the only
  thing that decides them: an American region named for a Canadian city, two
  Canadian regions, a Canadian region that is down, and a region with no country.
+ Two more are Canadian and up and still cannot take a machine: `bhs` offers
+ storage only, the shape a live project showed on 2026-11-28 beside `BHS5`, and
+ `cac1` lists an instance service that is down.
  */
 const REGIONS = [
   regionAnswer({
@@ -51,6 +54,26 @@ const REGIONS = [
   regionAnswer({
     name: 'toronto-ca',
     status: 'DOWN',
+  },),
+  regionAnswer({
+    name: 'bhs',
+    services: [
+      {
+        endpoint: 'https://storage.stand-in.invalid/',
+        name: 'storage',
+        status: 'UP',
+      },
+    ],
+  },),
+  regionAnswer({
+    name: 'cac1',
+    services: [
+      {
+        endpoint: 'https://compute.stand-in.invalid/',
+        name: 'instance',
+        status: 'DOWN',
+      },
+    ],
   },),
 ] as const satisfies readonly OvhRegion[];
 
@@ -77,6 +100,18 @@ await describe({
         expect(
           selectDefaultRegions({ details: REGIONS, },),
         ).not.toContain('toronto-ca',);
+      },
+    },),
+    it({
+      name: 'selectDefaultRegions leaves out a region that offers no instance service that is up',
+      fn: async () => {
+        /**
+         Names selected from regions that include a storage-only one and one
+         whose instance service is down.
+         */
+        const selected = selectDefaultRegions({ details: REGIONS, },);
+        expect(selected,).not.toContain('bhs',);
+        expect(selected,).not.toContain('cac1',);
       },
     },),
     it({

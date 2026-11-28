@@ -36,6 +36,7 @@ import {
   type OvhInstanceState,
   type OvhQuotas,
   type OvhRegion,
+  type OvhRegionService,
   type OvhRegionStatus,
   type OvhSshKey,
 } from '../../../dist/final/node/index.mjs';
@@ -881,6 +882,8 @@ export function flavorAnswer({
  
  @param name - region name
  
+ @param services - services the region offers; the default is one that creates instances
+ 
  @param status - region status
  
  @returns the body, carrying only fields this backend reads
@@ -893,10 +896,18 @@ export function flavorAnswer({
 export function regionAnswer({
   countryCode = 'ca',
   name = 'bhs5',
+  services = [
+    {
+      endpoint: 'https://compute.stand-in.invalid/',
+      name: 'instance',
+      status: 'UP',
+    },
+  ],
   status = 'UP',
 }: {
   readonly countryCode?: string;
   readonly name?: string;
+  readonly services?: readonly OvhRegionService[];
   readonly status?: OvhRegionStatus;
 } = {},): OvhRegion {
   return {
@@ -907,6 +918,7 @@ export function regionAnswer({
     type: 'region',
     datacenterLocation: 'Beauharnois',
     availabilityZones: ['bhs5-a',],
+    services,
   };
 }
 
