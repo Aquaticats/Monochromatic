@@ -11,8 +11,10 @@
 //!  and the plan's step 17 owes the words that reach them
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17").
-//!  The grammar's own files are `invocation/`, a group folder whose files are
-//!  findings no allow-list line may record and are already over the line budget,
+//!  The grammar's own files are `invocation/`,
+//!  a group folder.
+//!  A new file there is a finding no allow-list line may record,
+//!  and those files are already over the line budget,
 //!  so the words are parsed there and everything a run needs lives here:
 //!  the place the command runs in,
 //!  the pool it reads when a read needs one,
@@ -69,7 +71,8 @@ pub mod the_answer_one_word_prints;
 /// The place the two commands run in.
 pub mod the_place_the_two_commands_run_in;
 
-/// The pool both commands read, opened at the first read that needs it.
+/// The pool both commands read,
+/// opened at the first read that needs it.
 pub mod the_pool_a_command_reads;
 
 /// The reversing request a cancellation files.

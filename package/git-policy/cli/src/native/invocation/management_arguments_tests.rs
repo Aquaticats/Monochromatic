@@ -414,7 +414,8 @@ fn the_service_command_takes_only_status_and_settle_earlier_batches() {
 ///  namespace's usage text.
 /// Why:
 ///  This is the change the round makes:
-///  before it, both words were an unknown command,
+///  before it,
+///  both words were an unknown command,
 ///  and the binary printed `MANAGEMENT_USAGE` and exited `2` for each of them.
 ///  A control that only read the parsed action could pass on a grammar that still
 ///  fell through to the usage refusal after it.

@@ -116,16 +116,9 @@ Commands:
            `monochromatic-git-policy-cli zfs-root <mode>`. The modes run as root and read the
            checkout record root wrote; a read-only question needs no root.
   cancel-worktree-removal
-           Undo the removal of one Git worktree clone that did not finish: prove the slot, the clone
-           and the removal's records, ask the handler for one `mount` request that puts the clone
-           back at its slot, and report every snapshot the removal destroyed. Destroys nothing and
-           ends no holder; refuses where the clone's head is gone or a destroy outcome is unknown.
-           `--help` prints its usage.
+           Undo one removal of a worktree clone that did not finish, and report what it destroyed.
   settle-worktree-clone-record
-           Remove the wrapper's records of a slot whose recorded clone is gone and whose absence the
-           pool cannot prove, once you have confirmed the slot and the record's own clone GUID with
-           two flags. It prints what it read and each file it removes, and afterwards the wrapper can
-           no longer prove which clone the slot held.
+           Remove the records of a slot whose clone is gone, once you confirm the record.
 
 Scope (exactly one):
   --all             The whole repository.

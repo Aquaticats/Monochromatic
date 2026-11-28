@@ -1184,7 +1184,8 @@ and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
 So `mount-git-worktree-clone-datasets-guest.ts`,
 `removal-lineage-proof-guest.ts`,
-`settling-command-guest.ts` and
+`settling-command-guest.ts`,
+`cancel-and-settle-commands-guest.ts` and
 `zfs-step-22-measurements-guest.ts` hold no plain long command at all.
 
 Every other plain `guest()` command in this package is listed here,
@@ -1293,6 +1294,35 @@ where a step's duration is its whole step:
 - `e2e/start-probe-arms/timing-arms.ts:198` is the `timings-boot-first` arm,
   with a bound of 900 s.
   It took 12 s.
+
+## The management grammar's two ZFS route words
+
+`cancel-and-settle-commands-guest.ts` runs the two words the management grammar
+admits in a guest of the same recipe:
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` and
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot>
+--confirm-removal-of <slot> --confirm-clone-guid <digits>`.
+Both commands read `/dev/zfs` and this process's mount table,
+so the arms run only in a guest of the round's own,
+and each one starts the built wrapper through a `git` link in a fixture search
+path with an environment that names no session bus.
+
+The arms live in `src/native/binary/binary_zfs_grammar_commands_guest_tests.rs`
+and run one at a time, one `native_binary` nextest run each,
+because each builds the design's checkout and its clone over the same pool:
+the cancel word's refusal of a slot no removal has touched,
+the settling word's refusal of a clone that still stands and its settlement of a
+clone a person destroyed outside the wrapper,
+and the cancel word's reversal of a removal a kill left,
+which the shipped handler answers on its own sweep while the wrapper waits for
+the receipt.
+A run passes only when the pulled `grammar-commands-arm.log` carries every
+`GRAMMAR` line and no `SKIPPED` line.
+
+```sh
+# package/git-policy/cli: one throwaway guest for all three arms
+node e2e/cancel-and-settle-commands-guest.ts all --name <guest> --log-dir <dir>
+```
 
 ## The step 22 measurement driver
 

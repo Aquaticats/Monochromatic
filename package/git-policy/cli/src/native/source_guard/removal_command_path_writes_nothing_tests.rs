@@ -89,9 +89,10 @@ struct WritingName {
 /// and the finish pass's entry,
 /// and a re-export is no call,
 /// so those modules are named beside their declarations.
-/// The cancel command and the settling command were on this list too,
-/// and the round that added their two management words took them off it:
-/// a word of the grammar reaches each, so neither waits for a later step.
+/// The cancel command and the settling command were on this list too.
+/// The round that added their two management words took them off it,
+/// because a word of the grammar reaches each of them,
+/// so neither waits for a later step.
 const THE_WRITING_NAMES: &[WritingName] = &[
     WritingName {
         banned: "enter_the_removal",
