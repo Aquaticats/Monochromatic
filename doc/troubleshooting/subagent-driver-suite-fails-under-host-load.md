@@ -475,6 +475,111 @@ moved verbatim on 2026-11-23:
   that test file alone failed 5 of 6 rounds with 6 of 18 stores empty for their whole life,
   and a probe of the fixture's own shape with eight children in flight captured nothing in 4 of 80 waits for `exit` and the whole document in 80 of 80 waits for `close`.
 
+## The fixture deadline that failed at a small cap, and what sizes it now
+
+`createSopsFixture`,
+`encryptJson`,
+`decryptStore`
+and `createIdentityFile`
+bound every tool call through `runCommand`
+(`package/env-local-json/core/src/fixture.ts`),
+and on 2026-11-27 that bound was 2,000 ms.
+The round that merged as `25dec7b462`
+measured it on a host with four other Pi runs and two other Claude runs,
+where the slowest whole `createSopsFixture` call took 18.7 ms,
+and its own report found the bound failing
+when that fixture ran inside this suite:
+at `CPUQuota=400%`
+four `sops --encrypt` calls failed with
+`did not complete within 2000 ms`,
+while the same suite at 700 percent passed every file that loaded.
+The bound is a guard against a tool that never closes its output,
+and a call that was merely slow under a small cap was failed by it.
+
+### What the two caps measured on 2026-11-27
+
+One run of `mise run //package/pi-shared/subagent-driver:test:unit` was made at
+each cap,
+with the fixture's deadline lifted to 600,000 ms by a `NODE_OPTIONS` loader that
+rewrote the module as it loaded:
+the shipped default was never edited,
+and no call was cut short.
+Every call inside both runs recorded its own wall-clock duration.
+
+- At `CPUQuota=400%`,
+  between 2026-11-27T19:16:30-05:00 and 2026-11-27T19:19:03-05:00:
+  36 calls,
+  median 104.2 ms,
+  slowest 4597.5 ms,
+  which is a `sops --encrypt` call and one of the 36 that the 2,000 ms bound
+  would have failed;
+  18 `sops --encrypt` calls had a median of 392.8 ms
+  and 18 `age-keygen` calls a median of 99.7 ms.
+  Load average was 23.23 when the run started and 33.56 when it ended,
+  with 11 and then 13 other Pi runs and two Claude runs in the process list.
+  The suite passed,
+  228 `[PASS]` lines.
+- At `CPUQuota=1000%`,
+  the cap a Pi round runs under,
+  between 2026-11-27T19:20:18-05:00 and 2026-11-27T19:21:57-05:00:
+  36 calls,
+  median 39.3 ms,
+  slowest 513.7 ms,
+  and no call came near the old bound.
+  Load average was 12.94,
+  with 29 other Pi runs and two Claude runs in the process list at the start
+  and 13 other Pi runs at the end.
+  The suite passed,
+  228 `[PASS]` lines.
+
+### The default now, and what it stands to
+
+`FIXTURE_COMMAND_TIMEOUT_MS` is 15,000 ms.
+It is 3.3 times the slowest call measured under the 400 percent cap
+and 29 times the slowest under 1000 percent,
+and it equals `SOPS_TIMEOUT_MS`,
+the deadline the reader gives the same `sops` child,
+so a call the shipped reader would wait out cannot fail a fixture.
+It is 5.9 times the 2,564 ms stall a 4 KiB write-and-sync probe saw on
+2026-11-17,
+so a stalled disk fits inside it.
+A tool that truly hangs now costs 15 s before its process group is stopped,
+where it cost 2 s:
+that is what a bound large enough for the calls above costs,
+and each test of the fixture makes a handful of calls.
+
+### Why 32 test files ran under a 400 percent cap
+
+The count is decided by this repository's own test runner,
+not by a third-party one:
+the `test:unit` template in the root `mise.toml`
+runs every `*.unit.test.ts` through `runTestFiles`,
+whose `fileWorkerPlan` sets the worker count to
+`Math.min(availableParallelism(), fileCount)`.
+This package has 76 unit test files,
+so the plan was 32 workers,
+and `availableParallelism()` reads the affinity mask:
+inside a `CPUQuota=400%` scope `nproc` reported 4
+and `availableParallelism()` still reported 32,
+so 32 files shared four processors' worth of time.
+The plan does honour a cgroup pids limit,
+through `MONOCHROMATIC_TEST_FILE_TASKS` and the nearest `pids.max`,
+but that sizes processes,
+not processors.
+
+A cure there would read the cgroup CPU quota (cgroup v2's `cpu.max`,
+whose `quota/period` is the processors available)
+and cap the worker count by it,
+so 400 percent planned 4 workers and 1000 percent planned 10.
+What it costs:
+a fallback for hosts and containers where that file is absent or means
+something else,
+a floor of one worker,
+and more wall-clock time for a suite that finished in about 150 s at 32
+workers while most of its files wait on processes rather than burn processors.
+This round changes nothing there;
+the choice is the owner's.
+
 ## Limits of this record
 
 - The failing test name from the original report was never kept,
