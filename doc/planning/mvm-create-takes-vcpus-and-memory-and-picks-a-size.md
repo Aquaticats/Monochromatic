@@ -3,15 +3,19 @@
 Status:
 a proposal for the owner,
 unapproved and non-final.
-Two same-vendor gate reads have been made of this file's drafts,
+Three same-vendor gate reads have been made of this file's drafts,
 each a Claude model reading a draft a Claude session wrote,
-so neither is an independent review:
+so none is an independent review:
 the first reported five High,
 eight Medium and four Low findings,
-and the second,
+the second,
 delivered 2026-11-28,
 reported three High,
-twelve Medium and five Low.
+twelve Medium and five Low,
+and the third,
+delivered 2026-11-28 and read at commit `60dc28feff`,
+reported three High,
+ten Medium and four Low.
 What the owner has already decided,
 what is built today,
 and what is open to veto are in "The first screen".
@@ -28,41 +32,60 @@ and each is stated there without leaning on another.
 The numbers are the decisions' own numbers.
 
 1.  **Does a bare number mean at least or exactly?**
-    Answered by the owner on 2026-11-28:
-    a bare number is a floor.
-    Open to the owner's veto,
-    because the record says that pick is not answered.
+    The record's chosen text says a bare number is a floor,
+    and the same record restates that pick as open to the owner's veto and not answered.
+    So the floor stands,
+    as built,
+    and the veto stays open.
 2.  **Refuse when nothing fits or take the nearest?**
     Open.
-    Under a floor this bites only above the largest size in stock.
+    Under a floor this bites only above the largest size in stock,
+    which the price page puts at 160 vCPUs and 1,024 GB.
 3.  **How is the size and its price seen before money is spent?**
     Half answered.
     The owner chose that the create prints the size and its price before anything is created,
-    and the CLI does that on OVHcloud today.
+    and the CLI does that on OVHcloud for a sized create only;
+    a create with no numbers prints the flavour and its numbers with no price.
     Still open:
     the same line on Hetzner,
     the size in an MCP caller's answer,
-    and whether a list command is added.
+    whether the printed price is the whole hour (issue 6666),
+    a list command,
+    and a preview flag.
 4.  **Which size among those that fit?**
-    Answered by the owner on 2026-11-28:
-    the cheapest.
-    Open to the owner's veto,
-    and built.
+    The record's chosen text says the cheapest by OVHcloud's public hourly prices,
+    and that is built;
+    the same record restates the pick as open to the owner's veto.
+    The price the build reads and orders by is the instance row,
+    and the whole-hour figures in this file add the public IPv4 line and the Gen 3 local storage line
+    that a machine also bills (issue 6666).
 5.  **May the cheapest size be a Discovery (`d2`) size?**
-    Open.
-    For small asks the answer decides whether the machine is a shared-resource one,
-    and the money is measured for both answers.
+    Open,
+    and not put as a call on risk.
+    No build has run on a shared-vCPU size,
+    so nothing is measured on either side;
+    a round is timing one build on a `d2-8` and one on a `b3-8`.
+    What the owner answers is the money:
+    CA$0.06392 against CA$0.09799 an hour on the same ask.
 6.  **Which unit does a typed `--memory 8` carry?**
-    Taken here as GiB,
-    open to the owner's veto.
-    This is a preference about the number a person types.
-    What OVHcloud's own number means is a fact,
-    and "The unit of the catalogue's memory number" says what is known about it and which run settles it.
+    Taken here as a strict floor in gibibytes,
+    and open to the owner's veto.
+    It is a spend decision rather than a typing convention.
+    Two billed runs measured the catalogue's number:
+    a size listed with N holds N × 1,000 MiB,
+    so the size called 8 carries 8,000 MiB,
+    2.34 percent under 8 GiB.
+    The size called 8 is `d2-8` at CA$0.06392 on the workload's ask;
+    the strict floor takes the next size up,
+    `b3-16`,
+    at CA$0.19135.
+    The build compares the number straight,
+    which is the other option.
 7.  **What does a create without the numbers get?**
     Open,
     and today it gets the backend's own default,
     which on OVHcloud is a 1-vCPU,
-    2 GB machine.
+    2,000 MiB machine that cannot hold the measured build.
 
 ### What is recommended, and what it costs
 
@@ -72,15 +95,16 @@ The recommended set:
 3 the create's own line now and a list command after it,
 4 the cheapest,
 5 keep Discovery sizes as candidates,
-6 GiB as the unit a person types,
+6 a strict floor in gibibytes,
 which this file takes and the owner may veto,
-7 today's per-backend defaults.
+7 one default everywhere,
+at 4 vCPUs and 8 GiB.
 
 For the owner's own ask,
 `--vcpus 2 --memory 6`,
 the recommended set ends on `d2-8`:
 4 vCPUs of which 2 are more than asked,
-8 GB of memory of which 2 GB are more than asked,
+8,000 MiB of memory of which 2,000 are more than asked,
 50 GB of disk,
 in `BHS5`,
 at **CA$0.06392 per hour whole**
@@ -92,24 +116,24 @@ or 53.3 percent.
 
 For the workload's own numbers,
 `--vcpus 4 --memory 8`,
-the recommended set ends on one of two machines,
-because the unit of OVHcloud's own memory number is unsettled and both readings are shown here:
+the answer is one machine per rule of Decision 6,
+because 8 GiB is 8,192 MiB and a size listed with 8 holds 8,000 MiB:
 
-- if that number is **GB**,
-  `b3-16` at **CA$0.19135 per hour whole**
+- the strict floor this file recommends takes `b3-16` at **CA$0.19135 per hour whole**
   (CA$0.1637 row,
   CA$0.00432 IPv4,
   100 GB of local storage at CA$0.0002333 per GB-hour),
   9.10 times the machine a numberless create makes;
-- if that number is **GiB**,
-  `d2-8` at **CA$0.06392 per hour whole**,
+- the provider's label,
+  which is what a cloud backend does today,
+  takes `d2-8` at **CA$0.06392 per hour whole**,
   3.04 times the same machine.
 
 A create that names neither number makes what the backend makes today:
-`d2-2` at CA$0.02102 per hour whole.
-
-The owner's own ask is `d2-8` at CA$0.06392 under either reading,
-because 8 is at least 6 either way.
+`d2-2` at CA$0.02102 per hour whole,
+whose guest cannot hold the measured build.
+The owner's own ask is `d2-8` at CA$0.06392 under either rule,
+because 6 needs a 7,000 MiB size or more either way.
 
 ### What rests on a measurement or a line read, and what is inferred
 
@@ -145,34 +169,95 @@ or read from a producer's own text:
 - OVHcloud's guide to the OpenStack client,
   fetched 2026-11-28T07:58:15-05:00:
   its captured `openstack flavor list` prints `4000` in the RAM column of `d2-4`.
-- Source at `b7f9f7ed2c`,
+- Source at `f1d6eccf93`,
   read in this worktree:
   what each command does with a number,
   the family rule,
   the price read,
   the clone's size,
+  the one-shot `run` handing both numbers to its create (merge `95f65ed945`),
   and the wording the built help and README carry.
 - The workload figures in "The workload on record",
   which are `/proc/meminfo` readings from guests on this machine.
+- The two billed runs of 2026-11-28 and what a size's memory number comes to inside the guest,
+  recorded in `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`
+  at merges `95f65ed945` and `b6d8e0020c`.
+- The first arm of a wrapper driver on OVHcloud,
+  recorded in the same file at merge `034df18341`:
+  create 75 s,
+  prepare 7 minutes 5 seconds,
+  the crate's build 9 minutes 40 seconds,
+  the arm 2 minutes 3 seconds,
+  destroy 35 s.
 - The five other tools' command references,
   each fetched again 2026-11-28T08:00:39-05:00.
 
 Inferred,
 and marked as such where it appears:
 
-- that an OVHcloud size whose number is 8 gives the guest 8 GB rather than 8 GiB:
-  not inferred but **unsettled**,
-  and the one run that settles it is named in "The unit of the catalogue's memory number";
-  every figure that depends on it is shown under both readings;
-- that a cloud flavour's domain overhead matches this machine's libvirt guests,
-  which is how the headroom figures in Decision 6 are computed;
+- the guest of a cloud size other than `d2-4`:
+  that size is measured,
+  the rest follow its rule,
+  and the split that turns a domain into a guest is fitted to two measured guests;
 - that OVHcloud's own catalogue prices an IPv4 addon and a local storage addon under the plan codes the price page shows (the price page sells them;
   the catalogue's addon list was not read for them);
-- that shared vCPUs slow this repository's build (no build has run on a Discovery machine);
+- that shared vCPUs slow this repository's build (no build has run on a shared-vCPU size);
 - what an OVHcloud clone of a larger source does (predicted from source,
   never run);
 - any Hetzner price (no Hetzner API call was made);
-- what any guest arm does on OVHcloud (no arm has run there).
+- what a guest arm costs on the sizes a create picks,
+  since the one that has run named `b3-16`.
+
+### What the owner should hear: the picks that stand with the veto open
+
+The record's sections and this file's revision set several behaviours that no question above asks about.
+Each one is the project's own pick until the owner vetoes it,
+and a yes to a question above does not decide it:
+
+- The family list the sized walk keeps (`b2`,
+  `b3`,
+  `c2`,
+  `c3`,
+  `d2`,
+  `r2`,
+  `r3`).
+  It stores seven family names in `flavor-families.ts` and refuses every other family,
+  which is what keeps a GPU or storage family out;
+  it gives up an OVHcloud family added later until the list is edited,
+  and it guards only the sized walk,
+  so a numberless create and a clone are not yet guarded.
+- A size named with `--server-type`,
+  `MVM_OVH_FLAVOR` or `MVM_HCLOUD_SERVER_TYPE` is refused beside either number.
+  It stores nothing;
+  it ends a create that naming the flavour alone would have run,
+  and the alternative is that the command line wins and the create logs the variable it ignored.
+- Either number beside `--from` is refused,
+  with a reason that is not yet true:
+  a clone does not keep its source's size today.
+  It gives up clone-then-enlarge,
+  which nothing on record has run.
+- The typed memory is compared straight with the catalogue's number,
+  which is Decision 6's second option.
+  It gives up 2.34 percent of the number asked on every power of two,
+  and it is the only thing a veto of Decision 6's first option would keep.
+- One price read per create,
+  before the region loop.
+  It gives up a per-region price,
+  and it reads the instance row only,
+  so the printed figure is low by 0.7 to 25.9 percent of the machine's hour (issue 6666).
+- Hetzner takes the smallest numbers that fit,
+  and no question here asks it.
+  It gives up the cheapest-by-price order the owner chose for OVHcloud,
+  and it can end on an Arm type,
+  because the sized walk has no architecture filter.
+- The record's chosen text gives up the `-flex` twins as sizes with no published price.
+  OVHcloud's own blog prices them lower than their plain sizes,
+  the Canadian page lists none,
+  and whether the Canadian catalogue prices them is not yet known.
+- Every create line calls the catalogue's number "GiB" when it holds 1,000 MiB per unit.
+  That is a defect against the measured unit,
+  filed as such,
+  and no decision waits on it.
 
 ### What a yes covers, and what it leaves undecided
 
@@ -180,31 +265,35 @@ and marked as such where it appears:
   It leaves the fallback above the largest size,
   the choice among fits,
   the typed unit,
-  and whether any marker spells the other reading.
-- A yes to "refuse and name the nearest" covers what a create does when nothing fits.
+  and whether a suffix spells the other reading.
+- A yes to "refuse and name the nearest" covers what a create does when nothing fits,
+  and changes a message the build already prints in another shape.
   It leaves what counts as nearest if the measure changes,
-  and whether the refusal prints prices.
+  and whether the refusal prints whole prices.
 - A yes to the cheapest covers the order among fitting sizes.
   It leaves whether Discovery sizes are candidates,
-  the price source's fallback,
-  the tie rule,
-  and whether the printed figure is the whole hour.
+  whether the printed figure is the whole hour,
+  which order Hetzner takes,
+  and which last tie-break a real flavour list gives.
 - A yes to keeping Discovery covers whether a shared-resource size may be picked.
   It leaves whether the printed line says so,
-  and whether a build is timed on one.
-- The GiB taken here,
-  or a veto taking GB,
-  covers only the unit a person types.
-  It leaves the suffix grammar,
-  the default's own number,
-  and what `mvm list` prints.
-- A yes to today's defaults covers what a numberless create does.
-  It leaves what a numberless `run` does on each cloud backend,
+  and what the round now timing a build on one reports.
+- A yes to a strict floor in gibibytes covers what a typed memory asks for.
+  It changes the cloud comparison,
+  which is the built one today,
+  and leaves the suffix grammar,
+  what the printed size names,
+  and whether Hetzner's documented GB is read the same way.
+- A yes to one default covers what a numberless create does.
+  It leaves the number itself,
+  what a numberless `run` does,
   and whether the guest rounds' own commands start passing the numbers.
 - A yes to the create's line covers that the pick and its price are printed before the create.
   It leaves a list command,
   a preview flag,
   and the MCP answer's text.
+- A yes to any of the picks above also sweeps in the picks that stand with the veto open,
+  which the section before this one lists.
 
 ### What is built meanwhile, and how it differs from this file
 
@@ -216,6 +305,14 @@ Merge `b7f9f7ed2c` (2026-11-28T07:45:04-05:00) carries it:
 the libvirt backend allocates exactly,
 OVHcloud reads one price per create and takes the cheapest size that fits,
 and Hetzner takes the smallest shared-vCPU type that fits.
+Merge `95f65ed945` (2026-11-28T08:23:52-05:00) then made the one-shot `run` hand both numbers
+to its create on every backend
+and closed issue 6664.
+Three differences from this file remain,
+and each is written into the decision it touches:
+the memory number is compared straight with the catalogue's number on both cloud backends (Decision 6's second option),
+the family rule guards only the sized walk ("The rule that keeps GPU flavours out"),
+and the create's line prints on the sized walk only (Decision 3).
 "What is built today" states each backend's rule,
 and where the build departs from this file each departure is either written into the decision it touches or put as a question the owner may answer against.
 
@@ -251,6 +348,11 @@ each marked open to the owner's veto and neither answered:
 > built as a list of the five general families,
 > so that a GPU family OVHcloud adds later cannot be picked.
 
+That second pick holds today for a create that carries `--vcpus` or `--memory`,
+which is the one the owner's sentence was about;
+a create with neither number and an OVHcloud clone reach a different function with no family test,
+and "The rule that keeps GPU flavours out" states what each path does and that a round is closing the gap.
+
 The same record's section "A standing yes for billed runs,
 2026-11-28" holds the bounds every billed run works inside:
 machines named `mvm-*` in the one project,
@@ -266,8 +368,9 @@ and about the facts the build had to settle a way.
 
 ## What is built today
 
-Read at `b7f9f7ed2c` in this worktree,
-with `package/mvm/cli/src` and `package/mcp/mvm/src` as they stand there.
+Read at `f1d6eccf93` in this worktree,
+with `package/mvm/cli/src` and `package/mcp/mvm/src` as they stand there,
+and merge `95f65ed945` is where the one-shot `run` started handing both numbers on.
 Where a path is given,
 the sentence was checked against that file.
 
@@ -276,9 +379,12 @@ the sentence was checked against that file.
 Both options exist on all three backends (`package/mvm/cli/src/index-parsers-cmds.ts`),
 each works on its own,
 and neither carries a default when the other is absent.
-The built help text says a cloud backend "picks the smallest size with at least this many",
-which is not what the built OVHcloud order does and not what the owner chose;
-issue 6664 records that wording.
+The built help text now says what each backend does with them:
+a libvirt guest gets exactly as many,
+Hetzner takes the smallest server type with at least as many,
+and OVHcloud the cheapest size that fits,
+or its smallest numbers when no hourly price can be read.
+Issue 6664 recorded the older wording and is closed.
 
 - **libvirt**:
   the guest gets exactly the numbers asked,
@@ -299,9 +405,14 @@ issue 6664 records that wording.
   before the region loop,
   and a create that cannot read it falls back to the numbers alone and says so (`package/mvm/cli/src/backend/ovh/read-price-choice.ts`).
   A size the catalogue publishes no hourly price for is never a candidate.
-  Before anything is created the command logs one line naming the size,
-  its numbers and its hourly price (`provisioning.ts`,
-  `chooseFlavorAndImage`).
+  The line naming the size,
+  its numbers and its hourly price is logged on the sized walk only (`provisioning.ts`,
+  `chooseFlavorAndImage`);
+  a create with neither number logs the flavour and its numbers with no price,
+  and reads the prices first anyway.
+  The typed number is compared with `ram` as it stands (`flavor.ram >= request.memoryGiB`),
+  with no conversion,
+  which is Decision 6's second option.
 - **Hetzner**:
   among non-deprecated types offered in a requested location and sold with `cpu_type` `shared`,
   the ones whose `cores` and `memory` are both at least the ask,
@@ -311,9 +422,25 @@ issue 6664 records that wording.
   then memory,
   then disk,
   then name (`package/mvm/cli/src/backend/hetzner/server-types.ts`).
-  Its hourly prices are read (`price_hourly.gross`,
-  tax included) and are not printed before the create:
-  the line names the type and its numbers only.
+  Five things about that rule,
+  as the code and Hetzner's own documentation state them:
+  it has no architecture filter,
+  because the file's own opening says "Any architecture is eligible",
+  so a numbered ask can end on an Arm type,
+  and a type whose name sorts first wins a tie on cores,
+  memory and disk;
+  Hetzner documents `memory` as "Memory a Server of this type will have in GB",
+  compared straight with the typed number,
+  so Decision 6's unit question is OVHcloud's and this one is unread;
+  the `deprecation` field the build reads for "not deprecated" is itself marked deprecated by Hetzner,
+  which points at `locations[].deprecation`,
+  and the build reads neither that nor `locations[].available`;
+  the walk reads no price at all,
+  and only the numberless cheapest-type walk reads `price_hourly.gross`;
+  and Hetzner's prices exclude public IP addresses,
+  a Primary IPv4 costs EUR 0.50 a month,
+  and the system creates one for a server with a public address,
+  so the gap issue 6666 records on OVHcloud's line would recur on any Hetzner price printed.
 
 Two numbers asked for one machine,
 with one source in the environment,
@@ -327,16 +454,16 @@ the pair is refused.
 
 The numbers exist on the command and on the backend interface (`package/mvm/cli/src/cli.ts`,
 `package/mvm/cli/src/backend/types.ts`),
-and the libvirt path hands them to its create.
-Both cloud backends' `run` take `command` and `from` only (`package/mvm/cli/src/backend/ovh/exec.ts`,
-`package/mvm/cli/src/backend/hetzner/exec.ts`),
-so on OVHcloud and Hetzner a `run` with the numbers makes the backend's default size,
+and every backend hands them to its create since merge `95f65ed945`:
+`ovhRun` and `hetznerRun` take `vcpus` and `memoryGiB` and pass them into `ephemeralRun`
+(`package/mvm/cli/src/backend/ovh/exec.ts`,
+`package/mvm/cli/src/backend/hetzner/exec.ts`).
+A floor beside `--from` is refused by `ephemeralRun` itself,
+before any machine is made.
+Issue 6664 held the opposite and is closed;
+its evidence is what the built code now prevents:
+`mvm --backend ovh run --vcpus 4 --memory 8 -- <command>` made a machine of one core and 2 GiB,
 with no refusal and no warning.
-Issue 6664 holds what a real invocation did on `main`:
-`mvm --backend ovh run --vcpus 4 --memory 8 -- <command>` printed no line naming a size and made a machine of one core and 2 GiB,
-with no refusal and no warning.
-`mvm create` with the same numbers does pick a fitting size,
-which is the half of the pair that works.
 The MCP `run_in_vm` takes the same two arguments and reaches the same code.
 
 ### `mvm create --from SOURCE`
@@ -387,15 +514,20 @@ so this command answers a different question than a create does.
     so the storage family is not a candidate.
     Taken into "The rule that keeps GPU flavours out":
     the storage family is left out,
-    with the measurement that keeping it changes no pick.
+    with the measurement that keeping it changes no pick,
+    and the list guards the sized walk only,
+    so a numberless create or a clone can still take a family it excludes.
 2.  **A clone refuses either number.**
     Taken into "What each command does",
     with the reason the refusal states,
     which is a claim about the clone that has to become true or change.
 3.  **`--memory` is compared with the catalogue's number directly.**
     Built at `flavors.ts` (`flavor.ram >= request.memoryGiB`) and at `server-types.ts` (`type.memory >= request.memoryGiB`).
-    Taken into Decision 6,
-    whose options say which unit each number carries and where a conversion lands.
+    That is Decision 6's second option,
+    which the build keeps on both cloud backends;
+    the first option converts once on a cloud,
+    and libvirt already multiplies by 1,024.
+    So a yes to the first option changes the cloud comparison and a yes to the second changes nothing.
 4.  **A flavour named in the environment is refused beside either number.**
     Built at `package/mvm/cli/src/backend/size-request.ts`:
     the two sources are refused rather than resolved,
@@ -431,6 +563,13 @@ and the page says under each of its three VM tables:
 Its own line is `Public IP IPv4 (/32)` at CA$0.00432 per hour (CA$3.1536 per month).
 `mvm` reaches every instance on a public IPv4 (`package/mvm/cli/src/backend/ovh/instances.ts`),
 so every machine `mvm` makes carries this line.
+The footnote above sits under the price page's three VM tables and not under the Discovery or Storage Optimized ones,
+and OVHcloud's first article on the 2026-10-01 model change states the line for every range,
+in French:
+"La facturation est à la seconde,
+sur toutes les gammes de VM Public Cloud".
+So the line is the file's reading of the page for `d2` and `i1` as well,
+and the cited article is where it comes from.
 
 The third is local storage,
 and only the Gen 3 families sell it apart from the instance.
@@ -521,6 +660,11 @@ and the currency and tax basis:
 > `locale` is `{"currencyCode":"CAD","subsidiary":"CA","taxRate":0}`,
 > so the currency and tax rate a price is stated in come from the answer itself
 
+The type it reads carries `currencyCode` alone,
+so the currency is named from the answer and a tax rate is not read:
+the printed line names a currency and says nothing about tax.
+Decision 3's mechanism says which two a completed line would name.
+
 The create then asks that map for one plan code per flavour (`flavors.ts`,
 `hourlyPriceFor`),
 which is the instance row and nothing else.
@@ -567,12 +711,24 @@ whose text gives the two plan codes the page shows and the asks the measured gri
 ### What a run costs, and whether there is a ceiling
 
 A guest round that builds this repository's crate takes minutes:
-the record's guest builds took between 6 and 14 minutes each.
-On the recommended default,
-`b3-16`,
-a 6-minute round costs CA$0.01914 whole and a 14-minute one CA$0.04465;
-on `d2-8` they cost CA$0.00639 and CA$0.01491;
-on `d2-2` CA$0.00210 and CA$0.00490.
+the record's guest builds took between 6 and 14 minutes each,
+and a round's whole life there sums to 1,238 seconds,
+or about 20.6 minutes,
+counting create,
+prepare,
+the crate's build,
+the arm and destroy.
+For a 6-minute build alone,
+a 14-minute one,
+and a whole round of 20.6 minutes:
+`b3-16` costs CA$0.01914,
+CA$0.04465 and CA$0.06580 whole;
+`d2-8` CA$0.00639,
+CA$0.01491 and CA$0.02198;
+`d2-2` CA$0.00210,
+CA$0.00490 and CA$0.00723.
+Which of the three a round gets is Decision 7's question,
+and today a round that names no size gets `d2-2`.
 
 There is no spend ceiling in the code,
 and no option that sets one.
@@ -675,6 +831,18 @@ then the whole.
   100 GB local storage.
   Row CA$0.2119,
   whole **CA$0.23955**.
+- `r2-30`:
+  2 vCPUs,
+  30 GB,
+  50 GB SSD.
+  Row CA$0.1882,
+  whole **CA$0.19252**.
+- `r2-60`:
+  4 vCPUs,
+  60 GB,
+  100 GB SSD.
+  Row CA$0.3661,
+  whole **CA$0.37042**.
 - `i1-45`:
   8 vCPUs,
   45 GB,
@@ -722,87 +890,101 @@ on whole figures:
 
 ## The unit of the catalogue's memory number
 
-This is a fact about OVHcloud,
-not a choice of `mvm`,
-and it is not settled.
-Three sources point two ways:
+Two billed runs measured it on 2026-11-28,
+and the record is the section "What a size's memory number comes to inside the guest"
+of `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+written from the first run (merge `95f65ed945`)
+and the second (commit `b6d8e0020c`).
+A size listed with N holds N × 1,000 MiB,
+which is neither N gibibytes nor N decimal gigabytes in thousands.
 
-- The catalogue's own field is `ram`,
-  and `mvm`'s type for it says "Memory in GiB,
-  as the schema describes it" (`package/mvm/cli/src/backend/ovh/types.ts`,
-  the `OvhFlavor` type).
-  Nothing in this repository shows who read that schema.
-- The price page writes `8 GB` for `d2-8` and `4 GB` for `d2-4`.
-- OVHcloud's own guide to the OpenStack client carries a captured `openstack flavor list`,
-  whose RAM column is MiB by OpenStack's own definition,
-  and its row for `d2-4` reads `4000`.
-  4000 MiB is 4 GB,
-  not 4 GiB,
-  which is 4,096 MiB.
+An ask of two cores and 4 GiB took the size `d2-4`,
+whose catalogue number for memory is 4,
+and the second run read three numbers inside that guest:
 
-**The unit is unsettled**
-and no owner's answer can settle it.
-The one reading that would settle it has not been made.
-A round tried and did not get it:
-`mvm run` on a cloud backend drops the two numbers (issue 6664),
-and issue 6664 also records that `mvm` joins a command's words into one string the guest's shell reads,
-so a compound `sh -c 'a; b'` runs only its first part.
-The reading therefore never reached `/proc/meminfo`.
+- the firmware's memory device reads `Size: 4000 MB`;
+- the kernel's boot line reads `Memory: 2901048K/4095460K available`,
+  whose second number is 3,999.5 MiB,
+  the memory the hypervisor gave the guest less about half a MiB the firmware kept;
+- `MemTotal` reads 3,906,276 kB,
+  which is 3,814.7 MiB,
+  or 3.725 GiB.
 
-**The run that settles it**
-is the round on branch `mvm-cli-run-hands-the-asked-vcpus-and-memory-to-its-create-on-every-backend`,
-which makes one billed run once its fix lands.
-That run answers the question in one line if it asks for a named size and reads the guest's own total,
-for example:
+So `d2-4` was given 4,000 MiB:
+not 4 GiB,
+which is 4,096 MiB,
+and not 4 GB in thousands,
+which is 3,815 MiB.
+Its guest kept the other 185 MiB for the kernel,
+4.6 percent of what the machine was given.
 
-```sh
-mvm --backend ovh run --server-type d2-8 -- grep MemTotal /proc/meminfo
-```
+One size was measured.
+OVHcloud's own guide to the OpenStack client prints `4000` in the `d2-4` row of its captured `openstack flavor list`,
+and in each of the eight other rows it prints 1,000 times the number in the size's name,
+which agrees with the two runs.
+A boot line from one `d2-8` guest would check a second size,
+and no such reading is on record;
+every figure here for a size other than `d2-4` therefore rests on the rule and says so.
 
-The reading separates the two answers cleanly.
-This machine's libvirt guests keep about 437 MiB below their domain size:
-an 8,192 MiB domain reports `MemTotal` 8,131,780 kB.
-So a `d2-8` guest reports about 7,563 MiB if its domain is 8,000 MiB,
-and about 7,755 MiB if it is 8,192 MiB:
-the two answers sit 192 MiB apart,
-which is more than the overhead being guessed at either way.
-A whole two-minute life of that machine costs about CA$0.0021.
+### What a floor measures
 
-**Every figure in this file that depends on the unit is given under both readings**,
-and none of them is given as a single number:
-in the table that follows,
-"GB" means the catalogue's number counts decimal gigabytes and "GiB" means it counts gibibytes.
-Nothing else in this file changes with the answer,
-because the prices are per size and not per byte.
+A floor measures the memory a machine is given,
+never the memory its guest reports,
+because the kernel keeps part of the machine for itself.
+This machine's libvirt guests keep about 251 MiB:
+an 8,192 MiB domain reports `MemTotal` 8,131,780 kB,
+which is 7,941 MiB,
+or 7.755 GiB.
+The `d2-4` guest kept 185 MiB.
 
-What the two readings do to a request for 4 vCPUs and 8 GiB of memory:
+A split fitted to those two readings,
+one sixty-fourth of the domain for the kernel's page tables plus a fixed 122.8 MiB,
+predicts the `d2-4` guest to within 0.03 MiB.
+On that split,
+which is an inference about machines other than the two measured,
+an 8,000 MiB size gives a guest of about 7,752 MiB (7.57 GiB)
+and a 16,000 MiB size one of about 15,627 MiB (15.3 GiB).
 
-- **If the catalogue's number is GB**:
-  8 GiB is 8.59 GB,
-  so no 8-number flavour holds it,
-  and the cheapest fitting size is `b3-16` at whole CA$0.19135 (4 vCPUs,
-  16 GB,
-  100 GB local storage).
-  Its guest holds about 14.9 GiB.
-  Against the machine a numberless create makes,
-  `d2-2` at CA$0.02102,
-  that is 9.10 times.
-- **If the catalogue's number is GiB**:
-  8 GiB is the 8-number flavour itself,
-  `d2-8`,
-  at whole CA$0.06392 (4 vCPUs,
-  8 GB by the page's label,
-  50 GB disk),
-  whose guest holds 7,755 MiB,
-  the figure measured on this machine's own 8,192 MiB guests.
-  Against `d2-2` that is 3.04 times.
-  Whether that guest holds the measured build is "The workload on record"'s question,
-  and the answer there is that it holds it with 86.7 MiB to spare when the build runs at default parallelism,
-  and not when it runs at four jobs.
+The line a create prints today calls the catalogue's number gibibytes.
+The README's captured line for the `d2-4` run reads:
 
-The unit a person types is a separate question and stays open:
-Decision 6 asks only about the number a person writes,
-and it gives its own results under both readings as well.
+> size at least 2 vCPUs and at least 4 GiB of memory fits d2-4 (2 vCPUs,
+> 4 GiB of memory,
+> 50 GB of disk),
+> 0.033 CAD per hour
+
+and that machine holds 4,000 MiB.
+The mislabel is a defect of the built line against the measured unit,
+it is on the list of what the owner should hear,
+and no decision in this file depends on it.
+
+### What the measured unit does to a request for 4 vCPUs and 8 GiB of memory
+
+8 GiB is 8,192 MiB,
+and a size listed with 8 holds 8,000 MiB,
+which is 192 MiB,
+or 2.34 percent,
+less.
+Two rules can answer a floor written that way,
+and they are Decision 6's two options rather than two readings of one fact:
+
+- a strict floor in gibibytes takes the nearest size whose own number covers 8,192 MiB,
+  which is `b3-16` at whole CA$0.19135 (4 vCPUs,
+  16,000 MiB,
+  100 GB of local storage),
+  9.10 times the CA$0.02102 a numberless create makes,
+  and its guest holds about 15,627 MiB on the split;
+- the size the provider calls by that number is `d2-8` at whole CA$0.06392
+  (4 vCPUs,
+  8,000 MiB,
+  50 GB of disk),
+  3.04 times the same numberless create,
+  and its guest holds about 7,752 MiB on the split.
+
+Whether either machine holds the measured build is "The workload on record"'s question,
+and Decision 6 gives both margins beside the prices.
+The unit a person types is Decision 6's question,
+and this file no longer offers two readings of the catalogue's number.
 
 ## The rule that keeps GPU flavours out
 
@@ -821,7 +1003,24 @@ The names kept are `b2`,
 `r2` and `r3`.
 Everything else is left out,
 including a family OVHcloud adds after this code is written,
-so an unknown family cannot be picked by accident.
+so an unknown family cannot be picked by a size request.
+
+The rule guards the sized walk and nothing else.
+`isKeptFlavor` is called in one place,
+`flavorsThatFit` (`package/mvm/cli/src/backend/ovh/flavors.ts`),
+which only a create carrying `--vcpus` or `--memory` reaches.
+`selectFlavor` in the same file,
+which a create with neither number and an OVHcloud clone both use,
+never calls it:
+it takes the smallest in-stock Linux flavour of any family.
+So a create without numbers or a clone could take a GPU flavour if nothing smaller were in stock,
+and the record says the same of this path and calls the guard open.
+A round is adding the guard to those two paths,
+which the coordinating session files as an issue;
+until it lands,
+the sentence "no GPU size is ever taken" holds for a sized create,
+which is the one the owner's constraint was about,
+and not yet for the other two.
 
 What it drops from `BHS5`'s 182 flavours,
 and what each drop is:
@@ -949,9 +1148,20 @@ with each one's effect in `BHS5`:
 5.  A published hourly price:
     the catalogue prices the flavour's `planCodes.hourly`.
     A flavour with no published price is not a candidate,
-    and this is where every `-flex` twin falls out:
-    no `-flex` name appears anywhere in the price page's product data,
-    and the built resize reason is the source's own:
+    and the `-flex` twins are the case this file knows about:
+    no `-flex` name appears anywhere in the Canadian price page's product data,
+    so the built read never sees one.
+    What the twins are priced at is known from another page:
+    OVHcloud's blog of 2026-08-25 prints `b3-16-flex` at 82 euros against 87 for `b3-16`,
+    `c3-8-flex` at 74 against 79,
+    and `r3-32-flex` at 104 against 109,
+    with a flex twin's local disk fixed at 50 GB whatever the size,
+    so on the same sum a Gen 3 twin's whole hour is 4.9 to 10.2 percent lower than its plain size
+    once the plain size carries more than 50 GB of disk.
+    Whether the Canadian catalogue prices them is not yet known:
+    a round is reading that catalogue for issue 6666,
+    and this file says nothing about it until that answer exists.
+    The built resize reason is the source's own:
 
     > mvm never resizes a machine,
     > it destroys and remakes one,
@@ -960,7 +1170,13 @@ with each one's effect in `BHS5`:
     So the rule is "no published price,
     not a candidate",
     with the suffix as one case of it,
-    which is the record's rule and not a separate one.
+    which is the record's rule and not a separate one;
+    and in the numbers-only fallback,
+    which runs when no price can be read,
+    the order sorts by disk before the flex flag,
+    so a twin with a 50 GB disk sorts ahead of a plain size whose disk is larger.
+    The record's give-up therefore holds only while the prices are read;
+    the owner should hear that before answering.
 6.  The image:
     the flavour's disk and memory reach the chosen image's floors,
     which are 0 on every image in `BHS5`.
@@ -971,8 +1187,14 @@ with each one's effect in `BHS5`:
     and no code reads it before a create;
     the region's instance quota is read only by `mvm --backend ovh update`,
     and no core or memory quota is read anywhere.
-    A create that OVHcloud refuses for quota fails before any instance exists,
-    with OVHcloud's own message.
+    A create OVHcloud refuses for quota fails before any instance exists,
+    with OVHcloud's own message;
+    that is read from the call's shape and not from a run,
+    because no create on record has been refused for quota.
+    The create call itself runs once,
+    so a size that goes out of stock between the read and the create ends the create with OVHcloud's refusal,
+    bills nothing,
+    and no next fitting size is tried.
 
 The order among the survivors is Decision 4's.
 
@@ -1041,42 +1263,41 @@ Decision 5 puts that to the owner with the veto open.
 
 ### The workload's ask: 4 vCPUs and 8 GiB
 
-This ask's answer depends on the catalogue's memory unit,
-so it is given under both:
+This ask has one answer per rule,
+because the catalogue's number is measured:
 
-- **If the catalogue's number is GB**:
-  8 GiB is 8.59 GB and no 8-number flavour holds it.
-  The cheapest fitting size is `b3-16` at whole **CA$0.19135**
+- under the provider's label,
+  which is what a cloud backend does today,
+  the cheapest fitting size is `d2-8` at whole CA$0.06392,
+  a Discovery size whose guest holds about 7,752 MiB on the split;
+  Decision 5's question does arise here,
+  and the cheapest fitting size with cores of its own is `c3-8` at whole CA$0.17375,
+  CA$0.10983 more per hour and 171.8 percent;
+- under a strict floor in gibibytes the cheapest fitting size is `b3-16` at whole CA$0.19135
   (4 vCPUs,
-  16 GB,
-  100 GB local storage),
-  whose guest holds about 14.9 GiB;
+  16,000 MiB,
+  100 GB of local storage),
+  whose guest holds about 15,627 MiB on the split;
   the fewest-numbers order would take `b2-15` at CA$0.21912 (4 vCPUs,
-  15 GB,
+  15,000 MiB,
   100 GB SSD),
-  CA$0.02777 more for one GB less;
+  CA$0.02777 more for 1,000 MiB less;
   and the cheapest with cores of its own is `b3-16` itself,
   which is General Purpose rather than Discovery,
   so Decision 5 does not arise for this ask.
-- **If the catalogue's number is GiB**:
-  the 8-number flavour holds it,
-  and the cheapest fitting size is `d2-8` at whole **CA$0.06392**,
-  a Discovery size whose guest holds the 7,755 MiB measured here.
-  Under this answer Decision 5's question does arise,
-  and the cheapest fitting size with cores of its own is `c3-8` at whole CA$0.17375,
-  CA$0.10983 more per hour and 171.8 percent.
 
-The distance between the two answers is **2.99 times**,
-and the guest is about 7.4 GiB under the second and 14.9 GiB under the first.
+The two machines stand 2.99 times apart in price,
+and their guests about 7,875 MiB apart in total.
 
 ## The workload on record
 
 The sizes are being chosen for the wrapper's guest rounds,
 which build this repository's crate inside a guest,
-and the numbers here are `/proc/meminfo` readings from guests on this machine:
+and the numbers here are `/proc/meminfo` readings from guests:
 
-- A default guest asks for 8,192 MiB and reports `MemTotal` 8,131,780 kB,
-  which is 7.755 GiB.
+- A default local guest asks for 8,192 MiB and reports `MemTotal` 8,131,780 kB,
+  which is 7,941 MiB,
+  or 7.755 GiB.
 - In that guest,
   a `cargo build --release --tests --locked` with no job count given peaked at `AnonPages` 7,641,948 kB,
   7.29 GiB,
@@ -1091,23 +1312,24 @@ and the numbers here are `/proc/meminfo` readings from guests on this machine:
   one `rustc` at 7.0 to 7.07 GiB,
   and `MemAvailable` 0.38 to 0.69 GiB.
 - One release `rustc` of this crate's tests takes 6.7 to 6.9 GiB,
-  and issue 6611's round measured one at 7,019,956 kB of the guest's 7,755 MiB.
+  and issue 6611's round measured one at 7,019,956 kB of the guest's 7,941 MiB.
 
 The headroom these figures give,
 and what it costs a smaller guest:
-the guest that came within 86.7 MiB of running out had 7.755 GiB in total.
-A guest whose domain is 8,000 MiB has about 192 MiB less than that one,
-and the build that nearly took the whole of the guest does not fit in the smaller one;
-a guest whose domain is 8,192 MiB is the measured one.
-Which of the two an 8-number OVHcloud flavour gives is the unit question of "The unit of the catalogue's memory number",
-so the answer to "does an 8-number flavour hold this build" is:
-yes,
-with 86.7 MiB to spare,
-if that number is GiB,
-and no,
-if it is GB.
-Both are arithmetic on one machine's guests until a cloud guest is read,
-and the first billed run's `MemTotal` turns the first of them into a measurement.
+the guest that came within 86.7 MiB of running out had 7,941 MiB in total,
+and the build it ran touched 7,855 MiB of that total.
+An 8,000 MiB size gives a guest of about 7,752 MiB on the split,
+which is 103 MiB short of what that build touched,
+and it holds the recipe's two-job arms by 200 to 518 MiB,
+because those arms left 389 to 707 MiB free in a guest 189 MiB larger.
+So the answer to "does an 8-number flavour hold this build" is:
+it holds the two-job recipe with 200 to 518 MiB to spare,
+and it is about 103 MiB short of the build that ran at default parallelism.
+The 8,000 MiB figure is measured for `d2-4` and inferred for `d2-8`;
+the reserve is this machine's own,
+measured on two guests.
+A 16,000 MiB size holds either build with about 7,772 MiB over what the larger one touched.
+
 Each arm's figures keep that arm's own job count:
 the four-job figure is the one the killer ended,
 and the two-job and one-job figures are those builds.
@@ -1118,8 +1340,11 @@ What the record does not give:
   though disk is a tie-break in the order among fits and the cloud sizes carry 25,
   50,
   100 and up to 400 GB;
-- any build on a cloud machine;
-- any build on a shared-vCPU machine;
+- any build on a shared-vCPU size,
+  and none on a `b3-8`;
+  one build of this crate has run on a cloud machine,
+  on a `b3-16` named through `MVM_OVH_FLAVOR`,
+  and it took 9 minutes 40 seconds;
 - the job count a cloud guest would use,
   which follows from its vCPU count and not from the recipe's `--jobs 2`.
 
@@ -1204,21 +1429,23 @@ marked open to veto.
   `--vcpus 4` alone asks for nothing about memory and keeps every 4-vCPU flavour.
   Gives up:
   the guest can be larger than the ask and the bill with it,
-  which on this ask is 2 extra vCPUs and 2 extra GB;
+  which on this ask is 2 extra vCPUs and 1,000 extra MiB;
   and a person who wants one exact size must name it with `--server-type`.
 - **Exactly.**
   Mechanism:
   a flavour is a candidate only when its vCPUs are the asked count and its memory number is the asked number,
   so the fallback is what answers a miss (Decision 2),
-  and reaching the other reading then needs a marker the build does not have:
+  and reading the number as gibibytes then needs a marker the build does not have:
   a trailing `+`,
   or a second option such as `--at-least`.
   Result:
   `--vcpus 2 --memory 6` refuses,
-  because no flavour has 6 GB,
+  because no flavour has a memory number of 6,
   and says so in the shape Decision 2's refusal gives.
-  `--vcpus 4 --memory 8` ends on `d2-8` (whole CA$0.06392) and not on `b3-16`,
-  because 8 is a size the catalogue carries.
+  `--vcpus 4 --memory 8` ends on `d2-8` at whole CA$0.06392 when the typed 8 means the catalogue's 8,
+  because that size holds 8,000 MiB;
+  under Decision 6's strict floor it refuses,
+  because no size in `BHS5` holds exactly 8,192 MiB.
   Gives up:
   most cloud asks refuse on a provider with fixed mixes,
   which is the case the owner's own sentence asked `mvm` to handle,
@@ -1231,13 +1458,13 @@ at least > exactly.
 At least delivers a machine for the owner's own example and for every ask at or below the largest size,
 and exactly refuses the owner's example by default and leaves the work without a machine;
 the other spelling costs one character in the "at least" answer and one new option in the "exactly" answer,
-so neither reading is out of reach.
+so neither rule is out of reach.
 
 A yes to at least leaves undecided:
 what happens above the largest size (Decision 2),
 which size among those that fit (Decision 4),
 the unit a person types (Decision 6),
-and whether any marker exists at all.
+and whether a suffix such as `8G` is a marker for one reading.
 
 A yes to exactly leaves undecided:
 the marker's spelling,
@@ -1250,11 +1477,32 @@ and whether libvirt keeps allocating exactly under the same bare number.
 **The question**,
 for anyone reading only this section:
 a command whose numbers no flavour in the region satisfies,
-for example `--vcpus 8 --memory 48` where the largest kept flavour in stock has 32 GB,
+for example `--vcpus 4 --memory 2048` where the largest kept size in stock has 1,024 GB,
 or any ask under Decision 1's "exactly" answer.
 
-Under Decision 1's "at least" answer this happens only above the largest size;
+Under Decision 1's "at least" answer this happens only above the largest size in stock,
+which the price page's kept sizes put at 160 vCPUs (`c3-320` and `b3-640`) and 1,024 GB (`r3-1024`);
 under "exactly" it happens on almost every command.
+
+What is built today is already a refusal,
+in a different shape.
+`NoSizeFitsError` (`package/mvm/cli/src/backend/size-request.ts`)
+names what was asked,
+the largest size the region could have used,
+and the largest size the family rule left out,
+and it prints no price.
+Its message is assembled from the source's own clauses,
+`nothing ${place} can be made with ${asked}:`,
+then the largest size the region could have used,
+then the sizes the family rule left out,
+and it ends `name a size outright with ${overrideOptions}`.
+The opening clause and the closing one are copied from `NoSizeFitsError` in that file;
+the two middle clauses are described here,
+and the second is one of two alternatives the constructor picks between.
+because its second clause is one of two alternatives the constructor picks between.
+
+So a yes here changes a message the build already prints,
+and adds prices to it.
 
 - **Refuse**
   and name the nearest (recommended).
@@ -1265,27 +1513,37 @@ under "exactly" it happens on almost every command.
   its disk and its whole hourly price and which way it is off,
   and the command exits nonzero having created nothing.
   Result,
-  for an ask of 2 vCPUs and 6 GB answered exactly:
-
-  ```text
-  no size in BHS5 has exactly 2 vCPUs and 6 GB. Nearest, by vCPUs then memory:
-    b2-7  (2 vCPUs, 7 GB, 50 GB SSD)          CA$0.11782 per hour, 1 GB above
-    c2-7  (2 vCPUs, 7 GB, 50 GB SSD)          CA$0.16722 per hour, 1 GB above
-    b3-8  (2 vCPUs, 8 GB, 50 GB local)        CA$0.09799 per hour, 2 GB above
-  ```
-
+  for `--vcpus 4 --memory 2048`:
+  the command exits nonzero,
+  having created nothing,
+  with a message naming the largest size it could have used (`r3-1024`,
+  128 vCPUs and 1,024 GB),
+  the sizes the family rule left out,
+  and,
+  if this option is taken,
+  the whole hourly price of each.
+  No capture of that message is in this file;
+  the clauses above are the built ones.
   Gives up:
   a second command,
-  and an agent's unattended `run` fails where a slightly different size would have run.
+  and an agent's unattended `run` fails where a larger region or a smaller ask would have run.
 - **Take the nearest.**
   Mechanism:
   the same ordering picks the closest size in either direction,
-  ties by whole hourly price and then by name,
+  ties by whole hourly price and then by identifier,
   and the create proceeds.
   Result:
-  `--vcpus 2 --memory 6` ends on `b2-7` at whole CA$0.11782;
-  `--vcpus 3` ends on a 2-vCPU flavour,
-  because vCPUs are compared first.
+  under a floor nearest has no worked meaning,
+  because every candidate is smaller than the ask:
+  `--vcpus 4 --memory 2048` takes `r3-1024`,
+  the largest size in stock,
+  at whole CA$6.87564 an hour;
+  `--vcpus 3` takes a 2-vCPU size,
+  because vCPUs are compared first;
+  `--vcpus 2 --memory 6` takes `b2-7` at whole CA$0.11782,
+  the closest size in either direction,
+  because its 2 vCPUs match the ask exactly and its 7,000 MiB is the nearest memory above it.
+  Under "exactly" this is the only rule that ever creates anything.
   Gives up:
   the guest can be smaller than the ask,
   so a build sized to its memory is killed after minutes of billed work,
@@ -1298,14 +1556,12 @@ a too-small guest costs the round,
 the billed minutes until someone notices,
 and a failure that reads as the work's own.
 The case for nearest is real and is why they are close:
-the owner's own example,
-2 vCPUs and 6 GB,
-is exactly what nearest serves,
-and under the "at least" answer it never reaches this decision.
+under the "exactly" answer it is the only rule that creates anything at all,
+and under "at least" the owner's own example never reaches this decision.
 
 A yes to refuse leaves undecided:
-whether the refusal also lists the largest size the family rule excluded,
-and whether it prints the price of the size it would have taken were the ask lower.
+whether the refusal prints a whole hourly price beside each size it names,
+and whether it suggests the largest size it could have used as the next command.
 A yes to nearest leaves undecided:
 the measure (stated vCPUs then memory,
 but not whether a memory-first measure was weighed),
@@ -1322,10 +1578,17 @@ so that a person and an unattended agent both learn what will be spent?
 What is built today:
 the OVHcloud CLI create logs one line before creating,
 naming the flavour,
-its numbers and its hourly price;
+its numbers and its hourly price,
+and it prints that line only on the sized walk (`package/mvm/cli/src/backend/ovh/provisioning.ts`,
+`chooseFlavorAndImage`);
+a create with neither number prints its own line instead,
+with the flavour and its numbers and no price,
+although it reads the prices before it looks at whether a number was asked;
 the Hetzner create logs the type and its numbers with no price;
 the MCP `create_vm` answers `VM <name> created and started` with no size;
 there is no `--preview` and no `mvm sizes`.
+Both printed lines call the catalogue's number "GiB",
+which the measured unit says it is not.
 
 - **The create's own line**,
   completed (recommended first step).
@@ -1359,7 +1622,7 @@ there is no `--preview` and no `mvm sizes`.
 
   ```text
   $ mvm --backend ovh sizes --vcpus 2 --memory 6
-  asks at least 2 vCPUs and at least 6 GB in BHS5
+  asks at least 2 vCPUs and at least 6 GB in BHS5; the four cheapest of the sizes that fit:
     d2-8   4 vCPUs   8 GB   50 GB disk              CA$0.06392/h whole  <- taken
     b3-8   2 vCPUs   8 GB   50 GB local storage     CA$0.09799/h whole
     b2-7   2 vCPUs   7 GB   50 GB SSD               CA$0.11782/h whole
@@ -1403,9 +1666,13 @@ Ranking:
 the create's line > the list command > the preview flag.
 The create's line is what the owner already chose and is what every caller sees,
 including the MCP one;
-the list command adds the alternatives at the cost of a second command;
-the preview flag adds nothing the create's line does not already print and brings a second printing path to keep in step,
-which is why it ranks last on what it delivers.
+the list command adds the alternatives at the cost of a second command,
+and spends nothing while it does it;
+the preview flag prints the create's own line and adds a stop before the spend,
+which the list command also gives,
+at no extra printing path;
+keeping the two printings in step is what the preview costs,
+and no option ranks lower for the code it needs.
 
 A yes to the create's line leaves undecided:
 whether the MCP answer repeats the size,
@@ -1435,10 +1702,16 @@ The owner answered this on 2026-11-28 with "Cheapest that fits",
 marked open to veto,
 and it is built on OVHcloud.
 
-- **The cheapest whole hour**
+- **The cheapest by the published hourly price**
   (recommended,
   the owner's answer,
   and built).
+  The record's chosen text prices by "OVHcloud's public hourly prices"
+  and gives the example `d2-8` at "CA$0.0596 per hour",
+  which is the instance row;
+  the price the build reads and orders by is that row,
+  and the whole hourly figures in this file are this file's reading of what a machine bills,
+  which issue 6666 records as not what the built line prints.
   Mechanism:
   one read of OVHcloud's public order catalogue per create,
   a flavour's price found by its own `planCodes.hourly`,
@@ -1448,7 +1721,12 @@ and it is built on OVHcloud.
   then memory,
   then disk,
   then the plain size before its `-flex` twin,
-  then the name.
+  then the flavour's identifier,
+  which `orderFlavors` compares with `left.id.localeCompare(right.id)`
+  and which is the UUID instance creation takes as `flavorId` (`package/mvm/cli/src/backend/ovh/types.ts`),
+  not the flavour's name;
+  the tests use the name as the identifier,
+  so no test can show that difference.
   When the read cannot be had,
   the order falls back to the numbers alone and the command says so.
   The built source states the point of the order:
@@ -1464,10 +1742,12 @@ and the consequence of an unpriced size:
 
 Result:
 `--vcpus 2 --memory 6` ends on `d2-8` at whole CA$0.06392;
-`--vcpus 2 --memory 4` ends on `d2-4` at whole CA$0.03732 rather than `c3-4` at CA$0.08919.
+`--vcpus 2 --memory 4` ends on `d2-4` at whole CA$0.03732 rather than `c3-4` at CA$0.08919
+when the typed 4 is read as the catalogue's 4,
+and on `d2-8` at CA$0.06392 under Decision 6's strict floor.
 Gives up:
 one provider read per create and a source that is not the page a person reads,
-a guest larger than the ask (2 extra vCPUs and 2 extra GB on the owner's ask,
+a guest larger than the ask (2 extra vCPUs and 1,000 extra MiB on the owner's ask,
 the whole reason Decision 5 exists),
 and,
 until issue 6666 lands,
@@ -1479,7 +1759,7 @@ which the measured grid shows changes no pick over 2048 asks but does not prove 
   then the least memory,
   then the smallest disk,
   then the plain size before its twin,
-  then the name,
+  then the flavour's identifier,
   and no price is read.
   Result:
   `--vcpus 2 --memory 6` ends on `b2-7` at whole CA$0.11782,
@@ -1488,6 +1768,15 @@ which the measured grid shows changes no pick over 2048 asks but does not prove 
   CA$0.05187 more than `d2-4` and 139.0 percent;
   `--vcpus 4` with 8 GiB ends on `b2-15` at CA$0.21912,
   CA$0.02777 more than `b3-16` and 14.5 percent.
+  Each of the three is a tie on vCPUs,
+  memory and disk between a `b`,
+  `c` or `d` size:
+  `b2-7` against `c2-7`,
+  `c3-4` against `d2-4`,
+  and `b2-15` against `c2-15`.
+  Which one of each pair wins is decided by the identifier,
+  whose order this file cannot read,
+  so the percentages are what a tie costs and not a guaranteed result.
   Gives up:
   the bill is whatever the catalogue's numbers imply,
   and those numbers do not order by money:
@@ -1497,11 +1786,16 @@ which the measured grid shows changes no pick over 2048 asks but does not prove 
   and list what fits.
   Mechanism:
   every fitting size is printed with its numbers and its whole price and the command exits nonzero without creating.
+  This is not an order among fits but a choice to create or not,
+  and an owner who wants "cheapest,
+  and refuse when more than one fits unless a size is named"
+  would add this refusal to the first option,
+  which the two decisions leave separable.
   Result:
 
   ```text
   $ mvm --backend ovh create --vcpus 2 --memory 6 dev
-  four sizes in BHS5 fit at least 2 vCPUs and at least 6 GB:
+  the cheapest four of the sizes in BHS5 that fit at least 2 vCPUs and at least 6 GB:
     d2-8   4 vCPUs   8 GB   50 GB disk              CA$0.06392/h whole
     b3-8   2 vCPUs   8 GB   50 GB local storage     CA$0.09799/h whole
     b2-7   2 vCPUs   7 GB   50 GB SSD               CA$0.11782/h whole
@@ -1527,11 +1821,13 @@ not this one's.
 A yes to cheapest leaves undecided:
 whether Discovery sizes are candidates (Decision 5),
 whether the printed figure is the whole hour (issue 6666),
-what the tie rule is when two sizes cost exactly the same,
-and what a create does when no fitting size has a published price.
+which order Hetzner takes among the types that fit,
+which is the smallest numbers and which no decision asks,
+and whether the identifier or the name is the last tie-break,
+which is decided in the built code and unread for a real flavour list.
 
 A yes to fewest numbers leaves undecided:
-the tie rule's last resort,
+the same last tie-break,
 and whether a price is read at all for the printed line.
 
 A yes to refuse leaves undecided:
@@ -1565,8 +1861,9 @@ and that combination is built by editing one list.
 
 The choice,
 and every figure below,
-is the same under both readings of the catalogue's memory unit,
-because 8 is at least 6 on either.
+does not depend on Decision 6:
+the owner's ask is 6,
+which both rules read as needing the 8,000 MiB size.
 
 - **Keep Discovery as a candidate**
   (recommended,
@@ -1577,16 +1874,18 @@ because 8 is at least 6 on either.
   and the price order then picks it whenever it is cheapest.
   Result:
   the owner's ask ends on `d2-8`,
-  4 shared vCPUs and 8 GB,
+  4 shared vCPUs and 8,000 MiB,
   whole CA$0.06392;
   `--vcpus 1` alone ends on `d2-2`,
   whole CA$0.02102;
-  a create asking 4 vCPUs and 8 GiB ends on `d2-8` too if the catalogue counts gibibytes.
+  a create asking 4 vCPUs and 8 GiB ends on `d2-8` under the provider's label,
+  and on `b3-16` under a strict floor,
+  where Discovery has no size big enough to matter.
   Gives up:
   the machine's vCPUs are shared with other customers,
   the printed line says nothing about that,
   and no build has been timed on one,
-  so what a shared vCPU costs this repository's build in minutes is unknown.
+  so what a shared vCPU costs this repository's build in minutes is unmeasured.
   What is known is the money:
   it is the cheapest answer by 53.3 percent on the owner's ask.
 - **Leave Discovery out.**
@@ -1599,23 +1898,29 @@ because 8 is at least 6 on either.
   53.3 percent more;
   `--vcpus 1` alone ends on `c3-4` at whole CA$0.08919,
   which is 4.24 times `d2-2`;
-  an ask of 4 vCPUs and 8 GiB ends on `c3-8` at whole CA$0.17375 under a catalogue that counts gibibytes,
-  171.8 percent more than `d2-8`.
+  an ask of 4 vCPUs and 8 GiB ends on `c3-8` at whole CA$0.17375 under the provider's label,
+  171.8 percent more than `d2-8`,
+  and on `b3-16` under a strict floor,
+  the same machine either way.
   Gives up:
   CA$0.03407 an hour on the owner's ask and CA$0.10983 on that 8 GiB ask,
-  and the smallest machine `mvm` can make goes from 2 GB to 4 GB,
-  which also removes the only size under CA$0.03 an hour.
+  and the smallest machine a sized create can make goes from 2,000 MiB to 4,000 MiB,
+  which also removes the only size under CA$0.03 an hour;
+  the numberless create and the clone still reach `d2-2`,
+  because the family rule guards only the sized walk.
 
 Ranking:
 keep > leave out.
-Keeping delivers the same numbers for 53.3 percent less money on the owner's ask and 4.24 times less on the smallest ask,
-and nothing measured shows the shared vCPUs costing the build anything;
-leaving them out buys vCPUs of the machine's own at 1.5 to 4.2 times the hour,
-which is a real purchase but one the workload has no measurement for.
-What would settle the ranking is one build timed on a `d2-8` and on a `b3-8`;
-that is a measurement,
-not a decision,
-and it is the first thing to run once a guest arm runs on OVHcloud at all.
+Keeping delivers four shared vCPUs and 8,000 MiB for CA$0.06392,
+which is 53.3 percent less than the two dedicated vCPUs and 8,000 MiB that leaving it out buys on the owner's ask;
+leaving it out buys cores of the machine's own,
+which is a real purchase at 1.5 to 4.2 times the hour.
+The owner is not being asked to weigh a risk here:
+no build has run on a shared-vCPU size,
+so nothing is measured on either side,
+and a round is timing one build on a `d2-8` and one on a `b3-8` now.
+When those come back the minutes are a number,
+and the question is the money against that number alone.
 
 A yes to keeping leaves undecided:
 whether the printed line marks a shared-resource size,
@@ -1627,83 +1932,99 @@ and whether a separate family option exists for the storage family `i1`.
 
 ### 6. Which unit does a typed `--memory 8` carry?
 
-**What is decided here**,
+**The question**,
 for anyone reading only this section:
-a typed `--memory 8` is read as 8 gibibytes.
-This file takes that rather than asking,
-because the other half of the unit question,
-what OVHcloud's own catalogue number means,
-is a fact a run settles and no one's preference.
-So a person types `--memory 8`,
-and the question this decision answers is whether that means 8 gibibytes,
-the binary unit a Linux guest reports,
-or 8 decimal gigabytes,
-the unit OVHcloud's price page prints and the unit the other tools' pages use.
-Which unit the catalogue's number carries is not asked of anyone:
-"The unit of the catalogue's memory number" names the run that settles it,
-and every result below is shown under both of its answers.
-The pick taken here is GiB,
-marked open to veto,
-and the veto's own consequences are the last two paragraphs of this section.
+`mvm create --vcpus 4 --memory 8 build-box` on `BHS5`,
+where the cheapest size is `d2-8`,
+whose catalogue number for memory is 8.
+A size listed with N holds N × 1,000 MiB,
+which two billed runs measured and "The unit of the catalogue's memory number" gives,
+so a machine the catalogue calls 8 carries 8,000 MiB.
+The typed 8 therefore cannot mean both "8 GiB of memory" and "the size called 8",
+and on this ask the choice runs from CA$0.06392 to CA$0.19135 an hour.
 
-What a libvirt guest gets does not depend on either answer,
-because a domain is given mebibytes:
-`--memory M` writes `M × 1024` MiB,
-so today's typed number already means GiB on the local backend.
+What is built today is the second option below:
+on a cloud backend the typed number is compared straight with the catalogue's number
+(`package/mvm/cli/src/backend/ovh/flavors.ts`,
+`flavor.ram >= request.memoryGiB`,
+and `package/mvm/cli/src/backend/hetzner/server-types.ts`,
+`type.memory >= request.memoryGiB`),
+and on libvirt it becomes `M × 1,024` MiB
+(`package/mvm/cli/src/create.ts`,
+`memoryGiB * MEBIBYTES_PER_GIBIBYTE`).
+So the two kinds of backend already disagree by 2.34 percent about what a typed 8 means.
 
-- **GiB (recommended).**
+- **A strict floor in gibibytes**
+  (recommended).
   Mechanism:
-  the typed number is gibibytes.
-  On libvirt nothing changes.
-  Against a cloud catalogue the comparison converts once,
-  so the backend asks for at least `M × 1024³` bytes and takes the first size whose own number covers that.
+  the typed number is gibibytes;
+  on libvirt nothing changes,
+  because the domain is given `M × 1,024` MiB today;
+  against a cloud catalogue the comparison converts once,
+  so a size is a candidate when its own number N satisfies `N × 1,000 MiB ≥ M × 1,024 MiB`.
   Result,
-  for `--vcpus 4 --memory 8`:
-  if the catalogue's number is GB,
-  8 GiB is 8.59 GB and the machine is `b3-16` at whole CA$0.19135,
-  a 16 GB size whose guest holds about 14.9 GiB;
-  if the catalogue's number is GiB,
-  the machine is `d2-8` at whole CA$0.06392,
-  whose guest holds the 7,755 MiB measured on this machine's 8,192 MiB guests.
+  with the whole price of each pick at one vCPU and at four:
+
+  - 2 GiB:
+    `d2-2` at CA$0.02102 becomes `d2-4` at CA$0.03732,
+    1.78 times;
+    at four vCPUs the ask already needs `d2-8`,
+    so both rules take it,
+    at CA$0.06392.
+  - 4 GiB:
+    `d2-4` at CA$0.03732 becomes `d2-8` at CA$0.06392,
+    1.71 times;
+    at four vCPUs both rules take `d2-8` at CA$0.06392.
+  - 8 GiB:
+    `d2-8` at CA$0.06392 becomes `r3-16` at CA$0.12209 at one or two vCPUs,
+    1.91 times,
+    and `b3-16` at CA$0.19135 at four,
+    2.99 times.
+  - 16 GiB:
+    `r3-16` at CA$0.12209 becomes `r2-30` at CA$0.19252 at one or two vCPUs,
+    1.58 times,
+    and `b3-16` at CA$0.19135 becomes `r3-32` at CA$0.23955 at four,
+    1.25 times.
+  - 32 GiB:
+    `r3-32` at CA$0.23955 becomes `r2-60` at CA$0.37042 at any of those vCPU counts,
+    1.55 times.
+
   Gives up:
-  one conversion inside the comparison,
-  and,
-  under the GB catalogue,
-  a machine labelled 16 GB for a person who typed 8,
-  at 2.99 times the cost of the 8-number one.
-- **GB.**
+  on every power of two the machine is the next size up,
+  so typing 8 buys 16,000 MiB for 2.99 times what the size called 8 costs,
+  and the printed line still calls the machine's own number "GiB".
+- **The floor means the size the provider calls by that number**
+  (built on a cloud backend).
   Mechanism:
-  the typed number is decimal gigabytes and is compared straight to the catalogue's number,
-  so 8 asks for the 8-number size and no conversion happens on a cloud backend.
-  On libvirt the number converts instead:
-  8 GB is 7,629 MiB,
-  which is 563 MiB below today's 8,192 MiB default.
+  the typed number is compared straight with the catalogue's number,
+  which is what both cloud backends do today,
+  and libvirt keeps its `M × 1,024` MiB domain,
+  so one typed 8 is 8,000 MiB on a cloud and 8,192 MiB here.
   Result,
-  for `--vcpus 4 --memory 8`:
-  the machine is `d2-8` at whole CA$0.06392 under either answer for the catalogue's unit,
-  because 8 is at least 8 whichever way either number is counted.
-  Its guest holds about 7.4 GiB if the catalogue's number is GB,
-  and the 7,755 MiB measured here if it is GiB.
+  the same five asks at the same vCPU counts:
+  `d2-2` at CA$0.02102,
+  `d2-4` at CA$0.03732,
+  `d2-8` at CA$0.06392,
+  `r3-16` at CA$0.12209,
+  `r3-32` at CA$0.23955.
   Gives up:
-  the local backend's default guest drops 563 MiB,
-  and,
-  under the GB catalogue,
-  the guest that was measured on this machine to come within 86.7 MiB of running out of memory is 192 MiB smaller than that one,
-  so it does not hold the same build.
-  That is arithmetic on this machine's guests,
-  and it is the reason this option ranks second.
+  every machine is 2.34 percent below the number asked before the guest's own reserve,
+  so 8 GiB buys a guest of about 7,752 MiB,
+  and the local backend gives 8,192 MiB for the same typed number,
+  which is the 2.34 percent disagreement between backends that exists today.
 
 Ranking:
-GiB > GB.
-Typed GiB delivers a guest that holds the measured build under either answer for the catalogue's unit:
-under GB it buys the 16 GB size,
-and under GiB the 8-number size is already a gibibyte size.
-Typed GB matches the provider's page with no conversion and lands on the cheapest 8-number machine,
-at the cost of a local guest 563 MiB smaller than today's and,
-under the GB catalogue,
-a cloud guest smaller than the one that already came within 86.7 MiB of a kill.
-No measurement of a cloud guest exists to offset that,
-which is why the ranking does not rest on one.
+a strict floor > the provider's label.
+A strict floor delivers a machine at or above the number a person typed,
+on both kinds of backend,
+which is what a floor says,
+and it holds both builds the record measured:
+its 16,000 MiB machine holds the default-parallelism build with about 7,772 MiB to spare.
+The label rule buys 8,000 MiB for the typed 8,
+which holds the recipe's two-job arms by 200 to 518 MiB
+and is about 103 MiB short of the build that ran at default parallelism,
+and it costs 1.25 to 2.99 times less than the strict floor on the asks where the two differ,
+so the pair is margin against money and the owner's answer decides it.
 
 The other tools,
 for the same question,
@@ -1759,18 +2080,15 @@ and its sample code throws `Invalid number of cores requested.`
   which is the one reading here that has no unit problem at all,
   because it never states memory in a size attribute.
 
-Taking GiB leaves undecided:
-whether a suffix is accepted at all (`8G`,
-`8GiB`),
-whether the default's own number stays 8 GiB or follows the typed unit,
-and what `mvm list` prints for a flavour whose catalogue number turns out to be GB.
+A yes to a strict floor leaves undecided:
+whether the printed size names the machine's own number or the gibibytes asked,
+whether Hetzner's documented GB is read the same way,
+and whether a suffix such as `8G` is accepted at all.
 
-A veto,
-taking GB instead,
-leaves undecided:
-whether libvirt's default moves from 8,192 MiB to 7,629 MiB,
-whether a suffix in the other unit is refused by grammar or by an error,
-and whether the printed size a cloud create names is the provider's number or a converted one.
+A yes to the provider's label leaves undecided:
+whether libvirt's 8,192 MiB default moves to 8,000 MiB,
+whether the printed line says the machine is below the number asked,
+and whether a suffix in gibibytes is refused by grammar or by an error.
 
 ### 7. What does a create without the numbers get?
 
@@ -1781,66 +2099,88 @@ and the same command through `mvm run` and the MCP tools.
 Every one of those spends money on a cloud backend,
 and none of them carries a size unless the caller writes one.
 
+Who calls it without numbers is counted,
+not assumed.
+No code outside `package/mvm` and `package/mcp` passes `--vcpus`,
+`--memory`,
+`--server-type` or `MVM_OVH_FLAVOR` to `mvm`,
+and the guest drivers that start the rounds name no size,
+so a round that says nothing gets the backend's default.
+The one place in the repository that names a size for a round is the guest driver's own documented environment,
+`MVM_OVH_FLAVOR=b3-16` in `package/git-policy/cli/e2e/README.md`,
+which is how the record's first OVHcloud arm ran on four cores and 16,000 MiB.
+
 - **Today's per-backend defaults**
-  (recommended,
-  and what is built).
+  (what is built).
   Mechanism:
   a create with neither number follows the path that existed before the options:
   libvirt gets 4 vCPUs and 8,192 MiB,
-  OVHcloud gets the smallest in-stock kept family,
+  OVHcloud gets the smallest in-stock flavour of any family,
   Hetzner gets the cheapest offered non-deprecated type.
   Result:
   `mvm create dev` on OVHcloud makes `d2-2` at whole CA$0.02102 an hour,
   a 1-vCPU,
-  2 GB machine on which the 7.3 GiB build cannot run;
-  on libvirt the same command makes the 8 GiB guest the rounds use today.
+  2,000 MiB machine whose guest holds about 1,846 MiB on the split,
+  which cannot hold the 7.3 GiB build;
+  on libvirt the same command makes the 8,192 MiB guest the rounds use today,
+  which bills nothing.
   Gives up:
-  the same command gives 8 GiB here and 2 GB there,
-  so a guest round that forgets the numbers fails on the cloud after minutes of billed work,
+  the same command gives 8,192 MiB here and 2,000 MiB there,
+  so a guest round that forgets the numbers dies in the crate's build,
+  about ten minutes into a billed round,
   and the failure reads as the work's own.
-- **One default everywhere**
-  at 4 vCPUs and 8 GiB.
+  A round's whole life in the record is 1,238 seconds,
+  or about 20.6 minutes,
+  which at `d2-2` costs CA$0.00723 and at `d2-8` CA$0.02198.
+- **One default everywhere at 4 vCPUs and 8 GiB**
+  (recommended).
   Mechanism:
   a create with neither number is given those two floors and the backend's own order picks among the sizes that fit.
   Result:
-  on OVHcloud the default ends on `b3-16` at whole CA$0.19135 if the catalogue's number is GB,
-  or on `d2-8` at CA$0.06392 if it is GiB,
-  because 8 GiB is 8.59 GB,
-  so only a catalogue that counts gibibytes lets an 8-number flavour hold it;
+  on OVHcloud the default ends on `b3-16` at whole CA$0.19135 under a strict floor
+  and on `d2-8` at CA$0.06392 under the provider's label (Decision 6),
+  so a whole round costs CA$0.06580 or CA$0.02198;
   on libvirt nothing changes;
-  on Hetzner the built rule can resolve it,
-  because it reads `cores` and `memory`,
-  and picks the smallest shared-vCPU type with at least 4 cores and 8 GB,
+  on Hetzner the built rule picks the smallest shared-vCPU type with at least 4 cores and 8 GB,
   at a price this round did not read.
   Gives up:
   every numberless create pays 3.04 to 9.10 times the smallest size,
-  depending on which reading holds,
-  including the one-shot `run` of a command that needs none of it,
-  and a `run` that loses its numbers (issue 6664) would silently become the expensive default instead of the cheap one.
+  including a one-shot `run` of a command that needs none of it.
 - **No default on a cloud.**
   Mechanism:
   a cloud create with neither number is refused,
   naming the two options and the smallest size each would take.
   Result:
-  `mvm create dev` on OVHcloud exits nonzero with the two options named,
-  and nothing is billed.
+  the command exits nonzero with the two options named,
+  and nothing is billed:
+
+  ```text
+  no size is chosen for a create without --vcpus or --memory: ask with both floors,
+  or name a size with --server-type
+  ```
+
+  That block is written by hand for this proposal;
+  no such command exists today.
   Gives up:
   every existing script and every MCP call that creates without numbers breaks,
   which includes `mvm run` and `run_in_vm` on libvirt if the refusal is not exempted there,
   and the person must choose a size for a one-line command.
 
 Ranking:
-today's defaults > one default > refuse.
-Today's defaults are what every numberless command pays,
-and most of them are one-shot commands that need 2 GB,
-so a 4 vCPU and 8 GiB default multiplies their price by 3 to 9 for a workload they do not run;
-a guest round that needs 8 GiB can say so on its own create,
-and a round whose guest needs 8 GiB can pass the numbers on its own create.
-The cost of this ranking is stated in the option:
-a forgotten number fails a build late and looks like the work's fault,
-which is why the create's own line (Decision 3) matters more under this answer.
-A refusal ranks last because it breaks three paths agents use without being asked,
-which is a larger loss than paying for a larger guest.
+one default > no default > today's defaults.
+The workload ranked for here is the guest rounds,
+which build this crate,
+and a round that says nothing gets `d2-2` on a cloud today,
+which cannot hold the build.
+One default makes such a round build at 3.04 to 9.10 times the smallest size,
+which is CA$0.02198 to CA$0.06580 for a whole round.
+A refusal costs an immediate message and one answered question,
+and never bills a machine that cannot finish,
+so it ranks above a default that kills a round after billed minutes.
+Today's defaults rank last for the guest rounds:
+the local backend's 8,192 MiB guest works and a cloud one does not,
+so the same command means two different workloads,
+and the record's own first arm had to name `b3-16` to run at all.
 
 A yes to today's defaults leaves undecided:
 whether the cloud default becomes a size the workload can use,
@@ -1874,18 +2214,26 @@ With neither number it follows Decision 7.
 
 `mvm run -- <command>`:
 takes the same two options.
-Through the libvirt backend they reach the guest's create.
-Through OVHcloud and Hetzner they do not,
-today,
-so the ephemeral guest is that backend's default size (issue 6664,
-whose evidence is quoted in "What is built today").
-With `--from` it follows the clone rule below.
+On every backend they reach the guest's create since merge `95f65ed945`:
+`ovhRun` and `hetznerRun` pass `vcpus` and `memoryGiB` into `ephemeralRun`,
+which hands them to the same create (`package/mvm/cli/src/backend/ovh/exec.ts`,
+`package/mvm/cli/src/backend/hetzner/exec.ts`,
+`package/mvm/cli/src/backend/ephemeral-run.ts`).
+So a one-shot `run` with the numbers makes a sized machine on OVHcloud and Hetzner today,
+and issue 6664,
+which recorded the opposite,
+is closed.
+With `--from` it follows the clone rule below,
+and a floor beside a source machine is refused by `ephemeralRun` itself.
 
 The MCP server:
 `create_vm` and `run_in_vm` take `vcpus` and `memory`,
-and the stale sentence saying `server_type` applies to Hetzner only is gone.
-`run_in_vm` reaches the same backend `run`,
-so it loses the numbers on the two cloud backends exactly as the CLI does.
+and `run_in_vm` hands them to the same backend `run` as the CLI.
+The tool's own description now names `server_type` as a size for any backend,
+but the argument's description still reads "Hetzner server type (e.g. cx23);
+... ignored by the libvirt backend",
+which is stale;
+and `create_vm` refuses a floor beside `from` in its own words before any backend is resolved.
 Both answers name no size,
 which Decision 3's first option would change.
 
@@ -1943,17 +2291,20 @@ whatever the owner answers:
   so there is nothing to compare and the order can never apply.
 - **One default under exact numbers**
   on a cloud.
-  A default of 4 vCPUs and 8 GiB read as exact asks for a flavour with exactly 8 GB of memory,
-  and 8 GiB is 8.59 GB,
-  so no flavour in `BHS5` has it:
-  a numberless cloud create would refuse every time.
-  These two answers cannot both be taken.
+  A default of 4 vCPUs and 8 GiB read as exact asks for a flavour whose memory number is exactly 8,
+  which is 8,000 MiB,
+  so the machine is `d2-8` at CA$0.06392;
+  read as exactly 8 GiB,
+  no size in `BHS5` has it,
+  so a numberless cloud create would refuse every time.
+  Which of the two an exact default means is Decision 6's question,
+  and only the second cannot be built.
 - **A suffix in the other unit.**
   One grammar,
   one unit:
-  under GiB,
+  under gibibytes,
   `8G` is either refused or means 8 GiB,
-  and under GB,
+  and under the provider's label,
   `8GiB` is the other.
 
 Choices,
@@ -1975,28 +2326,38 @@ each refused or excluded today:
   and "clone then enlarge" is a combination the owner might want.
 - **A refusal in Decision 7 with `run` and `run_in_vm` unchanged.**
   Not impossible:
-  both take the numbers already,
-  and the cloud backends drop them only because of the open defect in issue 6664.
-  A refusal lands meaningfully only after that fix.
+  both take the numbers already and hand them on since merge `95f65ed945`,
+  so the refusal can be taken with them as they stand.
 - **The cheapest order with a `-flex` twin.**
-  Not impossible:
-  the rule is "no published price,
-  not a candidate",
-  so a flex twin becomes a candidate the day the catalogue prices it,
-  and the suffix then only breaks a tie.
+  Not impossible,
+  and not only a question of price:
+  no `-flex` name appears in the Canadian price page's product data,
+  so the built rule never sees one,
+  and the euro table of the blog the file quotes does price the twins,
+  lower than the plain size by 4.9 to 10.2 percent on the Gen 3 sizes with more than 50 GB of disk.
+  Whether the Canadian catalogue prices them is not yet known;
+  a round is reading that catalogue for issue 6666.
+  If it does,
+  the twins become candidates,
+  and the numbers-only fallback already sorts by disk first,
+  so a twin with a 50 GB disk sorts ahead of a plain size with a larger one.
 - **A guest arm on OVHcloud.**
-  Not impossible and not built:
+  Built and run:
   the drivers' switch landed on `main` in merge `832b3e25c2`,
-  and no arm has run there yet,
-  because the arms reach their guest through a folder shared with the host.
+  and the driver `e2e:doctor-zfs-route` ran on one OVHcloud machine of four cores and 16,000 MiB,
+  taking 2 minutes 3 seconds and passing two of its three guest tests,
+  the third failing on a difference both sides of `main` carry.
 
 ## What is not known
 
-- The unit of the catalogue's memory number.
-  It is unsettled,
-  and the run that settles it is named in "The unit of the catalogue's memory number":
-  the round on branch `mvm-cli-run-hands-the-asked-vcpus-and-memory-to-its-create-on-every-backend`,
-  whose one billed run reads `MemTotal` beside the size's listed number.
+- The unit of the catalogue's memory number,
+  for every size but `d2-4`.
+  That one is measured;
+  OVHcloud's guide prints 1,000 times each name's number for eight more sizes,
+  and a boot line from one `d2-8` guest would check a second.
+  A round is not making that run,
+  because no question here turns on it:
+  the rule is measured where it matters and agreed by the guide elsewhere.
 - Which sizes are in stock in `BHS5` above 2 vCPUs and 8 GiB.
   The 04:48 to 04:50 read lists the ten smallest in stock;
   `d2-8`,
@@ -2012,23 +2373,26 @@ each refused or excluded today:
   the catalogue's addon list was not read for them,
   and the built read never looks them up (issue 6666).
 - Whether the catalogue prices any `-flex` name.
-  The price page carries none,
-  and the catalogue was not read for them.
+  The Canadian price page carries none,
+  the euro table of OVHcloud's blog prices them,
+  and the Canadian catalogue was not read for them;
+  a round is reading that catalogue for issue 6666.
 - Whether a shared-vCPU `d2` machine holds this repository's build in the time a `b3` machine does.
-  No build has run on either.
+  No build has run on either size;
+  a round is timing one on each.
 - Any Hetzner price,
-  and whether Hetzner sells any GPU type.
+  whether Hetzner sells any GPU type,
+  and which types its catalogue offers in the locations a create asks for.
   This round made no Hetzner API call.
-- Whether a guest arm runs on OVHcloud at all,
-  and what it costs when it does.
+- What a guest arm's own timings cost on the sizes a create picks,
+  since the one arm that has run named `b3-16` through `MVM_OVH_FLAVOR`.
 - What an OVHcloud clone of a larger source does,
   which is predicted from source and not run.
-- What the first billed create will verify:
-  the unit and `MemTotal`,
+- What a second billed create would verify:
   whether a public IPv4 is still attached by default after 2026-10-01,
   and the local disk a Gen 3 flavour carries.
-  Those three close the largest unknowns in this file,
-  in that order of cost.
+  The unit and `MemTotal` are measured,
+  by the two runs the record holds.
 
 ## The workload's own open item
 
@@ -2073,6 +2437,9 @@ by this round:
 - `https://docs.ovhcloud.com/en/guides/public-cloud/compute/starting-with-nova.md`,
   fetched 2026-11-28T07:58:15-05:00:
   the captured `openstack flavor list` whose `d2-4` row reads 4000 in its RAM column.
+- `https://blog.ovhcloud.com/fr/posts/public-cloud-pricing-model-update-2026/`,
+  the first of the two October 2026 pricing articles,
+  which states the IPv4 billing line for every Public Cloud VM range.
 - The five other tools' pages,
   each fetched 2026-11-28T08:00:39-05:00:
   [multipass-launch][],
@@ -2082,7 +2449,7 @@ by this round:
   [gce-custom-machine-type][].
 
 Read in this worktree,
-at `b7f9f7ed2c` unless a commit is named:
+at `f1d6eccf93` unless a commit is named:
 
 - `package/mvm/cli/src/backend/size-request.ts`,
   `create.ts`,
@@ -2126,8 +2493,14 @@ at `b7f9f7ed2c` unless a commit is named:
   one run each";
 - `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
   the sections "A standing yes for billed runs,
-  2026-11-28" and "The size taken among those that fit,
-  2026-11-28";
+  2026-11-28",
+  "The size taken among those that fit,
+  2026-11-28",
+  "The first arm of a wrapper driver on OVHcloud",
+  and "What a size's memory number comes to inside the guest";
+- `package/git-policy/cli/e2e/README.md`,
+  the section "The recipe's first OVHcloud run",
+  for the size the arm was given;
 - `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
   the section "The guests' unit at its own memory cap,
   2026-11-28".
