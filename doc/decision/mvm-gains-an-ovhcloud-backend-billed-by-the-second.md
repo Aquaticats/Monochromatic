@@ -508,10 +508,35 @@ So a floor of `--memory 4` on OVHcloud ends on a guest with about 3.73 GiB today
 The record of it for a user of `mvm` is `package/mvm/cli/README.md`,
 "What the memory number comes to inside the guest".
 
-What the reading does not settle:
-whether the size is 4 GB in thousands,
-or 4 GiB with a reservation taken off before the guest counts.
-One more billed run that also prints the kernel's command line and its crash-kernel reservation would.
+What that reading left open,
+whether the size is 4 GB in thousands or 4 GiB with a reservation taken off,
+a second billed run settled.
+Recorded 2026-11-28T08:49:43-05:00,
+unapproved and non-final:
+the same ask took the same size,
+and inside the guest the firmware's memory device reads `Size: 4000 MB`,
+the kernel's boot line reads `Memory: 2901048K/4095460K available`,
+`lsmem` reports blocks of 128M with 4G online,
+and the guest's own total reads 3,906,276 kB.
+So a size listed with 4 holds 4000 MiB.
+That is neither 4 GiB,
+which is 4096 MiB,
+nor 4 GB in thousands,
+which is 3815 MiB;
+the guest keeps about 3.73 GiB of it after the kernel's own reservation.
+One size was measured.
+OVHcloud's own guide to the OpenStack client prints `4000` in the RAM column for the same size,
+which agrees.
+
+What follows for a floor typed in GiB and compared number to number,
+as `mvm` does today:
+it is met by a size 2.3 percent smaller than asked.
+An ask of 8 GiB is 8192 MiB,
+and a size listed with 8 holds 8000 MiB.
+Whether a floor is strict and takes the next size up,
+or means the size the provider calls by that number,
+is a choice for the owner;
+it is the sixth decision of `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`.
 
 The same merge makes the one-shot `run` hand the asked numbers to its create on every backend,
 refuses either number beside a clone on every path,

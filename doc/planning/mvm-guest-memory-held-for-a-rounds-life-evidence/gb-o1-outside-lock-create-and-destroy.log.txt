@@ -1,0 +1,23 @@
+# mvm's own lines for the create (address removed) and for the destroy
+
+[info] [2026-11-28T13:02:30.265Z] [mvm] [ovhCreate] read 195 hourly prices in CAD from OVHcloud's public catalogue
+[info] [2026-11-28T13:02:32.840Z] [mvm] [ovhCreate] creating mvm-gb-o1 (flavor d2-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk, image Ubuntu 24.04) in BHS5
+[info] [2026-11-28T13:02:36.816Z] [mvm] [waitUntilRunning] instance gb-o1 is BUILD
+[info] [2026-11-28T13:03:22.461Z] [mvm] [ovhCreate] instance gb-o1 is running at <address>; waiting for SSH as ubuntu
+[info] [2026-11-28T13:03:37.665Z] [mvm] [ovhCreate] VM gb-o1 is ready at <address> as ubuntu. Connect with: mvm --backend ovh shell gb-o1
+
+[info] [2026-11-28T13:26:34.311Z] [mvm] [ovhDestroy] destroying gb-o1 (id <instance id>)
+[info] [2026-11-28T13:26:34.613Z] [mvm] [ovhDestroy] OVHcloud accepted the delete of gb-o1; waiting for the project's listing to let it go
+[info] [2026-11-28T13:26:37.354Z] [mvm] [waitUntilDeleted] instance gb-o1 is DELETING
+[info] [2026-11-28T13:27:33.427Z] [mvm] [ovhDestroy] VM gb-o1 destroyed and gone from the project's listing
+
+# the project's machines right after the create, this guest first
+
+gb-o1                    active  (2 vCPUs, 4 GiB)
+zfs-f3-grammar-commands  active  (4 vCPUs, 16 GiB)
+zfs-doctor-ovh           active  (4 vCPUs, 16 GiB)
+
+# the listing after the destroy, which names none of this round's machines
+
+zfs-f3-grammar-commands  active  (4 vCPUs, 16 GiB)
+ss-g-slot-state-2        active  (4 vCPUs, 16 GiB)

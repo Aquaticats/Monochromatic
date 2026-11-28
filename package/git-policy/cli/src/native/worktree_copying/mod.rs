@@ -153,6 +153,9 @@
 //!   Git's own reading of the files at a slot a removal without force refuses to
 //!   take,
 //!   as the seam a host control answers.
+//! - `worktree_removal_said_before_it_runs.rs`:
+//!   the line a bound slot's removal says to the person before it runs,
+//!   and the removal that runs after it.
 //! - `worktree_removal_of_a_bound_clone.rs`:
 //!   what a `git worktree remove` of a slot a whole managed clone is bound to does:
 //!   the removal,
@@ -733,6 +736,11 @@ pub mod worktree_copy_unreadable_record_words;
 /// Git's own reading of the files at a slot a removal without force refuses to take.
 #[cfg(unix)]
 pub mod the_slots_cleanliness;
+
+/// The line a bound slot's removal says to the person before it runs,
+/// and the removal that runs after it.
+#[cfg(unix)]
+pub mod worktree_removal_said_before_it_runs;
 
 /// What a `git worktree remove` of a slot a whole managed clone is bound to does,
 /// with the slot's state printed beside it.

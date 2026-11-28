@@ -1775,6 +1775,10 @@ or a detached script.
 The forced act's driver started its build and its arm detached on 2026-11-28,
 after a plain `mvm exec` lost a build of 34 minutes to one unanswered status
 request while five other guests ran on this host.
+`slot-state-and-move-refusal-guest.ts` holds one plain `guest()` command only,
+its arm:
+its build runs detached through `e2e/slot-state-guest-build.ts`,
+since it took 6m 07s on 2026-11-27.
 
 Every plain `guest()` command in this package is listed here,
 with the bound it carries and the duration recorded for it.
@@ -1806,11 +1810,11 @@ where a step's duration is its whole step:
   with a bound of 1,800 s.
   Its whole `run` took 697 s,
   of which the build is 691 s.
-- `e2e/slot-state-and-move-refusal-guest.ts:261` is the crate's test build,
-  with a bound of 2,400 s.
-  It took 6m 07s.
-- `e2e/slot-state-and-move-refusal-guest.ts:289` is the slot-state arm,
-  with a bound of 1,800 s.
+- `e2e/slot-state-and-move-refusal-guest.ts:297` is the slot-state arm,
+  with a bound of 1,800 s;
+  its build runs detached (`e2e/slot-state-and-move-refusal-guest.ts:269`,
+  through `e2e/slot-state-guest-build.ts`),
+  since it took 6m 07s on 2026-11-27.
   Its whole `run` took 371 s,
   of which the build is 367 s.
 - `e2e/doctor-zfs-route-guest.ts:267` is the crate's build,

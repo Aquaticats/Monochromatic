@@ -1,0 +1,18 @@
+# The one guest of 2026-11-28, gb-i1, building the lock driver's test target inside itself at 8,192 MiB
+#
+# `milliseconds` is this host's clock around each step, as the round recorded it before and after the step.
+#
+# step                       start                        end                          milliseconds  note
+slot                       2026-11-28T11:49:40.506Z     2026-11-28T12:15:41.063Z          1560557  
+create                     2026-11-28T12:15:41.067Z     2026-11-28T12:15:50.892Z             9825  
+sampler-start              2026-11-28T12:15:50.894Z     2026-11-28T12:15:51.197Z              303  
+prepare                    2026-11-28T12:15:51.197Z     2026-11-28T12:21:51.223Z           360026  
+push-source                2026-11-28T12:21:51.223Z     2026-11-28T12:21:51.333Z              110  
+crate-build                2026-11-28T12:21:51.333Z     2026-11-28T12:34:17.371Z           746038  
+pool                       2026-11-28T12:34:17.371Z     2026-11-28T12:34:17.838Z              467  
+arm-nextest                2026-11-28T12:34:17.838Z     2026-11-28T12:34:20.214Z             2376  
+arm-direct                 2026-11-28T12:34:20.214Z     2026-11-28T12:34:20.450Z              236  failed: mvm exec exited 1; see guest-lock-arm.log
+pull-sampler               2026-11-28T12:34:20.450Z     2026-11-28T12:34:22.114Z             1664  
+destroy                    2026-11-28T12:34:22.114Z     2026-11-28T12:34:24.022Z             1908  
+
+# the round's own failure line: mvm exec exited 1; see guest-lock-arm.log
