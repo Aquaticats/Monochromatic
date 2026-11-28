@@ -42,12 +42,12 @@ use super::super::the_owner_of_a_hidden_sibling::{
     Owner,
 };
 /// Imports the three purposes a hidden sibling's name may carry,
-/// and the sentence a failure that named a finished copy is followed by.
+/// and the sentences a failure that named a finished copy is followed by.
 use super::super::{
     RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     STAGING_PURPOSE,
-    WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY,
+    WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY,
 };
 
 /// What:
@@ -202,13 +202,17 @@ impl ARecoveryThatFailed {
     /// Why:
     /// The run did not fail for the recovery's failure,
     /// and which copy that failure named decides whether the warning can go on to say what a later install does with it.
+    /// A warning about a finished copy stands in the state its own words put the version in:
+    /// that version's name holds a finished copy now,
+    /// so the sentence is the one for a later install that finds a second copy,
+    /// and the publish the sentence every failed publish ends with describes cannot happen from there.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// function whatALaterInstallDoes(self: ARecoveryThatFailed): string {
     ///   const nothingFailed = 'so the run does not fail for it';
     ///   if (self.named !== 'a-finished-copy') return nothingFailed;
-    ///   return `${nothingFailed}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}`;
+    ///   return `${nothingFailed}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY}`;
     /// }
     /// ```
     pub(crate) fn what_a_later_install_does(&self) -> String {
@@ -225,14 +229,16 @@ impl ARecoveryThatFailed {
                 nothing_failed.to_string()
             }
             // What: the finished copy this run keeps, or the one a dead install left.
-            // Why: the install that followed put the version at its name, so a later install removes that copy as a second one.
+            // Why: the install that followed put the version at its name,
+            //  so what a later install does with that copy is remove it as a second one,
+            //  and the half of the ordinary sentence that publishes such a copy has nothing left to act on.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // return `${nothingFailed}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}`;
+            // return `${nothingFailed}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY}`;
             // ```
             WhatTheFailureNamed::AFinishedCopy => {
-                format!("{nothing_failed}. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}")
+                format!("{nothing_failed}. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY}")
             }
         };
     }

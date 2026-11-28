@@ -1,4 +1,4 @@
-# Claude Code 2.1.332 asks about every `sh -c` script that runs `rm` and that it cannot read, even under `--dangerously-skip-permissions`
+# Claude Code 2.1.332 asks about `sh -c` scripts that run `rm` and that it cannot read, even under `--dangerously-skip-permissions`
 
 ## Symptom
 
@@ -17,10 +17,13 @@ Its short reason,
 the line the user quoted on 2026-11-28,
 is `This shell -c script runs rm and could not be checked`.
 
-The prompt appears in every permission mode,
-including sessions started with `claude --dangerously-skip-permissions`,
+The bundle marks the check `bypassImmune` (see "Root cause"),
+so it appears even in sessions started with `claude --dangerously-skip-permissions`,
 which is how the sessions on this machine are started (`/proc/<pid>/cmdline` of both live sessions on 2026-11-28).
-No allow rule answers it.
+The probe under "Verification" ran in that mode only;
+other permission modes were not run.
+The decision offers no rule to add;
+whether a matching allow rule would skip it was not probed.
 In a `-p` run,
 which has nobody to answer prompts,
 the call is refused with the same text.
@@ -74,8 +77,11 @@ a script containing the word `alias` comes back with no judged text.
 if(SVe(k).some(Uzs)||/\balias\b/.test(k)||/\bIFS\b/.test(k.replace(
 ```
 
-Byte 343628371 drops scripts that name no `rm` early,
-so only scripts that run `rm` can reach `cVe`:
+Byte 343628371 drops a script early when it matches none of `Odo`'s patterns
+(an `rm` or `rmdir` word,
+a brace expansion,
+or a command word that starts with `$`)
+and contains no `$'`:
 
 ```js
 // claude 2.1.332 bundle
@@ -87,6 +93,8 @@ The other exits (scripts over a length limit,
 zsh-only syntax,
 too many directory changes)
 were read only as far as their conditions and were not probed one by one.
+The same analysis also returns `cVe` from other places in its nested-script walk,
+which were not traced.
 
 ### The switch that turns the whole check off
 
@@ -298,7 +306,7 @@ On 2026-11-28 this file was written:
 ```ini
 # ~/.config/environment.d/60-claude-code-inline-shell-rm-prompt.conf
 # Turns off Claude Code's "This shell -c script runs rm and could not be checked" prompt,
-# which neither allow rules nor --dangerously-skip-permissions can answer.
+# which --dangerously-skip-permissions does not skip.
 # Claude Code reads this variable only from the environment it is started with:
 # it ignores a copy in a settings file's env block.
 # Claude Code's other dangerous-rm checks keep running.
@@ -313,21 +321,51 @@ Checks on 2026-11-28:
 `/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator` prints the line,
 `systemctl --user show-environment` lists it,
 and `systemd-run --user --wait --pipe printenv CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT` prints `1`.
+That reaches Claude Code on this machine:
+`ENV_LOCAL_JSON_PATH`,
+which this machine sets only in `~/.config/environment.d/50-monochromatic.conf`,
+is in `/proc/<pid>/environ` of OdyTTY,
+of the bash it started,
+and of both live Claude Code sessions (checked 2026-11-28).
+
+The OdyTTY process running on 2026-11-28 started on 2026-11-23,
+before the file existed,
+so its new tabs would not get the variable until the next login.
+On the user's choice of 2026-11-28 ("Add to ~/.bashrc"),
+`~/.bashrc`,
+which OdyTTY's `shell-integration/odytty.bash` sources for every tab,
+also got:
+
+```bash
+# ~/.bashrc (appended)
+# Claude Code reads CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT only from the environment it starts with.
+# ~/.config/environment.d/60-claude-code-inline-shell-rm-prompt.conf sets it for everything started after a login;
+# this export also reaches new OdyTTY tabs whose OdyTTY process started before that file existed.
+# Record: /home/user/Monochromatic/doc/troubleshooting/claude-code-shell-c-script-rm-prompt.md
+export CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT=1
+```
+
+With the variable removed from the parent environment,
+`bash --noprofile --rcfile ~/.config/odytty/shell-integration/odytty.bash -i +m -c 'printenv CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT'`
+printed `1`.
 
 ### Tradeoffs
 
-- Claude Code no longer reads `-c` scripts for dangerous removals at all.
-  A `bash -c 'rm -rf ~'` is then judged like any other Bash call:
-  under `--dangerously-skip-permissions` it runs,
-  and in auto mode the classifier decides.
+- Claude Code stops reading `-c` scripts for dangerous removals,
+  apart from the shell-variable and positional-parameter targets that the reference says it still checks
+  (not measured here:
+  see "Arms that measured nothing").
+  A `bash -c 'rm -rf ~'` is then judged like any other Bash call,
+  so under `--dangerously-skip-permissions` it is expected to run;
+  auto mode was not probed.
   The `rm` checks on commands outside a `-c` script keep running.
 - The sibling prompt for a `-c` script that contains a command a deny rule blocks goes away too,
   because it comes from the same analysis.
 - A running Claude Code keeps the environment it started with.
-  The OdyTTY process that hosts the terminal tabs also keeps its own,
-  so new tabs in it get the variable only after OdyTTY is restarted or the user logs in again.
-  Until then,
-  `export CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT=1` in a shell before `claude` applies it to that launch.
+  Sessions started before 2026-11-28T03:36:19-05:00 keep the prompt until they are started again.
+  The `~/.bashrc` export covers interactive bash only;
+  everything else gets the variable from `environment.d` after the next login.
+  Whether restarting OdyTTY alone is enough was not measured.
 - The switch is read from a minified,
   closed-source bundle;
   re-check it after a Claude Code update with
@@ -337,8 +375,11 @@ and `systemd-run --user --wait --pipe printenv CLAUDE_CODE_DISABLE_INLINE_SHELL_
 ## What does not work
 
 - Allow rules:
-  the decision carries `suggestions:[]` and the reference says this class of check cannot be auto-allowed;
-  the bundle's own variable-target message says "cannot be auto-allowed by permission rules".
+  not probed.
+  The decision carries `suggestions:[]`,
+  byte 343641919 strips rule suggestions from any decision with a safety-check reason
+  (`if(Q.behavior==="ask"&&va(Q.decisionReason)!==void 0)return{...Q,suggestions:Q.suggestions?.filter((ze)=>ze.type!=="addRules")}`),
+  and the bundle's message for the variable-target variant of the same check says it "cannot be auto-allowed by permission rules".
 - `--dangerously-skip-permissions`:
   the `dangerousRemoval` breaker is `bypassImmune`.
 - `CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT` in `~/.claude/settings.json` `env`,
@@ -348,11 +389,12 @@ and `systemd-run --user --wait --pipe printenv CLAUDE_CODE_DISABLE_INLINE_SHELL_
 - `CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS`:
   it waives every dangerous-removal prompt in bypass mode,
   which is far wider than this one prompt,
-  and the bundle keeps the prompts whenever the session has deny or ask rules or a `PermissionRequest` hook
-  (byte 334746249 prints "CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS has no effect in this session:
-  dangerous rm commands keep their usual checks.").
-  `~/.claude/settings.json` has deny rules,
-  so it was not tried.
+  and the bundle withholds the waiver in some sessions:
+  byte 343846216 (`Hpo`) withholds it when a `PermissionRequest` hook is configured,
+  a further condition on the session's permission rules (`Nl`) was not read,
+  and byte 334746372 holds the warning "CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS has no effect in this session:
+  dangerous rm commands keep their usual checks.".
+  It was not tried.
 
 ## Upstream filing decision
 

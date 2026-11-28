@@ -2,8 +2,8 @@
  Backend abstraction shared by every mvm provider.
  
  A {@link Backend} is a record of the VM operations the CLI and MCP server
- dispatch to. The local libvirt path and the Hetzner Cloud path each export
- one. Method shapes match the existing standalone functions exactly, so the
+ dispatch to. The local libvirt path, the Hetzner Cloud path and the OVHcloud
+ Public Cloud path each export one. Method shapes match the existing standalone functions exactly, so the
  libvirt backend is a pure re-wiring of them.
  
  @module
@@ -23,7 +23,7 @@ import type { VmInfo, } from '../list.ts';
  const kind: BackendKind = 'hetzner';
  ```
  */
-export type BackendKind = 'hetzner' | 'libvirt';
+export type BackendKind = 'hetzner' | 'libvirt' | 'ovh';
 
 //endregion Backend kind
 

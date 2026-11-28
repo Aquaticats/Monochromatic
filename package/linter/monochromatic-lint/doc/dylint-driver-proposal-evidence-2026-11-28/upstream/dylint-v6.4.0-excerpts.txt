@@ -1,0 +1,303 @@
+# Dylint at tag v6.4.0 (commit 703f588db3e50ca3519bc9abea2eac2a9308a70d), quoted excerpts
+# Source tarball https://github.com/trailofbits/dylint/archive/refs/tags/v6.4.0.tar.gz sha256 463ccc3c8e9f8698fdd87be2b2b7085317a4bc2ab2d961a58537474e17cb9083
+
+## README.md:199-216 (the caching guidance)
+```
+
+### Caching in CI
+
+If you run Dylint in CI, we recommend caching certain directories to avoid rebuilding libraries, rebuilding drivers, or redownloading toolchains.
+
+Current [Rust - Cargo guidance] recommends caching these directories:
+
+```yaml
+~/.cargo/bin/
+~/.cargo/registry/index/
+~/.cargo/registry/cache/
+~/.cargo/git/db/
+target/
+```
+
+In addition, we recommend caching these directories:
+
+
+## dylint/src/driver_builder/mod.rs:48-67 (get)
+pub fn get(opts: &opts::Dylint, toolchain: &str) -> Result<PathBuf> {
+    let dylint_drivers = dylint_drivers()?;
+
+    let driver_dir = dylint_drivers.join(toolchain);
+    if !driver_dir.is_dir() {
+        create_dir_all(&driver_dir).with_context(|| {
+            format!(
+                "`create_dir_all` failed for `{}`",
+                driver_dir.to_string_lossy()
+            )
+        })?;
+    }
+
+    let driver = driver_dir.join("dylint-driver");
+    if !driver.exists() || is_outdated(opts, toolchain, &driver)? {
+        build(opts, toolchain, &driver_dir)?;
+    }
+
+    Ok(driver)
+}
+
+## dylint/src/driver_builder/mod.rs:69-90 (dylint_drivers)
+fn dylint_drivers() -> Result<PathBuf> {
+    if let Ok(dylint_driver_path) = env::var(env::DYLINT_DRIVER_PATH) {
+        let dylint_drivers = Path::new(&dylint_driver_path);
+        ensure!(dylint_drivers.is_dir());
+        Ok(dylint_drivers.to_path_buf())
+    } else {
+        let home = home_dir().ok_or_else(|| anyhow!("Could not find HOME directory"))?;
+        let dylint_drivers = Path::new(&home).join(".dylint_drivers");
+        if !dylint_drivers.is_dir() {
+            create_dir_all(&dylint_drivers).with_context(|| {
+                format!(
+                    "`create_dir_all` failed for `{}`",
+                    dylint_drivers.to_string_lossy()
+                )
+            })?;
+            let readme_txt = dylint_drivers.join("README.txt");
+            write(&readme_txt, README_TXT).with_context(|| {
+                format!("`write` failed for `{}`", readme_txt.to_string_lossy())
+            })?;
+        }
+        Ok(dylint_drivers)
+    }
+
+## dylint/src/driver_builder/mod.rs:93-116 (is_outdated)
+fn is_outdated(opts: &opts::Dylint, toolchain: &str, driver: &Path) -> Result<bool> {
+    (|| -> Result<bool> {
+        let mut command = dylint_driver(toolchain, driver)?;
+        let output = command.args(["-V"]).logged_output(true)?;
+        let stdout = std::str::from_utf8(&output.stdout)?;
+        let theirs = stdout
+            .trim_end()
+            .rsplit_once(' ')
+            .map(|(_, s)| s)
+            .ok_or_else(|| anyhow!("Could not determine driver version"))?;
+
+        let their_version = Version::parse(theirs)
+            .with_context(|| format!("Could not parse driver version `{theirs}`"))?;
+
+        let our_version = Version::parse(env!("CARGO_PKG_VERSION"))?;
+
+        Ok(their_version < our_version)
+    })()
+    .or_else(|error| {
+        warn(opts, &error.to_string());
+        Ok(true)
+    })
+}
+
+
+## dylint/src/driver_builder/mod.rs:132-150 (rpath and the cargo build)
+    let rustflags = format!(
+        "{} -C link-args=-Wl,-rpath,{}/lib ",
+        env::var("RUSTFLAGS").unwrap_or_default(),
+        toolchain_path.to_string_lossy()
+    );
+
+    #[cfg(debug_assertions)]
+    if DYLINT_DRIVER_MANIFEST_DIR.is_none() {
+        warn(opts, "In debug mode building driver from `crates.io`");
+    }
+
+    dylint_internal::cargo::build(&format!("driver for toolchain `{toolchain}`"))
+        .quiet(opts.quiet)
+        .build()
+        .sanitize_environment()
+        .envs([(env::RUSTFLAGS, rustflags)])
+        .current_dir(package)
+        .success()?;
+
+
+## dylint/src/driver_builder/mod.rs:237-241 (the throwaway rust-toolchain.toml)
+fn rust_toolchain(toolchain: &str) -> String {
+    format!(
+        r#"
+[toolchain]
+channel = "{toolchain}"
+
+## internal/src/rustup.rs:14-44 (sanitize, active_toolchain)
+
+impl SanitizeEnvironment for Command {
+    fn sanitize_environment(&mut self) -> &mut Self {
+        self.env_remove(env::CARGO);
+        self.env_remove(env::RUSTC);
+        self.env_remove(env::RUSTUP_TOOLCHAIN);
+        self
+    }
+}
+
+impl SanitizeEnvironment for MetadataCommand {
+    fn sanitize_environment(&mut self) -> &mut Self {
+        self.env_remove(env::CARGO);
+        self.env_remove(env::RUSTC);
+        self.env_remove(env::RUSTUP_TOOLCHAIN);
+        self
+    }
+}
+
+// smoelius: Consider carefully whether you need to call this function! In most cases, the toolchain
+// you want is not the one returned by rustup.
+pub fn active_toolchain(path: &Path) -> Result<String> {
+    let output = Command::new("rustup")
+        .sanitize_environment()
+        .current_dir(path)
+        .args(["show", "active-toolchain"])
+        .logged_output(true)?;
+    let stdout = std::str::from_utf8(&output.stdout)?;
+
+    // split at the first whitespace character
+    parse_active_toolchain(stdout)
+
+## internal/src/rustup.rs:53-72 (toolchain_path)
+        .split_ascii_whitespace()
+        .next()
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow!("Could not determine active toolchain"))
+}
+
+pub fn toolchain_path(path: &Path) -> Result<PathBuf> {
+    let output = Command::new("rustup")
+        .sanitize_environment()
+        .current_dir(path)
+        .args(["which", "rustc"])
+        .logged_output(true)?;
+    let stdout = std::str::from_utf8(&output.stdout)?;
+    let path = PathBuf::from(stdout);
+    // smoelius: `path` should end with `/bin/rustc`.
+    path.ancestors()
+        .nth(2)
+        .map(Into::into)
+        .ok_or_else(|| anyhow!("Could not get ancestor"))
+}
+
+## internal/src/cargo.rs:134-160 (the cargo builder)
+            } else {
+                Style::new()
+            };
+            // smoelius: Writing directly to `stderr` prevents capture by `libtest`.
+            let message = format!("{} {}", self.verb, self.description);
+            writeln!(std::io::stderr(), "{style}{message}{style:#}")
+                .unwrap_or_else(|error| panic!("Could not write to stderr: {error}"));
+        }
+        let mut command = if self.stable {
+            Command::new(&*STABLE_CARGO)
+        } else {
+            Command::new("cargo")
+        };
+        #[cfg(windows)]
+        {
+            // smoelius: Work around: https://github.com/rust-lang/rustup/pull/2978
+            let cargo_home = cargo_home().unwrap();
+            let new_path = crate::prepend_path(Path::new(&cargo_home).join("bin")).unwrap();
+            command.envs(vec![(crate::env::PATH, new_path)]);
+        }
+        command.args([&self.subcommand]);
+        if self.quiet.contains(Quiet::STDERR) {
+            command.stderr(Stdio::null());
+        }
+        command
+    }
+}
+
+## driver/build/extra_symbols.rs:51-70 (channel nightly, the clone)
+fn clippy_utils_has_extra_symbols(rustup_toolchain: &str) -> Result<Option<String>> {
+    let (channel, _) = parse_toolchain(rustup_toolchain)
+        .ok_or_else(|| anyhow!("Could not parse toolchain: {rustup_toolchain}"))?;
+
+    if channel == "nightly" {
+        return Ok(None);
+    }
+
+    let Some(date) = parse_channel_as_nightly(&channel) else {
+        return Ok(None);
+    };
+
+    if date < EXTRA_SYMBOLS_SINCE {
+        return Ok(None);
+    }
+
+    Ok(Some(channel))
+}
+
+fn rev_from_channel(channel: &str) -> Result<Rev> {
+
+## dylint/src/lib.rs:380-390 (driver get inside check_or_fix)
+        let target_dir = target_dir(opts, toolchain)?;
+        let target_dir_str = target_dir.to_string_lossy();
+        let driver = driver_builder::get(opts, toolchain)?;
+        let dylint_libs = serde_json::to_string(&paths)?;
+        #[cfg(not(__library_packages))]
+        let dylint_metadata = None;
+        #[cfg(__library_packages)]
+        let dylint_metadata = library_packages::dylint_metadata(opts)?;
+        let dylint_metadata_str = dylint_metadata
+            .map(|object: &Object| serde_json::Value::from(object.clone()))
+            .unwrap_or_default()
+
+## dylint/src/name_toolchain_map/maybe_library.rs:58-66 (build_library during resolution)
+    fn build(&self, opts: &crate::opts::Dylint) -> Result<PathBuf> {
+        match self {
+            Self::Path(path) => Ok(path.clone()),
+
+            #[cfg(__library_packages)]
+            Self::Package(package) => crate::library_packages::build_library(opts, package),
+        }
+    }
+}
+
+## dylint/src/library_packages/mod.rs:501-520 (the library build)
+pub fn build_library(opts: &opts::Dylint, package: &Package) -> Result<PathBuf> {
+    let target_dir = package.target_directory();
+
+    let path = package.library_path_with_toolchain();
+
+    if !opts.library_selection().no_build {
+        // smoelius: Clear `RUSTFLAGS` so that changes to it do not cause workspace metadata entries
+        // to be rebuilt.
+        dylint_internal::cargo::build(&format!("workspace metadata entry `{}`", package.id.name()))
+            .quiet(opts.quiet)
+            .build()
+            .sanitize_environment()
+            .env(env::DYLINT_BUILDING_LIBRARIES, "1")
+            .env_remove(env::RUSTFLAGS)
+            .current_dir(&package.root)
+            .args(["--release", "--target-dir", &target_dir.to_string_lossy()])
+            .success()?;
+
+        if !env::enabled(env::DYLINT_LINK_ENABLE_COPY_LIBRARY) {
+            let path_with_toolchain = copy_library(
+
+## dylint-link/src/main.rs:44-70 (RUSTUP_TOOLCHAIN for the linker)
+    if (!env::enabled(env::DYLINT_BUILDING_LIBRARIES)
+        || env::enabled(env::DYLINT_LINK_ENABLE_COPY_LIBRARY))
+        && let Some(plain_path) = output_path(args.iter())?
+        && let Some(lib_name) = parse_plain_path(&plain_path)
+        && let cargo_pkg_name = env::var(env::CARGO_PKG_NAME)?
+        && lib_name == cargo_pkg_name.replace('-', "_")
+        && let rustup_toolchain = env::var(env::RUSTUP_TOOLCHAIN)?
+    {
+        if !cfg!(feature = "__copy_library_disabled_by_default")
+            || env::enabled(env::DYLINT_LINK_ENABLE_COPY_LIBRARY)
+        {
+            copy_library(&plain_path, &lib_name, &rustup_toolchain)?;
+        } else {
+            warn("`copy_library` is disabled; enable with DYLINT_LINK_ENABLE_COPY_LIBRARY=1");
+        }
+    }
+
+    Ok(())
+}
+
+fn linker() -> Result<PathBuf> {
+    let rustup_toolchain = env::var(env::RUSTUP_TOOLCHAIN)?;
+    let target = parse_toolchain(&rustup_toolchain)
+        .map_or_else(|| env!("TARGET").to_owned(), |(_, target)| target);
+    let cargo_home = cargo_home().with_context(|| "Could not determine `CARGO_HOME`")?;
+    let config_toml = cargo_home.join("config.toml");
+    if config_toml.is_file() {

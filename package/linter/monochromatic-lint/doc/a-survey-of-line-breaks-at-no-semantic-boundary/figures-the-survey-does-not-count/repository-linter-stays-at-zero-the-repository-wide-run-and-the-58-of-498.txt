@@ -1,0 +1,12 @@
+## What happened
+
+A repository-wide `monochromatic-lint` run on `main` at `136a40fe69` reported 174,916 findings.
+By rule,
+
+Cons:
+
+- The fixer changed rendered text in 58 of the 498 files it changed in the documentation families,
+  so a blind apply would rewrite records that the owner treats as quoted evidence,
+  with no proof step.
+- The proof used here needs `pandoc`,
+  which the wrapper does not embed.

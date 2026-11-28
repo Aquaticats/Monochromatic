@@ -141,7 +141,7 @@ const args = runSync(
     aboveError: 'help',
     brief: message`mvm - ephemeral VM manager`,
     footer:
-      message`Pass --verbose before the subcommand to enable debug logging. Pass --backend <libvirt|hetzner> (or set MVM_BACKEND) to choose the backend; defaults to libvirt.`,
+      message`Pass --verbose before the subcommand to enable debug logging. Pass --backend <libvirt|hetzner|ovh> (or set MVM_BACKEND) to choose the backend; defaults to libvirt.`,
   },
 );
 

@@ -1,0 +1,3 @@
+error: could not compile `serde_core` (build script) due to 1 previous error
+error: could not compile `libc` (build script) due to 1 previous error
+error: could not compile `proc-macro2` (build script) due to 1 previous error

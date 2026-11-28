@@ -2779,13 +2779,38 @@ The check every forwarded command makes in that folder,
 one `stat` when no folder stands,
 is built in
 `src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`
-and has no call site yet:
-a use of that folder by `invocation/` is a new use inside a loop the layout
-allow list tolerates,
-and no line of that list may be added,
-so the round that built the check left the call out.
-Such a wiring use may now merge with its layout finding unrecorded,
-and the forwarded path's one line is owed together with the measurement of its cost.
+and called from the forwarded command's lifecycle in
+`src/native/invocation/wrapped_command.rs`,
+after configuration and the shadow sweep,
+before the commit path and before the child Git starts.
+The use that call adds,
+this crate's folder of unanswered requests used by `invocation/`,
+is one `rust/folder-uses-links` finding no line of the layout allow list may
+record,
+and the record's amendment of 2026-11-28 lets such a wiring merge with its
+finding unrecorded
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+
+The cost of that check was measured before it shipped,
+by building the wrapper twice from one commit,
+with the call and without it,
+and timing a forwarded command that does no other work in a fixture repository
+with no folder of unanswered requests.
+Five arms ran interleaved in each round:
+the control twice,
+the wired wrapper,
+a thousand `stat`s of the absent folder planted on the same path,
+and a thousand calls of the check planted at the wiring.
+Measured 2026-11-28 on this machine,
+where `git rev-parse --is-inside-work-tree` cost 6.61 ms per invocation:
+the control against itself answered 0.979 (0.935 to 1.061) and the wired
+wrapper 0.975 (0.920 to 1.068),
+which is inside the control's own spread;
+one `stat` of the absent folder is 914 ns and one call of the check 1.40 µs,
+0.014% and 0.022% of that command;
+and the plants moved the same arm by 1.141 (1.078 to 1.236) and 1.216
+(1.156 to 1.351),
+so the harness sees a thousand checks and not one.
 
 The nudge on Git commands is off.
 It stands behind the compiled switch `zfs-lost-event-nudge`,
@@ -3485,24 +3510,27 @@ The rejections that already carry their own alternatives (`require-root`,
 `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
 The `final-newline` finding says what corrects the file where the finding is made:
-an `add` names `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
+an `add` and a direct check name `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
  which are the steps that work where the add is refused at `error` severity,
- and which also correct an index that already holds the bytes,
- and it names a commit's own correction only for a commit that takes the whole file,
- because a commit whose selection is read-only records the staged bytes as they are;
-`git monochromatic-git-policy-cli check` names the commit that takes the file,
- which corrects the ending while the settings keep `final-newline` on,
- and the fix for correcting the file now;
-a commit that may correct the bytes,
-and `git monochromatic-git-policy-cli fix`,
-say the correction is that command's own;
-a commit whose selection is read-only (`-p`,
+ and which also correct an index that already holds the bytes;
+the same two places name a commit's own correction for a commit that names the file,
+ as in `git commit -- <path>`,
+ because a commit whose selection is read-only (`-p`,
  `-i`,
- `--include`) says to edit the file and stage it again;
+ `--include`) records the bytes it takes as they are;
+a commit whose selection is read-only says to edit the file and stage it again;
 and a landed commit and a pushed commit say to edit the file and commit the correction,
 because nothing corrects bytes that are already recorded.
+A commit that goes on to land reports the bytes it holds,
+not the index the pass read before it:
+the staged-lifecycle sentence is dropped once the commit lands,
+and the landed sentence follows from the post-commit gate,
+so the person reads one sentence about the file and it is still true.
 `src/native/policy/event_hints.rs` holds the texts,
 and its tests fail when a finding code or an engine failure code has no hint.
+The hint never says that a commit which may correct the bytes corrects them,
+because a lifecycle that corrects applies its correction in a pass of its own and reports no finding at all:
+the run prints a `fix-summary` instead.
 
 ### Discarding commands
 
