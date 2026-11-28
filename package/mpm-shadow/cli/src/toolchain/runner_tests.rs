@@ -294,6 +294,32 @@ fn the_shipped_bound_is_far_above_an_ordinary_answer() {
 }
 
 /// What:
+/// The shipped bound is the two seconds the record promises,
+/// not merely a value far above an ordinary answer.
+/// Why:
+/// `README.md` says the line arrives "once it has passed 2 s",
+/// and the control above holds only that the bound is at least twenty times an ordinary answer,
+/// so a bound of 600 ms passed it while every sentence of the record said 2 s.
+/// The number here is the record's figure, which is what the control holds the code to.
+#[test]
+fn the_shipped_bound_is_the_two_seconds_the_record_promises() {
+    // What: the bound the record promises, as a `Duration`.
+    // Why: a comparison of the shipped constant with this value is what fails when the constant moves
+    //  without the record.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const thePromisedBound = 2000;
+    // ```
+    let the_promised_bound: Duration = Duration::from_millis(2000);
+    assert_eq!(
+        super::runner::A_WAIT_LONGER_THAN_ORDINARY,
+        the_promised_bound,
+        "the bound the README promises is the one that ships"
+    );
+}
+
+/// What:
 /// The script the fixture below runs:
 /// it sleeps past the shipped bound and then answers.
 /// Why:

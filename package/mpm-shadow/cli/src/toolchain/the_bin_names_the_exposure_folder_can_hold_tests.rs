@@ -244,6 +244,88 @@ fn a_name_at_the_limit_is_written_and_one_byte_more_fails_with_the_systems_own_e
     );
 }
 /// What:
+/// The longest bin that fits the folder's file system is accepted,
+/// one byte more is refused,
+/// the reserve covers the temporary name this machine writes,
+/// and the length counted is bytes rather than characters.
+/// Why:
+/// The edge is the whole rule:
+/// a check that refused the longest name that fits, or accepted one byte past it,
+/// or measured a multibyte name in characters,
+/// would refuse a plan that links today or link a name the file system cannot hold.
+/// Every length here is derived from the file system's own answer and the reserve the check
+/// subtracts;
+/// the only numbers written down are the two bytes a two-byte character takes and the one byte
+/// the comparison is off by.
+#[test]
+fn a_bin_of_the_longest_fitting_length_is_accepted_and_one_byte_more_is_refused() {
+    let directory = scratch();
+    let longest: u64 = the_longest_name_there(directory.path());
+    // What: the bytes a temporary name adds, as the check subtracts them.
+    // Why: the edge this control holds is `longest - reserve`, and the other answers below are read from it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reserve = theBytesATemporaryNameAdds();
+    // ```
+    let reserve: u64 = u64::try_from(the_bytes_a_temporary_name_adds()).expect("a small reserve");
+    // What: the bytes this machine's own temporary name adds to a bin name for the process running this control.
+    // Why: the reserve has to cover a name a run really writes, and this is that name's suffix.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const exposure = join(scratch, 'toolchain-bin');
+    // const suffix = theTemporaryLinkOf(join(exposure, 'a-bin'), Owner.here()).basename.length - 'a-bin'.length;
+    // ```
+    let exposure: PathBuf = directory.path().join("toolchain-bin");
+    fs::create_dir_all(&exposure).expect("make the folder the links go in");
+    let probe: PathBuf = exposure.join("a-bin");
+    let suffix_here: usize = the_temporary_link_of(&probe, Owner::here())
+        .file_name()
+        .expect("a name")
+        .len()
+        - "a-bin".len();
+    assert!(
+        usize::try_from(reserve).expect("a small reserve") >= suffix_here,
+        "the reserve covers the temporary name this machine writes ({suffix_here} bytes)"
+    );
+    let most: usize = usize::try_from(longest)
+        .expect("a name limit this machine holds")
+        .saturating_sub(usize::try_from(reserve).expect("a small reserve"));
+    let (plan, scope) = a_plan_and_a_scope(&a_bin_name_of(most), directory.path());
+    refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
+        .expect("the longest bin name that fits is accepted");
+    let (plan, scope) = a_plan_and_a_scope(&a_bin_name_of(most + 1), directory.path());
+    let error = refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
+        .expect_err("one byte past the longest name that fits is refused");
+    assert!(
+        error.message.contains(&format!("is at most {most} bytes")),
+        "the refusal names the longest bin name that fits: {}",
+        error.message
+    );
+    // What: a bin name of two-byte characters whose characters fit and whose bytes do not.
+    // Why: the file system counts bytes, so a name read as characters would be accepted here and fail at the
+    //  link write, which is the failure the check exists to come before.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const twoByteCharacters = Math.floor(most / 2) + 1;
+    // const multibyte = 'é'.repeat(twoByteCharacters);
+    // ```
+    let two_byte_characters: usize = most / 2 + 1;
+    let multibyte: String = "é".repeat(two_byte_characters);
+    assert!(
+        multibyte.chars().count() <= most && multibyte.len() > most,
+        "the name fits by characters and not by bytes: {} characters, {} bytes, {most} fit",
+        multibyte.chars().count(),
+        multibyte.len()
+    );
+    let (plan, scope) = a_plan_and_a_scope(&multibyte, directory.path());
+    refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
+        .expect_err("a bin the file system cannot hold is refused however few characters it has");
+}
+
+/// What:
 /// The check runs where the plan is read,
 /// so `load` itself refuses such a plan rather than its caller.
 /// Why:
