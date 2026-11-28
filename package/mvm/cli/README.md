@@ -135,8 +135,19 @@ A size named outright with `--server-type` (or `MVM_OVH_FLAVOR`,
 or `MVM_HCLOUD_SERVER_TYPE`) cannot be combined with either number:
 the two can disagree,
 and the create refuses naming both and how to choose one.
-`mvm create --from` clones a machine and keeps the source's size,
-so a floor beside it is refused rather than quietly ignored.
+A clone keeps the source machine's size,
+so a floor beside a clone is refused rather than quietly ignored:
+that covers `mvm create --from`,
+`mvm run --from`,
+and the MCP server's `create_vm` and `run_in_vm` carrying `from`.
+
+Which size a backend takes among the ones that meet both floors is that
+backend's own rule,
+and each backend's subsection says what it takes:
+the libvirt backend gives exactly the numbers,
+the Hetzner backend takes the smallest server type that fits,
+and the OVHcloud backend takes the cheapest size that fits,
+or the smallest numbers when no hourly price can be read.
 
 ### On the libvirt backend
 
@@ -623,6 +634,35 @@ Push and pull read and write the guest's own files through the QEMU guest agent:
 
 `mvm exec` and `mvm run` start the command through the QEMU guest agent and wait for it.
 
+### The words after `--` become one command line
+
+Every word after `--` is joined with single spaces into one string,
+and that string is what the guest's shell reads:
+`bash -c '<the joined string>'` on a Linux guest,
+PowerShell's `-Command` on a Windows guest,
+and the remote login shell over SSH on Hetzner and OVHcloud.
+The guest therefore parses the whole line again,
+so quoting belongs to the string the guest reads and not to the argv the host
+built:
+
+```sh
+# package/mvm/cli/README.md
+# What the guest reads: sh -c grep MemTotal /proc/meminfo; nproc
+# So it runs `sh -c grep` first, then `nproc` as a separate command: not both
+# commands inside one `sh -c`.
+mvm exec dev-01 -- sh -c 'grep MemTotal /proc/meminfo; nproc'
+
+# package/mvm/cli/README.md
+# What the guest reads: sh -c "grep MemTotal /proc/meminfo; nproc"
+# One quoted argument reaches `sh -c`, so both commands run inside it.
+mvm exec dev-01 -- 'sh -c "grep MemTotal /proc/meminfo; nproc"'
+```
+
+`mvm run` builds the same line from its own words after `--`,
+so the two spellings behave the same way there.
+A command with no `;`, `|`, `&&` or quoting of its own reads the same either way,
+which is why `mvm exec dev-01 -- uname -a` needs no second thought.
+
 - Every command first prints a marker line that mvm removes from the output.
   The guest agent finds a finished command by process ID alone,
   and a reused process ID once returned an earlier command's output with exit status 0;
@@ -970,8 +1010,11 @@ mise run //package/mvm/cli:run -- --backend ovh destroy dev-01
 mise run //package/mvm/cli:run -- --backend ovh list
 mise run //package/mvm/cli:run -- --backend ovh destroy --all
 
-# Ask for at least two vCPUs and 4 GiB of memory; the smallest size that fits wins
+# Ask for at least two vCPUs and 4 GiB of memory; the cheapest size that fits wins
 mise run //package/mvm/cli:run -- --backend ovh create --vcpus 2 --memory 4 build-box
+
+# The same floors on a one-shot run: the machine is created, the command runs, it is destroyed
+mise run //package/mvm/cli:run -- --backend ovh run --vcpus 2 --memory 4 -- uname -a
 
 # Report each Canadian region's smallest flavor in stock and its instance quota
 mise run //package/mvm/cli:run -- --backend ovh update

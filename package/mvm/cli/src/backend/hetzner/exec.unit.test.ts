@@ -155,7 +155,10 @@ function withEnv({
   return {
     [Symbol.dispose]() {
       if (prior === undefined) {
-        delete process.env[name];
+        Reflect.deleteProperty(
+          process.env,
+          name,
+        );
       }
       else {
         process.env[name] = prior;
@@ -225,13 +228,13 @@ function installStandIn(): Disposable & { readonly calls: Call[]; } {
    */
   const calls: Call[] = [];
   /**
-   The server this run created, while it exists.
+   What the stand-in's project holds: the server this run created, while it
+   exists, and whether its delete was accepted.
    */
-  let created: Record<string, unknown> | undefined;
-  /**
-   Whether the delete of {@link created} was accepted.
-   */
-  let deleted = false;
+  const held: {
+    created?: Record<string, unknown>;
+    deleted: boolean;
+  } = { deleted: false };
   const original = globalThis.fetch;
   globalThis.fetch = (async function standIn(input: unknown, init?: RequestInit,) {
     /**
@@ -276,7 +279,7 @@ function installStandIn(): Disposable & { readonly calls: Call[]; } {
         readonly name: string;
         readonly server_type: string;
       };
-      created = {
+      held.created = {
         id: SERVER_ID,
         name: body.name,
         status: 'running',
@@ -287,7 +290,7 @@ function installStandIn(): Disposable & { readonly calls: Call[]; } {
         },),
       };
       return Response.json({
-        server: created,
+        server: held.created,
         action: { id: ACTION_ID, status: 'running', },
       },);
     }
@@ -296,11 +299,11 @@ function installStandIn(): Disposable & { readonly calls: Call[]; } {
     }
     if ((call.method === 'GET') && path.startsWith('/servers',)) {
       return Response.json(
-        page('servers', ((created === undefined) || deleted) ? [] : [created,],),
+        page('servers', ((held.created === undefined) || held.deleted) ? [] : [held.created,],),
       );
     }
     if ((call.method === 'DELETE') && path.startsWith('/servers/',)) {
-      deleted = true;
+      held.deleted = true;
       return new Response(null, { status: 204, },);
     }
     return Response.json(
@@ -391,6 +394,36 @@ function printedText(
 
 //endregion Stand-in layers
 
+//region Reading a thrown value
+
+/**
+ Runs one call and answers with the value it threw, so a case asserts on a
+ refusal without a `let` of its own.
+ 
+ @param run - the call expected to throw
+ 
+ @returns whatever the call threw
+ 
+ @throws Error when the call answered instead of throwing, which makes a missing
+ refusal fail the case rather than pass it silently
+
+ @example
+ ```ts
+ const caught = await thrownBy(() => hetznerRun({ command: 'true', from: 'dev-01', vcpus: 2 }));
+ ```
+ */
+async function thrownBy(run: () => Promise<unknown>,): Promise<unknown> {
+  try {
+    await run();
+  }
+  catch (error: unknown) {
+    return error;
+  }
+  throw new Error('the call answered, and this case expects it to refuse',);
+}
+
+//endregion Reading a thrown value
+
 await describe({
   name: 'hetzner one-shot run',
   concurrency: 1,
@@ -418,17 +451,13 @@ await describe({
          The failure the run ended with, which is the stand-in's server having no
          public address to reach.
          */
-        let caught: unknown;
-        try {
-          await hetznerRun({
+        const caught = await thrownBy(
+          () => hetznerRun({
             command: GUEST_COMMAND,
             memoryGiB: ASKED_MEMORY_GB,
             vcpus: ASKED_CORES,
-          },);
-        }
-        catch (thrown: unknown) {
-          caught = thrown;
-        }
+          },),
+        );
         // The run stops before it probes an address, so no ssh process starts.
         expect(caughtValueText(caught,),).toContain('no public IPv4',);
 
@@ -487,17 +516,13 @@ await describe({
         /**
          The refusal this call threw, when it threw one.
          */
-        let caught: unknown;
-        try {
-          await hetznerRun({
+        const caught = await thrownBy(
+          () => hetznerRun({
             command: GUEST_COMMAND,
             from: 'dev-01',
             vcpus: ASKED_CORES,
-          },);
-        }
-        catch (thrown: unknown) {
-          caught = thrown;
-        }
+          },),
+        );
         /**
          What the refusal says: the source machine it cannot resize and the floor it
          cannot honour.

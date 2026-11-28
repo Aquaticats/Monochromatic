@@ -450,10 +450,51 @@ await describe({
             expect(create.callCount,).toBe(0,);
           },
         },),
+        it({
+          name: 'refuses a floor beside a source machine instead of dropping the floor',
+          fn: async ctx => {
+            const create = ctx.sinon.spy(fakeBackend, 'create',);
+            const clone = ctx.sinon.spy(fakeBackend, 'clone',);
+
+            const response = await createTool.handler({
+              name: 'web-04',
+              from: 'web-01',
+              vcpus: 2,
+              memory: 4,
+              backend: FAKE_BACKEND_KIND,
+            },);
+
+            // A clone boots its source's size, so the floors cannot be honoured. Refusing
+            // says so; dropping them would hand back a machine smaller than the caller asked for.
+            expect(create.callCount,).toBe(0,);
+            expect(clone.callCount,).toBe(0,);
+            expect(firstText(response,),).toContain('keeps the source size',);
+            expect(firstText(response,),).toContain('at least 2 vCPUs',);
+            expect(firstText(response,),).toContain('at least 4 GiB of memory',);
+          },
+        },),
+        it({
+          name: 'creates a sized machine when the caller asks for floors and no source',
+          fn: async ctx => {
+            const create = ctx.sinon.spy(fakeBackend, 'create',);
+
+            await createTool.handler({
+              name: 'web-05',
+              vcpus: 2,
+              memory: 4,
+              backend: FAKE_BACKEND_KIND,
+            },);
+
+            expect(create.callCount,).toBe(1,);
+            expect(create.firstCall.args,).toEqual([{
+              name: 'web-05',
+              vcpus: 2,
+              memoryGiB: 4,
+            },],);
+          },
+        },),
       ],
     },),
-
-    //endregion create_vm
 
     //region destroy_vm: one VM or every VM
 

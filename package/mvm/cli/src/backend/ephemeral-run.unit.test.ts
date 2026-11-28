@@ -115,7 +115,7 @@ function recordingOps(): { readonly ops: EphemeralOps; readonly recorded: Record
 //endregion Stand-in operations
 
 await describe({
-  name: 'ephemeralRun',
+  name: ephemeralRun.name,
   concurrency: 1,
   children: [
     it({

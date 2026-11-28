@@ -98,83 +98,95 @@ const PRICE_PATH = '/v1/order/catalog/public/cloud?ovhSubsidiary=CA';
  */
 function runStandIn(): StandIn {
   /**
-   The machine this run created, while it exists.
+   What the stand-in's project holds: the machine this run created, while it
+   exists, and whether its delete was accepted.
    */
-  let created: ReturnType<typeof instanceAnswer> | undefined;
-  /**
-   Whether the delete of {@link created} was accepted.
-   */
-  let deleted = false;
+  const held: {
+    created?: ReturnType<typeof instanceAnswer>;
+    deleted: boolean;
+  } = { deleted: false };
   return installStandIn(function answer(call: RecordedCall,): Response {
-    switch (`${call.method} ${call.path}`) {
-      case `GET ${cloudPath('/instance',)}`:
-        return jsonAnswer(
-          ((created === undefined) || deleted) ? [] : [created,],
-        );
-      case `GET ${cloudPath('/sshkey',)}`:
-        return jsonAnswer([],);
-      case `POST ${cloudPath('/sshkey',)}`:
-        return jsonAnswer(sshKeyAnswer(),);
-      case `GET ${cloudPath('/region',)}`:
-        return jsonAnswer(['bhs5',],);
-      case `GET ${cloudPath('/region/bhs5',)}`:
-        return jsonAnswer(regionAnswer(),);
-      case `GET ${cloudPath('/flavor',)}?region=bhs5`:
-        return jsonAnswer([
-          flavorAnswer({
-            disk: 25,
-            id: SMALLEST_FLAVOR_ID,
-            name: 'd2-2',
-            ram: 2,
-            vcpus: 1,
-          },),
-          flavorAnswer({
-            disk: 50,
-            id: FITTING_FLAVOR_ID,
-            name: FITTING_FLAVOR,
-            ram: ASKED_MEMORY_GIB,
-            vcpus: ASKED_VCPUS,
-          },),
-          flavorAnswer({
-            disk: 50,
-            id: 'flavor-b3',
-            name: 'b3-8',
-            ram: 8,
-            vcpus: ASKED_VCPUS,
-          },),
-        ],);
-      case `GET ${cloudPath('/image',)}?region=bhs5`:
-        return jsonAnswer([imageAnswer({},),],);
-      case `POST ${cloudPath('/instance',)}`:
-        created = instanceAnswer({
-          flavorId: (call.body as { readonly flavorId: string; }).flavorId,
-          id: 'instance-run',
-          name: (call.body as { readonly name: string; }).name,
-          status: 'BUILD',
-        },);
-        return jsonAnswer(created,);
-      case `GET ${cloudPath('/instance/instance-run',)}`:
-        return jsonAnswer(instanceAnswer({
-          flavorId: (created?.flavorId ?? ''),
-          id: 'instance-run',
-          name: (created?.name ?? ''),
-          status: 'ACTIVE',
-        },),);
-      case `DELETE ${cloudPath('/instance/instance-run',)}`:
-        deleted = true;
-        return new Response(null, { status: 204, },);
-      case `GET ${PRICE_PATH}`:
-        return failureAnswer({
-          errorCode: 'REFUSED',
-          message: 'the price catalogue is not readable with these rights',
-          status: 403,
-        },);
-      default:
-        return failureAnswer({
-          message: `the stand-in planned no answer for ${call.method} ${call.path}`,
-          status: 500,
-        },);
+    /**
+     This request, as a method and a path the stand-in routes on.
+     */
+    const route = `${call.method} ${call.path}`;
+    if (route === `GET ${cloudPath('/instance',)}`) {
+      return jsonAnswer(
+        ((held.created === undefined) || held.deleted) ? [] : [held.created,],
+      );
     }
+    if (route === `GET ${cloudPath('/sshkey',)}`) {
+      return jsonAnswer([],);
+    }
+    if (route === `POST ${cloudPath('/sshkey',)}`) {
+      return jsonAnswer(sshKeyAnswer(),);
+    }
+    if (route === `GET ${cloudPath('/region',)}`) {
+      return jsonAnswer(['bhs5',],);
+    }
+    if (route === `GET ${cloudPath('/region/bhs5',)}`) {
+      return jsonAnswer(regionAnswer(),);
+    }
+    if (route === `GET ${cloudPath('/flavor',)}?region=bhs5`) {
+      return jsonAnswer([
+        flavorAnswer({
+          disk: 25,
+          id: SMALLEST_FLAVOR_ID,
+          name: 'd2-2',
+          ram: 2,
+          vcpus: 1,
+        },),
+        flavorAnswer({
+          disk: 50,
+          id: FITTING_FLAVOR_ID,
+          name: FITTING_FLAVOR,
+          ram: ASKED_MEMORY_GIB,
+          vcpus: ASKED_VCPUS,
+        },),
+        flavorAnswer({
+          disk: 50,
+          id: 'flavor-b3',
+          name: 'b3-8',
+          ram: 8,
+          vcpus: ASKED_VCPUS,
+        },),
+      ],);
+    }
+    if (route === `GET ${cloudPath('/image',)}?region=bhs5`) {
+      return jsonAnswer([imageAnswer({},),],);
+    }
+    if (route === `POST ${cloudPath('/instance',)}`) {
+      held.created = instanceAnswer({
+        flavorId: (call.body as { readonly flavorId: string; }).flavorId,
+        id: 'instance-run',
+        name: (call.body as { readonly name: string; }).name,
+        status: 'BUILD',
+      },);
+      return jsonAnswer(held.created,);
+    }
+    if (route === `GET ${cloudPath('/instance/instance-run',)}`) {
+      return jsonAnswer(instanceAnswer({
+        flavorId: (held.created?.flavorId ?? ''),
+        id: 'instance-run',
+        name: (held.created?.name ?? ''),
+        status: 'ACTIVE',
+      },),);
+    }
+    if (route === `DELETE ${cloudPath('/instance/instance-run',)}`) {
+      held.deleted = true;
+      return new Response(null, { status: 204, },);
+    }
+    if (route === `GET ${PRICE_PATH}`) {
+      return failureAnswer({
+        errorCode: 'REFUSED',
+        message: 'the price catalogue is not readable with these rights',
+        status: 403,
+      },);
+    }
+    return failureAnswer({
+      message: `the stand-in planned no answer for ${call.method} ${call.path}`,
+      status: 500,
+    },);
   },);
 }
 
@@ -230,7 +242,6 @@ await describe({
         await ovhRun({
           command: GUEST_COMMAND,
           memoryGiB: ASKED_MEMORY_GIB,
-          name: 'dev',
           vcpus: ASKED_VCPUS,
         },);
 
@@ -305,7 +316,6 @@ await describe({
           run: () => ovhRun({
             command: GUEST_COMMAND,
             from: 'dev-01',
-            name: 'dev',
             vcpus: ASKED_VCPUS,
           },),
         },);
