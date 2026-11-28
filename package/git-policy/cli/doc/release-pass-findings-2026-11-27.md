@@ -386,6 +386,8 @@ and this record says they were checked.
 ### L5: two sentences that did not say what their own code says
 
 `e2e/README.md` said four drivers "hold no plain long command at all"
+(and five on `main` by 2026-11-28,
+because another round added `cancel-and-settle-commands-guest.ts` to that list)
 over a list that names three plain `guest()` commands of one of them,
 each bounded at 900 s and none timed on its own
 (`e2e/adoption-guest-arms/store-dataset-and-fsync.ts:115`,
