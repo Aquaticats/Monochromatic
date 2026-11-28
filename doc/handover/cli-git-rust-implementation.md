@@ -1668,28 +1668,6 @@ until the owner chooses where those checks run (issue 6584):
 and `lint:oxlint` is run beside it.
 A tip check that a merge lands under is void and is run again.
 
-The whole container gate on `main` at `d9ec2443bd` ended at 2026-11-27T02:37:12-05:00 and refused:
-its suite passed 12089 of 12089,
-and its Clippy container was killed at the 2 GiB bound the two containers shared.
-Issue 6562's round measured Clippy's container in six runs (4,574.4 to 5,278.7 MiB with a bound that did not bind)
-and gave it a bound of its own,
-8 GiB,
-with the readings beside the value in `bin/native-gate-container-limits.ts`
-and in `doc/planning/git-policy-cli-cachyos-test-containers.md` (`79b93df956`).
-Two of its five gates passed both checks,
-the last on its branch merged with `main` at `88a63ef565`:
-`12115 tests run: 12115 passed (5 slow), 51 skipped` and "Clippy passed beside the test run."
-The three that refused each named its test run alone,
-under a host load average of 48 to 96:
-one control held 31.9 s by a `gpg` in an uninterruptible wait,
-one that read "the system refused a thread",
-one slow transfer ended at its two-second window,
-the notice control another test's spans disturb
-(`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`),
-and the stale source-reading control that issue 6573 has since fixed.
-The suite's container read 1,149.3 to 1,516.5 MiB of its 2 GiB in those runs,
-which issue 6583 holds.
-
 A package-launched round has ended when `pi-runs/<round>-<n>/summary.json` exists,
 which the package's `list-runs-that-ended-since` lists,
 and it merges by its branch,
