@@ -6,14 +6,17 @@ one section per release.
 
 Status:
 **unapproved and non-final**.
-Written by the coordinating session from the second passes' reports.
+Written by the coordinating session from the second passes' reports,
+and, for the alpha.18 section, by the round that answered that read,
+which says so where its section begins.
 Each pass was another agent of the same vendor,
 so a second pass and not an independent review,
 and each is named by the release it read.
 Every figure below is one that pass measured;
 the behaviour it confirmed is stated where this package's `README.md` states
 it,
-and this file holds only what the released binaries themselves showed.
+and a section holds what the released binaries themselves showed
+and, where its own round answered the read, what that answer changed.
 
 ## The alpha.13 pass: cost of a trivial call against alpha.11
 
@@ -67,3 +70,91 @@ the version lines,
 and the help of `install` and `update`,
 which now prints the long layout for every option,
 a change no record names.
+
+## The alpha.18 read: a stop that outlasted the discovery's bound, and a path the manager reports
+
+The read was a same-vendor second pass over `0.1.5-alpha.18`
+(sha256 `2cccd94c`),
+and this section is written by the round that answered its two Medium points,
+so it holds what the read found and what each answer changed,
+not only what the released binary showed.
+The round that wrote it is named by its branch in
+`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`,
+which also holds the measurements and the controls.
+
+### Medium 1: a stop that outlasts the bound was taken as a route, not refused
+
+The package's records said a slice whose stop outlasts the discovery's bound
+"is refused by that bound rather than waited for".
+The released binary did the opposite:
+its start was killed at the bound,
+the job that start had queued stayed in the manager,
+the ask after it reported the path and that job,
+and the call took the path.
+The scope launcher then waited for that job with no bound of this tool's.
+The read measured 29.8 s to 29.9 s in six of six calls behind a stop of 30 s,
+and a call still waiting at 45 s behind a stop that never ends.
+
+What changed:
+a path beside a job after a start that spent `DISCOVERY_BOUND` is no route.
+The refusal says it stops the call,
+and the call stops before anything is started,
+so no lockfile is changed and the person's command does not run with `--locked` added.
+
+What the round that answered it measured
+(2026-11-28,
+a rootless container whose own user manager was systemd 262.2,
+a service in `app.slice` that ignores SIGTERM under `TimeoutStopSec=30`,
+the stop issued about 0.7 s before each call,
+three rounds,
+one call of each arm in every round and the arms alternated within it,
+so three calls an arm,
+every call meeting the state):
+
+- `0.1.5-alpha.18`: exit 0, 29.584 s, 29.579 s and 29.375 s, on the delegated route.
+- the answering branch: exit 1, 10.027 s, 10.036 s and 10.026 s,
+  with the refusal naming the program, the bound and the job.
+- the ratio of the released call to the branch's, per round: 2.95, 2.95 and 2.93.
+- without `--dry-run` from the same state:
+  the released binary exited 0 after 29.477 s and left the lockfile updated,
+  and the branch exited 1 after 10.029 s and left the lockfile exactly as it found it.
+
+### Medium 2: a path the manager reports was used without checking it was the slice's
+
+The discovery accepted any path whose directory exists and holds `cgroup.kill`.
+A stand-in answering `/system.slice` or `/init.scope` for `app.slice`
+gave a call that exited 0,
+reported the delegated route and left its straggler alive,
+where the same call on the real route killed it.
+The read found no real mechanism that reports such a path,
+and staged it with a stand-in only.
+
+What changed:
+an answer whose last component is not the slice that was asked about is refused as a route,
+because a unit's own control group always carries the unit's name.
+The run then takes the weaker path and says so,
+which is what it does on a host with no manager,
+and it claims no quiescence it has not shown.
+
+What the round that answered it measured:
+both stand-in answers were taken as `app.slice`'s route before the change
+(`Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`) and are refused after it;
+and in the same container,
+through a stand-in answering `ControlGroup=/system.slice`,
+the released binary exited 0 in 146 ms on the delegated route
+where the branch took the weaker path in 32 ms and named the path and the reason.
+
+### What this round left
+
+- The read's six Low findings.
+  They are answered by the round named in
+  `cargo-shadow-alpha-18-read-controls-that-can-fail-and-sentences-that-say-what-runs`,
+  not here.
+- Which account's slice a reported path belongs to.
+  The check compares the unit's name and not the `user-<number>.slice` above it,
+  because the manager's slice is spelled differently on different hosts.
+  It is in the package document's Open list.
+- Whether a refused route should instead be the weaker path plus the notice.
+  The record's own sentence says the bound refuses it,
+  the round read that as the call stopping,
+  and the way not taken is in the same Open list with its cost.

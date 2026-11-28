@@ -49,7 +49,12 @@ and one on branch
 which made a failed start that met a transport or lost its reply ask the question again,
 made a path the ask after it reports the route,
 read the job queued on the slice in the same ask and started the slice behind that job,
-and added the four controls of those two arms.
+and added the four controls of those two arms,
+and one on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-a-stop-past-the-bound-is-refused-and-a-reported-path-is-checked`,
+which made a start that spent its bound leave no route at all (the call stops with the words rather than waiting for the job
+beside the path) and refused a path the manager reports for a unit of another name,
+and added the controls of both.
 Every claim about behaviour here names what it rests on:
 a command a round ran,
 a line of this package,
@@ -269,6 +274,11 @@ a path the ask after a failed start reports is the route,
 a start that never reached the manager is put again,
 a start that failed and the ask after it failing too is put again,
 and a stop job queued on the slice is asked through before the route is taken.
+Since 2026-11-28 the same file holds two more:
+a start that spent its bound leaves no route beside the job it left queued,
+and an answer about a group that is not the slice is no route
+(both under "What a start that met a moment does" below,
+with what each showed on the code before it).
 The last two are not made red by the change being taken out:
 the bound rule is a rule about one program,
 and the manager that answers nothing is asked once either way.
@@ -1279,6 +1289,103 @@ but it makes every call's transaction able to replace a queued job of any
 unit it touches,
 which is the protection `fail` mode is for.
 
+### A start that spent the bound leaves no route, and the call stops
+
+The sentence above was not what `0.1.5-alpha.18` did,
+and the second read of that release named it (Medium 1):
+a start that spent its bound was killed,
+the job it had queued stayed in the manager,
+the ask after it reported the path and that job,
+and the release took the path as its route.
+The scope launcher then waited for the job with no bound of this tool's,
+so the call was held for as long as another unit's stop took (measured 2026-11-28 in a container of its own:
+29.375 s to 29.584 s in three calls with a stop of 30 s).
+Since this round,
+a path beside a job after a start that spent its bound is no route:
+`ask_once` refuses,
+the refusal says it stops the call (`GroupUnavailable::stops_the_call`),
+and `contain` turns it into `RunError::RouteRefused` before anything is started.
+The install step reads those words as a refusal rather than an operational failure,
+so the person's command does not run with `--locked` added and the lockfiles are put back as they were found.
+
+The state, staged once in a rootless container whose own user manager was systemd 262.2
+(the recipe is under "The two controls of the span" above,
+with a service in `app.slice` that ignores SIGTERM under `TimeoutStopSec=30`
+and `systemctl --user stop app.slice --no-block` issued about 0.7 s before each call):
+three rounds,
+one call of each arm in every round and the arms alternated within it,
+so three calls an arm,
+the released `0.1.5-alpha.18` (sha256 starting `2cccd94c`) and the branch's binary.
+Every call met the state (`active` with a job number on the slice at the moment it began).
+
+- `0.1.5-alpha.18`: exit 0 every time,
+  29.584 s, 29.579 s and 29.375 s,
+  the delegated route,
+  the stop waited out.
+- the branch: exit 1 every time,
+  10.027 s, 10.036 s and 10.026 s,
+  the bound spent on the start and the call stopped at once after it.
+- the ratio of the released call to the branch's,
+  per round: 2.95, 2.95 and 2.93.
+
+The refusal's own words, as the branch printed them:
+
+```text
+no delegated control group can be had now: the user manager cannot start app.slice (systemctl did not answer within 10s), and a job is still queued on app.slice: a scope made there while that job stands is refused, so no delegated control group can be had until it ends, and this tool does not wait for another unit's stop; nothing was started, so this call changed no file
+```
+
+The lockfiles, from the same state without `--dry-run`
+(the fixture's lockfile holds `# stale`, and the stand-in cargo writes `# satisfied` when it runs):
+`0.1.5-alpha.18` exited 0 after 29.477 s with the lockfile at `# satisfied`,
+and the branch exited 1 after 10.029 s with the lockfile still at `# stale`.
+So the refusal leaves the lockfiles as it found them,
+which a run that took the weaker path there does not:
+the same call with the refusal turned back into a weaker-path one changed the lockfile and exited 0
+(the control below).
+
+The controls are
+`control_group_route_discovery::asking_again_tests::a_start_that_spent_its_bound_leaves_no_route_beside_the_job_it_left_queued`,
+which plants a short bound and a stand-in whose start spends it and whose next ask answers the real slice's path and a job,
+and `tests/shim.rs::a_start_that_spends_the_discovery_s_bound_stops_the_command_and_leaves_the_lockfile_as_it_was`,
+which runs the built binary against a whole fixture and requires exit 1,
+the words above,
+the lockfile as it was and none of the user's command run (10.06 s).
+The first failed on the code before this change with
+`the path beside the job a spent start left is not the route: Route { ... }`;
+the second and the first both failed with `stops_the_call` set back to false,
+a plant that leaves the refusal in place and turns it into the weaker path:
+the whole call then exited 0 after changing the lockfile,
+under the one-line notice that names the reason.
+
+### A path the manager reports for another unit is no route
+
+The same read's Medium 2:
+the discovery took any path whose directory exists and holds `cgroup.kill`,
+so a stand-in answering `/system.slice` or `/init.scope` for `app.slice` gave a call that exited 0,
+reported the delegated route and left its straggler alive,
+where the same call on the real route killed it.
+`detect_route` now asks `names_the_slice` first:
+a unit's own control group carries the unit's name,
+so an answer whose last component is not the slice's is an answer about another unit,
+and the run refuses that route instead of planning a scope under it.
+What it does not decide is which account's slice the path belongs to,
+because the manager's slice is spelled differently on different hosts
+(`user-1000.slice`, `user@1000.service` and a container's own service were all seen beside this round);
+that gap is in the Open list.
+
+The control is
+`control_group_route_discovery::asking_again_tests::an_answer_about_a_group_that_is_not_the_slice_is_no_route`,
+which plants each of those two answers and requires one ask and a refusal that names the group.
+It failed on the code before this change for both answers,
+with `Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`.
+Measured 2026-11-28 in the same container, through a stand-in that answers the ask of where the slice is with
+`ControlGroup=/system.slice` and hands the start to the real manager:
+`0.1.5-alpha.18` exited 0 in 146 ms and took the delegated route,
+and the branch exited 0 in 32 ms on the weaker path,
+with the notice `the user manager reports /system.slice for app.slice, and that group is another unit's, so a scope
+planned there would never be the scope this run makes`,
+and no scope of the call's is made under a group the manager did not name.
+
 ## A failing run leaves its messages
 
 The messages of the one red run were piped through `tail` and lost.
@@ -1397,3 +1504,20 @@ and the figure above is the run as it was measured then.
   Writing it as it streams would cost a file per run,
   including the runs that pass,
   and this round did not measure whether that is worth it.
+- Which account's slice a path the manager reports belongs to.
+  The check of 2026-11-28 refuses a path whose last component is not the slice's own name,
+  and it does not compare the `user-<number>.slice` an answer carries with this account's,
+  because the manager's slice is spelled differently on different hosts
+  (`user-1000.slice` on this one,
+  `user@1000.service` under it,
+  and a container's own service were all seen):
+  a guess at that spelling would refuse routes that are right.
+  A second manager of another account answering this account's ask is the case it leaves open,
+  and no real trigger for that was found.
+- Whether a refused route should be read as a weaker path the way a host without a manager is.
+  This round made it stop the call,
+  because a run that went on would run the person's command behind a stop of unknown length with no containment it could show,
+  and the records say a slice whose stop outlasts the bound "is refused by that bound rather than waited for".
+  The way not taken is the weaker path plus the notice,
+  which keeps a build going on a host whose slice is being stopped;
+  the cost is that the run then claims no quiescence and a recovery of it waits for `cargo-shadow acknowledge`.

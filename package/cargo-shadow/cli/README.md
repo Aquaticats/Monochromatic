@@ -1055,6 +1055,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   an unknown slice,
   a kernel before 5.14),
   the run goes on in a process group of its own and prints one line naming the missing capability.
+  One answer is not on that list and stops the call instead:
+  a path the manager reports beside a job a start could not wait out within `DISCOVERY_BOUND`,
+  which is a stop that outlasts this tool's bound and would hold the scope launcher with no bound of its own (`RunError::RouteRefused`).
   A program that outlives its run is killed on the scope path and left alive on that process-group fallback.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new
@@ -2052,6 +2055,19 @@ and an empty answer after words of a transport,
 or after words that name neither the slice nor a transport,
 is a moment,
 and the whole question is put again inside the same span.
+Two answers are not a route at all.
+A path beside a job queued on the slice after a start that spent `DISCOVERY_BOUND`
+is the stop that start was waiting out:
+a scope made there is refused while the job stands,
+so the call stops with the words instead of waiting for another unit's stop,
+and it starts nothing, so it changes no lockfile
+(measured 2026-11-28 in a container of its own:
+29.375 s to 29.584 s a call on the released `0.1.5-alpha.18` against 10.026 s to 10.036 s on this branch,
+2.93 to 2.95 times).
+And a path whose last component is not the slice's own name is an answer about another unit,
+so it is refused rather than planned under:
+a stand-in answering `/system.slice` or `/init.scope` for `app.slice` gave that release a delegated route
+it did not have.
 An answer that is not a control group path ends the asking the same way,
 after the ask that followed the start,
 because the manager answered twice.
