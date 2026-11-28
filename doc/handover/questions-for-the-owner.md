@@ -4643,8 +4643,20 @@ A reading of 2026-11-27T23:20:27-05:00 corrects it:
 the unit that holds the guests held 29.9 GB of memory and 50.7 GB of swap with ten guests alive,
 each at the 8,192 MiB the owner kept until the crate split,
 and all the rounds' builds together held 15.8 GB and 1.4 GB.
-The guests fill the swap,
-and the builds are what the machine then kills.
+That reading counts what was left:
+it was taken seconds after twelve builds had been killed,
+with three compilers alive.
+Over its life the builds' slice has peaked at 55,702,958,080 bytes of memory and 56,149,524,480 of swap,
+and the guests' unit,
+since it started at 20:03:51,
+at 33,109,938,176 and 52,823,150,592
+(`MemoryPeak` and `MemorySwapPeak`,
+read at 23:25:24),
+so neither is shown to be the larger at the moment the memory ran out.
+What both readings of the night show is that the guests' unit holds about 50 GB of the 64.7 GB of swap the whole time,
+whether a guest is in use or not,
+and a build holds its peak for minutes.
+The builds are what the machine kills when the swap is full.
 What it cost,
 measured:
 23 build scopes ended `oom-kill` between 22:34 and 23:20,
@@ -4678,8 +4690,8 @@ The options:
   For:
   it removes the builds the machine kills.
   Against:
-  the builds are the smaller holder by the reading,
-  so it frees less than its cost in waiting rounds.
+  rounds wait,
+  and the guests' share of the swap stays as it is.
 - No bound,
   and a killed build made cheap:
   every brief says that a kill by the machine is run again and says nothing about the change.
@@ -4697,7 +4709,8 @@ Ranking:
 the bound on guests over smaller guests,
 because it needs no shelved decision reopened;
 smaller guests over the bound on builds,
-because the guests hold five times what the builds hold;
+because a guest holds its memory for its round's whole life and a build for minutes,
+though at their peaks the two hold the same range and both bounds can be taken;
 the bound on builds over no bound,
 because it removes work that the other only repeats;
 the split beside whichever is taken.

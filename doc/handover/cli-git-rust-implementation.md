@@ -2105,14 +2105,26 @@ held 29,937,127,424 bytes of memory and 50,694,000,640 of swap with ten guests r
 and the whole of `agent-work.slice`,
 where the rounds' builds run,
 held 15,762,833,408 and 1,350,725,632.
-So the guests are the largest holder,
-each at `mvm`'s default of 8,192 MiB,
-which the owner kept until the crate split (`doc/planning/mvm-guest-memory-held-for-a-rounds-life.md`),
-and the builds are what the machine then kills,
-because no swap is left for them.
-The coordinating session first wrote here that the fourteen rounds compiling the wrapper were the load;
-that was read off the process list,
-and this reading corrects it.
+Each guest is at `mvm`'s default of 8,192 MiB,
+which the owner kept until the crate split (`doc/planning/mvm-guest-memory-held-for-a-rounds-life.md`).
+That reading counts what was left:
+it was taken seconds after twelve builds had been killed,
+with three compilers alive.
+Over its life the builds' slice has peaked at 55,702,958,080 bytes of memory and 56,149,524,480 of swap,
+and the guests' unit,
+since it started at 20:03:51,
+at 33,109,938,176 and 52,823,150,592
+(`MemoryPeak` and `MemorySwapPeak`,
+read at 23:25:24),
+so neither is shown to be the larger at the moment the memory ran out.
+What both readings of the night show is that the guests' unit holds about 50 GB of the 64.7 GB of swap the whole time,
+whether a guest is in use or not,
+and a build holds its peak for minutes.
+The builds are what the machine kills when the swap is full.
+The coordinating session first wrote here that the fourteen rounds compiling the wrapper were the load,
+and then that the guests were the largest holder;
+the first was read off the process list and the second off a reading taken after the kills,
+and the peaks correct both.
 Between 23:15:47 and 23:19:55 twelve more scopes ended `oom-kill`,
 and at 23:19:36 `SwapFree` read 55,744 kB of 64,667,644 with `MemAvailable` at 0.
 From 23:06 to 23:20 the stall's `full avg300` stood between 30 and 54:

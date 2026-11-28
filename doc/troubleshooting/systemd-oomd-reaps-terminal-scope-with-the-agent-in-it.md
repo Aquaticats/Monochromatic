@@ -317,10 +317,21 @@ and `agent-work.slice`,
 where the rounds' builds run,
 held 15,762,833,408 and 1,350,725,632,
 with no memory limit set on the slice.
-So the guests,
-at 8,192 MiB each,
-fill the swap,
-and the scopes that are killed are the builds that then find none.
+The guests are at 8,192 MiB each.
+That reading counts what was left:
+it was taken seconds after twelve builds had been killed,
+with three compilers alive.
+Over its life the builds' slice has peaked at 55,702,958,080 bytes of memory and 56,149,524,480 of swap,
+and the guests' unit,
+since it started at 20:03:51,
+at 33,109,938,176 and 52,823,150,592
+(`MemoryPeak` and `MemorySwapPeak`,
+read at 23:25:24),
+so neither is shown to be the larger at the moment the memory ran out.
+What both readings of the night show is that the guests' unit holds about 50 GB of the 64.7 GB of swap the whole time,
+whether a guest is in use or not,
+and a build holds its peak for minutes.
+The scopes that are killed are the builds.
 The first paragraph's account of the load,
 written before that reading,
 names the builds alone.
