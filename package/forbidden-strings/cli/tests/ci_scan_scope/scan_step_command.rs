@@ -9,7 +9,7 @@
 //!  so the headings the extraction keys on and the extraction live together
 //!  here,
 //!  and a renamed step fails loudly instead of silently testing nothing.
-//!  The logic sits in three steps because the repository's linter caps one
+//!  The logic sits in four steps because the repository's linter caps one
 //!  shell step at 58 code lines;
 //!  `main`'s single step already used all 58 (`shell/max-lines`),
 //!  so the tests run the bodies in order,
@@ -40,18 +40,34 @@ pub(super) const SCOPE_STEP_NAME: &str = "    - name: List changed files\n";
 pub(super) const SCAN_STEP_NAME: &str = "    - name: Scan changed files\n";
 
 /// What:
-///  `pub(super) const LEFT_OUT_STEP_NAME` is the heading of the step that scans
-///  each entry the file scan leaves out:
-///  the entry's own name and,
-///  for a link,
-///  the target text Git stores for it.
+///  `pub(super) const LINK_LIST_STEP_NAME` is the heading of the step that
+///  writes each link's stored target text and each gitlink's name for the step
+///  after it,
+///  from the changed entries a push or pull request lists or,
+///  when no baseline exists,
+///  from every link and gitlink of the index.
 /// Why:
-///  Issue #6633:
-///  the file scan leaves folder links and submodule gitlinks out,
-///  and a case must pin that a later step still inspects them;
-///  a rename must fail that case rather than test nothing.
-pub(super) const LEFT_OUT_STEP_NAME: &str =
-    "    - name: Scan the entries left out of the file scan\n";
+///  Issue #6640:
+///  a delta's link to a file stays in the file scan,
+///  and the whole-tree arm has no changed-entry list at all,
+///  so one step must bring both arms' links and gitlinks to the scanner;
+///  a rename must fail the cases that pin it rather than test nothing.
+pub(super) const LINK_LIST_STEP_NAME: &str =
+    "    - name: Write each link's stored target text to a file\n";
+
+/// What:
+///  `pub(super) const LINK_SCAN_STEP_NAME` is the heading of the step that hands
+///  each link and each gitlink to the scanner under its own name,
+///  with the materialized target text or an empty file beside it.
+/// Why:
+///  Issue #6633 left a folder link and a submodule gitlink inspected by nothing
+///  once the file scan stopped opening them;
+///  issue #6640 adds every other link's stored target text and every link of a
+///  whole-tree run.
+///  A case must pin that this step still runs,
+///  and a rename must fail it rather than test nothing.
+pub(super) const LINK_SCAN_STEP_NAME: &str =
+    "    - name: Scan each link's stored target text and each gitlink's name\n";
 
 // What:     `fn step_body(name)` returns one workflow step's shell body
 //           exactly as the Actions runner executes it,
