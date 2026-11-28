@@ -50,13 +50,62 @@ use std::path::{
 /// const lines = finishTheRemovalPlansLive(commonDir);
 /// ```
 pub fn finish_the_removal_plans_live(common_dir: &Path) -> Vec<String> {
+    return finish_the_removal_plans_over(common_dir, &TheLiveDatasetReader);
+}
+
+/// What:
+///  How the pass gets the reader that proves a clone's absence.
+/// Why:
+///  Opening the reader opens this machine's ZFS device,
+///  which no control may do,
+///  so the opener is a seam:
+///  the release hands the live reader,
+///  and a control hands one that records it was asked and opens nothing.
+///  The guard in the pass is then shown failing without any run touching the
+///  device.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface TheDatasetReaderOpener { open(): Reader }
+/// ```
+trait TheDatasetReaderOpener {
+    /// The reader the absence proof reads the pool through.
+    fn open(&self) -> Result<ZfsDatasetReader, String>;
+}
+
+/// The release answer:
+/// the typed reader over this machine's ZFS device.
+struct TheLiveDatasetReader;
+impl TheDatasetReaderOpener for TheLiveDatasetReader {
+    fn open(&self) -> Result<ZfsDatasetReader, String> {
+        return ZfsDatasetReader::open().map_err(|error| return error.to_string());
+    }
+}
+
+/// What:
+///  The pass over the reader opener a caller hands it,
+///  which is the release's own shape of the guard that keeps a forwarded
+///  command off the device.
+/// Why:
+///  A repository with no plan folder must cost one `stat` and no open,
+///  and only a control that replaces the opener can show that guard missing
+///  without opening the machine's device itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = finishTheRemovalPlansOver(commonDir, opener);
+/// ```
+fn finish_the_removal_plans_over(
+    common_dir: &Path,
+    reader: &dyn TheDatasetReaderOpener,
+) -> Vec<String> {
     let folder: TheLivePlansFolder = TheLivePlansFolder;
     let at: PathBuf = plans_folder(common_dir);
     if let FolderLook::NoFolder = folder.look(at.as_path()) {
         return Vec::new();
     }
     let gate: LiveGate = LiveGate;
-    let probe: ZfsDatasetReader = match ZfsDatasetReader::open() {
+    let probe: ZfsDatasetReader = match reader.open() {
         Ok(probe) => probe,
         Err(error) => {
             return vec![format!(
