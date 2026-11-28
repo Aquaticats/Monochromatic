@@ -23,6 +23,7 @@ import {
 } from '../../bin/mvm-guest-detached-script.ts';
 import type { GuestFacts, } from '../../bin/mvm-guest-guest-facts.ts';
 import {
+  discardSharedLog,
   lastLineWithText,
   pullSharedLog,
   sharedFile,
@@ -123,6 +124,12 @@ export async function detachedStep({
   readonly timeoutMilliseconds: number;
   readonly finishTimeoutMilliseconds: number;
 },): Promise<string> {
+  // The log a previous attempt left still ends with its own status line, and the wait below reads a status line as the
+  // end of the script it is waiting for, so the file goes before the new script is started.
+  await discardSharedLog({
+    name: chosen.name,
+    file: log,
+  },);
   await startDetachedGuestScript({
     chosen,
     script,

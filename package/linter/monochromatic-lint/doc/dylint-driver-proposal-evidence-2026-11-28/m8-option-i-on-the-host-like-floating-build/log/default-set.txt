@@ -1,0 +1,4 @@
+info: using existing install for nightly-x86_64-unknown-linux-gnu
+info: default toolchain set to nightly-x86_64-unknown-linux-gnu
+
+  nightly-x86_64-unknown-linux-gnu unchanged - rustc 1.102.0-nightly (5df8c02af 2026-11-16)

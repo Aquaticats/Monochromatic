@@ -1501,7 +1501,21 @@ Its build,
 its two pools,
 its measurement arm
 and the holder scan beside it are in `e2e/step-22-arms/`,
-and the numbers one run took are recorded in
+and two more arms live beside the measurement arm as files of the `native_binary` test target,
+which the same test calls in the order the record reads:
+`src/native/binary/binary_zfs_step_22_large_parent_guest_tests.rs`
+sweeps a parent at 16,
+64,
+128,
+256 and 512 clones after the run-to-run spread on unchanged input,
+and `binary_zfs_step_22_pinned_output_guest_tests.rs`
+writes incompressible bytes,
+pins them with an hourly snapshot,
+overwrites them,
+and reads what a clone's removal,
+the snapshot's expiry and the live copy's removal free,
+beside the same counts over one repeated byte as the probe's positive control.
+The numbers one run took are recorded in
 `doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`;
 no task runs the driver,
 so a round that needs the numbers again runs it by hand.
