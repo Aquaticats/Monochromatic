@@ -867,38 +867,50 @@ because the two backends differ in four ways a guest step meets on every command
   libvirt's `mvm push` puts the file in the guest's `/mnt/shared` share under its own name,
   and `ovh`'s writes the absolute path it is given over `scp`,
   which for that account is `/home/ubuntu`;
-- whether an arm runs at all:
-  no arm does yet on `ovh`, for the reason below.
+- where an arm's script, its log and its status line live:
+  the same `/mnt/shared`, which `ovh` keeps inside the guest and libvirt mounts,
+  so the folder is made once per guest where the backend does not mount it
+  (`bin/mvm-guest-shared-folder.ts`) and no arm script changed.
 
 A backend this package does not drive is refused where the run names it,
 with the word and the kinds a driver can drive,
 and not at the first step that reaches a guest.
 
-### What does not run on `ovh` yet
+### What a driver's guest gets, and what does not run on `ovh` yet
 
-The arms themselves.
-Every arm script this package runs is a shell script that reads and writes
-`/mnt/shared` itself,
-the libvirt share,
-and an OVHcloud guest has none:
-`mvm push` there writes a path over `scp` and mounts nothing.
-So a driver's `create`, `prepare` and `destroy` steps run on either backend,
-and a step that runs an arm refuses on `ovh` before it creates anything:
-`refuseAStepWhoseArmsCannotRun` names the step, the backend and the folder the arms need
-(`bin/mvm-guest-backend.unit.test.ts` holds each of those answers).
-Moving an arm to a second backend is therefore the arm's own work:
-take its folder from `guestBackend().guestSharedFolder` instead of writing `/mnt/shared`,
-and its push and pull paths from `pushDestinationOf`.
+A driver's `create` hands the recipe no image word, so the recipe names the one
+its backend should get: `libvirt` takes `mvm`'s own Ubuntu 24.04 template, and
+`ovh` takes the catalogue's `Ubuntu 24.04`, the release this package's arms and
+the recipe's packages are written for. That is the record's `defaultGuestImage`,
+and a run that wants another release names it with `--guest-image <name>` on the
+recipe's command line. A driver whose image must differ therefore needs an
+option of its own; none does today.
 
-The recipe's steps whose subject is a reboot or a power cut refuse on `ovh` too,
-and for a reason of `mvm`'s own:
-it never stops, pauses, shelves or resumes an OVHcloud instance
-(`package/mvm/cli/README.md`,
-"OVHcloud Public Cloud backend"),
-so a guest that did not come back could be neither reset nor inspected
-(`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`).
-The recipe's other steps ran on `ovh` on 2026-11-28:
-see "The recipe's first OVHcloud run".
+Nothing an arm does is refused on `ovh` any more.
+Every arm script this package runs reads and writes `/mnt/shared`, and a backend
+that mounts no share there has the folder made once, as root, owned by the
+account every `scp` and `ssh` runs as
+(`bin/mvm-guest-shared-folder.ts`: `install --directory`, one command, once per
+guest). Pushes go into that folder and pulls come out of it, so an arm's script,
+its log and its `DONE=` status line reach and leave the guest the same way on
+either backend.
+
+Two things a run should know:
+
+- the recipe's steps whose subject is a reboot or a power cut refuse on `ovh`,
+  and for a reason of `mvm`'s own: it never stops, pauses, shelves or resumes an
+  OVHcloud instance (`package/mvm/cli/README.md`,
+  "OVHcloud Public Cloud backend"), so a guest that did not come back could be
+  neither reset nor inspected
+  (`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`);
+- `e2e/zfs-step-22-measurements-guest.ts` refuses on `ovh`, and this is the one
+  reader that is different: its wait reads the host's own side of the share
+  (`~/.local/share/mvm/vms/<guest>/shared/`), which only a libvirt guest mounts,
+  because that was what the round which measured step 22 needed (a guest whose
+  agent is busy still hands its log over). Reading it through `mvm pull` instead
+  would put an `ssh` round trip inside a poll that runs for the length of a long
+  build, and nothing has measured that
+  (`e2e/step-22-arms/host-shared-log.ts`).
 
 ### What a round must do so that no machine is left behind
 
@@ -951,7 +963,23 @@ whose `mvm-create.log` and log files' own times are all it records):
   so that figure is the gap between its create's last line and its toolchain log);
 - `destroy`: 21 s on `ovh`, and 2.1 s on the local guest.
 
-The arm's first run failed after 15 m 37 s,
+A wrapper driver ran there too,
+`e2e/doctor-zfs-route-guest.ts` with `MVM_BACKEND=ovh MVM_OVH_FLAVOR=b3-16` and no
+other change to how it is called:
+`create` (75 s), `prepare` (7 m 05 s, kernel `6.8.0-136-generic` read from the
+guest), `build` (9 m 40 s, the archive pushed into the guest's made
+`/mnt/shared`), `arm` (2 m 03 s) and `destroy` (35 s).
+Its `guest-arm.log` came back through `mvm pull` and holds two of the driver's
+three guest tests at `test result: ok. 1 passed` each, with every
+`DOCTOR-GUEST-REMOVAL` and `CLONE-FACTS-GUEST` line they print.
+The third test, `zfs_doctor_route_guest_three_groups_and_each_finding`, fails at
+`binary_zfs_doctor_route_guest_tests.rs:1568` on a product answer: with the
+step-19 and step-20 facts unread, it expects the `cancel-command` check to be
+`unknown` and the product answers `pass`. No line of this branch touches the
+doctor or the cancel command, and no libvirt control was run for it; it is
+reported here rather than fixed.
+
+The recipe's arm's first run failed after 15 m 37 s,
 in the crate's own name check:
 the recipe handed the arms `${options.name}` where they compare against `gethostname()`,
 which is right on libvirt and wrong on a cloud guest.
@@ -959,6 +987,16 @@ The recipe now hands them `options.backend.hostnameOf(name)`,
 and `guest-backend.check.ts` refuses a recipe that names the run's name instead.
 The second run, with the crate's build already in the guest,
 passed in 64 s.
+Every command of that run went through a mise task of this worktree
+(`mise run //package/git-policy/cli:e2e:doctor-zfs-route` or
+`mise run //package/zfs/request-to-openzfs-kernel-device:e2e`), which is what puts
+the five OVHcloud names in the environment; the recipe's own `spawnSync('mvm')`
+inherits them, and `mvm` itself is the one mise puts first on `PATH`
+(`<repository>/node_modules/.bin/mvm`, from the main checkout, whose source is
+`main`'s; this branch changes no line of `mvm`).
+No `node` was started by hand, and no key, address or identifier was written
+outside this round's scratch folder.
+
 The whole run is unapproved and non-final:
 the owner declares completion,
 and what was checked is these steps and no driver's arms.
