@@ -41,6 +41,7 @@ use super::super::archive_staging::{
     RenameRefused,
     STAGING_PURPOSE,
     WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY,
+    WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY,
     WhatTheFailureNamed,
     clear_the_plant,
     hidden_sibling,
@@ -72,7 +73,9 @@ use super::{
     ReadOnly,
     Rig,
     a_finished_copy_at_the_version_as_another_install,
+    an_installer_of_another_boot,
     an_installer_that_no_longer_runs,
+    finish_archive,
     as_after_this_process_ended,
     context_of,
     lock_at,
@@ -409,8 +412,29 @@ fn a_failed_claim_says_what_a_later_install_does_with_the_finished_copy_it_named
     );
     assert_eq!(
         failed.what_a_later_install_does(),
-        format!("so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}"),
-        "the sentence about that copy is the one every failed publish ends with: {failed:?}"
+        format!("so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY}"),
+        "the sentence about that copy is the one for the state this run put the version in: {failed:?}"
+    );
+    // What: the half of the sentence every failed publish ends with that cannot happen from here.
+    // Why: the warning's own words say the install that followed put the version at its name,
+    //  so an install that publishes that copy while the name holds nothing is a run that cannot come,
+    //  and a warning offering it describes a state the run it belongs to has already made impossible.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(failed.whatALaterInstallDoes()).not.toContain('publishes that copy without downloading');
+    // ```
+    assert!(
+        !failed
+            .what_a_later_install_does()
+            .contains("publishes that copy without downloading"),
+        "the warning does not offer a publish this state has ruled out: {failed:?}"
+    );
+    assert!(
+        failed
+            .what_a_later_install_does()
+            .contains("removes that copy as a second finished copy"),
+        "the warning names what that later install does with it: {failed:?}"
     );
     assert!(
         finished.is_dir(),

@@ -222,6 +222,34 @@ pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY: &str = "A later instal
      a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, \
      because an older repository tool is never kept";
 
+/// What:
+/// What a later install does with the finished copy a failed recovery named,
+/// in the state the warning that carries it stands in:
+/// the install this run went on to make has just given that version its name.
+/// Why:
+/// The recovering run keeps the lock satisfied by installing the version after the recovery failed,
+/// so the warning it prints speaks of a version whose name holds a finished copy already.
+/// The first half of `WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY`
+/// (an install publishes the copy while the version's name holds no finished copy)
+/// cannot happen from that state,
+/// and a sentence that offers it describes a run that cannot come:
+/// what a later install does is remove the copy as a second one.
+/// The two halves are one sentence each rather than one sentence with a switch,
+/// so the sentence a reader sees is the state the run is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY =
+///   'A later install of that version removes that copy as a second finished copy ...';
+/// ```
+pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_SECOND_COPY: &str = "A later install of that version removes that copy as a second finished copy, \
+     because the version's name holds a finished copy by then; \
+     it acts on that name in this process namespace and after a reboot, \
+     but an install in another process namespace does not judge that name and leaves the copy where it is, \
+     and prune --toolchain prints that name and what deleting it costs; \
+     a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, \
+     because an older repository tool is never kept";
+
 /// `<parent>/.<name>.<purpose>.<process id>.<start time>.<namespace>.<boot>`,
 /// a hidden sibling of `version_dir` that no version scan lists.
 /// The last four fields name the installer that made it,
