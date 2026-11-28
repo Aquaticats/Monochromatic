@@ -1617,46 +1617,6 @@ The raw characters in the linter's other messages wait for the owner,
 because a command a person copies must hold the name raw
 (`doc/handover/questions-for-the-owner.md`).
 
-What the wrapper's alpha.49 behaviour pass found
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`):
-no High finding,
-four Medium and three Low,
-none a regression of alpha.49.
-Demonstrated with both released binaries:
-with a reader of standard error gone,
-alpha.48 removed a notice's record and alpha.49 kept it;
-after a failed start of the real Git with standard error a closed pipe,
-alpha.48 was ended by `SIGPIPE` and alpha.49 exited 2;
-over 56 merge cases alpha.48 resolved 6 conflicts and alpha.49 resolved 14,
-each extra one matching an oracle;
-and 44 of 45 commands compared were identical,
-the other being the intended change.
-Its Medium findings,
-each with a round:
-a slot removal or move reached through a shell alias reads its operand from the directory the wrapper was started in,
-where Git runs the alias at the top of the working tree after `-C`,
-so `./wt/two` from a subdirectory or `../one` with `-C` passes the refusal and removes a bound slot's registration
-(argued from the code and from Git's own behaviour;
-the refusal itself was not run);
-a process's name is escaped at two of the seven sentences that print it;
-five alias spellings made only of readable forms stay unread
-(a shell alias naming a shell alias,
-`! git`,
-a tab after `!git`,
-a bare `!git` before the caller's own global option,
-a chain past 16),
-while `SPEC.md` says every spelling is read;
-and the merge pass,
-when both sides only delete and the base repeats a line,
-can write back a line one side removed
-(base `b a a`,
-ours `a`,
-theirs `b` resolves to `a`),
-the same in alpha.48,
-in 11 of 199 and 15 of 521 answers of a seeded search over unusually repetitive files.
-That last one lands wrong text with no marker,
-which is what the merge pass's own rule exists to stop.
-
 What the wrapper's alpha.49 structure pass found
 (`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`),
 on the two merges that claim to change no behaviour (`02d0a6e8e6` and `97d9afb21c`):
