@@ -19,7 +19,11 @@ use super::{
     TheStopTheRemovalTakes,
     cancelled_at,
 };
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::{
     TheCancellationFailed,
@@ -183,15 +187,36 @@ fn an_answer_that_cannot_cancel_names_the_stop_and_its_own_sentence() {
 }
 
 #[test]
-fn a_plan_that_witnessed_no_destroy_tells_its_answer_so() {
-    let answer: ScriptedAnswer = ScriptedAnswer::cancelling();
+fn a_plan_tells_its_answer_how_many_names_it_destroyed() {
+    // A plan whose first write stands records no destroyed snapshot, so its answer is told none.
+    let fresh: ScriptedAnswer = ScriptedAnswer::cancelling();
     let plan: DestructionPlan =
         crate::worktree_clone_removal_proof_and_plan::fixtures::sample_plan();
-    let _ = cancelled_at(&the_stop(Some(&answer), Some(&plan), &[]));
-    let asked = answer.asked.borrow();
+    let _ = cancelled_at(&the_stop(Some(&fresh), Some(&plan), &[]));
+    let asked = fresh.asked.borrow();
     let (_, destroyed, _) = asked.first().expect("the answer was asked");
     assert_eq!(
         *destroyed, 0,
         "a plan whose first write stands records no destroyed snapshot, so its answer is told none"
+    );
+    drop(asked);
+
+    // A plan whose history ends on one destroyed name tells its answer that name, so a cancellation reports
+    // what it cannot restore.
+    let mut destroyed_plan: DestructionPlan = plan;
+    let snapshot = destroyed_plan.attempts[0].snapshot.clone();
+    destroyed_plan.attempts.push(PlanAttempt {
+        snapshot,
+        attempt: 1,
+        outcome: SnapshotOutcome::Destroyed,
+        errno: None,
+    });
+    let answered: ScriptedAnswer = ScriptedAnswer::cancelling();
+    let _ = cancelled_at(&the_stop(Some(&answered), Some(&destroyed_plan), &[]));
+    let asked = answered.asked.borrow();
+    let (_, destroyed, _) = asked.first().expect("the answer was asked");
+    assert_eq!(
+        *destroyed, 1,
+        "the one name the plan's history destroyed is the one its answer is told"
     );
 }
