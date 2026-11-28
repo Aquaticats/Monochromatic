@@ -789,7 +789,7 @@ Unapproved and non-final.
 - No name resolved on this machine from 06:21:08 until the owner reconnected IVPN at 06:36:00
   (`doc/troubleshooting/ivpn-3-15-inverse-split-tunnel-overrides-wireguard.md`,
   "Name lookups ride the tunnel for every program").
-  Ordinary traffic was outside the tunnel the whole time,
+  Ordinary traffic was outside the tunnel when measured after recovery,
   and neither OpenSnitch nor AppArmor was involved.
 - An OVHcloud machine answered:
   a `d2-2` from the image `Ubuntu 26.04` in `BHS5`,
