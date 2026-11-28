@@ -35,6 +35,10 @@
 //!   the one spelling a plan's numbers take.
 //! - `loss_names.rs`:
 //!   the list of names a removal prints as lost.
+//! - `removal_force.rs`:
+//!   how many forces one command carried,
+//!   counted the way Git counts them,
+//!   and what each count passes.
 //! - `plan_refusal.rs`:
 //!   why bytes are not a plan,
 //!   and the sentence a person reads.
@@ -185,6 +189,7 @@ pub mod removal_completion_head_present;
 pub mod removal_completion_inputs;
 pub mod removal_destruction;
 pub mod removal_entry;
+pub mod removal_force;
 pub mod removal_head_destroy;
 pub mod removal_identities;
 pub mod removal_inventory;
@@ -307,6 +312,7 @@ pub use removal_entry::{
     RemovalEntry,
     enter_the_removal,
 };
+pub use removal_force::RemovalForce;
 pub use removal_head_destroy::{
     CloneAbsence,
     DatasetDestroyDevice,
