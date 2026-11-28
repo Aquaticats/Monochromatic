@@ -102,9 +102,9 @@ export const expectedMarkers: readonly string[] = [
   'STEP22 forced-arm t-stop-ms=',
   'STEP22 retention after-removal=',
   'STEP22 pinned case=incompressible stage=after-expiry',
-  'STEP22 pinned case=incompressible freed-by-expiry-dataset=',
+  'STEP22 pinned case=incompressible frees freed-by-expiry-dataset=',
   'STEP22 pinned case=repeated-byte stage=after-expiry',
-  'STEP22 pinned case=repeated-byte freed-by-expiry-dataset=',
+  'STEP22 pinned case=repeated-byte frees freed-by-expiry-dataset=',
   'STEP22 request-budget names=2048',
   'STEP22 done',
 ];

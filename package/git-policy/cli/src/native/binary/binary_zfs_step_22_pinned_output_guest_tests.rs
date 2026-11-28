@@ -248,10 +248,11 @@ fn pinned_output_case(
     stage(case, "after-output-removed", after_output);
 
     println!(
-        "STEP22 pinned case={case} snapshot-used-at-snapshot={} snapshot-used-after-overwrite={} live-at-overwrite={} freed-by-removal-clone-used={clone_used} freed-by-removal-pool={} freed-by-expiry-dataset={} freed-by-expiry-pool={} freed-by-output-removal-dataset={} freed-by-output-removal-pool={} untouched-by-removal-dataset={}",
-        pinned.figures.snapshots,
-        overwritten.figures.snapshots,
-        overwritten.figures.dataset,
+        "STEP22 pinned case={case} readings snapshot-used-at-snapshot={} snapshot-used-after-overwrite={} live-at-overwrite={}",
+        pinned.figures.snapshots, overwritten.figures.snapshots, overwritten.figures.dataset
+    );
+    println!(
+        "STEP22 pinned case={case} frees freed-by-removal-clone-used={clone_used} freed-by-removal-pool={} freed-by-expiry-dataset={} freed-by-expiry-pool={} freed-by-output-removal-dataset={} freed-by-output-removal-pool={} dataset-used-before-the-removal={} dataset-used-at-the-removal={}",
         clone_alive
             .figures
             .allocated
@@ -272,7 +273,8 @@ fn pinned_output_case(
             .figures
             .allocated
             .saturating_sub(after_output.figures.allocated),
-        before.figures.used.abs_diff(after_removal.figures.used),
+        clone_alive.figures.used,
+        after_removal.figures.used,
     );
 }
 
