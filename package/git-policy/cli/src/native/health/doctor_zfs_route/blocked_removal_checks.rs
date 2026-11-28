@@ -25,9 +25,11 @@
 //!  where the caller's own
 //!  session holds the clone the removal refuses instead
 //!  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`).
-//!  The kept `cancel-worktree-removal <slot>` command is the design's way back
-//!  and is not part of this release,
-//!  so this line says the plan and the intent stay rather than naming it.
+//!  The kept `cancel-worktree-removal <slot>` command is the design's way back,
+//!  this release's management grammar admits it,
+//!  and a removal run again while a holder stands cancels itself,
+//!  so this line names the command and says nothing is destroyed until the
+//!  holders let go.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,7 +44,7 @@ use super::check_outcome::{
 };
 use super::holder_checks::HolderFacts;
 use super::removal_plan_checks::RecordedSnapshot;
-use crate::worktree_clone_binding_record::add_state_commands::NO_REMOVAL_WORDS;
+use crate::worktree_clone_binding_record::add_state_commands::THE_REMOVALS_WORDS;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 
 /// What:
@@ -116,7 +118,7 @@ pub fn check_blocked_removal(facts: &BlockedRemovalFacts) -> CheckOutcome {
             Some(nonce) => finding(
                 "intent",
                 format!(
-                    "the clone `{clone}` carries an `unmount` intent under nonce `{nonce}` and no destruction plan was written for it, which is the state a removal killed between its intent and its first write leaves, or one whose unmount the handler has not answered. Nothing about the pool changed by itself, no snapshot is proved destroyed, and {NO_REMOVAL_WORDS}."
+                    "the clone `{clone}` carries an `unmount` intent under nonce `{nonce}` and no destruction plan was written for it, which is the state a removal killed between its intent and its first write leaves, or one whose unmount the handler has not answered. Nothing about the pool changed by itself, no snapshot is proved destroyed, and {THE_REMOVALS_WORDS}."
                 ),
             ),
         };
@@ -207,10 +209,14 @@ pub fn check_blocked_removal(facts: &BlockedRemovalFacts) -> CheckOutcome {
             "Without `--force` the removal cancels itself. The arm that ends the holders with `--force` has no measurement yet, so nothing here offers it and the holders have to let go for the removal to go on.",
         )
     };
+    let cancel: String = format!(
+        "The cancel command the design keeps as the way back is `git monochromatic-git-policy-cli cancel-worktree-removal {}`: it puts the clone back at its slot and ends the removal's records without destroying anything, and a removal run again while a holder stands cancels itself and puts the clone back the same way, so nothing is destroyed until the holders let go.",
+        facts.slot
+    );
     return finding(
         "removal",
         format!(
-            "the removal of `{clone}` at the slot `{}` is blocked by a holder: {} namespace(s) hold it: {}. {intent} {loss}. {standing}. {caller} {force} The cancel command the design keeps as the way back is not part of this release, so the plan and the intent stay until one is; {NO_REMOVAL_WORDS}.",
+            "the removal of `{clone}` at the slot `{}` is blocked by a holder: {} namespace(s) hold it: {}. {intent} {loss}. {standing}. {caller} {force} {cancel}",
             facts.slot,
             facts.holders.holders.len(),
             blocked_by.join("; ")

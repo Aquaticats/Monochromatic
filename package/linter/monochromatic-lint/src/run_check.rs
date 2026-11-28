@@ -321,7 +321,8 @@ impl<'run> HostChecker<'run> {
             String::from(input.source()),
             false,
         ) {
-            Ok(parsed) => parsed,
+            // The host's own prefix is part of every line the fix writes, so the rule is told its width.
+            Ok(parsed) => parsed.with_host_prefix_chars(input.host_prefix_chars()),
             Err(error) => {
                 let failure: Diagnostic = processing_failure(
                     input.filename(),

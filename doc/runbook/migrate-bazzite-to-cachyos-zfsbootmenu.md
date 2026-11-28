@@ -2956,6 +2956,58 @@ do not change the account's login shell.
 
      Expect `Success, no errors or warnings detected` or equivalent zero-error completion.
 
+#### What this machine runs since 2026-11-28T01:50:27-05:00
+
+The owner asked for the old system's unit instead of the manual unlock this section describes:
+"In fact,
+please migrate the old 860 systemd setup on this system."
+The `crypttab` and `fstab` lines of this section were never added on this machine,
+so nothing had to be removed first.
+
+Installed,
+copied from the old Bazzite deployment:
+
+- `/etc/cryptkeys/sda.key`,
+  the drive's key file,
+  readable by root alone.
+  Its only other copy is in the old deployment on the old NVMe,
+  so this copy has to survive before that drive is formatted.
+- `/etc/systemd/system/mount-860.service`,
+  enabled,
+  wanted by `user@1000.service`,
+  so the drive unlocks and mounts at `/var/mnt/encrypted` when the owner logs in.
+  One line changed:
+  it names the drive by its LUKS UUID and not by a device letter.
+- `/etc/polkit-1/rules.d/50-mount-860.rules`,
+  which lets the owner's account stop and start that unit without `sudo`.
+
+AppArmor's `cryptsetup` profile refused the key folder at first,
+and one rule in its local file cured it
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+the eighteenth batch).
+
+To check it:
+
+```bash
+systemctl is-active mount-860.service
+findmnt /var/mnt/encrypted
+```
+
+Expect `active` and one Btrfs mount.
+
+To stop and start it as the owner's account:
+
+```bash
+systemctl stop mount-860.service
+systemctl start mount-860.service
+```
+
+Both worked on 2026-11-28,
+at 01:57:08 and 01:57:22.
+While a swap file on the drive is switched on,
+the stop is refused because the mount is busy
+(the nineteenth batch of the same record says when one was made and why).
+
 ### Install and activate the physical labwc session
 
 Fenced command blocks in this section use Bash syntax.
