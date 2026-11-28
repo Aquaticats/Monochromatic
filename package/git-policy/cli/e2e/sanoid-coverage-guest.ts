@@ -28,6 +28,11 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import { runGateCommand, } from '../bin/native-gate-run.ts';
 import {
   holdsLineStartingWith,
@@ -525,6 +530,14 @@ await mkdir(
     mode: FOLDER_MODE,
   },
 );
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await step(chosen,);
 
 //endregion The command line

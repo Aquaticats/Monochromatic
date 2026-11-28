@@ -387,3 +387,44 @@ the numbers mean at least;
 and no GPU size is ever taken,
 built as a list of the five general families,
 so that a GPU family OVHcloud adds later cannot be picked.
+
+## All guest work runs on OVHcloud, 2026-11-28
+
+Typed by the owner at about 2026-11-28T07:30-05:00:
+
+> Set a reminder for yourself for OVH for 8am.
+> By then,
+> switch to OVH for all guest work no matter what.
+
+So from 2026-11-28T08:00-05:00 no guest work runs on this machine:
+no round makes a local guest or starts a command in one,
+and no brief names one.
+
+What the session did with it,
+recorded 2026-11-28T07:34:42-05:00:
+
+- a command that ends at 08:00 and a one-shot schedule at the same minute are armed;
+- merge `832b3e25c2` puts the guest drivers' switch on `main` ahead of its round's end:
+  a driver takes its backend from the environment variable `MVM_BACKEND`,
+  and `libvirt` is only what it takes when nothing is said;
+- every round that holds a local guest is told to stop using it,
+  to finish what needs no guest and to name in its report each arm that has not run;
+- at 08:00 the session destroys every local guest still alive and tells its round why.
+
+What does not run on OVHcloud at the time of writing:
+a guest arm.
+The arm scripts reach a guest through a folder shared with the host,
+which only a local guest has,
+so on OVHcloud a driver makes and prepares a guest and refuses to run an arm.
+The round that built the switch is making arms run there,
+with the script pushed,
+the arm started through `mvm exec` and its log pulled back.
+Until that lands no guest arm runs anywhere.
+
+What does run there,
+on `main` at `feb999c67a`:
+create,
+a command,
+a push and a pull,
+and a destroy that returns when the project's listing has let the machine go;
+the billed test passed whole at 2026-11-28T07:32:22-05:00.

@@ -946,6 +946,29 @@ Unapproved and non-final.
   two machines active,
   both created by rounds that are running.
 
+#### Started and done between 07:23 and 07:29
+
+Unapproved and non-final.
+
+- The development-profile proposal's second gate read came back not ready
+  (three High,
+  ten Medium,
+  nine Low).
+  Its first point is that the recommended form was never measured.
+  The round `development-profile-proposal-revised-against-its-second-gate-read-with-the-recommended-form-measured`
+  started at 07:27:49;
+  unlike the first revision it may build the fewest arms that measure that form.
+- Merge `871e0be314` holds the shutdown pass
+  (`src/native/worktree_clone_shutdown_unmount_pass/`),
+  built and proved in a guest and reached by no command:
+  the mode `zfs-root shutdown-unmount` still refuses,
+  as its brief directed.
+  The pass withdraws this boot's readiness record first,
+  unmounts only the clone mounts this boot verified,
+  leaves a busy mount standing and names its holders,
+  and changes no durable intent.
+  Its picks the brief did not decide are in `doc/handover/questions-for-the-owner.md`.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
