@@ -398,6 +398,14 @@ Every claim here about Cargo's own behaviour rests on the third of those,
 not on a run,
 except where a cell says an arm measured it.
 
+The build-script counts in the form C option rest on reading the four `-vv` logs again,
+not on the arm harness's own counter:
+that counter matched the text `build-script-build`,
+Cargo writes `build_script_build`,
+so it recorded no run in any arm of either round.
+What the logs hold is 33 compile lines and 36 run tokens over 33 distinct paths in each round's first command,
+and one compile line and one run token in the second command of the form C round.
+
 Two faithful builds of one unchanged crate differed by up to 20% on this host
 (`package/git-policy/cli/doc/development-profile-measurements.md`,
 the 2026-11-25 section,
