@@ -111,8 +111,14 @@ export const expectedMarkers: readonly string[] = [
 
 /**
  Milliseconds the guest's build of the test target may take.
+
+ Two measurements size it: the round of 2026-11-27's fourth `run` built the
+ target in 53 minutes at one job, and an eighth attempt at the same tree met the
+ old ninety-minute bound unfinished while the host ran at a load average of 86
+ with many rounds compiling the same crate. A bound a loaded host can reach is
+ no bound on the build but on the machine, so it is two hours here.
  */
-export const crateBuildTimeoutMilliseconds = 5_400_000;
+export const crateBuildTimeoutMilliseconds = 7_200_000;
 
 /**
  Milliseconds the guest arm may take, which one run of every arm it performs
