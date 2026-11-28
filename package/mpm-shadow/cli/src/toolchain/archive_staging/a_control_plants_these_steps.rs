@@ -359,8 +359,8 @@ pub(super) fn reached_the_instant_between_the_two_renames(
 }
 
 /// What:
-/// Runs what another install publishes in the instant before this publish moves the copy at the version's name
-/// aside, with the name it holds the finished copy at and the version's name.
+/// Runs what another install publishes in the instant before this publish moves the copy there aside,
+/// with the name it holds the finished copy at and the version's name.
 /// Why:
 /// A second install can give the version its name between this publish's check that the name holds no finished copy
 /// and the rename that moves whatever is there aside,

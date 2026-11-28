@@ -6,8 +6,8 @@
 //! so a removal here can cost the only finished copy of a version;
 //! the line it prints for a name it cannot judge therefore says what it read there
 //! and what deleting that directory would cost.
-//! What it read is a completion marker and a program found, which say nothing about what a program does when it
-//! starts,
+//! What it read is a completion marker and a program found,
+//! which say nothing about what a program does when it starts,
 //! so no line concludes that a start of the version works.
 //! It sits in a file of its own because the prune next to it is longer than a person reads at once.
 //!

@@ -354,7 +354,8 @@ fn the_killed_installs_finished_copy(
 }
 
 /// What:
-/// The hidden name a failed recovery left, found by the version and the purpose its name carries.
+/// The hidden name a failed recovery left,
+/// found by the version and the purpose its name carries.
 /// Why:
 /// The name also carries the pair of the process that made it,
 /// which this file cannot know,
@@ -1004,7 +1005,7 @@ fn another_install_publishes_the_version_at_its_name(
 /// What:
 /// The state a failed publish is built in:
 /// the killed install's finished copy of the locked version under the hidden name a kill leaves it at,
-/// and, when the run before the kill had unpacked into the version's name, that unfinished copy there too.
+/// and the unfinished copy there too when the run before the kill had unpacked into the version's name.
 /// Why:
 /// Which of those two the version's name holds decides which rename of the publish the plant's refusal reaches,
 /// and each of those has its own sentence.
