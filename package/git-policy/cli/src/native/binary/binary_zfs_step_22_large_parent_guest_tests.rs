@@ -208,8 +208,13 @@ fn parent_name(index: usize) -> String {
     return format!("parent-{index}");
 }
 
-/// The seed of one of the arm's clones,
-/// which keeps its origin snapshot's name its own.
+/// What:
+///  The seed of one of the arm's clones,
+///  which keeps its origin snapshot's name its own and keeps the mount intent inside the grammar the sweep reads.
+/// Why:
+///  The intent is `v1:<32 lowercase hex digits>:mount`,
+///  so a seed that is not hex makes every clone's intent a refusal and the sweep attaches nothing:
+///  a first run of this arm seeded its clones with `p000` and the 64-clone sweep attached none of them.
 fn parent_seed(index: usize) -> String {
-    return format!("p{index:03}");
+    return format!("{index:03x}");
 }
