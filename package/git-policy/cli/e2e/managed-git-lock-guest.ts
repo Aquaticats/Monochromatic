@@ -43,6 +43,9 @@ import {
 import {
   GuestDriverError,
 } from '../bin/mvm-guest-error.ts';
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
 import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
   pushWorktreeSnapshot,
@@ -60,6 +63,10 @@ import {
 import {
   runWholeGuestRun,
 } from '../bin/mvm-guest-whole-run.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -266,7 +273,7 @@ async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,

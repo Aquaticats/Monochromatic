@@ -18,3 +18,34 @@ So the control fails on an unfixed copy and passes only after the fix ran.
 The run recorded in output.txt used an earlier control form,
 which the harness wrote but never passed to the fix, and whose expected count an unfixed copy also held.
 That run's figure rests on all 222 copies changing bytes, and on this measurement.
+
+Run again, on fixtures, by the round that answered the third gate read,
+because the corrected control had never been run.
+Run 2026-11-28T06:54:38-05:00 with the installed monochromatic-lint 0.5.2-alpha.24,
+in a systemd user scope (MemoryMax 1G, CPUQuota 200%, TasksMax 64, IOWeight 1, RuntimeMaxSec 180).
+
+The two fixtures, in a folder outside the repository:
+  control.md      the corrected control text, `Aaa bbb, the` / `ccc ddd eee.`
+  old-control.md  the form the recorded run used, `Aaa bbb, ccc ddd eee` / `the` / `fff ggg hhh.`
+
+The one-rule configuration beside them names `markdown/semantic-line-breaks` at `error`
+for `**/*.md`, `**/*.mdx` and `**/*.rs/*.md`.
+
+command, once per fixture:
+  monochromatic-lint --config config.jsonc --fix control.md
+
+The corrected control:
+  before the fix: one break at no boundary, at the end of line 1 (`the`)
+  fix run: exit 0
+  after the fix: `Aaa bbb,` / `the ccc ddd eee.`
+  the text changed: yes, so the harness's assert_ne!(control, M13_CONTROL) holds
+  breaks at no boundary after the fix: 0, so its assert_eq!(control_breaks, 0) holds
+  a second run on the fixed copy: exit 0, no finding
+
+The old control form, on the same invocation:
+  before the fix: two breaks at no boundary
+  after the fix: `Aaa bbb,` / `ccc ddd eee` / `the` / `fff ggg hhh.`, two breaks
+  so the two it expected held either way, and that control could not fail
+
+So the corrected control fails on an unfixed copy twice over:
+its text did not change, and its count is one where the harness expects zero.

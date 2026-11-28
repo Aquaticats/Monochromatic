@@ -25,6 +25,9 @@
  per case.
  */
 import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
+import {
   mkdir,
 } from 'node:fs/promises';
 import {

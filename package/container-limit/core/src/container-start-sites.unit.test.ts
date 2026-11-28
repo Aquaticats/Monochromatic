@@ -220,6 +220,8 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
   // and its image retention read what `podman info` and `podman images` printed, and its replaced-image removal runs
   // `podman image rm`; none of them starts a container. Its cgroup-memory reader says which files a `podman run --rm`
   // leaves behind and reads the kernel's own accounting of a container its launcher started.
+  // mvm's OVHcloud image file names `docker` as one of the application image labels the catalogue carries,
+  // which it leaves out when it picks a plain system image.
   ...[
     'package/claude-code-plugin/bash-output-filter/bundle/node/index.mjs',
     'package/container-limit/core/src/argument-text-of-a-container-start.ts',
@@ -247,6 +249,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/monorepo-task/core-exec/src/depends.ts',
     'package/monorepo-task/core-exec/src/github-actions-step-fixture-fake-tools.ts',
     'package/monorepo-task/core-exec/src/github-actions-step-fixture.ts',
+    'package/mvm/cli/src/backend/ovh/images.ts',
     'package/monorepo-task/core-exec/src/github-actions-step-support.ts',
     'package/monorepo-task/core-exec/src/playwright-image-logic.ts',
     'package/monorepo-task/core-exec/src/playwright-image-push.ts',

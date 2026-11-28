@@ -48,6 +48,9 @@ import {
 } from '../bin/mvm-guest-step-command.ts';
 
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
 import { greenLog, } from './start-probe-arms/green-arm.ts';
 import { noConfigurationLog, } from './start-probe-arms/no-configuration-arm.ts';
 import {

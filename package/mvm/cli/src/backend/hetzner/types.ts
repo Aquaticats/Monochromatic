@@ -67,9 +67,16 @@ export type HetznerServer = {
   readonly public_net: HetznerPublicNet;
   /**
    Server type the instance runs on; its architecture must match a snapshot
-   image when cloning.
+   image when cloning. Hetzner embeds the whole server type object here, so the
+   size a running server has can be read without a second call; the fields are
+   optional because a response mvm did not capture may omit them.
    */
-  readonly server_type: { readonly architecture: string; };
+  readonly server_type: {
+    readonly architecture: string;
+    readonly cores?: number;
+    readonly disk?: number;
+    readonly memory?: number;
+  };
   /**
    User-defined labels, including the mvm ownership label.
    */
@@ -114,14 +121,31 @@ export type HetznerServerType = {
    */
   readonly name: string;
   /**
-   CPU architecture, e.g. `x86` or `arm`.
+   CPU architecture, e.g. `x86` or `arm` (`x64` on older responses).
    */
   readonly architecture: string;
+  /**
+   Number of CPU cores, from the field every server type object carries.
+   */
+  readonly cores: number;
+  /**
+   Kind of CPU, `shared` or `dedicated`, which is what tells a general-purpose
+   plan from one sold for dedicated cores.
+   */
+  readonly cpu_type: string;
   /**
    Deprecation marker: `null` when current, an object when deprecated. Typed
    `unknown` so it can be compared to `null` without a banned nullish union.
    */
   readonly deprecation?: unknown;
+  /**
+   Disk size in GB, from the field every server type object carries.
+   */
+  readonly disk: number;
+  /**
+   Memory in GB, from the field every server type object carries.
+   */
+  readonly memory: number;
   /**
    Per-location prices; a type is offered in a location when it has an entry.
    */

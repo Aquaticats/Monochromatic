@@ -287,7 +287,7 @@ The default invocation,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and names the unit that runs it,
+whose pass is built and whose mode refuses and names the unit that runs it,
 `holder-scan` is the all-namespace holder scan of one dataset under a nonce of
 its own,
 which reads and changes nothing,
@@ -8582,7 +8582,7 @@ and no command writes one of them:
   the ordering the owner's answers fix after the checkout and the key providers,
   `ExecStart` running `zfs-root boot-reconcile`,
   and `ExecStopPost` running `zfs-root shutdown-unmount`,
-  whose mode refuses in this build.
+  whose pass is built and whose mode refuses in this build.
 - Its stop-failure drop-in,
   the provider drop-in that asks the gate to reconcile again after post-key-load checkout readiness,
   the propagation service and the mount drop-in that start it,
@@ -8600,6 +8600,67 @@ No command installs any of it:
 `doctor` prints the root-once commands and runs none,
 no release writes a unit file,
 and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
+
+##### The shutdown pass, built and reached by no command
+
+The work that unit's stop line does is built in
+`src/native/worktree_clone_shutdown_unmount_pass/`,
+and no command reaches it in this release:
+`zfs-root shutdown-unmount` still answers the refusal above,
+and the round that wires the mode calls the pass from there.
+The pass does five things in the design's order
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit"):
+
+- It withdraws this boot's readiness record,
+  the file `boot-reconcile` publishes,
+  through the proved root-owned directory,
+  syncs that directory,
+  and asks the route's own reader again,
+  so the absence that closes admission is a fact rather than an assumption;
+  a record this route's reader refuses is removed too,
+  because the directory is root's and the content is a cache that already
+  admits nothing,
+  and a directory another account owns is refused with its file left exactly
+  as it was.
+- It reads the same root-owned configuration the gate's `ExecStart` read,
+  and refuses when this boot's record and that configuration name different
+  pools or different checkouts,
+  because the two say which place this boot verified.
+- It reads this process's mount table once and takes every standing mount
+  whose source is an immediate child of the configured clone container and
+  which stands at `<checkout>/.claude/worktrees/<slot>`.
+  A boot whose record published no readiness,
+  or published a pool or a checkout that was not ready,
+  unmounts nothing and answers why.
+- It proves each mount before any kernel call:
+  the `.claude/worktrees` identity now is the one the route recorded,
+  a fresh walk reaches the mount the descriptor the walk opened is on,
+  the descriptor's device and inode are that walk's,
+  the path the kernel reports for it is the slot's,
+  a second walk reaches the same mount,
+  and the table's row has the clone dataset as its source,
+  `zfs` as its filesystem,
+  `/` as its root,
+  the slot as its mount point and the slot's folder's mount as its parent.
+  It then takes the slot's per-slot claim,
+  leaving a slot another handler holds to that handler.
+- It unmounts from the held descriptor with no force and no lazy detach.
+  A mount the kernel answers `EBUSY` for stays exactly as it was,
+  and the all-namespace holder scan names the namespaces that hold it,
+  with the reads that could not be completed.
+  It writes no receipt and changes no clone's durable intent,
+  because it answered no request.
+
+The pass's answer is a summary line and one line per mount it reached,
+beginning `unmounted`,
+`held` or `left`,
+so an operator reads each mount rather than a total,
+and one mount that refused never stops the mounts after it.
+The proof is one guest arm
+(`src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`,
+driven by `e2e/shutdown-unmount-guest.ts`),
+which calls the pass itself as root on a file-backed pool.
 The migration,
 the property changes and the install are the agent's act,
 logged,
@@ -17637,7 +17698,8 @@ so no caller waits for a reader,
 and a line longer than the room the stream has at that moment reaches the reader up to what fitted,
 while the rest of it is dropped and counted as a line the queue could not say
 (issue 6476;
-`src/native/foundation/lines_written_by_a_thread.rs`).
+`src/native/foundation/the_line_a_refused_thread_writes_where_it_is_said.rs`,
+which the queue in `src/native/foundation/the_queue_and_its_thread.rs` hands a line to once its thread is refused).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -18415,8 +18477,9 @@ each with its reason in the code and here:
   no file and no other lock,
   so a commit's question is answered from memory and never waits for a volume.
 - The mutex and the condition of a queue of lines written by a thread of their own
-  (`foundation/lines_written_by_a_thread.rs`,
-  which the service's own log lines and the command's diagnostic lines are both made of):
+  (`foundation/the_queue_and_its_thread.rs`,
+  which the service's own log lines and the command's diagnostic lines are both made of,
+  through the caller's side in `foundation/lines_written_by_a_thread.rs`):
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;

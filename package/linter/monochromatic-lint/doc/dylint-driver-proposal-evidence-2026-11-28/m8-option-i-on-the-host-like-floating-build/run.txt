@@ -1,0 +1,86 @@
+== host clock 2026-11-28T06:46:59-05:00
+== image localhost/dylint-probe-base:2026-11-28b
+a3ae431b8d4ac064c61f1948bd0aa54601c71b769b19321629e031c25f0e256a
+== run status 0
+== clock 2026-11-28T11:47:02+00:00
+== toolchains before
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+== making the floating channel the 2026-11-17 build
+rustup default status 0
+== toolchains after
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+== active toolchain
+nightly-x86_64-unknown-linux-gnu (default)
+== floating rustc
+rustc 1.102.0-nightly (5df8c02af 2026-11-16)
+== floating components
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== cargo /usr/bin/cargo -> /usr/bin/rustup
+== rustc /usr/bin/rustc -> /usr/bin/rustup
+== sysroot the linter's probe reads, from the linter's working directory
+/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+== the toolchain name Dylint computes, in the library directory (no toolchain file)
+nightly-x86_64-unknown-linux-gnu (default)
+== no driver before the first arm
+find: '/root/.dylint_drivers': No such file or directory
+== arm A: the linter, no driver, the original library
+arm A status 0
+{"message":"rust/avoidable-closure skipped pkg: the Dylint driver for toolchain `nightly-x86_64-unknown-linux-gnu` at /root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver is absent (cargo-dylint is 6.4.0), and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache, so `cargo dylint` would have to download it, which this linter does not do; run `env --unset=CARGO_NET_OFFLINE cargo dylint --path lint-closure --manifest-path pkg/Cargo.toml -- --locked` once with network access (it writes the cargo registry and the Dylint driver directory, and is needed again after each cargo-dylint upgrade). Cargo's error: no matching package named `anyhow` found. Nothing in this 
+== arm B: the warm run that builds the library and the driver for the floating name
+arm B status 0 after 91s
+123:Building driver for toolchain `nightly-x86_64-unknown-linux-gnu`
+122:    Finished `release` profile [optimized] target(s) in 46.88s
+217:    Finished `dev` profile [unoptimized + debuginfo] target(s) in 38.85s
+275:    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.91s
+   = help: replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))] to the closure argument or to an enclosing item
+
+warning: `wg-quicker-exempt` (bin "wg-quicker-exempt") generated 6 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.91s
+--- git executions in arm B
+0
+0
+--- rustc executions in arm B
+    245 execve("/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc"
+--- driver tree
+/root/.dylint_drivers
+/root/.dylint_drivers/README.txt
+/root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu
+/root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver
+--- driver version
+nightly-x86_64-unknown-linux-gnu 6.4.0
+--- driver dynamic section
+ 0x000000000000001d (RUNPATH)            Library runpath: [/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib]
+ 0x0000000000000001 (NEEDED)             Shared library: [librustc_driver-5adf19dcd2f7d879.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+--- findings in the warm run
+0
+== arm C: the linter, offline, driver present, no exported toolchain
+arm C status 0
+{"message":"this closure captures `directory`, `application`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_targets.rs","labels":[{"span":{"offset":7146,"length":146,"line":202,"column":33}}],"related":[],"help":"replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = \"monochromatic_lint_closure\", expect(avoidable_closure, reason = \"...\"))] to the closure argument or to an enclosing item"}
+{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_watch_mark_reconciliation.rs","labels":[{"span":{"offset":1649,"length":43,"line":40,"column":14}}],"related":[],"help":"move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call"}
+{"message":"this closure captures `decision`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_watch_mark_reconciliation.rs","labels":[{"span":{"offset":1962,"length":60,"line":47,"column":17}}],"related":[],"help":"replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = \"monochromatic_lint_closure\", expect(avoidable_closure, reason = \"...\"))] to the closure argument or to an enclosing item"}
+{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_watch_mark_reconciliation.rs","labels":[{"span":{"offset":2526,"length":43,"line":62,"column":14}}],"related":[],"help":"move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call"}
+{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/keeper_process_identity.rs","labels":[{"span":{"offset":4978,"length":40,"line":142,"column":19}}],"related":[],"help":"move the body into a named function and pass the function's path; a closure is accepted only when it captures a variable and the callee keeps it past the call"}
+{"message":"this closure captures `full`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/update_routing_engine_construction_and_marks.rs","labels":[{"span":{"offset":2292,"length":36,"line":72,"column":39}}],"related":[],"help":"replace the closure with a named function that takes the state as parameters, or with a loop; if the callee keeps the state past the call, attach #[cfg_attr(dylint_lib = \"monochromatic_lint_closure\", expect(avoidable_closure, reason = \"...\"))] to the closure argument or to an enclosing item"}
+--- stderr
+== arm D: the same with --max-warnings 0
+arm D status 1
+{"message":"this closure captures `directory`, `application`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/src/application_targets.rs","labels":[{
+== done 2026-11-28T11:48:48+00:00
+== container run finished with 0
+time="2026-11-28T06:48:58-05:00" level=warning msg="StopSignal SIGTERM failed to stop container dylint-m8-2026-11-28b in 10 seconds, resorting to SIGKILL"
+dylint-m8-2026-11-28b
+== container removed
+== linter binary: 34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  -
+== host clock 2026-11-28T06:49:01-05:00

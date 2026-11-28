@@ -195,7 +195,19 @@ pub fn prune_stale_own_crates(
 ) -> Vec<PathBuf> {
     let report: PruneReport = prune_stale_own_crates_reporting(cargo_home, toolchain_roots);
     for (path, reason) in &report.failed {
-        eprintln!("mpm-shadow: could not delete {}: {reason}", path.display());
+        // What: the crate's notice writer reports a deletion that failed, one line per path,
+        //  and drops a write the stream refuses.
+        // Why: the doc above this function says the failure must not change the mpm run's exit code,
+        //  and a stream that refuses the line must not change it either.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // say(`mpm-shadow: could not delete ${path.display()}: ${reason}`);
+        // ```
+        crate::notices::say(&format!(
+            "mpm-shadow: could not delete {}: {reason}",
+            path.display()
+        ));
     }
     return report.deleted;
 }

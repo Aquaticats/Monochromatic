@@ -30,10 +30,14 @@
 //! and a name that any of those three calls no longer finds is gone,
 //! which is what this run wanted,
 //! and the run that took it named it.
-//! A temporary link this run cannot judge is kept and named once per rebuild:
+//! A temporary link this run cannot judge is kept and named once,
+//! up to the point the pass stops:
 //! it may belong to an install that still runs and that no run here can see,
 //! so the report says which name stayed and what deleting it by hand would cost,
 //! as `prune --toolchain` says of a hidden copy it cannot judge.
+//! A removal that fails stops the pass,
+//! so a rebuild that stops there names the names it reached before that removal
+//! and the next install names the ones after it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

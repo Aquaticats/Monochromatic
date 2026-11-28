@@ -18,7 +18,9 @@
 //!  and the record is a cache that a caller compares with live facts.
 //!  This file holds the directory and the record's own name,
 //!  and the refusals,
-//!  the write and the read each sit in the file named for the job they do,
+//!  the write,
+//!  the read and the withdrawal each sit in the file named for the job they
+//!  do,
 //!  so a reader can hold one job at a time.
 //!
 //! In TS you'd write (pseudocode):
@@ -67,7 +69,6 @@ use self::clone_mount_readiness_file_read::read_the_record;
 /// The refusal the directory,
 /// the write and the read answer with.
 pub use self::clone_mount_readiness_file_refusals::ReadinessFileRefusal;
-
 /// What:
 ///  Where one boot's readiness lives and which account must own it.
 /// Why:
@@ -111,6 +112,21 @@ impl ReadinessFile {
     /// The directory.
     pub fn directory(&self) -> &Path {
         return self.directory.as_path();
+    }
+
+    /// What:
+    ///  The account this record's directory and file must belong to.
+    /// Why:
+    ///   The withdrawal proves a directory and removes a name inside it,
+    ///  and only this file object knows which account the route requires there,
+    ///  so it is asked rather than a second constant that could drift from it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// file.owner(); // 0 at the installed place
+    /// ```
+    pub(crate) fn owner(&self) -> u32 {
+        return self.owner;
     }
 
     /// The record's own path.

@@ -13,6 +13,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
@@ -37,6 +38,10 @@ import {
 } from './adoption-fixture.ts';
 import { pullGuestLog, } from '../../bin/mvm-guest-detached-script.ts';
 import { detachedStep, } from './detached-step.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  The log the sweep arm writes inside the guest's shared folder.
@@ -113,7 +118,7 @@ export async function sweepArms({
     `mkdir --parents ${sweepCheckout}`,
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${sweepGuestVariable}=${chosen.name}`,
+    `export ${sweepGuestVariable}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${storePool}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${sweepCheckout}`,

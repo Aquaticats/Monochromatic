@@ -1,0 +1,37 @@
+package/linter/monochromatic-lint/src/closure_packages.rs:90 => pub fn is_sidecar_crate(directory: &Path) -> bool {
+package/linter/monochromatic-lint/src/closure_packages.rs:108 => pub fn group_packages(
+package/linter/monochromatic-lint/src/closure_step.rs:102 => fn missing_libraries(packages: &[ClosurePackage]) -> Vec<Diagnostic> {
+package/linter/monochromatic-lint/src/closure_findings.rs:178 => pub fn findings_from(
+package/linter/monochromatic-lint/src/run_command.rs:204 =>     findings.extend(closure.skips);
+package/linter/monochromatic-lint/src/run_command.rs:180 =>     let mut semantic: RustFileEngine = engine(options.debug);
+package/linter/monochromatic-lint/src/run_modes_rule_table.rs:116 =>         id: "rust/avoidable-closure",
+package/linter/monochromatic-lint/src/run_modes_rule_table.rs:122 =>     RuleInfo {
+package/linter/monochromatic-lint/src/closure_cargo.rs:385 => pub fn run_dylint(
+package/linter/monochromatic-lint/src/closure_cargo.rs:400 =>         .env("CARGO_NET_OFFLINE", "true")
+package/linter/monochromatic-lint/src/closure_cargo.rs:320 => pub fn dependencies_missing(
+package/linter/monochromatic-lint/src/closure_probe.rs:247 => pub fn prepare(
+package/linter/monochromatic-lint/src/closure_driver_probe.rs:69 => fn dylint_drivers_directory(home: &Path) -> PathBuf {
+package/linter/monochromatic-lint/src/closure_driver_probe.rs:110 => pub fn driver_site_from_environment() -> DriverSite {
+package/linter/monochromatic-lint/src/closure_driver_probe.rs:162 => pub(crate) fn active_toolchain(
+package/linter/monochromatic-lint/src/closure_driver_probe.rs:205 => pub(crate) fn driver_version(driver: &Path) -> Option<(u64, u64, u64)> {
+package/linter/monochromatic-lint/src/closure_driver_probe.rs:249 => pub(crate) fn driver_unresolved(
+package/linter/monochromatic-lint/src/closure_driver_probe.rs:302 => fn resolve_probe(
+package/linter/monochromatic-lint/src/closure_binary_tests.rs:728 => fn host_real_run_over_wg_quicker_exempt() {
+package/linter/monochromatic-lint/src/closure_binary_tests.rs:760 =>     // Positive control: with every target compiled, the same library does report test code.
+package/linter/monochromatic-lint/README.md:384 => or the working directory for `--config`):
+package/linter/monochromatic-lint/README.md:513 => `--max-warnings` counts it,
+package/linter/monochromatic-lint/README.md:475 => A skip is reported as a finding of the rule `rust/avoidable-closure` at warning severity,
+package/linter/monochromatic-lint/README.md:487 => The same holds for the Dylint driver,
+package/linter/monochromatic-lint/README.md:529 => A `cargo` that is not on the machine at all stays a skip.
+package/linter/monochromatic-lint/mise.toml:77 => [tasks."test:host"]
+package/linter/monochromatic-lint-closure/mise.toml:53 => [tasks.run]
+package/linter/monochromatic-lint-closure/.cargo/config.toml:1 => [target.'cfg(all())']
+monochromatic-lint.config.jsonc:33 =>       // Type-aware closure check: the linter runs the Dylint library below once per Cargo package (see
+package/mpm-shadow/cli/src/toolchain/scope.rs:42 => pub const REPO_MISE_ENV_FILE_RELATIVE: &str = ".config/mise/conf.d/30-toolchain-env.local.toml";
+package/mpm-shadow/cli/README.md:797 =>   It reads only the plan and the file system.
+package/monorepo-task/core-exec/src/repo-tools-setup-archives.ts:45 => export const KNOWN_TOOLS: ReadonlySet<string> = new Set([
+package/monorepo-task/core-exec/src/repo-tools-setup.ts:138 =>   if (!KNOWN_TOOLS.has(tool,)) {
+doc/troubleshooting/ci-steps-do-not-see-the-toolchain-environment.md:25 => Two mise files read those outputs locally:
+doc/planning/linter-selective-anonymous-functions.md:150 =>   14 pass (all `thread::spawn` and
+doc/planning/linter-selective-anonymous-functions.md:277 =>   positive-control test because the TypeScript `no-class` allow-list option was once silently ignored
+doc/planning/linter-selective-anonymous-functions.md:304 => - **Dependency graph:**

@@ -1335,6 +1335,18 @@ mod zfs_step_21_repair_readings;
 #[path = "binary_zfs_step_21_watch_arm.rs"]
 mod zfs_step_21_watch_arm;
 
+/// Plan step 22's sweep cost past 64 clones in the throwaway guest:
+/// the spread on unchanged input first,
+/// then every count beside the record's own largest one in the same round.
+#[path = "binary_zfs_step_22_large_parent_guest_tests.rs"]
+mod zfs_step_22_large_parent;
+
+/// Plan step 22's pinned-output arm in the throwaway guest:
+/// incompressible bytes pinned by an hourly snapshot and overwritten after it,
+/// and what a clone's removal and the snapshot's expiry free.
+#[path = "binary_zfs_step_22_pinned_output_guest_tests.rs"]
+mod zfs_step_22_pinned_output;
+
 /// The refusal path of the installed name and the words,
 /// and the marker a start that reached the wrapper writes.
 #[path = "binary_root_mode_name_tests.rs"]
@@ -1343,6 +1355,15 @@ mod root_mode_name;
 /// Plan step 9's staging mechanics in the throwaway guest.
 #[path = "binary_zfs_unmount_guest_tests.rs"]
 mod zfs_unmount_guest;
+
+/// Plan step 19's shutdown pass as root against a real pool:
+///  the idle clone
+/// unmounted,
+///  the busy one kept and named,
+///  and this boot's readiness withdrawn
+/// before either.
+#[path = "binary_zfs_shutdown_unmount_guest_tests.rs"]
+mod zfs_shutdown_unmount_guest;
 
 /// Plan step 13's managed Git lock in the throwaway guest:
 /// Git's own lock,
