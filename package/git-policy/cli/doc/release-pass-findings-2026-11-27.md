@@ -1482,3 +1482,126 @@ and the guest arm is where that half of the claim belongs.
 - No whole container gate and no independent review ran.
   The two vendor-mates make this a second pass,
   not an independent review.
+
+### The files this round changed
+
+Code:
+
+- `removal_completion_head_gone.rs`:
+  the person's lock is read first on the
+  head-gone path,
+  through `the_locks_answer` with the run's force count,
+  and the line a two-force run prints about the lock it deleted goes into the report's
+  forced acts.
+  The module doc no longer says nothing is destroyed on this path.
+- `removal_force_refusal_sentences.rs`:
+  the sentence a person's lock refuses
+  with.
+- `worktree_copy_forward.rs`:
+  `the_removal_ended_well` decides the two steps
+  after a removal,
+  and its doc says which three removals the wrapper serves.
+- `worktree_removal_said_before_it_runs.rs`,
+  new:
+  the two opening lines,
+  `say_then_run_the_removal`,
+  and their controls in
+  `worktree_removal_said_before_it_runs_tests.rs`,
+  new.
+- `worktree_removal_of_a_bound_clone.rs`:
+  the live arm says its lines before it
+  runs the removal and returns only the removal's report,
+  and the opening lines
+  and the resume sentence moved to the file above.
+- `worktree_copying/mod.rs`:
+  the folder's list of its files and the `pub mod`
+  line for the new file.
+- `removal_completion_tests.rs`:
+  the two lock controls,
+  one of them red before
+  the change.
+- `worktree_copy_forward_tests.rs`:
+  the finished-removal control,
+  red before the
+  change.
+
+Records:
+
+- `SPEC.md`:
+  the lock's paragraph in the typed-network section,
+  the lock's paragraph in "Removal of a ZFS worktree clone",
+  and a paragraph saying the
+  removal says it runs before it runs.
+- `README.md`:
+  the lock's paragraph,
+  the passage about a removed worktree's
+  units,
+  and the paragraph about what a bound slot's removal says and does.
+- `the_lock_a_removal_refuses.rs` and `removal_entry.rs`:
+  the two code documents
+  that repeated the old wording.
+- `worktree_removal_stops_units.rs`:
+  the module doc names the third removal.
+
+### The checks this round ran
+
+Every build,
+lint and test ran in its own `systemd-run --user --scope --slice=agent-work.slice`
+with a memory,
+CPU,
+task and I/O bound and a deadline.
+Every wrapper test and every run of a built wrapper carried
+`env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a folder of this round's
+own>`.
+
+- `cargo fmt --check`:
+  no output.
+- `cargo check --locked --offline --all-targets`:
+  finished,
+  exit 0.
+- `cargo clippy --locked --offline --all-targets -- -D warnings`:
+  finished,
+  exit 0.
+- `cargo clippy --locked --offline --all-targets --features test-only-switches
+  -- -D warnings`:
+  finished,
+  exit 0.
+- The modules this round changed,
+  threaded,
+  with the guide's flags:
+  `worktree_clone_removal_proof_and_plan::removal_completion::tests`
+  (`12 passed; 0 failed`),
+  `worktree_clone_removal_proof_and_plan::removal_entry::tests`
+  (`10 passed; 0 failed`),
+  `worktree_copying::worktree_copy_forward::tests`
+  (`11 passed; 0 failed`),
+  `worktree_copying::worktree_removal_said_before_it_runs`
+  (`3 passed; 0 failed`),
+  and `worktree_copying::worktree_removal_of_a_bound_clone::tests`
+  (`23 passed; 0 failed`).
+- The whole `source_guard` module:
+  `236 passed; 0 failed`.
+- The repository's linter over `package/git-policy/cli`:
+  no finding the tree did not already hold.
+  The tree this round merged held twelve `rust/folder-uses-links` findings,
+  all of them the cancel and settle wiring the 2026-11-28 amendment lets stand,
+  thirteen `rust/max-lines` findings in files of `foundation/`,
+  `health/`,
+  `invocation/` and `worktree/`,
+  and one `rust/avoidable-closure` line saying the rule was skipped on this host
+  for want of its Dylint driver.
+  The same findings stand after the change,
+  and none of them is in a file this round touched or on a line it wrote.
+
+### What could not be run, and why
+
+- No guest:
+  this machine's home is on a ZFS pool and no record authorizes a run
+  to work on it,
+  and the brief asks for no guest.
+- No command opened `/dev/zfs`,
+  changed ZFS,
+  mounted anything,
+  used `sudo` or started a service manager.
+- No whole container gate,
+  no mutation campaign and no independent review.

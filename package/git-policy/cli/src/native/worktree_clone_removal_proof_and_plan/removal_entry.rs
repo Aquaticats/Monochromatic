@@ -317,7 +317,7 @@ pub fn enter_the_removal_with_force(
 /// Why:
 ///  The read-only reading and the writing entry take these steps in one order,
 ///  so a refusal cannot name one check here and another there,
-///  and everything a removal decides before its first write is decided in one place.
+///  and everything a removal decides before the plan it writes is decided in one place.
 ///
 /// # Throws
 /// The check that refused,
