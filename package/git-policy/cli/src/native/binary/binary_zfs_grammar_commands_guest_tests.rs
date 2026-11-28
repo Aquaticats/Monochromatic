@@ -7,8 +7,9 @@
 //!  Both commands read `/dev/zfs` and this process's mount table,
 //!  so no control on a person's machine may run them against a pool it did not
 //!  build,
-//!  and the words are the grammar's, so only a run through the wrapper shows
-//!  what a person is told and what status they read
+//!  and the words are the grammar's,
+//!  so only a run through the wrapper shows what a person is told and what status
+//!  they read
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17").
 //!  The states are the ones the two commands' own arms make:
@@ -152,7 +153,8 @@ fn the_wrapper() -> Command {
     return command;
 }
 
-/// One command's answer from the built wrapper, both streams read.
+/// One command's answer from the built wrapper,
+/// both streams read.
 fn said(
     checkout: &Path,
     arguments: &[&str],
@@ -202,7 +204,8 @@ struct TheFixture {
 
 impl TheFixture {
     /// What:
-    ///  Build the layout, the registration and the clone,
+    ///  Build the layout,
+    ///  the registration and the clone,
     ///  attach the clone at its slot,
     ///  and publish the add's record of it.
     /// Why:
@@ -342,8 +345,8 @@ impl RemovalUnmount for ADoneUnmount {
 ///  the clone unmounted,
 ///  and a plan whose owner no longer runs.
 /// Why:
-///  A live owner is a running removal, which the cancel command refuses by
-///  design,
+///  A live owner is a running removal,
+///  which the cancel command refuses by design,
 ///  and a pid above `pid_max` cannot be alive,
 ///  so the record is the same one the entry wrote with a dead owner.
 fn the_state_a_kill_leaves(fixture: &TheFixture) {

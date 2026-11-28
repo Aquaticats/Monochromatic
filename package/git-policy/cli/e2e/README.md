@@ -1308,7 +1308,8 @@ and each one starts the built wrapper through a `git` link in a fixture search
 path with an environment that names no session bus.
 
 The arms live in `src/native/binary/binary_zfs_grammar_commands_guest_tests.rs`
-and run one at a time, one `native_binary` nextest run each,
+and run one at a time,
+one `native_binary` nextest run each,
 because each builds the design's checkout and its clone over the same pool:
 the cancel word's refusal of a slot no removal has touched,
 the settling word's refusal of a clone that still stands and its settlement of a
