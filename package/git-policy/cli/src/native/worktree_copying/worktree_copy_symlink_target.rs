@@ -1,7 +1,7 @@
 //! What:
 //!  The target a copied symbolic link must hold so that it names,
 //!  at the new place the copy is installed at,
-//! what it named where it was read,
+//!  what it named where it was read,
 //!  and the rule that tells two links naming one place from two that do not.
 //! Why:
 //!  A link's text is a path read from the directory the link sits in,

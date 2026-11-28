@@ -42,6 +42,8 @@ use super::publish::{
 };
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
+/// Imports the check that every declared bin name fits the exposure folder's file system.
+use super::the_bin_names_the_exposure_folder_can_hold::refuse_bin_names_the_exposure_folder_cannot_hold;
 
 /// What:
 /// The parsed plan,
@@ -89,6 +91,18 @@ pub fn load(scope: &Scope) -> Result<Loaded, ToolchainError> {
         }
     };
     let plan: Plan = parse_plan(&plan_text, &scope.plan_file.display().to_string())?;
+    // What:
+    // the refusal of a bin name the exposure folder's file system cannot hold a link's temporary name for.
+    // Why:
+    // The name is refused where the plan is read,
+    // before an install downloads anything,
+    // and the failure names the row and the bin rather than the temporary link the write would have failed on.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // refuseBinNamesTheExposureFolderCannotHold(plan, scope);
+    // ```
+    refuse_bin_names_the_exposure_folder_cannot_hold(&plan, scope)?;
     let lock_bytes: Option<Vec<u8>> = read_optional(&scope.lock_file)?;
     let mut lock: Option<ParsedLock> = None;
     let mut lock_text: Option<String> = None;

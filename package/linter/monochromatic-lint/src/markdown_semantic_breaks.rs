@@ -26,15 +26,20 @@ use crate::markdown_block_start::starts_block_construct;
 use crate::markdown_break_points::break_offsets;
 /// Import the processing-failure finding a rule reports when the document's structure cannot be walked.
 use crate::markdown_finding::structure_failure;
-/// Import the constructor that reports a document the break planner cannot read.
+/// Import the fragment joins that put a word the old hard wrap cut back with its clause.
+use crate::markdown_fragment_joins::{
+    FragmentJoin,
+    fragment_joins,
+};
+/// Import the prose-context helpers that locate each paragraph and the prefix its lines are written with.
 use crate::markdown_prose_context::{
-    continuation_prefix,
+    continuation_indent,
     delimiter_tail,
     paragraph_for,
 };
-/// Import the prose-context helpers that locate each paragraph and its continuation prefix.
-use crate::markdown_source::MarkdownSource;
 /// Import the parsed Markdown source that paragraphs are read from.
+use crate::markdown_source::MarkdownSource;
+/// Import the node kind catalog the rule reads paragraphs and text nodes by.
 use satteri_ast::mdast::MdastNodeType;
 
 /// Whether a character is whitespace to a JavaScript `trim`,
@@ -57,7 +62,8 @@ fn is_tag_like_paragraph(
 }
 
 /// Report missing line breaks at their insertion points,
-///  not at the paragraph's beginning.
+///  not at the paragraph's beginning,
+///  and join a fragment the old hard wrap cut back with the clause it belongs to.
 pub fn semantic_line_breaks(
     context: &MarkdownSource,
     severity: Severity,
@@ -69,6 +75,10 @@ pub fn semantic_line_breaks(
         "\n"
     };
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
+    // One paragraph's breaks,
+    //  each with the separator space the break replaces;
+    //  paragraphs arrive in document order and their breaks in source order.
+    let mut planned: Vec<(u32, Vec<(usize, usize)>)> = Vec::<(u32, Vec<(usize, usize)>)>::new();
     for id in context.visible_nodes() {
         if context.kind(*id) != MdastNodeType::Text {
             continue;
@@ -99,7 +109,6 @@ pub fn semantic_line_breaks(
         // Borrow the complete trailing source instead of limiting whitespace lookahead.
         let trailing: &str = &context.source[tail_end..paragraph_end];
         let written: &str = context.slice(*id);
-        let prefix: String = continuation_prefix(context, paragraph);
         for relative in break_offsets(written, trailing, is_paragraph_tail) {
             // A text-tail break belongs after all actual closing delimiters, never inside them.
             let at: usize = if relative == written.len() {
@@ -114,21 +123,55 @@ pub fn semantic_line_breaks(
             //  keeping it would open every continuation line with a stray space.
             //  A break at the very end of a line has no space after it.
             let separator: usize = usize::from(context.source.as_bytes().get(at) == Some(&b' '));
+            match planned.last_mut() {
+                Some((last_paragraph, breaks)) if *last_paragraph == paragraph => {
+                    breaks.push((at, separator));
+                }
+                _ => planned.push((paragraph, vec![(at, separator)])),
+            }
+        }
+    }
+    for (paragraph, breaks) in planned {
+        let prefix: String = continuation_indent(context, paragraph);
+        let (_, paragraph_end): (usize, usize) = context.offsets(paragraph);
+        // The text a break leaves on its own line starts one separator past the break point.
+        let fragments: Vec<usize> = breaks
+            .iter()
+            .map(|(at, separator)| return at + separator)
+            .collect::<Vec<usize>>();
+        let joins: Vec<Option<FragmentJoin>> = fragment_joins(
+            context.source.as_str(),
+            paragraph_end,
+            fragments.as_slice(),
+            prefix.chars().count(),
+            context.host_prefix_chars,
+        );
+        for (index, (at, separator)) in breaks.iter().enumerate() {
+            // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.
+            let mut edits: Vec<Edit> = vec![Edit {
+                start: *at,
+                end: *at + separator,
+                replacement: format!("{newline}{prefix}"),
+            }];
+            // The join belongs to the break that cut the fragment,
+            //  so a fix that is refused takes its join with it and leaves the text as it was.
+            if let Some(join) = &joins[index] {
+                edits.push(Edit {
+                    start: join.start,
+                    end: join.end,
+                    replacement: String::from(" "),
+                });
+            }
             let mut diagnostic: Diagnostic = Diagnostic::new(
                 "markdown/semantic-line-breaks",
                 severity,
                 String::from("A line break belongs here, after a prose break-point character."),
                 context.filename.clone(),
-                context.span(at, 0),
+                context.span(*at, 0),
             );
-            // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.
             diagnostic.fix = Some(Fix {
                 class: FixClass::Whitespace,
-                edits: vec![Edit {
-                    start: at,
-                    end: at + separator,
-                    replacement: format!("{newline}{prefix}"),
-                }],
+                edits,
             });
             findings.push(diagnostic);
         }

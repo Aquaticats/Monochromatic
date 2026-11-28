@@ -1,0 +1,8 @@
+   Compiling monochromatic-lint-closure v0.0.0 (/work/repo/lint-closure-k)
+    Finished `release` profile [optimized] target(s) in 53.41s
+Building driver for toolchain `nightly-2026-11-16-x86_64-unknown-linux-gnu`
+   Compiling dylint_driver-nightly-2026-11-16-x86_64-unknown-linux-gnu v0.1.0 (/work/tmp/.tmpPOZYG4)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 39s
+Checking with toolchain `nightly-2026-11-16-x86_64-unknown-linux-gnu`
+warning: `wg-quicker-exempt` (bin "wg-quicker-exempt") generated 6 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.33s

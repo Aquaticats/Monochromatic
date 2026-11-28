@@ -9,20 +9,20 @@
 //!  origin is not marked,
 //!  and refuses otherwise
 //!  (`doc/decision/cli-git-zfs-worktree-design.md`,
-//! "What was decided",
+//!  "What was decided",
 //!  and the proposal,
-//! "Clone removal identity protection").
+//!  "Clone removal identity protection").
 //!  The check reads by the planned names and compares field by field in one order,
 //!  stopping at the first disagreement,
 //!  so the mark is only ever judged on the snapshot whose own reply proved its identity:
 //!  a mark read from a replacement proves nothing about the planned snapshot
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 //!  "What the check reads,
-//! in order").
+//!  in order").
 //!  The check sends no request of its own kind and writes nothing;
 //!  three object-stats reads are its whole cost
 //!  (the same design,
-//! "Reading the mark" and veto V5).
+//!  "Reading the mark" and veto V5).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -148,18 +148,17 @@ fn refused_read(
 ///  destroy.
 /// Why:
 ///  A removal calls this before every snapshot request,
-/// each chunk of a split included,
-/// and
-///  again before the head destroy,
+///  each chunk of a split included,
+///  and again before the head destroy,
 ///  so no request of this route is sent over an origin somebody marked or over an object the
 ///  removal did not plan
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 ///  "One check,
-/// called at every snapshot request and before the head destroy").
+///  called at every snapshot request and before the head destroy").
 ///  A first call site is skipped only when the run sends no snapshot request at all,
 ///  and the head check then keeps the guarantee for the one delete that is left
 ///  (the same design,
-/// veto V1).
+///  veto V1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -301,10 +300,10 @@ pub fn check_planned_origin(
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 ///  "The look before the unmount").
 ///  It runs once per removal,
-/// on a first run only,
+///  on a first run only,
 ///  and a retry over a kept plan is refused by the check instead,
 ///  with the plan's loss in its message (the same design,
-/// veto V11).
+///  veto V11).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

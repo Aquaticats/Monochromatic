@@ -12,8 +12,12 @@
 //! a method,
 //!  and a `pub use` over several lines were all invisible).
 //!  Each control here names one shape and shows what the reader answers for it,
-//!  and the last control pins the shapes it still answers nothing for,
+//!  and `what_this_reading_cannot_see_stays_out_of_the_surface` pins the shapes it still answers nothing for,
 //!  so a later change to the reading has to change the reader's own doc with it.
+//!  Three shapes the reading answers for are pinned beside them:
+//!  a `mod` line it cannot place stops the scan rather than shortening the tree in silence,
+//!  a member of a type a `pub use` publishes is read at the facade path,
+//!  and a name behind a feature gate is read as a name of the release surface.
 
 use super::nameable_items_of_a_source_tree_tests::surface_of;
 use crate::source_scan_tests::write_tree;
@@ -412,19 +416,14 @@ fn a_bare_re_export_is_read_from_the_module_that_writes_it() {
 /// and each shape below is named in the reader's own doc with the reason it is out:
 /// a trait's method,
 /// an enum's variant,
-/// a field written in a tuple-like struct's parentheses,
-/// a member of a type published only through a `pub use` facade,
-/// and the names a glob stands for.
+/// and a field written in a tuple-like struct's parentheses.
 #[test]
 fn what_this_reading_cannot_see_stays_out_of_the_surface() {
     let root = fixture("surface-shapes-not-read");
     write_tree(
         &root,
         &[
-            (
-                "lib.rs",
-                "pub mod outer;\nmod facade;\npub use self::facade::Carried;\n",
-            ),
+            ("lib.rs", "pub mod outer;\n"),
             (
                 "outer.rs",
                 "pub trait Asked {\n\
@@ -436,17 +435,296 @@ fn what_this_reading_cannot_see_stays_out_of_the_surface() {
                  pub struct Wrapped(pub u8);\n\
                  pub fn seen() {}\n",
             ),
-            ("facade.rs", "pub struct Carried {\n    pub field: u8,\n}\n"),
         ],
     );
     assert_eq!(
         keys_of(&root),
         vec![
-            String::from("crate pub use self::facade::Carried"),
             String::from("outer enum Chosen"),
             String::from("outer fn seen"),
             String::from("outer struct Wrapped"),
             String::from("outer trait Asked"),
         ]
+    );
+}
+
+/// A `mod` line this reading cannot place stops the scan,
+/// rather than leaving its module out of the tree in silence.
+/// Why:
+///  a skipped declaration shortens the surface by every name its module publishes,
+///  and the reading's own doc says such a line is an error;
+///  these are the three shapes no reader of this file places,
+///  and the tree holds none of them on 2026-11-27.
+#[test]
+fn a_mod_line_the_reading_cannot_place_stops_the_scan() {
+    for (name, declaration) in [
+        (
+            "surface-unreadable-mod-restricted",
+            "pub(in crate::outer) mod inner;",
+        ),
+        ("surface-unreadable-mod-self", "pub(self) mod inner;"),
+        (
+            "surface-unreadable-mod-comment",
+            "mod inner; // the module a split made",
+        ),
+    ] {
+        let root = fixture(name);
+        let outer: String = format!("{declaration}\npub fn seen() {{}}\n");
+        write_tree(
+            &root,
+            &[
+                ("lib.rs", "pub mod outer;\n"),
+                ("outer.rs", outer.as_str()),
+                ("outer/inner.rs", "pub fn kept_inside() {}\n"),
+            ],
+        );
+        match surface_of(&root) {
+            Ok(surface) => panic!(
+                "`{declaration}` is no declaration this reading places, so the scan must stop; it answered {} item(s)",
+                surface.items.len()
+            ),
+            Err(error) => assert!(
+                error.contains(declaration),
+                "the error names the line it could not place: {error}"
+            ),
+        }
+    }
+}
+
+/// A `pub` member of a type a `pub use` publishes is a name a consumer reaches,
+/// so the reader keys it by the path the facade gives the type.
+#[test]
+fn a_member_of_a_type_a_facade_publishes_is_read_at_the_facade_path() {
+    let root = fixture("surface-members-of-carried-types");
+    write_tree(
+        &root,
+        &[
+            (
+                "lib.rs",
+                "pub mod outer;\nmod facade;\npub use self::facade::Carried;\n",
+            ),
+            ("outer.rs", "pub enum Reached {\n    First,\n}\n"),
+            (
+                "facade.rs",
+                "pub struct Carried {\n\
+                 \x20   pub field: u8,\n\
+                 }\n\
+                 impl Carried {\n\
+                 \x20   pub fn method(&self) -> u8 {\n\
+                 \x20       return self.field;\n\
+                 \x20   }\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("crate field Carried::field"),
+            String::from("crate fn Carried::method"),
+            String::from("crate pub use self::facade::Carried"),
+            String::from("outer enum Reached"),
+        ]
+    );
+}
+
+/// A facade may name its module through the glob the crate root re-exports,
+/// which is how `crate::the_guarded_commands` names `command::the_guarded_commands`.
+#[test]
+fn a_member_of_a_type_a_facade_reaches_through_the_roots_glob_is_read() {
+    let root = fixture("surface-facade-through-the-roots-glob");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod command;\npub use command::*;\n"),
+            ("command/mod.rs", "pub mod facade;\npub(crate) mod inner;\n"),
+            ("command/facade.rs", "pub use crate::inner::Thing;\n"),
+            (
+                "command/inner.rs",
+                "pub struct Thing {\n    pub field: u8,\n}\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("command::facade field Thing::field"),
+            String::from("command::facade pub use crate::inner::Thing"),
+        ]
+    );
+}
+
+/// Members are matched by a type's bare name,
+/// so a private type that shares a published type's name has its `pub` members read as published.
+/// Why:
+///  the reader keys a type by the name its declaration writes,
+///  so this is a limit of the reading and not a name a consumer reaches.
+#[test]
+fn a_private_type_sharing_a_published_types_name_has_its_members_read() {
+    let root = fixture("surface-same-name-in-two-modules");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "pub struct Shared {\n    pub seen: u8,\n}\nmod inside;\n",
+            ),
+            (
+                "outer/inside.rs",
+                "pub struct Shared {\n    pub reached_by_no_one: u8,\n}\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer field Shared::seen"),
+            String::from("outer struct Shared"),
+            String::from("outer::inside field Shared::reached_by_no_one"),
+        ]
+    );
+}
+
+/// A macro the crate publishes with `#[macro_export(local_inner_macros)]` is a name,
+/// whatever stands inside the attribute's parentheses.
+/// Why:
+///  the attribute was read as the exact text `#[macro_export]`,
+///  so this form published a macro with no line in the list beside this reader
+///  (the alpha.52 read's L1).
+#[test]
+fn a_macro_export_with_parentheses_is_a_name() {
+    let root = fixture("surface-macro-export-with-parentheses");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "#[macro_export]\n\
+                 macro_rules! plain {\n\
+                 \x20   () => {};\n\
+                 }\n\
+                 #[macro_export(local_inner_macros)]\n\
+                 macro_rules! local {\n\
+                 \x20   () => { plain!() };\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer macro_rules local"),
+            String::from("outer macro_rules plain"),
+        ]
+    );
+}
+
+/// An attribute and a `pub` item written on one line publish the item,
+/// and a test gate on that line still keeps it out of the surface.
+/// Why:
+///  a line that started with `#[` was taken for an attribute and never read as a declaration,
+///  so the item it carried published a name with no line
+///  (the alpha.52 read's L1).
+#[test]
+fn an_item_on_its_attributes_line_is_a_name() {
+    let root = fixture("surface-item-on-its-attribute-line");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "#[inline] pub fn inlined() {}\n\
+                 #[allow(dead_code)] pub struct Held;\n\
+                 #[macro_export] macro_rules! exported {\n\
+                 \x20   () => {};\n\
+                 }\n\
+                 #[cfg(test)] pub fn only_in_the_test_build() {}\n\
+                 pub fn plain() {}\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer fn inlined"),
+            String::from("outer fn plain"),
+            String::from("outer macro_rules exported"),
+            String::from("outer struct Held"),
+        ]
+    );
+}
+
+/// An `impl` whose own generics run over several lines publishes the members of its type,
+/// which is the header `rustfmt` writes for a long generic list.
+/// Why:
+///  the type was read from the `impl` line alone,
+///  so a header with no `>` on it named no type and its body was not read
+///  (the alpha.52 read's L1).
+#[test]
+fn an_impl_whose_generics_run_over_several_lines_publishes_its_members() {
+    let root = fixture("surface-impl-generics-over-lines");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "pub struct Published<\n\
+                 \x20   'a,\n\
+                 \x20   T: Clone,\n\
+                 > {\n\
+                 \x20   pub held: &'a T,\n\
+                 }\n\
+                 impl<\n\
+                 \x20   'a,\n\
+                 \x20   T: Clone,\n\
+                 > Published<'a, T> {\n\
+                 \x20   pub fn seen(&self) -> &'a T {\n\
+                 \x20       return self.held;\n\
+                 \x20   }\n\
+                 }\n\
+                 struct Hidden<T> {\n\
+                 \x20   held: T,\n\
+                 }\n\
+                 impl<\n\
+                 \x20   T: Clone,\n\
+                 > Hidden<T> {\n\
+                 \x20   pub fn reached_by_nothing(&self) {}\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer field Published::held"),
+            String::from("outer fn Published::seen"),
+            String::from("outer struct Published"),
+        ]
+    );
+}
+
+/// A name behind a feature gate is published by the build that turns the feature on,
+/// and a gate keeps a name out only where it holds only when testing.
+#[test]
+fn a_name_behind_a_feature_gate_is_published() {
+    let root = fixture("surface-feature-gated-names");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "#[cfg(feature = \"a-build-that-turns-it-on\")]\npub fn only_with_the_feature() {}\n\
+                 #[cfg(test)]\npub fn only_in_the_test_build() {}\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![String::from("outer fn only_with_the_feature")]
     );
 }

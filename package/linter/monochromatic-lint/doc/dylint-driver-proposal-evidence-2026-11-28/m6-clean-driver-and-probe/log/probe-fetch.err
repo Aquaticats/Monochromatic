@@ -1,0 +1,11 @@
+    Updating crates.io index
+     Locking 76 packages to highest compatible versions
+ Downloading crates ...
+  Downloaded windows-link v0.2.1
+  Downloaded once_cell_polyfill v1.70.2
+  Downloaded anstyle-wincon v3.0.11
+  Downloaded jiff-static v1.0.3
+  Downloaded portable-atomic-util v0.2.8
+  Downloaded r-efi v6.0.0
+  Downloaded portable-atomic v1.15.0
+  Downloaded windows-sys v0.61.2

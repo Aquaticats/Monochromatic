@@ -7,6 +7,9 @@
 //!  `kept-references` lists the references the wrapper keeps commits on,
 //!  with what the next pruning would take,
 //!  and runs one pruning with `--prune`;
+//!  `cancel-worktree-removal` and `settle-worktree-clone-record` are the ZFS
+//!  route's two words,
+//!  each reading its own operands;
 //!  `trust`,
 //!  `untrust` and
 //!      `status` are retired with executable configuration and only explain that.
@@ -21,6 +24,24 @@
 use crate::subvolume_arguments::{
     MigrateArguments,
     parse_migrate_arguments,
+};
+/// The word the grammar reads for the settling command.
+use crate::worktree_clone_cancel_and_settle_commands::the_settling_commands_word::SETTLE_COMMAND_WORD;
+use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
+/// The grammar of `git monochromatic-git-policy-cli settle-worktree-clone-record`,
+/// which settles a slot whose recorded clone is gone.
+use crate::worktree_clone_record_settling::settling_request::{
+    SettlingRequest,
+    parse_settling_arguments,
+};
+/// What:
+///  The grammar of `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
+///  which plan step 17 builds the removal's way back with.
+use crate::worktree_clone_removal_cancel::cancel_arguments::{
+    CANCEL_COMMAND_WORD,
+    CancelInvocation,
+    CancelMistake,
+    parse_cancel_arguments,
 };
 use crate::worktree_convert_arguments::{
     ConvertArguments,
@@ -58,6 +79,8 @@ Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--poli
        git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
        git monochromatic-git-policy-cli zfs-root <mode>   (run as root; --help lists the modes)
+       git monochromatic-git-policy-cli cancel-worktree-removal <slot>
+       git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <digits>
        git monochromatic-git-policy-cli --help
 ";
 
@@ -92,6 +115,10 @@ Commands:
            shutdown units start, and the words every root mode is reached through, as
            `monochromatic-git-policy-cli zfs-root <mode>`. The modes run as root and read the
            checkout record root wrote; a read-only question needs no root.
+  cancel-worktree-removal
+           Undo one removal of a worktree clone that did not finish, and report what it destroyed.
+  settle-worktree-clone-record
+           Remove the records of a slot whose clone is gone, once you confirm the record.
 
 Scope (exactly one):
   --all             The whole repository.
@@ -185,6 +212,14 @@ pub enum ManagementAction {
         /// Whether `--prune` asked for the pruning itself.
         prune: bool,
     },
+    /// `cancel-worktree-removal`:
+    /// the cancellation's own usage or one request,
+    /// or the reason the words are not its grammar.
+    CancelWorktreeRemoval(Result<CancelInvocation, CancelMistake>),
+    /// `settle-worktree-clone-record`:
+    /// the three values a person confirmed,
+    /// or the stop that reads them as wrong.
+    SettleWorktreeCloneRecord(Result<SettlingRequest, SettlingStop>),
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,
@@ -514,6 +549,18 @@ pub fn parse_management_arguments(
             }),
             _ => Err(ManagementRefusal::Usage),
         };
+    }
+    // The two ZFS route words read their own operands, so a wrong word inside them answers the
+    // condition's own sentence and status rather than the namespace's usage.
+    if name == CANCEL_COMMAND_WORD {
+        return Ok(ManagementAction::CancelWorktreeRemoval(
+            parse_cancel_arguments(rest),
+        ));
+    }
+    if name == SETTLE_COMMAND_WORD {
+        return Ok(ManagementAction::SettleWorktreeCloneRecord(
+            parse_settling_arguments(rest),
+        ));
     }
     if name == "check" {
         return parse_direct(false, rest);

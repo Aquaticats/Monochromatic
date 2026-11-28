@@ -45,7 +45,7 @@ fn shown(common_dir: &Path) -> Vec<String> {
 
 /// What:
 ///  A kept worktree is named with its path,
-/// its branch and its reason,
+///  its branch and its reason,
 ///  and a second command finds nothing.
 /// Why:
 ///  The person has to be able to act on the line,

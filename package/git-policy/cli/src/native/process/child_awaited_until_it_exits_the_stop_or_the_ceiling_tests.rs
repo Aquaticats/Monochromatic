@@ -578,14 +578,14 @@ fn a_step_the_kernel_holds_that_ends_after_the_bound_is_reported_by_its_own_stat
 /// Why:
 ///   Finding 1 of the 2026-11-12 review of the stand-aside:
 ///  a look that failed answered `None`,
-/// which was the same answer as a step the kernel does not hold,
+///  which was the same answer as a step the kernel does not hold,
 ///  so this wait killed a held step at the usual ceiling and a commit that would have landed failed.
 ///  A look that could not be made decides nothing:
 ///  the ceiling stays armed,
-/// the look is made again,
-/// and the step is waited for.
+///  the look is made again,
+///  and the step is waited for.
 ///  The look that cannot be made is the first one,
-/// which is the ceiling's own;
+///  which is the ceiling's own;
 ///  the real state of a process cannot be stated on this host
 ///  (`commit/scratch_step_look_below_control_window.rs`).
 ///

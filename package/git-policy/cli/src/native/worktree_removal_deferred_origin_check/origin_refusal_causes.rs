@@ -11,7 +11,7 @@
 //!  they do not change the decision,
 //!  and the words say what the kernel's code says rather than what a run has shown
 //!  (the same design,
-//! limits L2 and L5).
+//!  limits L2 and L5).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

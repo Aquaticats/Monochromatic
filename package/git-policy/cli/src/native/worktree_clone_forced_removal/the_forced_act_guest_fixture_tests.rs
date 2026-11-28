@@ -71,7 +71,7 @@ pub(crate) const SLOT: &str = "one";
 const MAXIMUM_PHASE_LINE_BYTES: usize = 8192;
 /// What:
 ///  The guest's name,
-/// its pool and the paths its commands come from.
+///  its pool and the paths its commands come from.
 /// Why:
 ///  The arm refuses to run anywhere but the guest its own variable names,
 ///  and every command it makes needs the guest's OpenZFS `PATH`.

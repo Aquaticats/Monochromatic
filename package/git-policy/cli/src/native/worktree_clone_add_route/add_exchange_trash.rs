@@ -1,27 +1,26 @@
 //! What:
 //!  The clone's trash:
-//! the folder one add makes beside its slot,
-//! the manifest
-//!  that records what the trash holds,
-//! and the small reads inside it.
+//!  the folder one add makes beside its slot,
+//!  the manifest that records what the trash holds,
+//!  and the small reads inside it.
 //! Why:
 //!  The exchange keeps the copied Git administration here after the slot gets
 //!  the saved pointer back,
-//! and a resume after a kill proves the entry it finds
+//!  and a resume after a kill proves the entry it finds
 //!  by this manifest
 //!  (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
 //!  "What the slot holds while the add fills it").
 //!  The manifest takes its name in one rename because no stage claim inside the
 //!  mounted clone removes the trash,
-//! so a kill between two writes leaves either
+//!  so a kill between two writes leaves either
 //!  the record that stood or the new one
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The restore",
-//! step 8).
+//!  step 8).
 //!  `add_exchange.rs` swaps the slot's `.git` with one entry of this trash and
 //!  would go over the file-size limit carrying the trash's own writes,
 //!  so the trash's folder,
-//! manifest and reads live here,
+//!  manifest and reads live here,
 //!  and the checks that pair them with the swap are
 //!  `add_exchange_preparation.rs`'s.
 //!

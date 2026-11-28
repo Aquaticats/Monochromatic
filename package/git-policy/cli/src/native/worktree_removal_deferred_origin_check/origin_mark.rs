@@ -46,7 +46,7 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 ///  The kernel computes it from the dataset's own flag rather than storing it as a value,
 ///  so it is the flag itself that decides the mark and never a written property
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-/// F1 and F2).
+///  F1 and F2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,7 +175,7 @@ fn holds_of(identity: &DatasetIdentity) -> UserHolds {
 ///  same-account process could answer differently
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 ///  "What the check reads,
-/// in order").
+///  in order").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -209,7 +209,7 @@ pub fn mark_of_reply(identity: &DatasetIdentity) -> OriginMark {
 ///  and a second reader for the same property would be a second answer to one question
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 ///  "Where the code lives,
-/// and what it exports").
+///  and what it exports").
 ///  A read that failed is one more unreadable state,
 ///  because the caller's next act is a destroy either way.
 ///

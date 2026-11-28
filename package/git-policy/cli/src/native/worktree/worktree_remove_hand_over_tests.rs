@@ -804,7 +804,7 @@ fn whole_name(commit: &str) -> String {
 ///  and no service told.
 /// Why:
 ///  This is the exact state a merge leaves:
-/// the record queued,
+///  the record queued,
 ///  the worktree standing,
 ///  and the destruction owed to the commit service.
 ///

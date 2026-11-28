@@ -60,12 +60,12 @@ const ENDED_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// What:
 ///  A command that runs one shell line as the child the relay reads,
-/// standing in for Git.
+///  standing in for Git.
 /// Why:
 ///  The relay reads whatever the child writes to its standard error,
-/// and a shell writes it without a repository or a network.
+///  and a shell writes it without a repository or a network.
 ///  `sh` writes to the descriptor the relay connected,
-/// which is what the control reads.
+///  which is what the control reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1567,7 +1567,7 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
 ///  already passed.
 ///  The refusal is the system's answer at a process's thread limit,
 ///  and a control plants it,
-/// as the ceiling's own controls do.
+///  as the ceiling's own controls do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1648,7 +1648,7 @@ const A_LONGER_STALL_BOUND: std::time::Duration = std::time::Duration::from_secs
 
 /// What:
 ///  A commit whose scratch step the kernel holds,
-/// and whose look at its ceiling could not be made,
+///  and whose look at its ceiling could not be made,
 ///  lands when the step ends.
 /// Why:
 ///   Finding 1 of the 2026-11-12 review of the stand-aside:
@@ -1656,11 +1656,11 @@ const A_LONGER_STALL_BOUND: std::time::Duration = std::time::Duration::from_secs
 ///  so the wait killed a step the kernel held at the usual ceiling,
 ///  and a commit that would have landed failed.
 ///  A look that failed decides nothing,
-/// and the look is made again.
+///  and the look is made again.
 ///  What a control states is the kernel's answer about the signer,
 ///  which is the whole of what a stalled disk gives the step,
 ///  and the commit,
-/// the signer and the shadow repository are real.
+///  the signer and the shadow repository are real.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1727,19 +1727,19 @@ fn a_scratch_commit_whose_ceiling_look_failed_lands_when_the_step_ends() {
 
 /// What:
 ///  A commit whose notice stood aside for a step the kernel held,
-/// and whose wait then did not find the kernel holding it,
+///  and whose wait then did not find the kernel holding it,
 ///  lands,
-/// and no stop claims a wait that did not happen.
+///  and no stop claims a wait that did not happen.
 /// Why:
 ///   Finding 2 of the 2026-11-12 review of the stand-aside:
 ///  the two enforcers decided separately,
-/// so one could stand aside while the other ended the step at the usual ceiling,
+///  so one could stand aside while the other ended the step at the usual ceiling,
 ///  and the words then named the longer bound and said the step was waited for to it.
 ///  The stand-aside is one decision both enforcers read,
 ///  so the wait may not undo it,
-/// and the step lands when its signer ends.
+///  and the step lands when its signer ends.
 ///  The kernel's hold is stated and then taken away,
-/// which is a step that leaves that state and comes back to its work,
+///  which is a step that leaves that state and comes back to its work,
 ///  and no run on this host can make a real process do either.
 ///
 /// In TS you'd write (pseudocode):

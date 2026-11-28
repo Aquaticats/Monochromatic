@@ -320,7 +320,7 @@ fn each_route_searches_its_own_directories() {
     let scope = repo_scope(Path::new("/w"), &env).expect("a scope");
     let root = scope.toolchain_root.clone();
     assert_eq!(
-        bin_search_dirs(&sample_tool("cargo:fd-find"), &scope, &env, &[]),
+        bin_search_dirs(&sample_tool("cargo:fd-find"), &scope, &env, &[], None),
         vec![
             root.join(CARGO_NAMESPACE)
                 .join("fd-find")
@@ -334,7 +334,8 @@ fn each_route_searches_its_own_directories() {
             &sample_tool("cargo:monochromatic-mpm-shadow"),
             &scope,
             &env,
-            &[]
+            &[],
+            None
         ),
         vec![
             root.join(CARGO_NAMESPACE)
@@ -345,12 +346,12 @@ fn each_route_searches_its_own_directories() {
         "a repository-published crate is searched through its current link"
     );
     assert_eq!(
-        bin_search_dirs(&sample_tool("node"), &scope, &env, &[]),
+        bin_search_dirs(&sample_tool("node"), &scope, &env, &[], None),
         vec![root.join("node").join("1.2.3")]
     );
     let extra = vec![PathBuf::from("/extra")];
     assert_eq!(
-        bin_search_dirs(&sample_tool("pnpm"), &scope, &env, &extra),
+        bin_search_dirs(&sample_tool("pnpm"), &scope, &env, &extra, None),
         vec![
             scope.toolchain_bin_dir.clone(),
             PathBuf::from("/h/.local/bin"),
@@ -358,7 +359,7 @@ fn each_route_searches_its_own_directories() {
         ]
     );
     assert_eq!(
-        bin_search_dirs(&sample_tool("npm:wrangler"), &scope, &env, &extra),
+        bin_search_dirs(&sample_tool("npm:wrangler"), &scope, &env, &extra, None),
         vec![
             PathBuf::from("/extra"),
             PathBuf::from("/h/.local/share/pnpm"),
@@ -366,15 +367,15 @@ fn each_route_searches_its_own_directories() {
         ]
     );
     assert_eq!(
-        bin_search_dirs(&sample_tool("pipx:slopo"), &scope, &env, &extra),
+        bin_search_dirs(&sample_tool("pipx:slopo"), &scope, &env, &extra, None),
         vec![PathBuf::from("/h/.local/bin"), PathBuf::from("/extra")]
     );
     assert_eq!(
-        bin_search_dirs(&sample_tool("rust"), &scope, &env, &[]),
+        bin_search_dirs(&sample_tool("rust"), &scope, &env, &[], None),
         vec![PathBuf::from("/h/.cargo/bin")],
         "a rustup-toolchain row searches the cargo bin directory and the toolchain the row names, and `/h` holds none"
     );
-    let android = bin_search_dirs(&sample_tool("android-sdk"), &scope, &env, &[]);
+    let android = bin_search_dirs(&sample_tool("android-sdk"), &scope, &env, &[], None);
     assert_eq!(
         android[0],
         root.join("android-sdk")
@@ -390,7 +391,7 @@ fn each_route_searches_its_own_directories() {
 }
 
 #[test]
-fn a_rustup_toolchain_row_searches_only_the_directory_of_the_toolchain_it_names() {
+fn a_rustup_toolchain_row_searches_the_toolchain_directory_it_is_given_and_no_other() {
     let directory = scratch();
     let home = directory.path().join("home");
     let env = EnvMap::from_pairs(&[("HOME", home.to_str().expect("utf-8"))]);
@@ -398,37 +399,38 @@ fn a_rustup_toolchain_row_searches_only_the_directory_of_the_toolchain_it_names(
     let toolchains = home.join(".rustup").join("toolchains");
     let pinned = toolchains.join("nightly-2026-11-16-x86_64-unknown-linux-gnu");
     let older = toolchains.join("nightly-2026-11-11-x86_64-unknown-linux-gnu");
+    let extended = toolchains.join("nightly-2026-11-16-custom");
+    let foreign = toolchains.join("nightly-2026-11-16-aarch64-unknown-linux-gnu");
     fs::create_dir_all(pinned.join("bin")).expect("make the pin's bin");
     write_executable(&older.join("bin").join("rustc"));
+    write_executable(&extended.join("bin").join("rustc"));
+    write_executable(&foreign.join("bin").join("rustc"));
     assert_eq!(
-        bin_search_dirs(&sample_tool("rust"), &scope, &env, &[]),
+        bin_search_dirs(&sample_tool("rust"), &scope, &env, &[], None),
         vec![home.join(".cargo").join("bin")],
-        "the row's channel is `nightly-2026-10-30` in the sample lock, so neither directory here is the row's and no toolchain's bin is searched"
+        "a caller that did not ask rustup which toolchain the channel is hands the search no directory, and no name in `toolchains` is read"
     );
     let mut row = sample_tool("rust");
     row.declaration.package_id = Some("nightly-2026-11-16".to_string());
     assert_eq!(
-        bin_search_dirs(&row, &scope, &env, &[]),
+        bin_search_dirs(&row, &scope, &env, &[], Some(&pinned.join("bin"))),
         vec![home.join(".cargo").join("bin"), pinned.join("bin")],
-        "the pin's own bin directory, and never the older toolchain's though its name sorts first"
+        "the one directory the caller was given, though three neighbours here extend the channel's name"
     );
-    let mut moving = sample_tool("rust");
-    moving.declaration.package_id = Some("nightly".to_string());
-    let dated = toolchains
-        .join("nightly-2026-11-11-x86_64-unknown-linux-gnu")
-        .join("bin");
-    let moving_dir = toolchains
-        .join("nightly-x86_64-unknown-linux-gnu")
-        .join("bin");
-    fs::create_dir_all(&moving_dir).expect("make the moving channel's bin");
     assert_eq!(
-        bin_search_dirs(&moving, &scope, &env, &[]),
-        vec![home.join(".cargo").join("bin"), moving_dir],
-        "a bare channel is installed as the channel plus a host triple, and a dated toolchain beside it is another toolchain"
+        bin_search_dirs(&row, &scope, &env, &[], Some(&extended.join("bin"))),
+        vec![home.join(".cargo").join("bin"), extended.join("bin")],
+        "a custom linked toolchain's directory is the link's own name, which is no host triple and no channel plus one"
     );
     assert!(
-        !bin_search_dirs(&moving, &scope, &env, &[]).contains(&dated),
-        "the dated toolchain's directory never answers for the moving channel"
+        !bin_search_dirs(&row, &scope, &env, &[], Some(&pinned.join("bin")))
+            .contains(&older.join("bin")),
+        "a toolchain older than the pin never answers, though its name sorts first"
+    );
+    assert!(
+        !bin_search_dirs(&row, &scope, &env, &[], Some(&pinned.join("bin")))
+            .contains(&foreign.join("bin")),
+        "the same channel installed for another host triple is another toolchain and never answers"
     );
 }
 
@@ -490,12 +492,12 @@ fn find_tool_bin_looks_in_the_route_directories_of_the_scope() {
     let env = EnvMap::from_pairs(&[("HOME", home.to_str().expect("utf-8"))]);
     let scope = repo_scope(&directory.path().join("work"), &env).expect("a scope");
     assert_eq!(
-        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]),
+        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[], None),
         None
     );
     write_executable(&home.join(".cargo").join("bin").join("fd"));
     assert_eq!(
-        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]),
+        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[], None),
         None,
         "the shared cargo home is not searched for a cargo-binstall tool"
     );
@@ -508,7 +510,7 @@ fn find_tool_bin_looks_in_the_route_directories_of_the_scope() {
         .join("fd");
     write_executable(&own_root);
     assert_eq!(
-        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]),
+        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[], None),
         Some(own_root)
     );
 }

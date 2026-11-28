@@ -12,7 +12,7 @@
 //!  the pool refusing its listing is evidence a person confirms,
 //!  never a reason to leave the slot with no command
 //!  (the design writer's K14,
-//! added after the eleventh read).
+//!  added after the eleventh read).
 //!  A binding at `cloned` or `mounted` whose clone is gone is the settling command's,
 //!  proved or not.
 //!  Beside a standing plan the command is the plan design's,
@@ -198,41 +198,32 @@ pub enum NextCommand {
 }
 
 /// The settling command's program and subcommand,
-/// which no management grammar admits in this release
+/// which this release's management grammar admits
 /// (`SPEC.md`,
-/// "The settling command,
-/// built and reachable from no command").
+/// "The settling command").
 pub const SETTLING_COMMAND_WORDS: &str =
     "git monochromatic-git-policy-cli settle-worktree-clone-record";
 
 /// The words every refusal and report prints where a removal would be the way
-/// out.
+/// out:
+/// what `git worktree remove` of the slot does now.
 /// Why:
-///  No command of this release removes a clone,
-///  so naming one as the way out would send a person to a command that does not
-///  exist;
-///  this file is where the project states the one command a state names,
-///  and it says here that this one is not built
+///  A removal is the way out of most of the states this crate reports,
+///  and a sentence that described it wrongly would send a person to a command
+///  that does not do what they were told,
+///  so the sentence lives here once and each caller appends it
 ///  (`SPEC.md`,
 ///  "Removal of a ZFS worktree clone").
-pub const NO_REMOVAL_WORDS: &str =
-    "this release has no removal for a clone, so the clone and its record stay until it does";
-
-/// The words that say a command the project designed for a state cannot be run
-/// in this release.
-/// Why:
-///  Two commands a state names are built ahead of the grammar that would reach
-///  them,
-///  so a sentence that tells a person to run one sends them to a command that
-///  answers with the usage text and exit 2
-///  (`SPEC.md`,
-///  "The settling command,
-/// built and reachable from no command",
-///  and "The cancel command,
-/// built and reachable from no command").
-///  The round that adds either to the grammar deletes this claim from one place,
-///  and every sentence that prints it follows.
-pub const NOT_ADMITTED_YET: &str = "no management grammar admits it in this release";
+///  A caller prints it only for a slot the removal's command path takes,
+///  which is a slot proved to hold a whole clone,
+///  and says for itself which state it found:
+///  a slot whose destruction plan stands is Git's own removal
+///  and not this one
+///  (`worktree_clone_slot_state`,
+/// `health/doctor_zfs_route` and this folder all read it).
+///  It was named `NO_REMOVAL_WORDS` while it said no removal existed;
+///  the removal's switch made that name say the opposite of what it holds.
+pub const THE_REMOVALS_WORDS: &str = "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
 
 /// What:
 ///  The command one state names.
@@ -378,13 +369,13 @@ impl NextCommand {
         return match self {
             NextCommand::TheAddAgain => format!("run the add again at `{slot}`"),
             NextCommand::TheSettlingCommand => format!(
-                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, and it is built while {NOT_ADMITTED_YET}, so it cannot be run yet: read the evidence above, and leave the record and its slot as they stand until a release that answers it ships"
+                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places: read the evidence above, and run it once the two values you type are the ones the record holds"
             ),
             NextCommand::GitWorktreeRemove => format!(
                 "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"
             ),
-            NextCommand::TheRemoval => format!(
-                "the removal this slot's destruction plan belongs to resumes from the plan and ends it, and {NO_REMOVAL_WORDS}"
+            NextCommand::TheRemoval => String::from(
+                "the removal this slot's destruction plan belongs to is the one that resumes from the plan and ends it, and no command of this release runs that removal while such a plan stands: a `git worktree remove` of this slot is Git's own removal, which drops the registration and the slot folder while the clone stands, so do not run it. Read the plan's own file before you act.",
             ),
             NextCommand::TheFinishPass => String::from(
                 "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",

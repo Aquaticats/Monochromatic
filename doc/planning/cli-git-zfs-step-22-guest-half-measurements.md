@@ -16,7 +16,12 @@ and the snapshot-destroy request budget
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 "Step 22:
 The measurements that size waits and retention").
-The storage half stays the owner's act on the owner's authorisation,
+The storage half is the agent's act on the owner's authorisation,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
 and it is not measured here.
 
 ## The fixture and the wrapper under test
@@ -317,6 +322,10 @@ which 2,048 names fit in easily.
 Each proposed value carries its citation.
 None is set,
 and the constant in code stays as it is until the owner accepts one.
+Since 2026-11-27 one is accepted:
+the owner took the request budget of 65,536 bytes
+(`doc/decision/cli-git-zfs-removal-batch-request-budget-is-65536-bytes.md`).
+The other values stay as that sentence says.
 
 `PROVISIONAL_MOUNT_REQUEST_DEADLINE` in
 `package/git-policy/cli/src/native/worktree_clone_mount_protocol/mount_request_wait.rs`

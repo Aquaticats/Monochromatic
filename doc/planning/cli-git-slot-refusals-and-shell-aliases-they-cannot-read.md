@@ -70,22 +70,26 @@ because a reading that answered no command would be wrong about the command Git
 runs:
 
 - a `!` alias whose value names another `!` alias:
-  read through the shells it starts, to four of them;
+  read through the shells it starts,
+  to four of them;
   `a_bound_slots_removal_is_refused_behind_every_shell_alias` and its move and
   prune siblings carry the spelling,
-  `a_shell_alias_is_read_in_every_form_the_shell_passes_through` reads it, and
-  `a_shell_alias_chain_deeper_than_the_reading_follows_is_unread` holds the depth.
-- a value written `! git <words>`, and a TAB after `!git`:
+  `a_shell_alias_is_read_in_every_form_the_shell_passes_through` reads it,
+  and `a_shell_alias_chain_deeper_than_the_reading_follows_is_unread` holds the depth.
+- a value written `! git <words>`,
+  and a TAB after `!git`:
   read as `!git <words>` is,
   because the shell reads a run of blanks there as one separator.
 - a value of exactly `!git` whose caller's own words begin with a global option:
-  read, because Git hands those words to the same nested Git;
+  read,
+  because Git hands those words to the same nested Git;
   a global option among the value's own words is still left to Git.
 - a chain of ordinary aliases longer than 16:
   the count is 64 now (`MAX_ALIAS_EXPANSIONS`),
   and real Git runs a chain of 30.
 
-Still unread, and reaching Git unchanged as option C describes:
+Still unread,
+and reaching Git unchanged as option C describes:
 `!sh -c '...'`,
 a value holding a byte the shell gives a meaning of its own,
 which the reader keeps as the allow-list of the bytes it reads:
@@ -130,9 +134,35 @@ Both now read the operand from the top of the working tree,
 which Git changes to before it starts the shell (`git.c` `:388` to `:407`),
 and `a_bound_slots_removal_reads_its_operand_where_git_runs_the_alias` and its
 move sibling hold it;
-`git worktree prune` reads no operand, so no directory moves its pass,
+`git worktree prune` reads no operand,
+so no directory moves its pass,
 which `a_prune_behind_a_shell_alias_from_a_subdirectory_restores_the_pointer`
 shows.
+
+## What the alpha.49 pass compared of the two released binaries
+
+The same second pass compared `0.6.1-alpha.49` with `0.6.1-alpha.48` on four
+shapes beside the alias spellings.
+Its transcripts are scratch and are gone,
+so these stand as that pass's own measurements,
+and each shape it named has a control in this repository:
+
+- with a reader of standard error gone,
+  alpha.48 removed a notice's record and alpha.49 kept it;
+- after a failed start of the real Git with standard error a closed pipe,
+  alpha.48 was ended by `SIGPIPE` and alpha.49 exited 2;
+- over 56 merge cases alpha.48 resolved 6 conflicts and alpha.49 resolved 14,
+  each extra one matching an oracle;
+- and 44 of 45 commands compared were identical,
+  the other being the intended change.
+
+One removal answer changed at alpha.49,
+and both endings are measured:
+`cd62517318` made the refusal of a removal behind an unknown global option need
+a slot record in the record folder,
+where alpha.48 refused on the folder alone,
+so with an empty folder alpha.48 exits 1 and alpha.49 passes the command to Git,
+which exits 129.
 
 ## What the issue 6621 round measured
 
@@ -233,6 +263,27 @@ sentence alone:
 `failure_after` and the configuration ending of
 `invocation/entry_forward_action_planning.rs` carry those lines too.
 
+## Choices not taken at alpha.50
+
+The behaviour pass compared the two released binaries on the whole binary as
+well as on the alias spellings:
+of 60 commands run through `0.6.1-alpha.50` and `0.6.1-alpha.49`,
+58 were identical and the other two differ as a merge explains,
+a process's name that would rewrite the waiting line is shown escaped on one
+line,
+and the identity sentence is said once where alpha.49 said it twice.
+A chain of 64 aliases takes 3.25 times a chain of 16,
+and that cost was left alone:
+alpha.50 over alpha.49 on that input is 1.15 with a range of 0.90 to 1.18,
+inside the spread of one binary against its own copy.
+A raise of the bound constants that no control catches was left alone too,
+because the controls derive from the named constant by the repository's rule on
+numbers,
+and `SPEC.md` and the README state the value.
+The release commit also moved the embedded linter's pin from alpha.19 to
+alpha.21,
+which no merge names and by which no new message reaches the binary.
+
 ## What the issue 6625 round measured
 
 A fourth pass over `0.6.1-alpha.50` and the branch that answers issue 6625,
@@ -253,13 +304,19 @@ which Git runs through a shell because a space is one of the bytes
 (`run-command.c:293` to `run-command.c:305`);
 a value of `!pwd` alone is exec'd as a program and starts no shell at all.
 
-- At the top of a worktree: the top.
-- Below that top: the top,
+- At the top of a worktree:
+  the top.
+- Below that top:
+  the top,
   because discovery walked up to it.
-- In a repository's Git directory: that Git directory.
-- In a folder inside that Git directory: that folder.
-- In a bare repository: the bare repository.
-- In a folder inside the bare repository: that folder.
+- In a repository's Git directory:
+  that Git directory.
+- In a folder inside that Git directory:
+  that folder.
+- In a bare repository:
+  the bare repository.
+- In a folder inside the bare repository:
+  that folder.
 
 Git names no top of a working tree in the last four,
 and `rev-parse --path-format=absolute --show-toplevel --show-prefix`,

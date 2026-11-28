@@ -171,7 +171,7 @@ impl SizeReadBesideTheCheck {
     /// The read's thread ends with this process,
     /// and its child ends either through the kernel's parent-death signal
     /// or,
-    /// where that signal is cleared (an exec into an AppArmor-enforced profile),
+    ///  where that signal is cleared (an exec into an AppArmor-enforced profile),
     /// through the `Drop` below.
     /// Nothing here changes the add's answer:
     ///  a read that failed is only a debug line.
@@ -365,8 +365,8 @@ impl SizeReadBesideTheCheck {
 ///   The child is spawned with `PR_SET_PDEATHSIG`,
 /// and the kernel clears that signal when a process's exec changes its security context
 /// (`fs/exec.c`,
-/// `begin_new_exec`:
-/// `if (bprm->secureexec) me->pdeath_signal = 0;`),
+///  `begin_new_exec`:
+///  `if (bprm->secureexec) me->pdeath_signal = 0;`),
 /// which AppArmor does for every exec that attaches a profile
 /// (`security/apparmor/domain.c` sets `bprm->secureexec` for a transition):
 /// on this machine `/usr/bin/sleep` and `/usr/bin/git` are under enforced profiles,
@@ -375,7 +375,7 @@ impl SizeReadBesideTheCheck {
 /// A read the add joined or abandoned already swapped the cell,
 /// so this drop signals nothing;
 ///  a read the add ends by returning,
-/// by an error or by a panic ends its child here.
+///  by an error or by a panic ends its child here.
 /// An add the kernel kills outright runs no destructor,
 /// and that limit is recorded in `doc/troubleshooting/pdeathsig-is-cleared-by-a-confined-exec.md`.
 ///

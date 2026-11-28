@@ -8,7 +8,7 @@
 //!  A signal a test aims at its own process reaches every thread of the run,
 //!  and where no handler is installed at that instant its default action ends the whole test binary
 //!  (issue 6463,
-//! `service::service_client_interrupted`).
+//!  `service::service_client_interrupted`).
 //!  So a test starts a child through `test_support::spawn_owned`,
 //!  or starts it and hands its number to `test_support::own_group` at once,
 //!  and signals only the process or group it started.
@@ -56,7 +56,7 @@ const REPAIR: &str = "start the child with `test_support::spawn_owned`, or hand 
 ///  `fn test_sources_in(root, roots) -> Result<Vec<SourceFile>, String>` is every file of the crate the build compiles
 ///  for tests only.
 ///  `Result<Vec<SourceFile>, String>` is "the files or one text saying what is wrong" (sibling:
-/// `Option<Vec<SourceFile>>`,
+///  `Option<Vec<SourceFile>>`,
 ///  which cannot say why).
 /// Why:
 ///  The rule is about tests,
@@ -105,9 +105,9 @@ fn test_source_paths(
 ///  `fn bare_starts_in(root, roots) -> Result<BTreeMap<String, Vec<usize>>, String>` maps each test file's identity to
 ///  the lines of the child starts in it that name no owner.
 ///  `BTreeMap<String, Vec<usize>>` is a map from text to a list,
-/// kept in key order (TS:
-/// `Map`,
-/// iterated sorted).
+///  kept in key order (TS:
+///  `Map`,
+///  iterated sorted).
 /// Why:
 ///  The ledger is counted per file,
 ///  and a file that holds no such start is absent rather than present with an empty list,
@@ -167,7 +167,7 @@ fn self_signals_in(
 ///  `ledger` disagree,
 ///  read from the sources under `root`.
 ///  `ledger` is the ledger's own text,
-/// so a control can hand in a planted one.
+///  so a control can hand in a planted one.
 /// Why:
 ///  The control over the real tree and the control over a planted tree ask the same question,
 ///  so only the tree and the ledger differ between them.

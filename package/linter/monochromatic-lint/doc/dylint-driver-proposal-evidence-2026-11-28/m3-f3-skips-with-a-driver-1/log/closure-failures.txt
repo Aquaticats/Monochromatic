@@ -1,0 +1,1 @@
+package/browser-selector/desktop-app	rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:

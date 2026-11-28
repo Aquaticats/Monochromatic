@@ -54,8 +54,10 @@ pub enum FixClass {
     /// The edit changes only line breaks and the spaces around them;
     ///  every whitespace-separated token stays,
     /// in order.
-    ///  A Rust host's comment marker on a continuation line is comment syntax,
-    /// not a token of the text.
+    ///  The syntax of the container a written line continues is written with its line:
+    ///  a Rust host's comment marker,
+    ///  and the quote markers a block quote's paragraph sits behind.
+    ///  Either is container syntax, not a token of the text.
     Whitespace,
     /// The edit adds,
     ///  removes or rewrites a token.

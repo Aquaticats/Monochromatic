@@ -11,7 +11,7 @@ use std::time::Duration;
 ///  so guarding an item changes nothing about an item that does not panic.
 /// Why:
 ///   Every item of a wave is guarded,
-/// so the answer of the ordinary one must be exactly what its work gave,
+///  so the answer of the ordinary one must be exactly what its work gave,
 ///  in value and in the moment it arrives.
 #[test]
 fn an_answer_passes_through_unchanged() {

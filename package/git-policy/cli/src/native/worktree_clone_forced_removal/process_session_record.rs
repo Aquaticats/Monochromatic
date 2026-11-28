@@ -16,12 +16,12 @@
 //!  so this folder reads the four fields it needs itself and the report names
 //!  the one read a later step should expose
 //!  (`process_session_record` is this folder's own,
-//! per a build-ahead round's
+//!  per a build-ahead round's
 //!  rules).
 //!  A record that could not be read is kept apart from one that has gone,
 //!  because a blind read refuses a forced removal and a task that has gone does
 //!  not:
-//! "a task that has gone (`ENOENT`,
+//!  "a task that has gone (`ENOENT`,
 //!  `ESRCH`) is gone,
 //!  not blind;
 //!  a blind spot refuses".

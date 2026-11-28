@@ -372,6 +372,31 @@ pub enum RemovalStop {
         /// What it answered.
         said: String,
     },
+    /// A holder stopped the removal,
+    /// its answer put the clone back at its slot,
+    /// and the removal's report is the answer's own.
+    TheRemovalCancelledItself {
+        /// The report the answer wrote,
+        /// one line per name.
+        said: String,
+    },
+    /// The head destroy did not take the clone,
+    /// and the answer was not a holder the removal cancels itself for.
+    TheHeadDestroyWasRefused {
+        /// The kernel's errno,
+        /// when it kept one.
+        errno: Option<u32>,
+        /// Every name the pool still answers,
+        /// with its state in the plan.
+        names: Vec<String>,
+    },
+    /// A holder stopped the removal and the answer could not put the clone back.
+    TheRemovalCouldNotCancelItself {
+        /// Where the removal stopped.
+        stop: &'static str,
+        /// What the answer said.
+        said: String,
+    },
 }
 
 /// Controls stay out of the release executable.

@@ -109,3 +109,57 @@ the owner answered "Everything now,
 untangle over time.":
 every finding of the two rules on the day the rules land goes on the list,
 and each line is deleted when its finding goes.
+
+## Wiring uses merge with their findings unrecorded (owner, by 2026-11-28T01:54:18-05:00)
+
+The linter holds "may only shrink" this way
+(`package/linter/monochromatic-lint/src/layout_folder_links_tolerated_uses.rs`,
+`use_joining_a_tolerated_loop`):
+a new use of one folder by another that joins a loop the list already tolerates is a finding with an empty key,
+so no line of the list can record it.
+Most of this crate is one such loop,
+so the round that wires a built-ahead piece of the ZFS route into the command that reaches it adds exactly such a use.
+On the night of 2026-11-27 two rounds met it.
+The round that admits `cancel-worktree-removal` and `settle-worktree-clone-record` into the management grammar
+wired both commands,
+and its branch prints 11 `rust/folder-uses-links` findings no line can record.
+The round that built the wrapper's side of the lost-event triggers left its check before a command with no call site,
+so that its branch stayed clean.
+
+Asked after 2026-11-28T01:51:02-05:00 how wiring uses get through,
+the owner was shown these ways,
+in the order the coordinating session ranked them:
+
+- record them:
+  the linter gives such a finding a key and a wiring round adds its line,
+  which amends "may only shrink" and needs a linter release;
+- restructure each wiring so that it adds no new folder use,
+  which puts the glue where a use is already recorded and not where it belongs;
+- merge the wiring with its findings unrecorded,
+  and untangle later;
+- untangle first,
+  which makes the route's wiring wait.
+
+The owner answered "Merge red,
+untangle later".
+
+What follows from the answer:
+
+- A round that wires a built piece of the ZFS route into a command merges with the `rust/folder-uses-links` findings
+  its wiring adds.
+- No line is added to `package/git-policy/cli/layout-allow-list/folder-rule.txt` for them:
+  the list still only shrinks.
+- The package's lint is red on `main` by those findings until the untangling removes them.
+  `doc/handover/cli-git-rust-implementation.md` keeps the list of every such finding `main` prints,
+  with its file,
+  its line,
+  the folder that uses and the folder used,
+  and a wrapper round's brief names that list,
+  so that a finding outside it is read as a new tangle.
+- The untangling is the crate split's work
+  (`doc/planning/cli-git-source-layout.md`).
+
+The coordinating session's reading,
+with the veto open:
+the answer covers the wiring of a built piece into the command that reaches it,
+and any other new use inside a tolerated loop is still a finding to remove before its branch merges.

@@ -343,8 +343,14 @@ fn plan_cargo_bin_copies(
                 continue;
             }
             let managed_version: Option<String> = winning_version(ctx.scope, tool);
-            let mine: Option<PathBuf> =
-                find_tool_bin(tool, &candidate.bin, ctx.scope, ctx.env, &[]);
+            let mine: Option<PathBuf> = find_tool_bin(
+                tool,
+                &candidate.bin,
+                ctx.scope,
+                ctx.env,
+                &[],
+                ctx.the_toolchains_bin_dir(tool).as_deref(),
+            );
             if let Some(reason) = precondition_reason(
                 tool,
                 &candidate,

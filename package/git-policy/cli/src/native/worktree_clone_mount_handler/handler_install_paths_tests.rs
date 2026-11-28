@@ -8,7 +8,7 @@
 //!  so the strings are held here rather than trusted to a reader
 //!  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
 //!  choices 2,
-//! 3 and 5).
+//!  3 and 5).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

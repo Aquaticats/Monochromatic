@@ -563,7 +563,7 @@ pub const WARM_SCAN_CEILING: Duration = WARM_REQUEST_CONNECT_CEILING;
 /// A queue that is full is a service that has accepted nothing for a long time,
 /// and a blocking connect into it
 ///  waits until the service accepts,
-/// which for a stopped service is never:
+///  which for a stopped service is never:
 /// measured on this host on 2026-11-12,
 /// a blocking connect into a listening socket whose queue of one was full
 ///  was still waiting after 2,000 ms,
@@ -582,7 +582,7 @@ pub const CONNECT_CEILING: Duration = Duration::from_secs(5);
 /// How long the write of a request may take no byte at all before the service is taken for one that stopped reading.
 ///  Why:
 ///   A request line is at most `MAX_LINE_BYTES`,
-/// one mebibyte,
+///  one mebibyte,
 /// and it can only be written by a service that reads:
 /// measured on this host on 2026-11-12,
 /// the send buffer of a local stream socket holds 212,992 bytes and one socket's two buffers took

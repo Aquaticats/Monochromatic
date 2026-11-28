@@ -107,15 +107,15 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
 /// for a writer that may never come,
 /// and a link at a plan's name is refused rather than read through.
 /// A name that holds a pipe,
-/// a link,
-/// a directory or a file larger than a plan can be
+///  a link,
+///  a directory or a file larger than a plan can be
 /// is no plan this store wrote:
 /// it stays,
 /// and it is not read again after a pause,
 /// because a second read of it answers the same.
 /// The listing itself answers twice:
 /// the entries it names,
-/// and an error that ended it before it named them all.
+///  and an error that ended it before it named them all.
 /// An error part way through is what a directory read on a mount that stopped answering does,
 /// and a plan it never named would otherwise wait for the life of the service,
 /// so that error leaves the journal unread and it is listed again after a pause.

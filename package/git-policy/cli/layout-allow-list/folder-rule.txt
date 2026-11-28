@@ -85,6 +85,7 @@ group-file src/native/invocation entry_zfs_slot_commands_the_unread_place.rs
 group-file src/native/invocation escape_hatch.rs
 group-file src/native/invocation exit_report_written.rs
 group-file src/native/invocation external_git_command.rs
+group-file src/native/invocation external_git_command_the_git_dir_the_shell_reads.rs
 group-file src/native/invocation forwarded_command.rs
 group-file src/native/invocation forwarding.rs
 group-file src/native/invocation git_builtins.rs
@@ -1120,7 +1121,6 @@ uses src/native/worktree_copying -> src/native/worktree_clone_link_repair
 uses src/native/worktree_copying -> src/native/worktree_clone_removal_proof_and_plan
 uses src/native/worktree_copying -> src/native/worktree_clone_slot_state
 uses src/native/worktree_copying -> src/native/zfs_mounted_dataset
-uses src/native/worktree_removal_deferred_origin_check -> src/native/worktree_clone_binding_record
 uses src/native/worktree_removal_deferred_origin_check -> src/native/worktree_clone_mount_handler
 uses src/native/worktree_removal_deferred_origin_check -> src/native/worktree_clone_mount_protocol
 uses src/native/zfs_mounted_dataset -> src/native/foundation

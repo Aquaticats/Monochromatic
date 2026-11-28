@@ -1,41 +1,38 @@
 //! What:
 //!  The execution half of the ZFS add route:
-//! from the claimed slot to a verified
+//!  from the claimed slot to a verified
 //!  fill.
 //! Why:
 //!  The registration half beside this folder owns the record family,
-//! the
-//!  managed lock's words,
-//! the finder,
-//! the recipe and the resume states
+//!  the managed lock's words,
+//!  the finder,
+//!  the recipe and the resume states
 //!  (`package/git-policy/cli/src/native/worktree_clone_binding_record/`).
 //!  This folder owns what the wrapper does with them:
-//! the gate that keeps the
+//!  the gate that keeps the
 //!  route on the design's checkout dataset,
-//! the preflight,
-//! the claim,
-//! Git's own
-//!  `${git worktree add}` with the managed lock,
-//! the scan,
-//! the snapshot and
+//!  the preflight,
+//!  the claim,
+//!  Git's own `${git worktree add}` with the managed lock,
+//!  the scan,
+//!  the snapshot and
 //!  clone with their inventories,
-//! the mount request,
-//! the frozen proof,
-//! the
-//!  leave-outs,
-//! the private index,
-//! the pointer's exchange,
-//! the check of the
+//!  the mount request,
+//!  the frozen proof,
+//!  the leave-outs,
+//!  the private index,
+//!  the pointer's exchange,
+//!  the check of the
 //!  result,
-//! and the resume a later add makes
+//!  and the resume a later add makes
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A0 to A12;
+//!  A0 to A12;
 //!  `doc/planning/cli-git-zfs-add-time-git-lock-design.md`).
 //!  Plan step 10 builds it;
-//! the fallback that finishes a failed add with Git's
+//!  the fallback that finishes a failed add with Git's
 //!  own checkout,
-//! and the conversion fence's writes,
-//! are step 11's.
+//!  and the conversion fence's writes,
+//!  are step 11's.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -154,6 +151,9 @@
 //! - `add_route_run.rs`:
 //!   the entry point,
 //!   the claim and the phase machine.
+//! - `the_removals_cancelling.rs`:
+//!   the account's answer to a removal that a holder stopped,
+//!   handed to the forwarded removal path from the one folder it may name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -250,6 +250,9 @@ pub mod add_route_steps;
 /// The source shapes the fill's restore would refuse after the clone is made.
 pub mod add_source_the_restore_cannot_prove;
 
+/// The account's answer to a removal that a holder stopped.
+pub mod the_removals_cancelling;
+
 pub use add_capture::{
     Capture,
     CaptureInput,
@@ -312,3 +315,4 @@ pub use add_route_run::{
     FILLED_NOTE,
     run_a_zfs_add,
 };
+pub use the_removals_cancelling::the_removals_cancelling;

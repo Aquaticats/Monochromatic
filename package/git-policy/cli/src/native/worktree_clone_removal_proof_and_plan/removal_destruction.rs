@@ -29,10 +29,10 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //! step 16)
 //!  is what makes a removal finish.
-//!  Nothing here is reachable from a release command:
-//!  the removal's command path runs the read-only reading,
-//!  and step 16's wiring is what names this file's function
-//!  (`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`).
+//!  A release command reaches this file through
+//!  `removal_completion::complete_the_removal`,
+//!  whose `destroy_the_removal` is the entry the whole order keeps for a caller
+//!  that wants only the destruction half.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

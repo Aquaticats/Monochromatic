@@ -2355,9 +2355,9 @@ const READING_PAUSE: Duration = Duration::from_millis(200);
 /// On a machine slow enough the entries of one commit filled it,
 /// and the service's next entry,
 /// the one its upkeep wrote,
-/// stood on the error stream where these controls assert nothing would
+///  stood on the error stream where these controls assert nothing would
 /// (the gate of 2026-11-15T06:00-05:00,
-/// and the same control on the image of the gate before it).
+///  and the same control on the image of the gate before it).
 ///  The thread reads for as long as the stand-in exists,
 /// so the queue always has room and a control reads what the thread took at its own pace.
 ///
@@ -3359,7 +3359,7 @@ fn a_listener_that_never_accepts(
 ///  2026-11-14,
 ///  its report's first finding).
 ///  `spawn_owned` puts it in a group of its own,
-/// gives it `PR_SET_PDEATHSIG` and has it killed when the test's thread ends,
+///  gives it `PR_SET_PDEATHSIG` and has it killed when the test's thread ends,
 ///  and the control that still holds it ends it by name before it asserts that nothing of it is left
 ///  (`support::assert_nothing_in_group`).
 ///  The fixture starts a service of every worktree under it when a wrapped command runs (`bounded_for`,

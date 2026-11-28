@@ -29,7 +29,7 @@ use crate::worktree_copy_forward_outcome::{
 use crate::worktree_copy_forward_settled_run::run_settled;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
-use crate::worktree_removal_of_a_bound_clone::BoundSlotRemovalRefusal;
+use crate::worktree_removal_of_a_bound_clone::BoundSlotRemovalAnswer;
 use crate::worktree_removal_stops_units::{
     WorktreeAboutToGo,
     before_removal,
@@ -124,8 +124,8 @@ pub fn run_forwarded_git(
         overlay,
         copy,
         TheRunsOwnSteps {
-            refuse_a_bound_slots_removal:
-                &crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone,
+            the_bound_slots_removal:
+                &crate::worktree_removal_of_a_bound_clone::the_removal_of_a_bound_clone,
             stop_units: &stop_units_of_removed_worktree,
         },
     );
@@ -133,7 +133,7 @@ pub fn run_forwarded_git(
 
 /// What:
 ///  The two steps the settled run takes around Git:
-///  the refusal of a removal of a slot a whole managed clone is bound to,
+///  the removal of a slot a whole managed clone is bound to,
 ///  which runs before Git,
 ///  and the stop of a removed worktree's units,
 ///  which runs after a removal that ended well.
@@ -141,7 +141,7 @@ pub fn run_forwarded_git(
 ///  Both are this run's own wiring,
 ///  and a control must reach both without the machine's ZFS device and
 ///  without the session manager:
-///  the refusal reads a pool,
+///  the removal's step reads a pool,
 ///  and the stop needs a bus,
 ///  so each is handed in.
 ///  The steps belong to one value,
@@ -149,12 +149,12 @@ pub fn run_forwarded_git(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const steps: TheRunsOwnSteps = { refuseABoundSlotsRemoval, stopUnits };
+/// const steps: TheRunsOwnSteps = { theBoundSlotsRemoval, stopUnits };
 /// ```
 pub struct TheRunsOwnSteps<'a> {
-    /// The refusal of a removal of a slot a whole managed clone is bound to,
+    /// What a removal of a slot a whole managed clone is bound to does,
     /// which answers nothing for every other removal.
-    pub refuse_a_bound_slots_removal: &'a dyn Fn(&Path, &Path) -> Option<BoundSlotRemovalRefusal>,
+    pub the_bound_slots_removal: &'a dyn Fn(&Path, &Path) -> Option<BoundSlotRemovalAnswer>,
     /// The stop of a removed worktree's units,
     /// which is asked only after a removal ended well.
     pub stop_units: &'a dyn Fn(&WorktreeAboutToGo),
@@ -162,9 +162,9 @@ pub struct TheRunsOwnSteps<'a> {
 
 /// What:
 ///  The same run with the steps it takes around Git given.
-///  `TheRunsOwnSteps` is the refusal and the stop a control answers itself.
+///  `TheRunsOwnSteps` is the removal and the stop a control answers itself.
 /// Why:
-///   The refusal reads a pool and the stop reaches the session manager,
+///   The removal's step reads a pool and the stop reaches the session manager,
 ///  both of which only the release path may do;
 ///  the controls hand in their own,
 /// so a change that drops either wiring fails there
@@ -191,7 +191,7 @@ pub fn run_forwarded_git_with_its_own_steps(
                 arguments,
                 overlay,
                 facts,
-                steps.refuse_a_bound_slots_removal,
+                steps.the_bound_slots_removal,
             );
             // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
             if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
@@ -263,7 +263,7 @@ fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo>
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await refuseABoundSlotsRemoval(facts)) ?? (await removeBySubvolume(facts)) ?? (await runSettled(facts));
+/// (await theBoundSlotsRemoval(facts)) ?? (await removeBySubvolume(facts)) ?? (await runSettled(facts));
 /// ```
 #[cfg(unix)]
 fn run_served(
@@ -271,7 +271,7 @@ fn run_served(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
     facts: &CopyFacts,
-    refuse_a_bound_slots_removal: &dyn Fn(&Path, &Path) -> Option<BoundSlotRemovalRefusal>,
+    the_bound_slots_removal: &dyn Fn(&Path, &Path) -> Option<BoundSlotRemovalAnswer>,
 ) -> ForwardedRun {
     // The ZFS clone route serves one `git worktree add` on the design's checkout
     // dataset, and answers nothing for every other command or checkout
@@ -290,11 +290,11 @@ fn run_served(
     #[cfg(target_os = "linux")]
     if let (Some(target), Some(common)) =
         (facts.removal_target.as_deref(), facts.common_dir.as_deref())
-        && let Some(refusal) = refuse_a_bound_slots_removal(target, common)
+        && let Some(answer) = the_bound_slots_removal(target, common)
     {
         return ForwardedRun::Failed {
-            stderr: refusal.stderr,
-            code: refusal.code,
+            stderr: answer.stderr,
+            code: answer.code,
         };
     }
     // A command that stands in no worktree has no ladder step and no ignored state to settle: the refusal above is the

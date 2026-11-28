@@ -72,7 +72,7 @@ pub const BOOT_ID_BYTES: usize = 36;
 /// Why:
 ///  Each cause is separate because the report names what it could not read,
 ///  and a malformed value "sets nothing":
-/// the handler declines the force word
+///  the handler declines the force word
 ///  rather than reading a field it could not parse.
 ///
 /// In TS you'd write (pseudocode):

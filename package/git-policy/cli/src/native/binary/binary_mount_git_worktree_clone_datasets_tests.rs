@@ -13,7 +13,7 @@
 //!  a link to `libzfs` would make the wrapper unstartable on a machine without OpenZFS
 //!  and would put a CDDL library into a release that is not under that licence.
 //!  The root modes are modes of this one file now,
-//! so the arms start it under the
+//!  so the arms start it under the
 //!  installed ZED history event's name or through the words
 //!  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
 //!  The device-absent arm states its environment before it claims anything:

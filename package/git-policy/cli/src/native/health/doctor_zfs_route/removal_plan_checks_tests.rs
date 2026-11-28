@@ -120,7 +120,14 @@ fn a_standing_plan_names_every_field() {
             "{snapshot:?} is missing from {detail}"
         );
     }
-    assert!(detail.contains("no removal for a clone"), "{detail}");
+    assert!(
+        detail.contains("is Git's own removal"),
+        "a slot whose plan stands is warned off Git's removal: {detail}"
+    );
+    assert!(
+        !detail.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
+        "and names no removal this release runs there: {detail}"
+    );
 }
 
 /// A name settled by a later line prints the later outcome,

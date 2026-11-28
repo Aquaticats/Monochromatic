@@ -37,7 +37,7 @@ fn entries_under(root: &Path) -> BTreeSet<(String, bool)> {
 /// What:
 ///  The skeleton holds every directory a creation needs and nothing real Git does not make,
 ///  and `objects/pack`,
-/// `refs/heads` and `refs/tags` are left to Git.
+///  `refs/heads` and `refs/tags` are left to Git.
 /// Why:
 ///   Leaving those three out is only worth it if every entry the creation makes is one real Git would have made:
 ///  a directory Git has no shape for would be one the claim's own check could never see.

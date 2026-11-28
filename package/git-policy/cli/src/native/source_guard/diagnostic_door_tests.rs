@@ -9,14 +9,14 @@
 //!  so a write that waits for the reader there holds what the command holds,
 //!  and every command waiting for that thing waits with it
 //!  (`doc/planning/cli-git-no-unbounded-waits.md`,
-//! "Writes to the caller's own streams").
+//!  "Writes to the caller's own streams").
 //!  A source guard cannot see what a line is said under:
 //! holding a lock is not a shape of the text,
 //!  so what this guard holds is the shape that makes the question go away:
 //!  one door,
-//! which never waits for the reader on the caller's thread,
+//!  which never waits for the reader on the caller's thread,
 //!  and one writer,
-//! which never takes the lock every other writer of this process shares.
+//!  which never takes the lock every other writer of this process shares.
 //!  `std::io::stderr()` is one handle behind one lock for the whole process
 //! (`standard_error_descriptor.rs`),
 //! so a writer that took it would make a reader that stopped draining hold every later line of the process,

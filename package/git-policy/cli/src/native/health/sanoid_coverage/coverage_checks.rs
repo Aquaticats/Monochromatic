@@ -66,6 +66,8 @@ use super::sanoid_conf_reading::ReadConfig;
 /// The dataset that holds the store,
 /// and the finding when the coverage does not reach it.
 use super::store_coverage_finding::store_holder;
+/// The shape `doctor`'s report takes this comparison in.
+use crate::doctor_zfs_route::SanoidReport;
 /// What:
 ///  The comparison's answer for one machine.
 /// Why:
@@ -119,6 +121,27 @@ pub fn check_coverage(facts: &CoverageFacts) -> CoverageAnswer {
         }
         Err(reason) => return CoverageAnswer::new(findings, Some(reason), String::new()),
     }
+}
+
+/// What:
+///  The comparison as `doctor`'s report takes it:
+///  the one line the check answers with and the corrections below it.
+/// Why:
+///  the report holds one line per check plus the lines a person acts on,
+///  and this comparison already builds both,
+///  so the conversion stands beside the comparison rather than in the report's
+///  folder,
+///  which would then use this folder back and put the two in a loop
+///  (`AGENTS.md` rule LYL).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = sanoidReport(facts); // { outcome, lines }
+/// ```
+pub fn sanoid_report(facts: &CoverageFacts) -> SanoidReport {
+    let answer: CoverageAnswer = check_coverage(facts);
+    let lines: Vec<String> = answer.lines();
+    return SanoidReport::new(answer.outcome, lines);
 }
 
 /// Controls stay out of the release executable.
