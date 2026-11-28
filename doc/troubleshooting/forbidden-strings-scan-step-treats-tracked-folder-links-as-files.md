@@ -1543,10 +1543,10 @@ In `package/forbidden-strings/cli`:
   (a `body` binding shadowed by the match arm's own `body`),
   a rename fixed it and the next run exited 0.
 - `cargo nextest run --locked --offline --test ci_scan_scope`:
-  `Summary [   2.388s] 34 tests run: 34 passed, 0 skipped`.
+  `Summary [   2.554s] 34 tests run: 34 passed, 0 skipped`.
 - the package's own task,
   `mise run //package/forbidden-strings/cli:test`:
-  `Summary [  33.040s] 393 tests run: 393 passed, 0 skipped`,
+  `Summary [  36.836s] 393 tests run: 393 passed, 0 skipped`,
   exit 0.
   The 6633 round's branch ran 381,
   and this round adds twelve cases.
@@ -1567,6 +1567,8 @@ so it was merged in `5edf62d28d` (2026-11-27T21:20:18-05:00).
 Neither the workflow file nor any test file this round changes was touched by
 the merge,
 and the index still holds 139 links and 0 gitlinks.
+Nothing new arrived on `origin/main` after it:
+the last merge attempt answered `Already up to date.`
 
 After the merge every check above ran again,
 in `package/forbidden-strings/cli`,
@@ -1575,9 +1577,9 @@ and each printed the same result:
 `cargo check --locked --offline --all-targets` exit 0,
 `cargo clippy --locked --offline --all-targets -- -D warnings` exit 0,
 `cargo nextest run --locked --offline --test ci_scan_scope`
-with `Summary [   2.388s] 34 tests run: 34 passed, 0 skipped`,
+with `Summary [   2.554s] 34 tests run: 34 passed, 0 skipped`,
 and `mise run //package/forbidden-strings/cli:test`
-with `Summary [  33.040s] 393 tests run: 393 passed, 0 skipped`.
+with `Summary [  36.836s] 393 tests run: 393 passed, 0 skipped`.
 `monochromatic-lint` again reported no finding on any changed file,
 and the workflow file's sha256 is still
 `5e85cacd3f0639d16256745f638e0b7324abaaa55d97fcd75cd67ccf65a32d62`.
