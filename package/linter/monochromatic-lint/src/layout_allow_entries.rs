@@ -31,19 +31,27 @@ use crate::{
         characters_beside_the_first,
         first_unseen_character,
         key_path,
+        prints_as_nothing,
         spelled_unreadable,
         unseen_character_count,
         unseen_character_phrase,
     },
     markdown_lfs_target::lexical_normal,
 };
-/// Import the one cell that holds the answer about the package folder's names,
+/// Import the cells that hold the answers about the package folder's names,
+///  the map that keeps one answer per folder,
 ///  the set that keeps one line from repeating another,
 ///  the one spelling of a listed path,
 ///  and native paths.
 use std::{
-    cell::OnceCell,
-    collections::BTreeSet,
+    cell::{
+        OnceCell,
+        RefCell,
+    },
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ops::Range,
     path::{
         Path,
@@ -79,6 +87,10 @@ pub(crate) const SET_OFF_ARROW: &str = " -> ";
 ///  where the folder holds 5,000 entries (measured on 2026-11-27),
 ///  so the answer belongs to the folder and not to the line.
 ///  A list whose lines never ask reads the folder not at all.
+///  One refusal also asks whether the folder it names holds a module file,
+///  and a dead line whose edited text is such a line asks it once per line:
+///  that answer is kept per folder as well, because a list names one folder many times
+///  (measured on 2026-11-28: 400 such lines over a folder of 20,000 files cost 5.4 s where the folder was listed per line).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,6 +105,8 @@ pub(crate) struct PackageFolder<'base> {
     path: &'base Path,
     /// The length of the longest name the folder holds, once a line asks for it.
     longest_name: OnceCell<Option<usize>>,
+    /// Whether each folder a line names holds a module file, once that line asks.
+    module_file: RefCell<BTreeMap<PathBuf, bool>>,
 }
 
 /// What:
@@ -111,6 +125,7 @@ impl<'base> PackageFolder<'base> {
         return PackageFolder {
             path,
             longest_name: OnceCell::new(),
+            module_file: RefCell::new(BTreeMap::new()),
         };
     }
 
@@ -124,6 +139,31 @@ impl<'base> PackageFolder<'base> {
         return *self
             .longest_name
             .get_or_init(|| return longest_name_in(self.path));
+    }
+
+    /// Whether a folder holds a module file, answered once for each folder a list names.
+    /// Why:
+    ///  A refusal for a folder whose name holds whitespace asks this of the folder it names,
+    ///  and every dead line whose edited text is such a line asks it again:
+    ///  listing the folder once per line cost a list of 400 such lines 5.4 s over 20,000 files (measured 2026-11-28),
+    ///  where the folder holds the same files for every line of the list.
+    ///  The answer belongs to the folder, so the first line that names it lists it and every later line reads that answer.
+    pub(crate) fn holds_a_module_file(
+        &self,
+        folder: &Path,
+    ) -> bool {
+        // What: the answer this list already has for this folder, if any line asked before.
+        // Why: a folder named twice is one question, and the files it holds do not change while a list is read.
+        if let Some(answer) = self.module_file.borrow().get(folder) {
+            return *answer;
+        }
+        // What: whether the folder holds a module file, asked of the file system once.
+        // Why: the walk must not repeat for the second line that names the same folder.
+        let answer: bool = holds_a_module_file(folder);
+        self.module_file
+            .borrow_mut()
+            .insert(folder.to_path_buf(), answer);
+        return answer;
     }
 }
 
@@ -663,6 +703,10 @@ fn longest_name_in(folder: &Path) -> Option<usize> {
 /// }
 /// ```
 fn holds_a_module_file(folder: &Path) -> bool {
+    // What: one listing of a folder for a module file, which a control counts.
+    // Why: the answer is kept per folder and list, so a control that counts listings holds a reader that asks the folder again for every line.
+    #[cfg(test)]
+    counted_work::note_module_file_listing();
     // What: the names the folder holds, or nothing when it cannot be read.
     // Why: a folder no reader can list holds no module file that any check would read.
     let Ok(entries) = std::fs::read_dir(folder) else {
@@ -733,7 +777,7 @@ fn whitespace_character_description(name: &str) -> String {
 
 /// What:
 ///  The sentence a refusal adds about a character a reader cannot see, or nothing when the line holds none,
-///  with the edit its reader can make.
+///  with the edit its reader can make for each character the line itself carries.
 /// Why:
 ///  A refusal stops the whole rule, so it is the message a reader most needs to act on,
 ///  and a character that prints as nothing is the hardest fault to find: the line looks right.
@@ -743,6 +787,11 @@ fn whitespace_character_description(name: &str) -> String {
 ///  because a person told of the first and left to find the second on the next run learns nothing from it.
 ///  The edit offered is both the one that works when the character stands in a word and the one that works when it stands where a separator belongs:
 ///  the reader does not treat it as whitespace either way, and which of the two it is depends on where it stands.
+///  A character that stands in the folder's own name is no character the line can take out,
+///  because the name it would spell is another folder's: that one is taken out by the rename the refusal asks for,
+///  and the sentence says so beside the edit for the characters outside the name.
+///  The edit is named for the characters the line carries outside the folder's name and for no others,
+///  because a sentence that says to take each of them out sends its reader to a line the next run refuses for its word count.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -757,11 +806,12 @@ fn unseen_character_note(
 
 /// What:
 ///  The sentence a refusal adds about a character a reader cannot see
-///  when that character stands in the name of the folder the refusal names.
+///  when one or more of them stand in the name of the folder the refusal names.
 /// Why:
 ///  Taking such a character out of the folder's name would name another folder,
 ///  and the refusal already asks its reader to rename that folder:
-///  the rename is what takes the character out, so the note names that one edit and no other.
+///  the rename is what takes those characters out, so the note names that one edit for them
+///  and the take-out edit for the characters the line carries elsewhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -778,11 +828,15 @@ fn unseen_character_note_in_a_folder_name(
 /// What:
 ///  The sentence a refusal adds about the first character of the line a reader cannot see,
 ///  how many the line holds beside it,
-///  and the edit its reader can make.
+///  which of them stand in the word-named folder's own name,
+///  and the edit its reader can make for each one outside that name.
 /// Why:
 ///  One character is enough for the sentence, and its place is what the reader has to find;
 ///  the count is what says the line holds more, which the next run would otherwise name;
-///  and the edit depends on where it stands, because a character the line wrote as part of a folder's name is no character to take out.
+///  and the edit depends on where each one stands, because a character the line wrote as part of a folder's name is no character to take out.
+///  The question is asked of every character and not of the first alone:
+///  a line whose first character stands within the name and whose second stands outside it was told to take both out,
+///  and the next run answered the edited line with a word count and named no folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -790,7 +844,7 @@ fn unseen_character_note_in_a_folder_name(
 ///   const first = firstUnseen(text)
 ///   const place = column + first[1] - 1
 ///   const more = besideTheFirst(unseenCount(text))
-///   const inTheFolder = folder !== undefined && placeStandsIn(place, column, text, folder)
+///   const inside = folder === undefined ? 0 : unseenInSpan(text, column, folder)
 ///   ...
 /// }
 /// ```
@@ -812,25 +866,86 @@ fn note_of_an_unseen_character(
     // Why: an edit that takes one out leaves the other, and the next run names it again.
     let count: usize = unseen_character_count(text);
     let more: String = characters_beside_the_first(count);
-    // What: whether that character stands inside the words the refusal names the folder with.
-    // Why: the edit there is the rename the message already asks for, and taking the character out of a folder's name would name another folder.
-    let in_the_folder: bool =
-        folder.is_some_and(|span| return place_stands_in(place, column, text, span));
-    if in_the_folder {
+    // What: how many of them stand inside the words the refusal names the folder with.
+    // Why: each of those is taken out by renaming the folder, and each of the others by the edit the line can take out itself.
+    let inside: usize = folder
+        .as_ref()
+        .map_or(0, |span| return unseen_characters_in_span(text, column, span.clone()));
+    // What: the edit for a refusal that names no folder, where the sentence cannot say which character stands in a folder's own name.
+    // Why: a sentence that said to take each of them out sent its reader to a line the next run refused for its word count,
+    // so it names the edit for the one character it placed, says how many stand beside it, and says what a folder's own character needs instead.
+    if folder.is_none() {
+        let edit: &str = if count == 1 {
+            "the reader does not treat it as whitespace, so take it out, or write a whitespace character where it stood if it stood where one belongs"
+        } else {
+            "the reader does not treat it as whitespace, so take that character out, and write a whitespace character where it stood if it stood where one belongs"
+        };
         return format!(
-            " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}, and that character stands in the name of the folder above: renaming that folder is the edit that takes it out."
+            " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}: {edit}. A character that stands in the name of a real folder is part of that name, and renaming that folder is the edit that takes it out."
         );
     }
-    // What: the edit, in the words that agree with how many characters it changes.
-    // Why: "take it out" about two characters is the sentence that left one behind.
-    let edit: &str = if count == 1 {
-        "the reader does not treat it as whitespace, so take it out, or write a whitespace character where it stands if it stood where one belongs"
+    // What: the edit for characters every one of which stands outside the folder the refusal names.
+    // Why: with the folder known and no character of its name among them, the take-out edit is the one every character there needs.
+    if inside == 0 {
+        let edit: &str = if count == 1 {
+            "the reader does not treat it as whitespace, so take it out, or write a whitespace character where it stood if it stood where one belongs"
+        } else {
+            "the reader does not treat them as whitespace, so take each of them out, and write a whitespace character where one stood if it stood where one belongs"
+        };
+        return format!(
+            " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}: {edit}."
+        );
+    }
+    let outside: usize = count - inside;
+    let take_out: &str = if outside == 1 {
+        "take out the one outside the folder's name, and write a whitespace character where it stood if it stood where one belongs"
     } else {
-        "the reader does not treat them as whitespace, so take each of them out, and write a whitespace character where one stood if it stood where one belongs"
+        "take out the {outside} outside the folder's name, and write a whitespace character where one stood if it stood where one belongs"
     };
+    // What: which characters the rename takes out, said as a group so the clause never points at `that character` after a count.
+    // Why: a sentence whose `that character` follows `2 more characters` reads as the wrong one of them.
+    let in_the_folder: String = match (inside, count - inside) {
+        (1, 0) => String::from("that character stands in the name of the folder above"),
+        (1, _) => String::from("one of them stands in the name of the folder above"),
+        (_, 0) => String::from("every one of them stands in the name of the folder above"),
+        (_, _) => format!("{inside} of them stand in the name of the folder above"),
+    };
+    let them: &str = if inside == 1 { "it" } else { "them" };
+    if count == inside {
+        return format!(
+            " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}, and {in_the_folder}: renaming that folder is the edit that takes {them} out."
+        );
+    }
     return format!(
-        " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}: {edit}."
+        " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}, and {in_the_folder}, so renaming that folder takes {them} out: {take_out}."
     );
+}
+
+/// What:
+///  How many characters of a line a reader cannot see that stand inside a span of it.
+/// Why:
+///  A message names a character by its place in the whole line and the folder's words are a span of the entry,
+///  and the edit a character needs depends on which of the two it is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unseenInSpan = (text, column, span) =>
+///   [...text].filter((one, at) => printsAsNothing(one) && placeStandsIn(column + at, column, text, span)).length
+/// ```
+fn unseen_characters_in_span(
+    text: &str,
+    column: usize,
+    span: Range<usize>,
+) -> usize {
+    // What: how many characters of the line that print as nothing stand inside the span.
+    // Why: each of them is a character the rename takes out, and each one outside it is left for the line's own edit.
+    return text
+        .chars()
+        .enumerate()
+        .filter(|(index, letter)| {
+            return prints_as_nothing(*letter) && place_stands_in(column + index, column, text, span.clone());
+        })
+        .count();
 }
 
 /// What:
@@ -985,7 +1100,7 @@ pub(crate) fn entry_of(
             // What: whether the folder holds a module file, which is what a loop of files inside it is made of.
             // Why: a folder that holds none has no loop to untangle, and sending its reader to untangle one sends them to something that is not there.
             let holds_a_module: bool =
-                holds_a_module_file(base.join(folder.name.as_str()).as_path());
+                package.holds_a_module_file(base.join(folder.name.as_str()).as_path());
             // What: the edit open to the line's reader, which is the rename either way and the untangling only while the folder holds files to untangle.
             // Why: the two edits are the only two ways a loop through such a folder stops needing a line.
             let remedy: String = if holds_a_module {
@@ -1374,6 +1489,8 @@ pub(crate) mod counted_work {
         static CANDIDATE_NAMES: Cell<usize> = const { Cell::new(0) };
         /// The times a read listed a folder to learn the longest name it holds.
         static FOLDER_LISTINGS: Cell<usize> = const { Cell::new(0) };
+        /// The times a read listed a folder to learn whether it holds a module file.
+        static MODULE_FILE_LISTINGS: Cell<usize> = const { Cell::new(0) };
         /// The names a reading built out of a written folder text.
         static OFFERED_NAMES: Cell<usize> = const { Cell::new(0) };
     }
@@ -1408,10 +1525,21 @@ pub(crate) mod counted_work {
         return FOLDER_LISTINGS.with(|count| return count.get());
     }
 
+    /// Count one listing of a folder for whether it holds a module file.
+    pub(crate) fn note_module_file_listing() {
+        MODULE_FILE_LISTINGS.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// How many times the reads of this thread listed a folder for whether it holds a module file.
+    pub(crate) fn module_file_listings() -> usize {
+        return MODULE_FILE_LISTINGS.with(|count| return count.get());
+    }
+
     /// Start one control from nothing counted.
     pub(crate) fn reset() {
         CANDIDATE_NAMES.with(|count| return count.set(0));
         FOLDER_LISTINGS.with(|count| return count.set(0));
+        MODULE_FILE_LISTINGS.with(|count| return count.set(0));
         OFFERED_NAMES.with(|count| return count.set(0));
     }
 }

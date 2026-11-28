@@ -99,6 +99,11 @@ pub(crate) mod counted_work {
         ENTRIES_WALKED.with(|count| return count.set(count.get() + 1));
     }
 
+    /// Count the entries one caller was handed to walk.
+    pub(crate) fn note_entries(count: usize) {
+        ENTRIES_WALKED.with(|walked| return walked.set(walked.get() + count));
+    }
+
     /// How many entries this thread walked.
     pub(crate) fn entries_walked() -> usize {
         return ENTRIES_WALKED.with(|count| return count.get());
@@ -255,6 +260,11 @@ impl AllowList {
 
     /// The entries in file order.
     pub fn entries(&self) -> &[AllowEntry] {
+        // What: the entries this caller was handed, which a control counts.
+        // Why: a question that walks every entry for each line is answered by a scan of this slice,
+        // so the count of entries handed out is what sees a scan put back where an index answers.
+        #[cfg(test)]
+        counted_work::note_entries(self.entries.len());
         return &self.entries;
     }
 

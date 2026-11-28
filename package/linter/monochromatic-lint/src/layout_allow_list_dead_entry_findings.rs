@@ -72,6 +72,8 @@ use std::{
 struct Reading {
     /// The sentence that says what the edit leaves, such as `With that character out, the line reads as a `uses` line.`.
     sentence: String,
+    /// The edit itself, named so a sentence beside it can say what the edit does without repeating the sentence above it.
+    edit: String,
     /// The line the edit leaves, in the words a list writes an entry, when it leaves a line of a use shape.
     identity: Option<String>,
 }
@@ -119,9 +121,10 @@ pub fn dead_entry_findings(
     // Why: the message pass and the collision check both read it, and reading it twice per line is work the square of the list does not need.
     let mut readings: Vec<Option<Reading>> = Vec::<Option<Reading>>::new();
     readings.resize_with(list.entries().len(), || return None);
-    // What: how many dead lines' edits give each line.
-    // Why: a list refuses two lines that hold one thing, so two edits that give one line cannot both be written.
-    let mut edits: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
+    // What: the dead key lines whose own edit gives each line, one list per line the edits give.
+    // Why: a list refuses two lines that hold one thing, so two edits that give one line cannot both be written,
+    // and a sentence that names the edit of one such line has to say which others give the same line.
+    let mut edits: BTreeMap<String, Vec<usize>> = BTreeMap::<String, Vec<usize>>::new();
     for (index, entry) in list.entries().iter().enumerate() {
         // What: only a line no finding used, of the shape that is one finding's key, has an edit a sentence can describe.
         // Why: a `uses` or `file-uses` line that tolerated nothing names a use that is gone, which is no edit of its text.
@@ -144,7 +147,10 @@ pub fn dead_entry_findings(
             continue;
         };
         if let Some(identity) = &reading.identity {
-            *edits.entry(identity.clone()).or_insert(0) += 1;
+            edits
+                .entry(identity.clone())
+                .or_default()
+                .push(index);
         }
         readings[index] = Some(reading);
     }
@@ -194,7 +200,9 @@ pub fn dead_entry_findings(
             // Why: a text another line's edit also gives is refused as the repeat it is once both are written, so the sentence may not promise the line reads.
             let reading: Option<&Reading> = readings[index].as_ref().filter(|one| {
                 return one.identity.as_ref().is_none_or(|identity| {
-                    return edits.get(identity) == Some(&1);
+                    return edits
+                        .get(identity)
+                        .is_none_or(|lines| return lines.len() == 1);
                 });
             });
             // What: the character the edit would be about, what the edit changes, and its place among the entry's characters.
@@ -214,13 +222,15 @@ pub fn dead_entry_findings(
                 // What: where that character stands in the line, counted in characters from the line's first one.
                 // Why: the entry the reader keeps starts past the indent, and the quote shows the character spelled.
                 let place: usize = entry.column + position - 1;
-                // What: every character of the line the edit this sentence names takes out.
+                // What: every character of the line the edit this sentence names takes out, and how many names it changes.
                 // Why: a key's edit takes out every such character of the line,
-                // and a file name's takes out those of the file names alone:
-                // a character of a real folder's name is part of that folder's name, and taking it out names another folder.
-                let unseen: usize = match what {
-                    DeadEdit::Key => unseen_character_count(entry.text.as_str()),
-                    DeadEdit::FileName => unseen_characters_in_file_names(entry),
+                // and a file name's takes out those of the file names the advice changes and of no other name:
+                // a character of a real folder's name is part of that folder's name, and a character of a real module's own name is part of the name the rule prints.
+                let (unseen, names): (usize, usize) = match what {
+                    DeadEdit::Key => (unseen_character_count(entry.text.as_str()), 0),
+                    DeadEdit::FileName => {
+                        unseen_characters_the_file_name_edit_changes(entry, module_files, base)
+                    }
                 };
                 // What: the characters this line holds beside the one the sentence names, when it holds more than one.
                 // Why: a reader told of one character where two stand looks for one and leaves the other, and the next run names it again.
@@ -244,12 +254,12 @@ pub fn dead_entry_findings(
                             format!(
                                 "Take {} out of the line, then write the {} the rule prints; the entry is live again only if the use still exists.",
                                 the_characters_named(unseen),
-                                file_names_the_rule_prints(unseen)
+                                file_names_the_rule_prints(names)
                             ),
                             format!(
                                 "Take {} out of the line, then write the {} the rule prints: a character a reader cannot see makes a file name of its own.",
                                 the_characters_named(unseen),
-                                file_names_the_rule_prints(unseen)
+                                file_names_the_rule_prints(names)
                             ),
                         ),
                     };
@@ -279,9 +289,37 @@ pub fn dead_entry_findings(
                     ),
                     None => String::new(),
                 };
+                // What: the other dead key lines whose own edit gives the same line as this one's, and the edit they share.
+                // Why: following each line's own edit is refused as a repeat, so the sentence has to say that one of them may be kept
+                // and that the edit is made there; deleting every one of them leaves none, and the next run says nothing of the one that could have stayed.
+                let shared: String = readings[index]
+                    .as_ref()
+                    .and_then(|one| return one.identity.as_ref())
+                    .and_then(|identity| return edits.get(identity))
+                    .map(|lines| {
+                        return lines
+                            .iter()
+                            .copied()
+                            .filter(|other| return *other != index)
+                            .collect::<Vec<usize>>();
+                    })
+                    .filter(|others| return !others.is_empty())
+                    .and_then(|others| {
+                        let shared_reading: &Reading = readings[index].as_ref()?;
+                        let listed: Vec<usize> = others
+                            .iter()
+                            .map(|other| return list.entries()[*other].line)
+                            .collect();
+                        return Some(format!(
+                            " The line's own edit, {}, gives the same line as {}: making that edit on one of them and deleting the rest keeps one of them.",
+                            shared_reading.edit,
+                            lines_listed(&listed)
+                        ));
+                    })
+                    .unwrap_or_default();
                 (
                     format!(
-                        "The allow-list entry `{spelled_text}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.{note}",
+                        "The allow-list entry `{spelled_text}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.{note}{shared}",
                         shown(list.source(), base)
                     ),
                     String::from(
@@ -357,6 +395,39 @@ pub fn dead_entry_findings(
         });
     }
     return findings;
+}
+
+/// What:
+///  The line numbers of the other dead lines whose edit gives the same line, written the way a sentence lists them.
+/// Why:
+///  A sentence that names one line says `line 2`, two say `lines 2 and 5`, and three say `lines 2, 5 and 9`:
+///  a list of numbers with no word between them is no sentence a person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesListed = (lines) => lines.length === 1
+///   ? `line ${lines[0]}`
+///   : `lines ${lines.slice(0, -1).join(', ')} and ${lines[lines.length - 1]}`
+/// ```
+fn lines_listed(lines: &[usize]) -> String {
+    // What: one line is named on its own, and two or more are a list.
+    // Why: `lines 2` is wrong and `line 2 and 5` is wrong, so the two shapes need two spellings.
+    let Some((last, others)) = lines.split_last() else {
+        return String::new();
+    };
+    if others.is_empty() {
+        return format!("line {last}");
+    }
+    // What: the numbers before the last one, set off from each other by a comma.
+    // Why: the last one joins the list with `and`, which is how a sentence names a list of lines.
+    let mut listed: String = String::new();
+    for (at, line) in others.iter().enumerate() {
+        if at > 0 {
+            listed.push_str(", ");
+        }
+        listed.push_str(format!("{line}").as_str());
+    }
+    return format!("lines {listed} and {last}");
 }
 
 /// What:
@@ -552,15 +623,24 @@ fn what_the_line_would_read_as(
     } else {
         format!("With {} out", the_characters_named(count))
     };
+    // What: the same edit named as something to do, which a sentence beside this one can name.
+    // Why: a line whose edit another dead line's edit repeats is not told the line reads, and its sentence names the edit it shares instead.
+    let doing: String = if as_a_space {
+        format!("writing {}", the_characters_as_spaces(count))
+    } else {
+        format!("taking {} out", the_characters_named(count))
+    };
     if trimmed.is_empty() {
         return Some(Reading {
             sentence: format!("{edit}, the line carries nothing."),
+            edit: doing,
             identity: None,
         });
     }
     if trimmed.starts_with('#') {
         return Some(Reading {
             sentence: format!("{edit}, the line is a comment."),
+            edit: doing,
             identity: None,
         });
     }
@@ -588,42 +668,80 @@ fn what_the_line_would_read_as(
     }
     return Some(Reading {
         sentence: format!("{edit}, the line reads as a `{word}` line."),
+        edit: doing,
         identity: Some(identity),
     });
 }
 
 /// What:
-///  How many characters of a dead `file-uses` line's file names a reader cannot see.
+///  How many characters of a dead `file-uses` line's file names the advice changes, and how many file names hold them.
 /// Why:
-///  A file name's edit takes such a character out of the file names and out of nothing else,
-///  so the count a sentence about that edit gives is the file names':
+///  A file name's edit takes such a character out of the names the advice names and out of nothing else,
+///  so the count a sentence about that edit gives is theirs alone:
 ///  a character of the folder's own name is part of a name the package holds,
-///  and taking it out would name a folder that is not there.
+///  and a character of a real module's own name is part of the name the rule prints,
+///  which the same sentence goes on to ask its reader to write.
+///  The number of names chooses the noun, so two characters in one name still speak of one file name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unseenInFileNames = (entry) =>
-///   entry.kind !== 'file-use' ? 0 : unseenCharacters(entry.from).length + unseenCharacters(entry.to).length;
+/// const changedByTheFileNameEdit = (entry, moduleFiles, base) => {
+///   let characters = 0, names = 0
+///   for (const name of [entry.from, entry.to]) {
+///     const held = unseenCharacters(name).length
+///     if (held === 0) continue
+///     if (moduleFiles.has(normalise(join(base, entry.folder, name)))) continue
+///     characters += held; names += 1
+///   }
+///   return [characters, names]
+/// }
 /// ```
-fn unseen_characters_in_file_names(entry: &AllowEntry) -> usize {
+fn unseen_characters_the_file_name_edit_changes(
+    entry: &AllowEntry,
+    module_files: &BTreeSet<PathBuf>,
+    base: &Path,
+) -> (usize, usize) {
     // What: the two file names of the line, or nothing when it is of another shape.
     // Why: a key line and a folder use name no file.
     let AllowKind::FileUse {
+        folder,
         from,
         to,
         ..
     } = &entry.kind
     else {
-        return 0;
+        return (0, 0);
     };
-    return unseen_character_count(from.as_str()) + unseen_character_count(to.as_str());
+    // What: the characters the advice changes and the names that hold them.
+    // Why: the sentence counts characters and names the noun after the names.
+    let mut characters: usize = 0;
+    let mut names: usize = 0;
+    for name in [from, to] {
+        // What: how many characters of this name a reader cannot see.
+        // Why: a name that holds none needs no edit and is no name the sentence speaks of.
+        let held: usize = unseen_character_count(name.as_str());
+        if held == 0 {
+            continue;
+        }
+        // What: the path this name would have in the folder, in the spelling the walk gives the file it read.
+        // Why: a module the folder holds is a name the line already spells, and its dead line is deleted,
+        // so the advice leaves the name the rule prints where it is.
+        if module_files.contains(&lexical_normal(&base.join(folder).join(name.as_str()))) {
+            continue;
+        }
+        characters += held;
+        names += 1;
+    }
+    return (characters, names);
 }
 
 /// What:
-///  The words that name how many file names the rule prints, one or more.
+///  The words that name how many file names the rule prints: one, or more than one.
 /// Why:
 ///  A line whose two file names hold such a character takes the character out of both,
 ///  and a sentence that spoke of "the file name" over two of them sent its reader to one name.
+///  The noun follows the number of names the edit changes,
+///  so two characters inside one file name still speak of that one file name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
