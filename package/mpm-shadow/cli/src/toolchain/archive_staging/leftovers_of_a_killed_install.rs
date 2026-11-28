@@ -110,6 +110,7 @@
 //! ```ts
 //! // leftovers-of-a-killed-install.ts
 //! function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered;  // throws
+//! type ARecoveryThatFailed = { error: ToolchainError; thePublishKeptItsCopy: boolean };
 //! ```
 
 /// The shapes a recovery works in,
@@ -131,8 +132,10 @@ use self::the_claim_of_a_finished_copy::claim_the_finished_copy;
 /// the hidden name that holds the copy a kill moved aside,
 /// the hidden siblings this run removed,
 /// what the recovery answered,
+/// what a recovery that failed answers,
 /// and the two questions the repair asks of those shapes.
 pub(crate) use self::what_a_recovery_answers::{
+    ARecoveryThatFailed,
     AnOlderVersion,
     FinishedCopy,
     HoldingInstaller,
@@ -503,21 +506,31 @@ fn why_this_run_did_not_publish_it(older_version: &AnOlderVersion) -> WhyNotPubl
 /// A finished copy is published only when `expected` records the tool,
 /// the version and the archive digest its own marker records too,
 /// so a copy the lock does not vouch for never becomes a version.
+/// A failure answers whether it read the directory's hidden names,
+/// because the listing is the one step before which no copy was read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered
+/// export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered  // throws
 /// ```
 pub(crate) fn recover_leftovers(
     version_dir: &Path,
     first_bin: &str,
     older_version: AnOlderVersion,
     expected: Option<&CopyRecord>,
-) -> Result<Recovered, ToolchainError> {
+) -> Result<Recovered, ARecoveryThatFailed> {
     let Some(directory) = version_dir.parent() else {
         return Ok(Recovered::default());
     };
-    let siblings: Vec<Leftover> = hidden_siblings(directory)?;
+    // What: the listing is the first read of the recovery, so a failure here is one that read no hidden name.
+    // Why: the warning an install makes of it may then claim nothing about a copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const siblings = hiddenSiblings(directory).mapErr(nothingRead);
+    // ```
+    let siblings: Vec<Leftover> = hidden_siblings(directory)
+        .map_err(|error| return ARecoveryThatFailed::nothing_read(error))?;
     let gone: Vec<&Leftover> = siblings
         .iter()
         .filter(|sibling| return is_gone(sibling))
@@ -558,9 +571,19 @@ pub(crate) fn recover_leftovers(
         }
     } else if !is_finished(version_dir, first_bin) {
         if let Some(claimed) =
-            claim_the_finished_copy(version_dir, &of_this_version, first_bin, expected)?
+            claim_the_finished_copy(version_dir, &of_this_version, first_bin, expected)
+                .map_err(ARecoveryThatFailed::a_copy_it_named)?
         {
-            outcome.finished_copy = match publish_staged(&claimed.claim, version_dir, first_bin)? {
+            // What: the publish is the one step whose failure name the warning may follow with the copy's fate.
+            // Why: it keeps the finished copy this run holds, and a run that then installs the version makes it a second one.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // outcome.finishedCopy = match publishStaged(claimed.claim, versionDir, firstBin) { ... };
+            // ```
+            outcome.finished_copy = match publish_staged(&claimed.claim, version_dir, first_bin)
+                .map_err(ARecoveryThatFailed::the_publish_kept_its_copy)?
+            {
                 Published::Here => FinishedCopy::PublishedHere {
                     copy: claimed.left_at,
                 },
@@ -590,7 +613,8 @@ pub(crate) fn recover_leftovers(
                 .copied()
                 .find(|sibling| return sibling.holds == Holds::ReplacedCopy);
             if let Some(copy_that_was_there) = moved_aside {
-                outcome.restored = put_back_the_copy(version_dir, &copy_that_was_there.path)?;
+                outcome.restored = put_back_the_copy(version_dir, &copy_that_was_there.path)
+                    .map_err(ARecoveryThatFailed::a_copy_it_named)?;
             }
         }
     }
