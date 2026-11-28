@@ -178,9 +178,15 @@ export function armScript({
     `export CLI_GIT_ZFS_REMOVAL_FORCE_GUEST=${name}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
+    // An arm that panicked leaves its mounts, and a mount of a pool that is gone is one no `zpool destroy` can
+    // release: the guest is reused, so its mounts go first and the arms start on a machine they made.
+    'umount --recursive --force /root/.cache 2>/dev/null || true',
+    ...THE_POOLS.map(function rootLine(pool) {
+      return `umount --recursive --force /root/${pool.root} 2>/dev/null || true`;
+    },),
     // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion,
     // and the failure's own output is printed rather than the last lines of a passing run.
-    `if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --test-threads=1 --status-level fail --filterset ${shellQuote(filterset,)} > /root/${ARM_LOG} 2>&1; then status=0; else status=$?; fi`,
+    `if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --no-fail-fast --status-level fail --filterset ${shellQuote(filterset,)} > /root/${ARM_LOG} 2>&1; then status=0; else status=$?; fi`,
     `cp /root/${ARM_LOG} /mnt/shared/${ARM_LOG} || true`,
     `tail --lines=200 /root/${ARM_LOG}`,
     'test "$status" = 0',

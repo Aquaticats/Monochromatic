@@ -150,6 +150,14 @@ impl Arm {
         let sbin: String = required(SBIN_VARIABLE);
         let root: PathBuf = PathBuf::from(format!("/root/removal-force-arm-{number}"));
         let pool: String = format!("removalforce{number}");
+        // A run that died before its cleanup left this arm's own pool behind, and a pool cannot be made twice.
+        let _leftover: (bool, String, String) = zfs(
+            sbin.as_str(),
+            "zpool",
+            &["destroy", "-f", pool.as_str()],
+            None,
+        );
+        let _wreckage: std::io::Result<()> = std::fs::remove_dir_all(root.as_path());
         std::fs::create_dir_all(root.as_path()).expect("the arm's folder is made");
         let image: PathBuf = root.join("pool.img");
         let file: std::fs::File =
@@ -181,7 +189,21 @@ impl Arm {
         command_ok("git", &["init", "--quiet", shown(checkout.as_path())]);
         std::fs::write(checkout.join("a.txt"), "the arm's own file\n")
             .expect("the checkout's one file is written");
-        command_ok("git", &["-C", shown(checkout.as_path()), "add", "a.txt"]);
+        // The checkout's slot chain is inside the checkout's own dataset and is no tracked content, so the clone a
+        // removal meets at a slot would hold one untracked entry (`.claude/`) and every arm without force would be
+        // refused for a change nobody made. The ignore file is the checkout's own.
+        std::fs::write(checkout.join(".gitignore"), ".claude/\n")
+            .expect("the checkout's ignore file is written");
+        command_ok(
+            "git",
+            &[
+                "-C",
+                shown(checkout.as_path()),
+                "add",
+                "a.txt",
+                ".gitignore",
+            ],
+        );
         command_ok(
             "git",
             &[
@@ -210,6 +232,22 @@ impl Arm {
                 "HEAD",
             ],
         );
+        // The design's add writes no checkout, so the underlay holds Git's pointer and nothing else. This fixture checks
+        // the slot out, because the cleanliness reading needs the registration's index, so the files it wrote into the
+        // underlay are taken out again: the clone carries the checkout's files and the underlay is the empty folder the
+        // settle removes.
+        for entry in std::fs::read_dir(slot.as_path()).expect("the underlay lists") {
+            let entry: std::fs::DirEntry = entry.expect("one underlay entry");
+            if entry.file_name() == std::ffi::OsStr::new(".git") {
+                continue;
+            }
+            let path: PathBuf = entry.path();
+            if entry.file_type().expect("the entry's type").is_dir() {
+                std::fs::remove_dir_all(path.as_path()).expect("a checked-out folder goes");
+            } else {
+                std::fs::remove_file(path.as_path()).expect("a checked-out file goes");
+            }
+        }
         let slot_identity: FolderIdentity =
             FolderIdentity::of_folder(slot.as_path()).expect("the underlay's identity reads");
         let pointer: Vec<u8> =

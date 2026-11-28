@@ -30,10 +30,7 @@ use super::zfs_removal_force_guest_fixture::{
     in_the_guest,
     shown,
 };
-use super::zfs_removal_force_guest_records::{
-    plant_an_unreadable_plan,
-    the_record_home,
-};
+use super::zfs_removal_force_guest_records::the_record_home;
 use super::zfs_sweep_guest::{
     DESIRED_STATE,
     NONCE,
@@ -148,13 +145,19 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
     let refused: (bool, String, String) = zfs(
         arm.sbin.as_str(),
         "zfs",
-        &["destroy", arm.clone.as_str()],
+        &["destroy", "-r", arm.clone.as_str()],
         None,
     );
     assert!(
         !refused.0,
-        "the pool destroyed a clone mounted on its staging folder: {}",
-        refused.1
+        "the pool destroyed a clone mounted on its staging folder: {}{}",
+        refused.1, refused.2
+    );
+    assert!(
+        format!("{}{}", refused.1, refused.2).contains("busy"),
+        "the pool's own reason is the mount that holds the clone: {}{}",
+        refused.1,
+        refused.2
     );
     println!(
         "REMOVAL-FORCE arm=1 mounted-refuses-the-destroy said={}",
@@ -221,7 +224,10 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
 /// Why:
 ///  The owner's answer makes a forced run destroy what the pool lists for its
 ///  clone,
-///  so the arm reads the pool's own snapshot list before the command and
+///  and the run that reaches the live proof is the one with two forces over a
+///  clone the wrapper cannot prove,
+///  so the arm reuses the name its record holds,
+///  reads the pool's own snapshot list before the command,
 ///  compares it,
 ///  in the pool's order,
 ///  with the names the report records as
@@ -238,10 +244,32 @@ fn zfs_removal_force_guest_the_snapshot_batch_arm() {
         return;
     }
     let arm: Arm = Arm::make(2);
+    // The forced run whose proof is the live one is the run that cannot prove the clone: the name this arm's record
+    // holds answers another object, and two forces destroy what the pool lists for that object.
+    let again: String = format!(
+        "{}@{ORIGIN_PREFIX}{NONCE}-batch",
+        arm.place.checkout_dataset
+    );
+    zfs_ok(arm.sbin.as_str(), &["snapshot", again.as_str()]);
+    zfs_ok(
+        arm.sbin.as_str(),
+        &["destroy", "-r", "-f", arm.clone.as_str()],
+    );
+    zfs_ok(
+        arm.sbin.as_str(),
+        &["clone", again.as_str(), arm.clone.as_str()],
+    );
+    zfs_ok(
+        arm.sbin.as_str(),
+        &[
+            "set",
+            format!("{DESIRED_STATE}={}", mount_request(NONCE)).as_str(),
+            arm.clone.as_str(),
+        ],
+    );
     arm.attach_at_the_slot();
     arm.snapshot(format!("{OWN_SNAPSHOT_PREFIX}a").as_str());
     arm.snapshot(format!("{OWN_SNAPSHOT_PREFIX}b").as_str());
-    let plan: PathBuf = plant_an_unreadable_plan(arm.place.common.as_path(), arm.clone_guid);
     let before: Vec<String> = arm.the_snapshots();
     assert_eq!(
         before,
@@ -256,21 +284,22 @@ fn zfs_removal_force_guest_the_snapshot_batch_arm() {
         "worktree",
         "remove",
         "--force",
+        "--force",
         shown(arm.place.slot.as_path()),
     ]);
     arm.stop_the_sweeper(sweeper);
     let said: String = Arm::said(&removed);
+    println!("REMOVAL-FORCE arm=2 said={said}");
     assert_eq!(
         removed.status.code(),
         Some(0),
-        "one force goes past a plan it cannot read and destroys the clone: {said}"
+        "two forces prove the clone by the pool's own answer and destroy it: {said}"
     );
     assert!(
-        said.contains(&format!(
-            "a force was given, so this removal went past the destruction plan at {}, which could not be read",
-            plan.display()
-        )),
-        "the plan the run went past is named: {said}"
+        said.contains("the record held `")
+            && said.contains("` and the pool answered `")
+            && said.contains("`"),
+        "the live proof's line names both GUIDs: {said}"
     );
     let destroyed: Vec<String> = destroyed_in(&said);
     assert_eq!(
@@ -287,7 +316,6 @@ fn zfs_removal_force_guest_the_snapshot_batch_arm() {
         "the pool lists no snapshot under the clone: {:?}",
         arm.the_snapshots()
     );
-    assert!(!plan.exists(), "the unreadable plan's file is gone");
     assert_eq!(arm.plan_entries(), 0, "no plan stands after the removal");
     assert!(
         !the_record_home(arm.place.common.as_path())

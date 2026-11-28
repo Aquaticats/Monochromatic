@@ -118,12 +118,11 @@ fn zfs_removal_force_guest_a_plan_that_cannot_be_read_with_no_force_arm() {
         Some(1),
         "the settling command refuses a plan it cannot read: {answered}"
     );
+    // The command reads the clone's absence before it reads the plan, so a standing clone is what it names here; the
+    // plan's own sentence is the arm where the clone is gone (`..._the_clone_gone_arm`).
     assert!(
-        answered.contains(&format!(
-            "the destruction plan {} names this clone and cannot be read",
-            plan.display()
-        )),
-        "the settling command names the plan's file: {answered}"
+        answered.contains("so its absence is not proved and nothing was settled"),
+        "the settling command names the clone that still stands: {answered}"
     );
     assert_eq!(
         std::fs::read(plan.as_path()).expect("the plan's bytes still read"),
