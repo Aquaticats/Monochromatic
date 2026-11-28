@@ -1566,43 +1566,6 @@ no start failed at its `EXEC` step,
 no unit reached the start limit,
 and the pair of commits made at once each landed once.
 
-What the `mpm-shadow` alpha.14 pass found
-(the same kind of read;
-`~/temp/agent/mpm-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
-no High finding,
-five Medium and ten Low.
-Right as claimed:
-the exchange leaves no absence
-(none in 25 rounds on ZFS and on tmpfs,
-where alpha.13 showed one in 3 and in 1 of 25,
-and 4 of 4 with its first rename slowed);
-an unfinished copy and another version's finished copy were never published;
-whether a refused start is repeated did not change;
-53 command lines are identical between the two binaries.
-Its Medium findings are all in the repair a later install makes after a kill,
-and each needs a killed install first:
-a publish that fails after the claim deletes the finished copy and says both copies are as they were;
-two installs recovering one kill can destroy the finished copy with only a delay between them,
-no error injected;
-a live installer this reader cannot see
-(another process namespace,
-`hidepid`)
-is read as ended,
-against the README's own sentence,
-and its directory removed or published;
-the recovery publishes an older locked version beside a newer installed one;
-and no test would catch an edit that publishes the wrong copy.
-A plain `install` with the network up repairs each.
-This machine ran alpha.14 until `0.2.7-alpha.15` was installed at 2026-11-27T13:29:
-`findmnt /proc` showed no `hidepid` here,
-and the race needed a killed install's leftovers and two installs at once.
-Two merges met in one file each and were resolved by keeping both sides,
-with the package's test task run on the merged tree
-(`package/mpm-shadow/cli/README.md`,
-799 of 799;
-`package/cargo-shadow/cli/src/failpoints.rs`,
-925 of 925).
-
 Issue 6586 is merged (`7d6bd90c92`).
 A build made for tests now reads the session's runtime directory and bus address only from two switches a control sets,
 and offers the account's service manager no program,
