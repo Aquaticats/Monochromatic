@@ -80,6 +80,11 @@ pub mod escape_hatch;
 ///  and the executable Git selects first.
 pub mod external_git_command;
 
+/// The Git directory Git gives the Git inside a `!` alias's shell,
+///  and whether it gives one at all,
+///  in a file of its own so the search beside it stays under the linter's line limit.
+pub mod external_git_command_the_git_dir_the_shell_reads;
+
 /// Starting real Git with unchanged arguments,
 ///  streams and exit status.
 pub mod forwarding;

@@ -264,9 +264,21 @@ or a Java major line such as `21`).
   so the farm links `rustup` only where a `rustup` proxy of that name already sits in the cargo bin
   directory,
   and a row that declared it names an unresolved bin wherever none does.
+  On 2026-11-17 this machine's `rustup` became the distribution's package,
+  and the proxies in the cargo home went with the `rustup-init` installation it replaced,
+  so no `rustup` proxy sat there any more,
+  and the row that declared it named it an unresolved bin.
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  An install adds a declared component the toolchain lacks,
+  which `0.2.7-alpha.17` showed against a real `rustup` in its second pass:
+  on a pinned toolchain at the `minimal` profile holding no `rustfmt` it asked
+  `rustup component add rustfmt --toolchain nightly-2026-11-16`,
+  the two programs were in the toolchain's `bin` afterwards and ran,
+  and the report named no unresolved bin,
+  where `0.2.7-alpha.16` in the same state asked nothing and named three unresolved bins.
+  The controls around this answer every `rustup` call from a stand-in runner.
   `list` reads the same declarations:
   it asks `rustup` which toolchain the row's channel is,
   then `rustup component list --installed` for what that toolchain holds,
@@ -1695,6 +1707,9 @@ and never what a start of either copy does:
 the test is a completion marker and a program found,
 so a program cut short under its marker reads as finished too,
 and the copy the version's name holds may be the one that cannot run.
+A stronger test of that clause was priced and not taken:
+keeping a second copy whose program differs means reading both programs on every recovery,
+and it still cannot tell a program cut short from one rebuilt at the same size.
 
 ```text
 toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
@@ -1892,17 +1907,45 @@ and it holds one link per declared bin
   A repository-published tool's link points at this tree's launcher instead,
   so a run through it can warn about the lock (see "The launcher").
 - Every link an install makes is replaced atomically,
-  so a run killed while the folder is rebuilt leaves no half-written name.
+  so a run killed while the folder is rebuilt leaves no half-written name:
+  the new link is written under a dotted temporary name beside the real one and renamed over it,
+  and a kill between those two steps leaves that temporary name behind.
 - Every rebuild also removes what the lock no longer declares:
   a symbolic link whose name no row of the lock declares is removed,
-  and the install's report names each one and where it pointed
+  and the install's report names each one as it removes it and says where it pointed
   (`removed the exposure link rustup (it pointed at ...), which no row of the lock declares`).
+  A run that fails at a later removal still names the removals it made before that failure,
+  and a link another run removed in the instant before this run reached it is no failure here:
+  the name is gone,
+  which is what both runs wanted,
+  and the run that took it named it.
   A regular file,
   a directory,
   or anything else at such a name belongs to a person and stays.
-  The name of the running `mpm-shadow`,
-  which the same rebuild has just linked when there is an install to link,
-  stays whether or not a row declares it (see "The farm also carries the running `mpm-shadow`").
+  Two kinds of link stay that a name alone would mark:
+  - the program's own link,
+    which the rebuild made when the running binary belongs to an install,
+    and which a rebuild keeps while it resolves into an installed `mpm-shadow` of either toolchain root,
+    whatever binary runs that rebuild
+    (see "The farm also carries the running `mpm-shadow`");
+  - the dotted temporary name of a link an install is in the middle of writing,
+    which is that install's while that install may still run,
+    and which a rebuild removes and names once that install has ended
+    (`removed the temporary link .thirdbin.tmp.... (it pointed at ...), which an install that ended left before it gave the link its name`).
+    The name carries the install that wrote it:
+    its process id,
+    the moment that process started,
+    the process namespace that gave the id out,
+    and the boot's identifier,
+    the facts a hidden name of an install carries too
+    (see "What a kill leaves and what the next install does about it").
+    A name this build cannot judge against those facts,
+    such as one from another process namespace,
+    keeps its link,
+    and a later rebuild asks again.
+    A name an earlier build wrote carries the process id alone,
+    so its link is removed only once no process holds that number,
+    and one whose number some process still holds stays.
   The `rustup` link this repository's `rust` row left behind when it stopped declaring it
   (issue 6626) is the case the rule comes from:
   it dangled once the proxies went,
@@ -1925,10 +1968,14 @@ makes those names reachable from a fresh shell:
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
-  No other program removes it:
-  the one that made it is the one that is gone.
-  A rebuild of the folder leaves it because that run makes the same link again,
-  and a scope that has the program installed nowhere removes it as a link no row declares
+  A rebuild keeps it while it resolves into an installed `mpm-shadow` of either toolchain root,
+  whatever binary runs that rebuild,
+  so a run from a build folder,
+  a `cargo install` binary or the bootstrap archive
+  no longer takes the name away from a scope that has the program installed.
+  A scope that has the program installed nowhere,
+  or a link that resolves nowhere,
+  removes it as a link no row declares
   (see "What the exposure folder holds").
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
