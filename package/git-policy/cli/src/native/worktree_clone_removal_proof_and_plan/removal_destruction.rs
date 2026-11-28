@@ -54,8 +54,8 @@ use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
     RemovalEntry,
     enter_the_removal,
-    history_of,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_entry_facts::history_of;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
@@ -189,6 +189,7 @@ pub fn destroy_the_removal(
     let folder: PlanFolder =
         PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
             return RemovalStop::PlanUnreadable {
+                slot: String::from(input.entry.slot),
                 path: crate::worktree_clone_binding_record::registration_home::plans_folder(
                     input.entry.common_dir,
                 ),

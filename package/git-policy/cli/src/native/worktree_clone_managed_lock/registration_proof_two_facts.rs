@@ -207,6 +207,9 @@ pub fn prove_the_registration(
         CloneMount::Nowhere
         | CloneMount::Elsewhere {
             ..
+        }
+        | CloneMount::AtTheStagingFolder {
+            ..
         } => {
             let found: FolderIdentity =
                 FolderIdentity::of_folder(facts.slot.as_path()).map_err(|error| {

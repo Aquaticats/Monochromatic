@@ -57,11 +57,11 @@ export type GuestBackend = {
    */
   readonly pushDestinationOf: (file: string) => string;
   /**
-   The command a guest runs to make that folder, or nothing when the backend already mounts it there.
+   The command a guest runs to make that folder, absent when the backend already mounts it there.
    A libvirt guest's folder is the virtiofs share `mvm create` mounts; a guest reached over `ssh` has no share, so the
    folder is made once, owned by the account every push and pull runs as.
    */
-  readonly makesTheSharedFolder: readonly string[] | undefined;
+  readonly makesTheSharedFolder?: readonly string[];
 };
 
 /**
@@ -108,7 +108,6 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
     pushDestinationOf(file: string,): string {
       return `/shared/${file}`;
     },
-    makesTheSharedFolder: undefined,
   },
   ovh: {
     kind: 'ovh',

@@ -619,6 +619,7 @@ fn the_claim_is_taken_before_the_first_read_so_a_refused_removal_leaves_it_relea
         cancelling: None,
         budget: the_budget(),
         now: "2026-11-25T09:12:44-05:00",
+        force: crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce::none(),
     };
     let stop: RemovalStop =
         complete_the_removal(&input).expect_err("a slot with no binding refuses");

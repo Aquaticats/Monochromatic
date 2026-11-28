@@ -28,7 +28,14 @@
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 
 /// The component every staging folder begins with.
-pub const STAGING_FOLDER_PREFIX: &str = "monochromatic-git-policy-cli-staging-";
+///
+/// Why:
+///  The slot state asks whether a clone sits on such a folder and this route
+///  writes the folders,
+///  so the one copy of the name lives where both already read it
+///  (`worktree_clone_mount_protocol::staging_folder_component`).
+pub const STAGING_FOLDER_PREFIX: &str =
+    crate::worktree_clone_mount_protocol::staging_folder_component::STAGING_FOLDER_PREFIX;
 
 /// The suffix of the record file beside a folder.
 pub const RECORD_SUFFIX: &str = ".json";
