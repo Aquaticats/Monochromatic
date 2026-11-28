@@ -458,6 +458,28 @@ pub mod checkout_boot_units;
 #[cfg(target_os = "linux")]
 pub use checkout_boot_units::*;
 
+/// What one root run does about the checkout's mount propagation:
+///  the check that the mount passes no mounts on,
+///  the set that makes it private through the descriptor it verified,
+///  the read that proves the set,
+///  the report of the shared mounts beneath the checkout,
+///  and the root-owned record of the answer.
+/// Plan step 19's piece,
+/// built ahead of the plan's order and unwired:
+/// its call at the head of `boot-reconcile` and of the default sweep is that
+/// step's wiring,
+/// so no command and no root mode reaches it in this release,
+/// and the guest arm beside its files calls it itself.
+/// It is Linux only,
+/// like the `statmount(2)`,
+/// `mount_setattr(2)` and `/proc/self/mountinfo` calls it makes.
+#[cfg(target_os = "linux")]
+pub mod checkout_propagation;
+
+/// The same re-export for `checkout_propagation`.
+#[cfg(target_os = "linux")]
+pub use checkout_propagation::*;
+
 /// The immutable covered entry of the checkout's underlay:
 ///  what the kernel says about the entry at the checkout path and its parent,
 ///  why a reading is refused,
