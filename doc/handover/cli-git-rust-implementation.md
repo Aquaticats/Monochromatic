@@ -2829,10 +2829,9 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-- "No measured window" leaves out windows this repository measured,
-  0.5 to 3 ms while a forked child holds a copied write descriptor.
-  So the pick not to repeat such a start is before the owner again
-  (`doc/handover/questions-for-the-owner.md`).
+In `mpm-shadow`,
+the pick not to repeat a start refused as busy is before the owner again
+(`doc/handover/questions-for-the-owner.md`).
 - A program that vanishes during a start is reported three ways,
   one of which repeats advice the release removed.
 - Right as claimed:
