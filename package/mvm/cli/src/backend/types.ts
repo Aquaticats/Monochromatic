@@ -2,8 +2,8 @@
  Backend abstraction shared by every mvm provider.
  
  A {@link Backend} is a record of the VM operations the CLI and MCP server
- dispatch to. The local libvirt path and the Hetzner Cloud path each export
- one. Method shapes match the existing standalone functions exactly, so the
+ dispatch to. The local libvirt path, the Hetzner Cloud path and the OVHcloud
+ Public Cloud path each export one. Method shapes match the existing standalone functions exactly, so the
  libvirt backend is a pure re-wiring of them.
  
  @module
@@ -23,7 +23,7 @@ import type { VmInfo, } from '../list.ts';
  const kind: BackendKind = 'hetzner';
  ```
  */
-export type BackendKind = 'hetzner' | 'libvirt';
+export type BackendKind = 'hetzner' | 'libvirt' | 'ovh';
 
 //endregion Backend kind
 
@@ -45,13 +45,25 @@ export type Backend = {
   /**
    Creates and starts a VM.
    
-   @param args - Name, optional image, and cloud-only server type / location
+   @param args - Name, optional image, cloud-only server type / location, and
+   the size floors a caller asked for
    */
   readonly create: (args: {
     readonly name: string;
     readonly image?: string;
     readonly serverType?: string;
     readonly location?: string;
+    /**
+     Least memory the machine may have, in gibibytes. Absent when the caller
+     asked for none, in which case the backend does exactly what it did before
+     this option existed.
+     */
+    readonly memoryGiB?: number;
+    /**
+     Fewest virtual CPUs the machine may have. Absent when the caller asked for
+     none.
+     */
+    readonly vcpus?: number;
   },) => Promise<void>;
 
   /**
@@ -94,11 +106,14 @@ export type Backend = {
   /**
    Creates an ephemeral VM, runs a command, then destroys it.
    
-   @param args - Command to run and optional source VM to clone from
+   @param args - Command to run, optional source VM to clone from, and the size
+   floors a caller asked for
    */
   readonly run: (args: {
     readonly command: string;
     readonly from?: string;
+    readonly memoryGiB?: number;
+    readonly vcpus?: number;
   },) => Promise<ExecResult>;
 
   /**

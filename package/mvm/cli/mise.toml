@@ -46,3 +46,11 @@ run = ["mise run build", "mise run test:unit"]
 [tasks."test:hetzner"]
 description = "Run the live, BILLED Hetzner provisioning test using root SOPS secrets"
 run = "node src/backend/hetzner/provision.expensive.unit.test.ts"
+
+# Live, BILLED OVHcloud provisioning test. Excluded from test:unit (the .expensive.
+# marker); run deliberately. Root mise loads the five OVHcloud names from the
+# encrypted .env.local.json before this task starts. Provisions and destroys a
+# billed Public Cloud instance on the hourly price, which is billed by the second.
+[tasks."test:ovh"]
+description = "Run the live, BILLED OVHcloud provisioning test using root SOPS secrets"
+run = "node src/backend/ovh/provision.expensive.unit.test.ts"

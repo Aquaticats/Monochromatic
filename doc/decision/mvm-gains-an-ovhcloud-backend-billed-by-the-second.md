@@ -112,6 +112,174 @@ Each sentence quoted here was found on its page with `agent-browser` on 2026-11-
 - The backend signs its requests with the runtime's own hash and sends them with `fetch`,
   and adds no dependency for it.
 
+## The owner's answers on the billed test, 2026-11-28
+
+Unapproved and non-final:
+the backend has created no machine that answered yet.
+Times are this machine's clock,
+UTC-05:00.
+
+### The first answer: run the test as built
+
+The owner had written "Build and test."
+before the test existed,
+so the session listed what the test does,
+step by step,
+and asked.
+The owner chose "Run it as built (Recommended)",
+whose text was these steps:
+
+1.  merge the branch,
+    then widen AppArmor's `ssh-keygen` profile so it may write under `~/.local/share/mvm/ovh/`;
+2.  `mise` gives the five key values from the encrypted secrets file to one process,
+    `node src/backend/ovh/provision.expensive.unit.test.ts`;
+3.  `ssh-keygen` makes one ed25519 keypair with no passphrase under `~/.local/share/mvm/ovh/`,
+    which stays on this machine;
+4.  reads:
+    the clock,
+    the project's regions,
+    flavors,
+    images and SSH keys;
+5.  the public key is uploaded to the project under a name beginning `mvm-`,
+    and stays there;
+6.  one machine is created,
+    of the smallest flavor in stock,
+    with `monthlyBilling` false;
+7.  up to 300 s for `ACTIVE`,
+    then `ssh` as the image's own user with host-key checking off,
+    `uname -a`,
+    and one file copied in and out of `/tmp`;
+8.  the machine is deleted,
+    the project is listed,
+    and on any failure a guard deletes every machine and snapshot whose name begins `mvm-`;
+9.  the test gives up after 900 s.
+
+Not chosen:
+the same run followed by deleting the uploaded key and the keypair,
+and not running it.
+
+The run of 04:18:56 ended after 8.7 s and created nothing.
+OVHcloud answered 404 to a flavor list:
+the project lists regions that offer storage only beside the regions that create instances,
+both Canadian and both `UP`,
+and the name order put a storage-only one first.
+
+### The second answer: diagnose, fix, run again
+
+Asked what may follow,
+the owner chose "Diagnose,
+fix,
+rerun (Recommended)":
+read-only signed reads of the region list,
+each region's record and each region's flavor list,
+kept in scratch for a day with the project identifier masked;
+a change to how the backend picks a region,
+with a unit test;
+and the same nine steps once more.
+
+The reads showed that a region record carries the services the region offers,
+and that every region listing a service named `instance` answered the flavor list
+while every region without it answered 404.
+The default regions now also require that service to be `UP`
+(commits `0a899056f5` and `c5f7e90216`).
+
+Before the second run the session also let `ssh` read `~/.local/share/mvm/ovh/`,
+in `/etc/apparmor.d/local/ssh`:
+the profile lets `ssh` read keys only in the account's `.ssh` folder,
+so step 7 would have failed after a machine existed.
+That widening was in neither option's text;
+it was done under the owner's standing "Always widen apparmor."
+and the owner was told in the next question.
+
+The run of 04:38:34 created a machine:
+OVHcloud accepted the create with `monthlyBilling` false.
+The machine did not reach `ACTIVE` within the 300 s,
+the backend deleted it at 04:43:45,
+the project listed it as `DELETING` until 04:48:42,
+and listed no instance at 04:49:59.
+The flavor was `d2-2`,
+the smallest in stock and no GPU machine;
+the image was "Ubuntu 26.04 - NVIDIA - v595",
+a GPU driver image,
+because the backend took the newest image whose name starts with `ubuntu`.
+The billing guide quoted under "What OVHcloud's own documents say" says
+the time in `BUILD` is not billed;
+which status the machine stood in was not logged,
+so whether it was billed is not known.
+
+### The third answer, and "Please don't pick GPU?"
+
+Asked again,
+the owner chose "Diagnose,
+fix,
+third run (Recommended)":
+read-only reads of the region's images and flavors,
+the project's SSH key names and its instances;
+a change to the image choice,
+stated as
+"among active public images whose name starts with the asked name,
+take the newest one the chosen flavor can boot,
+reading the image's own minDisk,
+minRam and flavorType";
+a wait that prints each status and names the last one when it gives up;
+and the nine steps a third time.
+
+While that ran the owner wrote:
+
+> Please don't pick GPU?
+
+The reads showed that the three fields named in the option cannot tell a GPU driver image from a plain one:
+every Ubuntu image in the region states a disk floor of 0,
+a memory floor of 0 and no flavor type.
+What does tell them apart is the image's tags:
+a plain distribution image carries none,
+and an image with preinstalled software carries `application` beside a tag naming the software,
+`nvidia_ngc` on the GPU driver images.
+A second thing would still have gone wrong:
+each release has a "- UEFI" variant published a minute after it,
+so the newest plain-tagged match is a variant.
+
+So the mechanism differs from the option's text,
+and the session put it to the owner again before the third run.
+A flavor record carries no field that marks a GPU flavor;
+the chooser takes the smallest flavor in stock,
+which can be a GPU flavor only when nothing smaller is in stock,
+and an explicit guard for that is open.
+
+### The fourth question, left without a choice
+
+The image choice was built as the reads allow
+(commits `89776d85bf` and `695d72040d`,
+merged as `8200df4622`):
+a shorthand never stands for an image tagged `application`,
+nor for one whose name extends another match's name,
+an image named whole is taken as asked,
+and an image the flavor cannot boot by its `minDisk`,
+`minRam` or `flavorType` is left out.
+Run with the built code on the records read from the project,
+`ubuntu` on `d2-2` gives "Ubuntu 26.04".
+
+Asked how the third run may go
+(with the machine type pinned to `d2-2` for that one process,
+as fixed with the type chosen,
+or not now),
+the owner chose no option and wrote:
+
+> My impression is mvm should natively support passing how many vcpu and how many GBs of RAM
+> and auto pick the most relevant size if the provider doesn't support all mix and match..
+
+So no third run was made.
+What "the most relevant size" is,
+and how sizes that are special hardware stay out,
+are put as separate decisions in
+`doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`,
+and the run waits for the owner's answers to them.
+
+What the two runs left:
+one public key in the project under a name beginning `mvm-`,
+the keypair under `~/.local/share/mvm/ovh/` on this machine,
+and no instance.
+
 ## What is not known
 
 - Whether the key the owner made is limited to one project,
@@ -132,3 +300,131 @@ Each sentence quoted here was found on its page with `agent-browser` on 2026-11-
 [billing-month]: https://docs.ovhcloud.com/en/guides/public-cloud/cross-functional/analyze-billing#:~:text=Each%20commenced%20month%20is%20billed%2C%20even%20if%20the%20instance%20is%20deleted%20before%20the%20end%20of%20the%20month.
 [keys-three]: https://docs.ovhcloud.com/en/guides/manage-and-operate/api/first-steps#:~:text=you%20will%20be%20issued%20three%20keys
 [keys-rights]: https://docs.ovhcloud.com/en/guides/manage-and-operate/api/first-steps#:~:text=field%20allows%20you%20to%20restrict%20the%20use%20of%20the%20application%20to%20certain%20APIs
+
+## A standing yes for billed runs, 2026-11-28
+
+Typed by the owner at about 2026-11-28T06:18-05:00:
+
+> Why are we even starting new mvm vms when I pointed you to OVH >3h ago?
+
+The session's account,
+given to the owner:
+two billed runs had failed,
+the fix for the second merged at 05:02,
+and the third run was never made,
+because the session read the owner's sizing sentence as a hold
+and put a proposal,
+a gate read and a revision in front of the run,
+while it kept starting local guests.
+The session had also been asking before every billed run.
+
+Asked how far the session may go without asking each time,
+the owner chose "Standing yes,
+rounds too (Recommended)",
+whose text was:
+
+- I and the rounds I start may create OVHcloud machines without asking each time,
+  inside these bounds:
+- only machines named `mvm-*` in the one project,
+- in Canada,
+- hourly billing and never monthly,
+- each deleted by the run that made it,
+- at most six alive at once,
+- and I list the project's machines and delete leftovers when a round ends and before I end a turn.
+- A round's commands then carry the keys from the encrypted file (never printed).
+- First use,
+  at once:
+  the live test (create the smallest size,
+  run one command,
+  push and pull one file,
+  destroy).
+
+This replaces the step-by-step approvals this record's earlier sections describe.
+
+The owner also chose that rule `URF` of `AGENTS.md` be replaced,
+so that a resource the owner provides is used first and a design question never defers it,
+and chose not to add a second rule the session proposed.
+The option the owner chose for that second rule still said what happens to the sizing:
+the build of `--vcpus` and `--memory` starts now from the owner's own sentence,
+as a one-off,
+with the session's picks marked for veto:
+the numbers mean at least;
+the smallest size that fits wins;
+GPU and other special families are left out by family name.
+The proposal `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md` no longer stands in front of that build.
+
+## The size taken among those that fit, 2026-11-28
+
+Asked at about 2026-11-28T07:08-05:00 which size `mvm` takes on OVHcloud when several fit an ask,
+the owner chose "Cheapest that fits (Recommended)",
+whose text was:
+
+- at create time mvm reads OVHcloud's public hourly prices,
+  keeps the sizes whose vCPUs and memory are both at least the ask,
+  and takes the lowest-priced one,
+  printing the size and its price before anything is created;
+- example:
+  `--vcpus 2 --memory 6` ends on `d2-8` at CA$0.0596 per hour;
+- it gives up the sizes with no published price (the `-flex` twins),
+  which are never picked;
+- still open after a yes:
+  the price read itself has not been made from this machine yet;
+  if it cannot be had,
+  mvm falls back to smallest numbers and says so.
+
+The option not chosen ordered the fitting sizes by vCPUs,
+then memory,
+then disk,
+and ended the same ask on `b2-7` at CA$0.1135 per hour.
+The prices are OVHcloud's price page for Canada,
+Linux,
+excluding tax,
+read 2026-11-28 by the round that revised `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`.
+
+The same question restated the session's two other picks,
+each still open to the owner's veto and neither answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families,
+so that a GPU family OVHcloud adds later cannot be picked.
+
+## All guest work runs on OVHcloud, 2026-11-28
+
+Typed by the owner at about 2026-11-28T07:30-05:00:
+
+> Set a reminder for yourself for OVH for 8am.
+> By then,
+> switch to OVH for all guest work no matter what.
+
+So from 2026-11-28T08:00-05:00 no guest work runs on this machine:
+no round makes a local guest or starts a command in one,
+and no brief names one.
+
+What the session did with it,
+recorded 2026-11-28T07:34:42-05:00:
+
+- a command that ends at 08:00 and a one-shot schedule at the same minute are armed;
+- merge `832b3e25c2` puts the guest drivers' switch on `main` ahead of its round's end:
+  a driver takes its backend from the environment variable `MVM_BACKEND`,
+  and `libvirt` is only what it takes when nothing is said;
+- every round that holds a local guest is told to stop using it,
+  to finish what needs no guest and to name in its report each arm that has not run;
+- at 08:00 the session destroys every local guest still alive and tells its round why.
+
+What does not run on OVHcloud at the time of writing:
+a guest arm.
+The arm scripts reach a guest through a folder shared with the host,
+which only a local guest has,
+so on OVHcloud a driver makes and prepares a guest and refuses to run an arm.
+The round that built the switch is making arms run there,
+with the script pushed,
+the arm started through `mvm exec` and its log pulled back.
+Until that lands no guest arm runs anywhere.
+
+What does run there,
+on `main` at `feb999c67a`:
+create,
+a command,
+a push and a pull,
+and a destroy that returns when the project's listing has let the machine go;
+the billed test passed whole at 2026-11-28T07:32:22-05:00.

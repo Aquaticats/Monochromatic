@@ -287,7 +287,7 @@ The default invocation,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and names the unit that runs it,
+whose pass is built and whose mode refuses and names the unit that runs it,
 `holder-scan` is the all-namespace holder scan of one dataset under a nonce of
 its own,
 which reads and changes nothing,
@@ -5113,18 +5113,20 @@ and every step reads the state a kill at the step before it leaves:
   sentence,
   which names the person's `git worktree unlock <slot>` as the way out,
   and nothing is removed or rewritten.
-- The lock is released only by the registration-cleanup step,
-  which is plan step 16's,
+- The lock is released only by the removal's registration-cleanup step,
   and only after the recorded clone's destruction is proven
   (`src/native/worktree_clone_managed_lock/clone_destruction_proof.rs` and
-  `lock_release.rs`).
-  This release calls neither:
-  the release refuses a proof made for another slot or another clone,
+  `lock_release.rs`),
+  which a `git worktree remove` of the slot reaches through the removal's Git settle.
+  The release refuses a proof made for another slot or another clone,
   a clone that still answers,
   a pool that could not be read,
   a record that names no clone GUID,
-  and a lock that is not this add's own,
-  and no command of this release reaches it.
+  and a lock that is not this add's own.
+  The removal reads the lock before its first write,
+  so a lock holding a person's words refuses the removal before anything is
+  destroyed
+  (the section "Removal of a ZFS worktree clone" below).
   Nothing else releases the lock,
   and reading a slot never changes one.
 - If no frozen capture stands,
@@ -5629,7 +5631,11 @@ a pending add whose record has reached the phase that makes a clone
 (`cloned` or `settling`) is the exception:
 an unreadable mount table alone would say whether that clone is mounted at the slot,
 so it refuses the removal until it can be read;
-a pending removal is left to Git,
+a pending removal is the removal's own:
+a slot a destruction plan names is taken by the wrapper's removal,
+which reads the plan,
+proves every name the plan records again and ends it,
+as the section "Removal of a ZFS worktree clone" below states;
 and a slot whose binding record cannot be read is refused rather than left to Git,
 naming the record and what to repair,
 as `git worktree move` already refuses it.
@@ -5646,9 +5652,11 @@ Each of the three refuses before Git with what could not be proved and the repai
 that ends it,
 so no pool is read to make the answer.
 A phase that disagrees with its mount and a destruction plan nobody could read are
-still left to Git,
+still left to Git when no plan naming the clone stands,
 because the answer names these three and no more,
-and the slot's report says which reading it met.
+and a destruction plan that reads names the clone before the phase and the mount
+are compared,
+so the slot's report says which reading it met.
 A global option this build does not know is refused rather than forwarded while the
 repository holds slot records:
 `git worktree remove` and `git worktree move` behind such an option stop before Git,
@@ -5751,8 +5759,8 @@ and the sentences it prints are the ones the classification and the add's refusa
 
 What this release does not do:
 
-- It does not release the managed lock;
-  the release belongs to the registration-cleanup step that plan step 16 builds,
+- The repair report does not release the managed lock;
+  the release belongs to the removal's registration-cleanup step,
   after the recorded clone's destruction is proven.
 - It does not remove a clone the wrapper's own removal refuses;
   the removal's own checks are the whole of what decides,
@@ -6082,6 +6090,49 @@ and no outcome is ever replaced with a guess.
 The head's own request is the one in-flight state the record stores,
 and it is written before the request.
 
+A slot a destruction plan names is the removal's own:
+`worktree_copying::worktree_removal_of_a_bound_clone::the_removal_with` takes it,
+so every spelling of `git worktree remove`,
+`-f -f` among them,
+runs the wrapper's removal instead of Git's.
+The order's own resume then reads the plan and the live pinned parent,
+and no other fact decides its path
+(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+"Which resume path a removal takes"):
+
+- The recorded clone answers under the pinned parent,
+  so the head-present path runs:
+  the plan is adopted under this run's nonce,
+  every name it records is proved again by its recorded GUID,
+  no request names a snapshot the plan records as `destroyed`,
+  the loss the plan records is carried into the report,
+  and the removal's own records end the plan.
+- The clone's GUID and name are absent and the head word is `requested`,
+  `unknown` or `gone`,
+  so the head-gone path runs and finishes the settle,
+  the binding's files and the plan.
+- The clone is gone and the head word is `present` or `refused`,
+  so the clone was destroyed outside its removal:
+  the run refuses and names the settling command.
+- A recorded name carries another clone's GUID,
+  so the name was reused:
+  the run refuses and names the reuse.
+- The pool cannot prove the absence,
+  so the run refuses,
+  names the plan and the failed read,
+  and names the settling command for every head word but `gone`,
+  whose route is the finish pass once the pool answers.
+
+A lock on the registration whose words are not the add's own refuses the removal
+before its first write,
+in the same words the add's own resume uses,
+because the Git settle is the order's only step that reads `locked` and it comes
+after every destroy:
+nothing is unmounted,
+nothing is destroyed,
+no intent is filed and no plan is written,
+and the sentence names `git worktree unlock <slot>`.
+
 What this release does not do:
 
 - It ends no holder and forces nothing.
@@ -6093,12 +6144,10 @@ What this release does not do:
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It resumes no removal from a standing destruction plan through a command.
-  `worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal` adopts a kept plan,
-  re-proves it and carries its loss forward,
-  but the command path takes only a slot it proves holds a whole clone,
-  and a slot a destruction plan names is one the command path leaves to Git,
-  so no command reaches that resume today and the plan waits for one that does.
+- It resumes no removal whose destruction plan it cannot read.
+  A slot whose plan does not read is left to Git with the other readings the
+  owner's answer of 2026-11-26 does not name,
+  and the slot's report says which reading it met.
 
 #### The cancel command
 
@@ -6173,6 +6222,64 @@ by the evidence the probe rounds recorded for that kind of holder
 and by the waits and the heartbeat the arm would need,
 which ship with no value
 (`src/native/worktree_clone_forced_removal/forced_arm_numbers.rs`).
+
+A locked holder,
+a copy inside a mount namespace owned by a user namespace of its own,
+takes one of two routes on its kind of holder:
+
+- A locked holder that is a service unit of the account's own user manager is
+  stopped through that manager,
+  and the removal then goes on.
+  The four reads that tell it apart are the namespace's owner by `NS_GET_USERNS`,
+  the unit's name in the task's unified control-group line,
+  the manager's own answer for that name,
+  and the caller's protected set,
+  which the preflight reads first
+  (`src/native/process/a_locked_holders_own_unit.rs`).
+  The stop is the manager's `StopUnit`,
+  a wait for the task to leave that control group and for the namespace to go,
+  and the three answers that still refuse:
+  a stop the manager refused,
+  a task still there when the wait ends,
+  and a unit that is active again
+  (`src/native/process/a_service_unit_stopped_through_the_accounts_manager.rs`).
+  Those two files sit in `process/` because the reads ask the account's user
+  manager over the session bus,
+  which the `service` folder owns,
+  and the pair of folders `process` and `service` is one the layout allow list
+  already tolerates while the forced removal's folder is not
+  (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+- Every other locked holder,
+  a bubblewrap sandbox or a rootless container started by hand,
+  has no manager to stop it through and refuses `holder-locked`.
+
+Measured on 2026-11-27 in a throwaway Ubuntu 24.04 guest of systemd 255 and kernel
+`6.8.0-147-generic`,
+by the forced act's driver
+(`e2e/forced-act-guest.ts`,
+its `user-manager` step):
+`loginctl enable-linger root` starts the account's own user manager,
+a transient unit started with `systemd-run --user --property=PrivateMounts=yes`
+has a mount namespace `mnt:[4026532398]` whose owner `NS_GET_USERNS` reads as
+inode `4026532396` while the guest's own user namespace is
+`user:[4026531837]`,
+and inside that namespace `umount2` and `mount(MS_MOVE)` of the slot's copy both
+answered `EINVAL`,
+which `umount` alone reports as "not mounted".
+`systemctl --user stop` of the unit then left it `inactive`,
+with the task's `/proc/<pid>/cgroup` and `/proc/<pid>/ns/mnt` gone,
+and the guest's own unmount of the slot answered `accepted`.
+The same four answers held with `PrivateUsers=yes` as well.
+The arm's own phase,
+`locked-holder-stopped-through-its-unit`,
+makes that state a third time and runs the route's own reads,
+both stages of the act and the stop against it.
+
+Nothing stops anything in this release:
+the wait a stop is given has no value
+(`the_stop_wait` in `forced_arm_numbers.rs` refuses),
+so the stop is built and measured ahead of the value that would let it run.
+
 A kind the evidence does not show is identified and refused,
 never ended,
 and the receipt's seven refusal words name what stopped the act.
@@ -8475,7 +8582,7 @@ and no command writes one of them:
   the ordering the owner's answers fix after the checkout and the key providers,
   `ExecStart` running `zfs-root boot-reconcile`,
   and `ExecStopPost` running `zfs-root shutdown-unmount`,
-  whose mode refuses in this build.
+  whose pass is built and whose mode refuses in this build.
 - Its stop-failure drop-in,
   the provider drop-in that asks the gate to reconcile again after post-key-load checkout readiness,
   the propagation service and the mount drop-in that start it,
@@ -8493,6 +8600,67 @@ No command installs any of it:
 `doctor` prints the root-once commands and runs none,
 no release writes a unit file,
 and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
+
+##### The shutdown pass, built and reached by no command
+
+The work that unit's stop line does is built in
+`src/native/worktree_clone_shutdown_unmount_pass/`,
+and no command reaches it in this release:
+`zfs-root shutdown-unmount` still answers the refusal above,
+and the round that wires the mode calls the pass from there.
+The pass does five things in the design's order
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit"):
+
+- It withdraws this boot's readiness record,
+  the file `boot-reconcile` publishes,
+  through the proved root-owned directory,
+  syncs that directory,
+  and asks the route's own reader again,
+  so the absence that closes admission is a fact rather than an assumption;
+  a record this route's reader refuses is removed too,
+  because the directory is root's and the content is a cache that already
+  admits nothing,
+  and a directory another account owns is refused with its file left exactly
+  as it was.
+- It reads the same root-owned configuration the gate's `ExecStart` read,
+  and refuses when this boot's record and that configuration name different
+  pools or different checkouts,
+  because the two say which place this boot verified.
+- It reads this process's mount table once and takes every standing mount
+  whose source is an immediate child of the configured clone container and
+  which stands at `<checkout>/.claude/worktrees/<slot>`.
+  A boot whose record published no readiness,
+  or published a pool or a checkout that was not ready,
+  unmounts nothing and answers why.
+- It proves each mount before any kernel call:
+  the `.claude/worktrees` identity now is the one the route recorded,
+  a fresh walk reaches the mount the descriptor the walk opened is on,
+  the descriptor's device and inode are that walk's,
+  the path the kernel reports for it is the slot's,
+  a second walk reaches the same mount,
+  and the table's row has the clone dataset as its source,
+  `zfs` as its filesystem,
+  `/` as its root,
+  the slot as its mount point and the slot's folder's mount as its parent.
+  It then takes the slot's per-slot claim,
+  leaving a slot another handler holds to that handler.
+- It unmounts from the held descriptor with no force and no lazy detach.
+  A mount the kernel answers `EBUSY` for stays exactly as it was,
+  and the all-namespace holder scan names the namespaces that hold it,
+  with the reads that could not be completed.
+  It writes no receipt and changes no clone's durable intent,
+  because it answered no request.
+
+The pass's answer is a summary line and one line per mount it reached,
+beginning `unmounted`,
+`held` or `left`,
+so an operator reads each mount rather than a total,
+and one mount that refused never stops the mounts after it.
+The proof is one guest arm
+(`src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`,
+driven by `e2e/shutdown-unmount-guest.ts`),
+which calls the pass itself as root on a file-backed pool.
 The migration,
 the property changes and the install are the agent's act,
 logged,
@@ -8587,6 +8755,38 @@ the entry of the default sweep are plan step 19's wiring,
 which is the round that calls them,
 so until it lands the default sweep runs one pass per trigger with no filter,
 no claim and no mark.
+
+The texts are read by a real manager only in a guest.
+`e2e/zfs-step-19-guest.ts` writes the plan at the paths systemd reads,
+has the guest's own `systemd-analyze verify` parse each unit file,
+reads each drop-in back from the guest's manager
+(`DropInPaths`,
+`ExecStartPost`,
+`Upholds` and `UpheldBy`),
+reboots the guest with the plan installed and enabled,
+and reads what the boot made of it:
+the gate's state,
+this boot's readiness record,
+the nested dataset's own unit,
+and one idle managed clone attached again,
+or,
+for a boot whose pool import,
+key load or checkout mount did not happen,
+nothing attached and no mountpoint folder in the home underlay.
+A drop-in is proved that way and never by the verifier:
+`systemd-analyze verify` refuses a drop-in path by name,
+and the propagation service's `BindsTo=` names a mount unit the manager learns from the mount table and writes no file for,
+so the pair is proved through that manager's own view too.
+The immutable covered entry's verdict is read the same way,
+against a real folder carrying the kernel's flag on a real dataset,
+with the account's own refused rename and removal beside it.
+What those arms still wait for:
+`zfs-root shutdown-unmount`,
+whose mode refuses in this build,
+so no shutdown pass is measured,
+and the propagation step,
+which no mode calls yet,
+so the pair's trigger is read but never fired.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
@@ -8703,13 +8903,20 @@ staging names.
 Every invocation the wrapper forwards to Git checks the folder once on its
 forwarded path,
 after configuration and before the child Git starts,
-at the same point the shadow sweep runs.
+at the same point the shadow sweep runs,
+which is where `run_wrapped_command` (`src/native/invocation/wrapped_command.rs`)
+calls `check_before_a_command`
+(`src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`).
 With no folder standing,
 the check is one `stat`.
 A folder whose entry a receipt answers is read,
 the entry removed,
 and the command prints nothing.
 Every failure on that path is silent and changes no command's status.
+A command the wrapper answers itself,
+and one whose repository the wrapper cannot place,
+make no check at all,
+because neither reaches that point with a common directory to look in.
 
 The nudge,
 the claim of a clone's next attempt and the gaps between attempts,
@@ -8719,14 +8926,54 @@ The first gap,
 the longest gap and a waiting command's own nudge delay are measurement M8's,
 and `the_gaps` answers nothing until step 22 states them,
 so a build with the switch on still nudges nothing.
-The check has no call site in the shipped build yet:
-a use of the protocol folder by `invocation/` is a new use inside a loop the
-layout allow list tolerates,
-which no line of that list may record,
-and the round that built the check left the call out for that reason.
-The same record's amendment of 2026-11-28 lets the wiring of a built piece merge with that finding unrecorded,
-so the forwarded path's one line is owed together with the measurement of its cost
+The check is wired,
+and what it costs a command was measured before it shipped.
+The measurement built the wrapper twice from one commit,
+with the call and with the single statement of it taken out,
+and timed a forwarded command that does no other work in a fixture repository
+with no folder of unanswered requests:
+`git rev-parse --is-inside-work-tree`,
+which loads no configuration,
+whose output a program reads,
+and asks Git for one repository fact.
+Five arms ran interleaved invocation by invocation in each round,
+20 rounds of 32 invocations per arm after 20 warm-up invocations per arm,
+and the arms were the control twice,
+the wired wrapper,
+a thousand `stat`s of the same absent folder planted on the same path,
+and a thousand calls of the check itself planted at the wiring.
+Measured 2026-11-28 on this machine,
+where the command cost 6.61 ms per invocation:
+
+- the control against itself,
+two copies of one binary,
+answered 0.979,
+0.935 to 1.061 over the rounds;
+- the wired wrapper answered 0.975,
+0.920 to 1.068,
+which is inside the control's own spread,
+so one check is below what this many rounds resolve;
+- the thousand planted `stat`s answered 1.141,
+1.078 to 1.236,
+and the thousand planted checks 1.216,
+1.156 to 1.351,
+so the harness moves when the cost is a thousand times the check's;
+- one `stat` of the absent folder is 914 ns,
+439 to 1,448 ns,
+0.014% of the command,
+and one call of the check 1.40 µs,
+1.07 to 2.42 µs,
+0.022% of it.
+
+The use that call adds,
+the folder of unanswered requests used by `invocation/`,
+is one `rust/folder-uses-links` finding no line of the layout allow list may
+record,
+and the record's amendment of 2026-11-28 lets the wiring of a built piece of
+the ZFS route merge with its finding unrecorded
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+So the package's lint reports that one finding,
+and no line was added to `layout-allow-list/folder-rule.txt`.
 
 ### Unmount, staging and reattach of a ZFS worktree clone
 
@@ -17451,7 +17698,8 @@ so no caller waits for a reader,
 and a line longer than the room the stream has at that moment reaches the reader up to what fitted,
 while the rest of it is dropped and counted as a line the queue could not say
 (issue 6476;
-`src/native/foundation/lines_written_by_a_thread.rs`).
+`src/native/foundation/the_line_a_refused_thread_writes_where_it_is_said.rs`,
+which the queue in `src/native/foundation/the_queue_and_its_thread.rs` hands a line to once its thread is refused).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -18229,8 +18477,9 @@ each with its reason in the code and here:
   no file and no other lock,
   so a commit's question is answered from memory and never waits for a volume.
 - The mutex and the condition of a queue of lines written by a thread of their own
-  (`foundation/lines_written_by_a_thread.rs`,
-  which the service's own log lines and the command's diagnostic lines are both made of):
+  (`foundation/the_queue_and_its_thread.rs`,
+  which the service's own log lines and the command's diagnostic lines are both made of,
+  through the caller's side in `foundation/lines_written_by_a_thread.rs`):
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
@@ -24465,20 +24714,25 @@ and every engine failure code,
 has a hint,
 and the test suite fails when one is added without it.
 A finding's hint says what corrects the bytes it names where the finding is made.
-The `final-newline` finding of an `add` names
+The `final-newline` finding of an `add` and of a direct check names
 `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
 which are the steps that work where the add is refused at `error` severity,
 and which also correct an index that already holds the bytes;
-it names a commit's own correction only for a commit that takes the whole file,
-because a commit whose selection is read-only records the staged bytes as they are.
-The same finding of a direct check says a commit that takes the file corrects the ending
-while this repository's settings keep `final-newline` on,
-and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+the same two places name a commit's own correction for a commit that names the file,
+as in `git commit -- <path>`,
+because a commit whose selection is read-only (`-p`,
+`-i`,
+`--include`) records the bytes it takes as they are.
 The same finding of a commit whose selection is read-only says to edit the file and stage it again,
 because the index holds the bytes as they are and no commit corrects them.
 The same finding of a landed commit and of a pushed tree says to edit the file and commit the correction,
 because a commit already records those bytes as they are.
-A finding of a patch-capable commit or of a direct fix says the correction is that lifecycle's own.
+A commit that lands reports the bytes it holds and not the index the pass read before it:
+the staged-lifecycle sentence of a read-only selection is dropped once the commit lands,
+and only the landed sentence of the post-commit gate is left.
+No finding a run prints offers a patch,
+because a lifecycle that may correct the bytes applies its correction in a pass of its own and reports that pass's
+`fix-summary` alone.
 Plain stderr notices that report a divergence from real Git's behavior end with a hint in the same voice.
 A reader that ignores unknown fields is unaffected.
 
@@ -24623,9 +24877,16 @@ so no process is started for it.
 A shell alias (`!...`) and an undefined name are forwarded as they are:
 a shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
-so a `git` inside it is real Git and not this wrapper,
+so a `git` inside it is whichever `git` that directory holds:
+here a link to the real Git,
 which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
+On a system whose `git-core` holds no `git` the rest of `PATH` answers,
+and an installed wrapper is then that shell's `git`:
+it judges the nested command as the direct command it is,
+from the directory Git ran the shell in and with the `GIT_DIR` Git gave that shell,
+so the same words are refused there where the direct spelling is.
+Which of the two answers rests on Git's exec path and `PATH` and never on this wrapper.
 One plain form of it is read,
 only so the guard can decide:
 a value whose bytes are letters,
@@ -24655,14 +24916,22 @@ which the nested Git reads too
 (`git.c:215` to `:250`,
 `config.c:469` to `config.c:504`).
 Git stores the Git directory it found in that environment as well,
-and gives it to the shell whenever the caller named a repository or a work tree,
+and gives it to the shell whenever the caller named a repository or a work tree
+(`--git-dir`,
+`--work-tree`,
+`GIT_DIR` or `GIT_WORK_TREE`),
+the repository's own configuration sets `core.worktree`
+(`config.worktree` included when `extensions.worktreeConfig` is on),
 the repository is bare,
 the shell's directory stands inside a Git directory,
 or the working tree's `.git` is a file that points elsewhere
-(`setup.c:1126` to `:1129`,
-`setup.c:1657` to `:1662`);
-a plain main checkout gives it nothing,
+(`setup.c:1247` to `:1254`,
+`setup.c:2063` to `:2071` of Git 2.56.1);
+a plain main checkout that does none of these gives it nothing,
 where the nested Git finds that repository by itself.
+The configuration matters because a main checkout that sets `core.worktree` takes Git's explicit path
+and exports an absolute Git directory from a subdirectory,
+which a nested `-C` does not move.
 So every repository fact the decision reads is asked in the state the nested Git acts in:
 from the directory Git runs the shell in,
 with the Git directory Git gives that shell,
@@ -26323,17 +26592,19 @@ warn and continue without offering an inapplicable patch.
 An explicit error override makes those findings blocking.
 The hint of a finding here says what corrects the file where the finding is made.
 A direct check reads worktree bytes a commit takes,
-so its hint names that commit's correction,
-which happens while the settings keep `final-newline` on,
-and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+so its hint is the one an `add` gives:
+the fix and the staging after it,
+then the commit that names the file,
+which corrects the ending while the settings keep `final-newline` on,
+unless its selection is read-only.
 An `add` may be refused at `error` severity,
 which stages nothing,
 and an index keeps the bytes it already holds,
 so its hint leads with `git monochromatic-git-policy-cli fix -- <path>`
 and the `git add -- <path>` staging after it,
-and names a commit's correction only for a commit that takes the whole file,
+and names a commit's correction for a commit that names the file,
 because `-p`,
-`-i` and `--include` record the staged bytes as they are.
+`-i` and `--include` record the bytes they take as they are.
 A commit whose selection is read-only (`-p`,
 `-i`,
 `--include`) names bytes nothing corrects,

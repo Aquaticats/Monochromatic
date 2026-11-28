@@ -65,6 +65,17 @@ export type VmMeta = {
    */
   createdAt: string;
   /**
+   Memory the guest was given, in gibibytes. Absent in metadata written before
+   mvm recorded the size, which is why software reading this record must treat
+   it as unknown rather than as a default.
+   */
+  memoryGiB?: number;
+  /**
+   Virtual CPUs the guest was given. Absent in metadata written before mvm
+   recorded the size.
+   */
+  vcpus?: number;
+  /**
    How files move between host and guest: the virtiofs shared directory, or the
    guest agent for a VM defined without the share. Absent in metadata written
    before the guest agent route existed, which means the shared directory.
@@ -95,7 +106,11 @@ export type FileTransferRoute = 'guest-agent' | 'virtiofs';
  @param guest - Guest config for OS family, shell, and default user
  
  @param image - Registry image identifier
- 
+
+ @param memoryGiB - Memory the guest was given, in gibibytes, when the create asked for a size
+
+ @param vcpus - Virtual CPUs the guest was given, when the create asked for a size
+
  @param vmDir - VM directory to write metadata into
  
  @example
@@ -114,12 +129,16 @@ export async function writeVmMeta({
   fileTransfer = 'virtiofs',
   guest,
   image,
+  memoryGiB,
   vmDir,
+  vcpus,
 }: {
   readonly fileTransfer?: FileTransferRoute;
   readonly guest: GuestConfig;
   readonly image: string;
+  readonly memoryGiB?: number;
   readonly vmDir: string;
+  readonly vcpus?: number;
 },): Promise<void> {
   /**
    Logger scoped to this writer so legacy-file fallbacks log with context.
@@ -136,8 +155,10 @@ export async function writeVmMeta({
     defaultUser: guest.defaultUser,
     fileTransfer,
     image,
+    ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
     osFamily: guest.osFamily,
     shell: guest.shell,
+    ...((vcpus === undefined) ? {} : { vcpus, }),
   };
 
   /**
@@ -218,6 +239,59 @@ function requiredText({
     },);
   }
   return value;
+}
+
+/**
+ Reads a field a metadata record may carry as a whole number of at least one.
+
+ A record written before mvm recorded a guest's size has no such field, which is
+ what absence means here; a field that is present but is not a whole number of at
+ least one is a broken record, not an absent size.
+
+ @param field - field name, named in the refusal
+
+ @param metaPath - metadata file, named in the refusal
+
+ @param parsed - parsed record
+
+ @returns the field's number in a list of one, or an empty list when the record does not carry it
+
+ @throws {@link InvalidVmMetaError} when the field is present but not a whole number of at least one
+
+ @example
+ ```ts
+ optionalWholeNumber({ field: 'vcpus', metaPath: '/vm/meta.json', parsed: { vcpus: 4 } }); // 4
+ ```
+ */
+function optionalWholeNumber({
+  field,
+  metaPath,
+  parsed,
+}: {
+  readonly field: string;
+  readonly metaPath: string;
+  readonly parsed: object;
+},): readonly number[] {
+  /**
+   Value the record carries under this field, if any.
+   */
+  const value: unknown = (field in parsed)
+    ? Reflect.get(
+      parsed,
+      field,
+    )
+    : undefined;
+  if (value === undefined) {
+    return [];
+  }
+  if (((typeof value) !== 'number') || (!Number.isInteger(value,))
+    || (value < 1)) {
+    throw new InvalidVmMetaError({
+      metaPath,
+      problem: `the field \`${field}\` is ${JSON.stringify(value,)}, not a whole number of at least one`,
+    },);
+  }
+  return [value,];
 }
 
 /**
@@ -320,13 +394,34 @@ function vmMetaRecord({
     },);
   }
 
+  /**
+   Memory the record carries, absent in metadata written before mvm recorded a
+   guest's size.
+   */
+  const [memoryGiB,] = optionalWholeNumber({
+    field: 'memoryGiB',
+    metaPath,
+    parsed,
+  },);
+  /**
+   Virtual CPUs the record carries, absent in metadata written before mvm
+   recorded a guest's size.
+   */
+  const [vcpus,] = optionalWholeNumber({
+    field: 'vcpus',
+    metaPath,
+    parsed,
+  },);
+
   return {
     createdAt,
     defaultUser,
     ...(fileTransfer === undefined ? {} : { fileTransfer, }),
     image,
+    ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
     osFamily,
     shell,
+    ...((vcpus === undefined) ? {} : { vcpus, }),
   };
 }
 

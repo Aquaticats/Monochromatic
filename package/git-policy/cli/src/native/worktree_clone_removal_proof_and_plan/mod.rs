@@ -53,8 +53,12 @@
 //!   every way the removal stops.
 //! - `removal_stop_sentences.rs`:
 //!   the sentence each way of stopping prints.
+//! - `the_lock_a_removal_refuses.rs`:
+//!   the refusal a removal owes a lock whose words are not its add's.
 //! - `fresh_holder_scan.rs`:
 //!   the fresh all-namespace scan each destroy is preceded by.
+//! - `holder_report.rs`:
+//!   one scan's answer as a report that names holders reads it.
 //! - `removal_identities.rs`:
 //!   the identities the add recorded,
 //!   the origin-side inventory it recorded,
@@ -164,6 +168,7 @@
 pub mod bookmark_rule;
 pub mod canonical_decimal;
 pub mod fresh_holder_scan;
+pub mod holder_report;
 pub mod lineage_proof;
 pub mod loss_names;
 pub mod plan_attempt_parse;
@@ -204,6 +209,7 @@ pub mod removal_snapshot_settlement;
 pub mod removal_stop;
 pub mod removal_stop_sentences;
 pub mod started_moment;
+pub mod the_lock_a_removal_refuses;
 pub mod the_self_cancelling_seam;
 pub mod the_staging_folder_before_the_unmount;
 pub mod unmount_request;

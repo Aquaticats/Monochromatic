@@ -1,0 +1,65 @@
+# Machine state read on 2026-11-28, read-only, in the worktree of this round
+
+Clock: 2026-11-28T03:11:10-05:00
+
+$ rustup toolchain list
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+
+$ rustup show active-toolchain
+nightly-x86_64-unknown-linux-gnu (default)
+
+$ rustup component list --installed --toolchain nightly-x86_64-unknown-linux-gnu
+cargo-x86_64-unknown-linux-gnu
+clippy-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustfmt-x86_64-unknown-linux-gnu
+
+$ rustup component list --installed --toolchain nightly-2026-11-16-x86_64-unknown-linux-gnu
+cargo-x86_64-unknown-linux-gnu
+clippy-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-aarch64-linux-android
+rust-std-x86_64-linux-android
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+rustfmt-x86_64-unknown-linux-gnu
+
+$ /home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --version
+rustc 1.102.0-nightly (5df8c02af 2026-11-16)
+$ /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc --version
+rustc 1.102.0-nightly (5f4effd57 2026-11-13)
+
+$ du -sh /home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu
+274M	/home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+799M	/home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu
+
+$ type -a cargo
+cargo is /home/user/Monochromatic/.cache/cargo-shadow-bin/cargo
+cargo is /home/user/Monochromatic/.cache/toolchain-bin/cargo
+cargo is /usr/bin/cargo
+$ readlink -f /usr/bin/cargo
+/usr/bin/rustup
+$ readlink -f /home/user/Monochromatic/.cache/toolchain-bin/cargo
+/home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/cargo
+$ readlink -f /home/user/Monochromatic/.cache/toolchain-bin/rustc
+/home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc
+$ readlink -f /home/user/Monochromatic/.cache/cargo-shadow-bin/cargo
+/home/user/Monochromatic/.cache/toolchain-launchers/cargo-shadow
+$ ls -d /home/user/.dylint_drivers
+ls: cannot access '/home/user/.dylint_drivers': No such file or directory
+
+$ git ls-files "*Cargo.lock" | wc --lines
+39
+$ git ls-files "*Cargo.lock" | rg -c "\\.(fuzz|bench)/"
+9
+$ git ls-files "*monochromatic-lint.prerequisites.jsonc"
+package/file-manager/app/monochromatic-lint.prerequisites.jsonc
+package/file-manager/variant-gtk-sticky/monochromatic-lint.prerequisites.jsonc
+package/file-manager/variant-qt/monochromatic-lint.prerequisites.jsonc
+package/ide/app/monochromatic-lint.prerequisites.jsonc
+package/music-player/android-app/rust/monochromatic-lint.prerequisites.jsonc
+package/terminal/app/monochromatic-lint.prerequisites.jsonc

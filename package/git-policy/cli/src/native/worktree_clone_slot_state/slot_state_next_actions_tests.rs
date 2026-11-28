@@ -3,10 +3,8 @@
 //!  the evidence lines for a record with no clone yet,
 //!  the mounting intent's own placeholder,
 //!  the settling command's sentence,
-//!  and the sentence a slot with a standing destruction plan gets,
-//!  which names no removal this release runs there.
+//!  and the sentence a slot with a standing destruction plan gets.
 
-use crate::worktree_clone_binding_record::add_state_commands::THE_REMOVALS_WORDS;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{
     ProofStoppedBy,
@@ -166,21 +164,26 @@ fn the_unmounted_action_names_the_property_and_the_sweep() {
 }
 
 /// What:
-///  A slot a destruction plan names is warned off `git worktree remove`,
-///  and the words that say the wrapper's removal runs there are not printed.
+///  A slot a destruction plan names says what `git worktree remove` there does:
+///  the wrapper's own removal,
+///  which resumes the plan,
+///  so the sentence neither warns a person off it nor promises it in the words
+///  every other state uses.
 /// Why:
-///  The command path takes only a slot it proves holds a whole clone,
-///  and a slot with a standing plan is a class of its own,
-///  so the sentence cannot say the wrapper's removal is what runs there:
-///  Git's own removal is,
-///  and it would drop the registration and the slot folder.
+///  The removal's command path takes a slot a destruction plan names,
+///  because the design's resume path reads the plan and the live pinned parent
+///  and no other fact decides it
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "Which resume path a removal takes"),
+///  and Git's own removal there would drop the registration and the slot folder
+///  while the plan and the clone stand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const action = nextSafeAction(classifySlot(pendingRemoval), pendingRemoval);
 /// ```
 #[test]
-fn a_standing_plan_warns_off_git_rather_than_naming_the_removal() {
+fn a_standing_plan_says_what_the_removal_resumes() {
     let readings: SlotReadings = SlotReadings {
         plan: PlanReading::NamesTheClone {
             plan: PathBuf::from(
@@ -192,10 +195,23 @@ fn a_standing_plan_warns_off_git_rather_than_naming_the_removal() {
     let state: SlotRouteState = classify_slot(&readings);
     let action: String = next_safe_action(&state, &readings);
     assert!(
-        action.contains("do not run `git worktree remove`"),
-        "the warning comes first: {action}"
+        action.contains("A `git worktree remove` of this slot runs the wrapper's own removal"),
+        "the sentence names what runs there: {action}"
     );
-    assert!(!action.contains(THE_REMOVALS_WORDS), "{action}");
+    for said in [
+        "reads the plan",
+        "proves every name the plan records again",
+        "sends no request for a name the plan records as destroyed",
+        "ends the plan with the removal's own records",
+        "`-f -f` among them",
+        "an add here is refused while the plan stands",
+    ] {
+        assert!(action.contains(said), "the sentence says {said}: {action}");
+    }
+    assert!(
+        !action.contains("is Git's own removal"),
+        "Git's own removal is not what runs here: {action}"
+    );
 }
 
 /// A state nothing proves tells the reader to change nothing and names the source.

@@ -75,7 +75,13 @@ function generateEphemeralName(): string {
  
  @param from - source VM to clone from (fresh VM when omitted)
  
+ @param memoryGiB - least memory the fresh VM must have, in gibibytes;
+ a clone keeps the source's size, so this is only passed to a fresh create
+ 
  @param ops - backend create/clone/destroy/exec used to provision and run
+ 
+ @param vcpus - fewest virtual CPUs the fresh VM must have; a clone keeps the
+ source's size
  
  @returns captured stdout, stderr, and exit code from the command
  
@@ -90,11 +96,15 @@ export async function ephemeralRun(
   {
     command,
     from,
+    memoryGiB,
     ops,
+    vcpus,
   }: {
     readonly command: string;
     readonly from?: string;
+    readonly memoryGiB?: number;
     readonly ops: EphemeralOps;
+    readonly vcpus?: number;
   },
 ): Promise<ExecResult> {
   /**
@@ -185,7 +195,11 @@ export async function ephemeralRun(
       destination: name,
       source: from,
     },)
-    : ops.create({ name, },));
+    : ops.create({
+      name,
+      ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
+      ...((vcpus === undefined) ? {} : { vcpus, }),
+    },));
 
   /**
    Captured stdio and exit code from the guest command; returned to the caller.

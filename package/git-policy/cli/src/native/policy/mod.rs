@@ -110,6 +110,9 @@
 //! - `policy_linked_worktree_work_a_form_would_discard.rs`:
 //!   whether a form ends the operation it finds waiting,
 //!   and what a clean's own exclusion patterns would delete.
+//! - `policy_linked_worktree_the_places_it_judged.rs`:
+//!   the two places a dirty refusal names,
+//!   read from the identity the facts answered with.
 //! - `policy_linked_worktree.rs`:
 //!   the linked-worktree check,
 //!   in its own file so the registry of shipped policies stays readable.
@@ -194,6 +197,10 @@ pub mod policy_linked_worktree_shared_settings_refusal;
 /// Whether a form ends the operation it finds waiting,
 ///  and what a clean's own exclusion patterns would delete.
 pub mod policy_linked_worktree_work_a_form_would_discard;
+
+/// The two places a dirty refusal names,
+/// read from the identity the facts answered with.
+pub mod policy_linked_worktree_the_places_it_judged;
 
 /// The linked-worktree check,
 /// in its own file so the registry of shipped policies stays readable.

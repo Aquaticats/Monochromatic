@@ -13,6 +13,7 @@ import {
   backendFromArgs,
 } from './backend.ts';
 import {
+  optionalPositiveInteger,
   optionalString,
   requiredString,
 } from './tool-arguments.ts';
@@ -33,11 +34,11 @@ export const execTool: ToolEntry = defineTool({
   name: 'exec_in_vm',
   entry: {
     description:
-      'Runs a shell command inside a named VM and returns stdout, stderr, and exit code. libvirt uses the QEMU guest agent (bash for Linux, PowerShell for Windows); hetzner runs it in the remote login shell over SSH.',
+      'Runs a shell command inside a named VM and returns stdout, stderr, and exit code. libvirt uses the QEMU guest agent (bash for Linux, PowerShell for Windows); the cloud backends (hetzner, ovh) run it in the remote login shell over SSH.',
     schema: strictArguments({
       name: requiredString('VM name to execute in',),
       command: requiredString(
-        'Shell command to run inside the VM (libvirt: bash/PowerShell via guest agent; hetzner: remote login shell)',
+        'Shell command to run inside the VM (libvirt: bash/PowerShell via guest agent; hetzner and ovh: remote login shell)',
       ),
       backend: BACKEND_ARGUMENT,
     },),
@@ -82,13 +83,19 @@ export const runTool: ToolEntry = defineTool({
   name: 'run_in_vm',
   entry: {
     description:
-      'Creates an ephemeral VM, runs a shell command inside it, then destroys the VM. Returns stdout, stderr, and exit code. Optionally clones from an existing VM instead of creating fresh. Runs on the selected backend.',
+      'Creates an ephemeral VM, runs a shell command inside it, then destroys the VM. Returns stdout, stderr, and exit code. Optionally clones from an existing VM instead of creating fresh; a clone keeps the source size. `vcpus` and `memory` ask for floors on a fresh VM: libvirt gives exactly those, a cloud backend picks the smallest size with at least both. Runs on the selected backend.',
     schema: strictArguments({
       command: requiredString(
-        'Shell command to run inside the VM (libvirt: bash/PowerShell via guest agent; hetzner: remote login shell)',
+        'Shell command to run inside the VM (libvirt: bash/PowerShell via guest agent; hetzner and ovh: remote login shell)',
       ),
       from: optionalString(
         'Clone from this existing VM name instead of creating fresh. Use list_vms to see available names (e.g. "win-01", not "windows").',
+      ),
+      vcpus: optionalPositiveInteger(
+        'Fewest virtual CPUs a fresh machine may have',
+      ),
+      memory: optionalPositiveInteger(
+        'Least memory a fresh machine may have, in gibibytes',
       ),
       backend: BACKEND_ARGUMENT,
     },),
@@ -101,6 +108,14 @@ export const runTool: ToolEntry = defineTool({
        Optional source VM to clone from; absence selects the create-fresh path inside the backend run.
        */
       const from = ((typeof args.from) === 'string') ? args.from : undefined;
+      /**
+       Optional floor on virtual CPUs, or `undefined` when none was asked.
+       */
+      const vcpus = ((typeof args.vcpus) === 'number') ? args.vcpus : undefined;
+      /**
+       Optional floor on memory, in gibibytes.
+       */
+      const memoryGiB = ((typeof args.memory) === 'number') ? args.memory : undefined;
       try {
         /**
          Backend resolved from the optional `backend` arg, env, or default.
@@ -112,6 +127,8 @@ export const runTool: ToolEntry = defineTool({
         const result = await backend.run({
           command,
           ...(from !== undefined ? { from, } : {}),
+          ...(vcpus !== undefined ? { vcpus, } : {}),
+          ...(memoryGiB !== undefined ? { memoryGiB, } : {}),
         },);
         return textResponse(formatExecResult(result,),);
       }

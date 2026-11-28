@@ -1,9 +1,12 @@
-   Compiling monochromatic-lint v0.5.2-alpha.24 (/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept/package/linter/monochromatic-lint)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.02s
+Running as unit: run-p1098601-i101701718.scope; invocation ID: bd0f27ca525042d18e767394a5288a0e
+cargo-shadow: comparing lockfiles with @{upstream} (bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c)
+cargo-shadow: verifying 0 versions newly locked since the base from 1 lockfiles
+   Compiling monochromatic-lint v0.5.2-alpha.24 (/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again/package/linter/monochromatic-lint)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.12s
 ────────────
- Nextest run ID 6906d041-8f09-40f2-b625-139bdcd8cc82 with nextest profile: default
-    Starting 2 tests across 1 binary (1081 tests skipped)
-       START [         ] (1/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+ Nextest run ID 033faf45-65d3-4bba-b027-c75cb30f1db4 with nextest profile: default
+    Starting 5 tests across 1 binary (1081 tests skipped)
+       START [         ] (1/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
 
 running 1 test
         SLOW [> 60.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
@@ -27,74 +30,147 @@ test markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundar
         SLOW [>1080.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
         SLOW [>1140.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
         SLOW [>1200.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+M13 batch exit=Some(1) finding lines=0
         SLOW [>1260.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
-        SLOW [>1320.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
-        SLOW [>1380.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
-        SLOW [>1440.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
-        SLOW [>1500.000s] (───) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
-SURVEY_ROOT=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept
-SURVEY_LIST=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept/package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt
-SURVEY_COMMIT=c8545f91b8c79a8064490bcffa667d6ea79b83df
-paths in the kept list: 10472
+SURVEY_ROOT=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again
+SURVEY_LIST=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again/package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt
+SURVEY_COMMIT=bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c
+paths in the kept list: 10552
 paths the configuration ignores: 66
 paths the configuration turns the rule off for: 1
 paths no configuration selected: 0
-paths surveyed: 10272
+paths surveyed: 10352
 paths that failed to parse: 0
 ADDITIVE
-breaks inside paragraphs: 1541282
-breaks whose line ends at a break point: 1320034
-breaks at no boundary: 221248
-  in paragraphs the rule reports nothing for: 209657
-    ending in a closing bracket or quote: 9587
-    ending otherwise: 200070
+breaks inside paragraphs: 1545884
+breaks whose line ends at a break point: 1324125
+breaks at no boundary: 221759
+  in paragraphs the rule reports nothing for: 210207
+    ending in a closing bracket or quote: 9603
+    ending otherwise: 200604
     of the quiet, ending in a hard break: 0
       hard and ending in a closer: 0
       hard and ending otherwise: 0
-  in paragraphs the rule already reports: 11591
-    ending in a closing bracket or quote: 260
-    ending otherwise: 11331
+  in paragraphs the rule already reports: 11552
+    ending in a closing bracket or quote: 254
+    ending otherwise: 11298
     of the reported, ending in a hard break: 0
 no-boundary breaks whose line ends inside emphasis: 3423
   of the quiet, ending inside emphasis: 3383
   of the reported, ending inside emphasis: 40
-files holding at least one break: 10202
-files holding at least one quiet no-boundary break: 8643
+files holding at least one break: 10282
+files holding at least one quiet no-boundary break: 8721
+SHORT LINES
+quiet one-or-two-word lines ending at a break point: 393916
+quiet one-or-two-word lines ending at no boundary: 39485
+QUOTED
+breaks whose next line opens a quote marker: 5602
 CLASSES
-class block-marker: 1275; clause at or over 120: 645; shipped join removes: 38
-class conjunction: 19647; clause at or over 120: 8802; shipped join removes: 12355
+class block-marker: 65; clause at or over 120: 6; shipped join removes: 38
+class conjunction: 19749; clause at or over 120: 8849; shipped join removes: 12392
 class dash: 20; clause at or over 120: 5; shipped join removes: 17
-class inline-span: 24994; clause at or over 120: 9784; shipped join removes: 17473
-class ordinary: 127298; clause at or over 120: 26296; shipped join removes: 106467
-class parenthesis: 36423; clause at or over 120: 13256; shipped join removes: 25935
-quiet non-hard breaks whose clause reaches the limit: 58788
-quiet non-hard clauses that reach the limit: 47103
+class inline-span: 25355; clause at or over 120: 10091; shipped join removes: 17512
+class ordinary: 127985; clause at or over 120: 26558; shipped join removes: 106692
+class parenthesis: 37033; clause at or over 120: 13450; shipped join removes: 26056
+quiet non-hard breaks whose clause reaches the limit: 58959
+quiet non-hard clauses that reach the limit: 47811
+quiet non-hard breaks held by those clauses: 58959
+FORCED BY CLASS
+forced class block-marker: 6
+forced class conjunction: 8849
+forced class dash: 5
+forced class inline-span: 10091
+forced class ordinary: 26558
+forced class parenthesis: 13450
 OPTIONS
-A findings (quiet non-hard breaks at no boundary): 209657
-A durable findings (A minus the quiet emphasis ending): 206274
-A durable files: 8643
-A files: 8643
-B findings (A findings the shipped join removes): 162285
-B files: 8109
+A findings (quiet non-hard breaks at no boundary): 210207
+A durable findings (A minus the quiet emphasis ending): 206824
+A files: 8721
+A durable files: 8717
+B findings (A findings the shipped join removes): 162707
+B files: 8185
 B findings that end inside emphasis, which the rule breaks again: 2997
-B durable findings (B minus the emphasis ending): 159288
-B durable files: 8088
-D findings (quiet clauses under the limit): 144483
-D files: 8015
-D2 findings (D without a span, parenthesis or dash edge): 107302
-D2 files: 7329
-F1 findings (break before a one-or-two-word line): 72913
-F1 files: 6998
-F1 of those the shipped join removes: 62283
-F2 findings (one-or-two-word line at no boundary): 39501
-F2 files: 4745
-F2 of those the shipped join removes: 36599
-F2 of those that end inside emphasis: 1096
-F2 durable findings (F2 minus the emphasis ending): 38405
-F2 durable of those the shipped join removes: 35503
-F2 durable files: 4508
-G findings (F2 inside package/git-policy/cli): 4077
-G files: 1503
+B durable findings (B minus the emphasis ending): 159710
+B durable files: 8164
+D findings (quiet clauses under the limit): 144863
+D files: 8085
+D findings counted in breaks: 148203
+D2 findings (D without a span, parenthesis or dash edge): 106460
+D2 files: 7375
+D2 findings counted in breaks: 108197
+F1 findings (break before a one-or-two-word line): 73414
+F1 files: 7072
+F1 of those the shipped join removes: 62521
+F1 findings whose clause reaches the limit: 14694
+F2 findings (one-or-two-word line at no boundary): 39485
+F2 files: 4728
+F2 of those the shipped join removes: 36540
+F2 of those that end inside emphasis, removable or not: 1163
+F2 durable findings (F2 minus the emphasis ending): 38322
+F2 durable files: 4700
+F2 findings whose clause reaches the limit: 5613
+G findings (F2 inside package/git-policy/cli): 4010
+G files: 1481
+OPTIONS BY CLASS
+F1 class block-marker: 39
+F1 class conjunction: 1703
+F1 class dash: 6
+F1 class inline-span: 12829
+F1 class ordinary: 39464
+F1 class parenthesis: 19373
+F2 class block-marker: 13
+F2 class conjunction: 2706
+F2 class dash: 2
+F2 class inline-span: 5137
+F2 class ordinary: 28731
+F2 class parenthesis: 2896
+D (clause's first break) class block-marker: 37
+D (clause's first break) class conjunction: 10537
+D (clause's first break) class dash: 14
+D (clause's first break) class inline-span: 14769
+D (clause's first break) class ordinary: 96637
+D (clause's first break) class parenthesis: 22869
+D2 (clause's first break) class block-marker: 37
+D2 (clause's first break) class conjunction: 10357
+D2 (clause's first break) class ordinary: 96066
+D (every break of a reported clause) class block-marker: 39
+D (every break of a reported clause) class conjunction: 10838
+D (every break of a reported clause) class dash: 15
+D (every break of a reported clause) class inline-span: 15044
+D (every break of a reported clause) class ordinary: 98708
+D (every break of a reported clause) class parenthesis: 23559
+D2 (every break of a reported clause) class block-marker: 39
+D2 (every break of a reported clause) class conjunction: 10523
+D2 (every break of a reported clause) class ordinary: 97635
+OPTIONS BY FAMILY
+doc (top level) A=14 B=0 D=0 D2=0 F1=4 F2=0
+doc/adr A=2 B=1 D=1 D2=1 F1=0 F2=0
+doc/agent A=97 B=52 D=41 D2=19 F1=25 F2=10
+doc/artifact A=5 B=3 D=3 D2=2 F1=3 F2=0
+doc/audit A=17400 B=14365 D=13503 D2=11160 F1=7630 F2=7070
+doc/decision A=10168 B=7697 D=7001 D2=5335 F1=3199 F2=1927
+doc/handover A=29755 B=23464 D=21327 D2=15752 F1=10026 F2=6096
+doc/howto A=110 B=100 D=78 D2=59 F1=41 F2=23
+doc/limitation A=314 B=246 D=236 D2=218 F1=117 F2=56
+doc/migration A=65 B=57 D=51 D2=38 F1=15 F2=15
+doc/misc A=20 B=17 D=17 D2=14 F1=1 F2=7
+doc/philosophy A=158 B=110 D=105 D2=82 F1=34 F2=12
+doc/planning A=45636 B=33880 D=29671 D2=18742 F1=16779 F2=7931
+doc/research A=2464 B=1769 D=1449 D2=923 F1=896 F2=668
+doc/runbook A=1103 B=735 D=652 D2=401 F1=328 F2=135
+doc/tech-debt A=15 B=1 D=0 D2=0 F1=0 F2=0
+doc/todo A=417 B=355 D=325 D2=268 F1=121 F2=104
+doc/troubleshooting A=32347 B=23644 D=19034 D2=12895 F1=11617 F2=5435
+package (Markdown) A=29259 B=21200 D=18335 D2=12322 F1=9025 F2=4050
+package (Rust doc comments) A=40316 B=34540 D=32621 D2=27890 F1=13402 F2=5844
+the rest A=542 B=471 D=413 D2=339 F1=151 F2=102
+REPORTED PARAGRAPHS AFTER THE SHIPPED FIX
+host files holding a reported break: 222
+copies the shipped fix changed: 222
+files the measurement could not read back: 0
+files whose post-fix count fell below the pre-fix quiet count: 0
+no-boundary breaks those files hold after the fix: 20994
+reported no-boundary breaks those files still hold: 10028
 IGNORED
 IGNORED .out-of-scope/bun-install.md
 IGNORED .out-of-scope/cargo-workspace.md
@@ -165,9 +241,9 @@ IGNORED package/linter/monochromatic-lint.fuzz/seed/rust_style/sidecars.rs
 RULE-OFF package/music-player/desktop-app/notices/slint-royalty-free-2.0.md
 EXAMPLES
 EXAMPLE block-marker
-doc/audit/2026-05-14-repo-assessment.md:3
-  line the break ends: Moved 2026-10-29 by the generic package category elimination
-  next line:           > (`doc/planning/generic-category-elimination.md`);
+doc/audit/tech-mold-linker-vet-2026-10-05.md:786
+  line the break ends:   #1695 closed unmerged with follow-up issue
+  next line:             #1696 open (thread-pool tuning discussion);
 EXAMPLE closer
 .agents/skills/choosing-technology/SKILL.md:152
   line the break ends: (not necessarily Haiku)
@@ -218,17 +294,44 @@ EXAMPLE refused-width
   next line:            `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
 test markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1082 filtered out; finished in 1548.57s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1085 filtered out; finished in 1291.05s
 
-        PASS [1548.637s] (1/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
-       START [         ] (2/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture
+        PASS [1294.368s] (1/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_breaks_at_no_semantic_boundary
+       START [         ] (2/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_classes_a_quoted_line_after_its_marker
 
 running 1 test
-PROBE classes={"conjunction": 3, "dash": 1, "inline-span": 1, "ordinary": 10, "parenthesis": 1} no_boundary=17 closer=1 emphasis=1 hard=1 f1=2 f2=2 forced_breaks=15 forced_clauses=1 A=16 B=15 D=1 D2=1
+QUOTE CONTROL classes={"conjunction": 1} no_boundary=1 quoted_next=1
+test markdown_fragment_joins::survey_tests::survey_classes_a_quoted_line_after_its_marker ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1085 filtered out; finished in 0.10s
+
+        PASS [   0.359s] (2/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_classes_a_quoted_line_after_its_marker
+       START [         ] (3/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_counts_a_reported_paragraph_apart
+
+running 1 test
+REPORTED CONTROL no_boundary=2 reported=2 quiet=0
+test markdown_fragment_joins::survey_tests::survey_counts_a_reported_paragraph_apart ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1085 filtered out; finished in 0.01s
+
+        PASS [   0.031s] (3/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_counts_a_reported_paragraph_apart
+       START [         ] (4/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_d2_leaves_a_clause_with_a_later_parenthesis_edge
+
+running 1 test
+PARENTHESIS EDGE CONTROL classes={"conjunction": 1, "ordinary": 1, "parenthesis": 1} D=1 D2=0 d_breaks=3
+test markdown_fragment_joins::survey_tests::survey_d2_leaves_a_clause_with_a_later_parenthesis_edge ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1085 filtered out; finished in 0.01s
+
+        PASS [   0.257s] (4/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_d2_leaves_a_clause_with_a_later_parenthesis_edge
+       START [         ] (5/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture
+
+running 1 test
+PROBE classes={"block-marker": 1, "conjunction": 4, "dash": 1, "inline-span": 1, "ordinary": 10, "parenthesis": 1} no_boundary=19 quoted_next=1 closer=1 emphasis=1 hard=1 f1=2 f2=2 forced_breaks=15 forced_clauses=2 A=18 B=16 D=3 D2=3
 test markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1082 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1085 filtered out; finished in 0.01s
 
-        PASS [   0.162s] (2/2) monochromatic-lint markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture
+        PASS [   0.025s] (5/5) monochromatic-lint markdown_fragment_joins::survey_tests::survey_probe_sees_every_class_on_its_fixture
 ────────────
-     Summary [1548.963s] 2 tests run: 2 passed (1 slow), 1081 skipped
+     Summary [1297.955s] 5 tests run: 5 passed (1 slow), 1081 skipped

@@ -47,6 +47,9 @@ import {
 import {
   GuestDriverError,
 } from '../bin/mvm-guest-error.ts';
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
 import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
   pushWorktreeSnapshot,

@@ -13,8 +13,12 @@
  copy. Both were answers of the three sets of guest helpers, and the polling, the pull and the judgement of the status
  are the one answer this module holds.
 
- The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: one driver's
- scripts answer it in the step file and the other two in the launcher.
+ The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: the step 22
+ driver's scripts answer it in the step file, the adoption driver's and the start probe's in the launcher, and the
+ removal-lineage, settling and cancel-and-settle drivers' scripts carry none.
+
+ The launcher is a command this host waits for, and the status it exits with is read: a launcher that was refused says so
+ at once instead of leaving the run to wait out the bound for a log no guest will write.
  */
 import { writeFile, } from 'node:fs/promises';
 import {
@@ -35,6 +39,8 @@ import {
   LOG_FILE_MODE,
   POLL_INTERVAL_MS,
 } from './mvm-guest-bounds.ts';
+import { guestBackend, } from './mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from './mvm-guest-shared-folder.ts';
 import { GuestDriverError, } from './mvm-guest-error.ts';
 import type { GuestFacts, } from './mvm-guest-guest-facts.ts';
 import { runGateCommand, } from './native-gate-run.ts';
@@ -44,16 +50,6 @@ import {
   runRequiredStepCommand,
   runStepCommand,
 } from './mvm-guest-step-command.ts';
-
-/**
- The folder inside the guest the host's pushes land in, which the guest mounts as `/mnt/shared`.
- */
-const SHARED_FOLDER = '/shared';
-
-/**
- The folder the guest's own commands read the shared folder at.
- */
-const GUEST_SHARED_FOLDER = '/mnt/shared';
 
 /**
  Push one file into the guest's shared folder.
@@ -82,16 +78,21 @@ async function pushIntoSharedFolder({
   readonly from: string;
   readonly log: string;
 },): Promise<void> {
+  /**
+   The backend this run drives, which decides where `mvm push` puts the file.
+   */
+  const backend = guestBackend();
+  // A backend that mounts no share has no folder for the push to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await runRequiredStepCommand({
     logDirectory: chosen.logDir,
     program: 'mvm',
     argumentWords: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       from,
-      `${SHARED_FOLDER}/${basename(from,)}`,
+      backend.pushDestinationOf(basename(from,),),
     ],
     log,
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
@@ -111,7 +112,7 @@ async function pushIntoSharedFolder({
 
  @param nameCheck - which of the two files carries the guest's name check, if either
 
- @throws GuestDriverError when the guest could not be asked to start the script
+ @throws GuestDriverError when the launcher was refused, or when it never started or was stopped at its bound
 
  @example
  ```ts
@@ -148,6 +149,10 @@ export async function startDetachedGuestScript({
     nameCheck,
   },);
   /**
+   The backend this run drives, which decides the guest's shared folder and how a root command is started.
+   */
+  const backend = guestBackend();
+  /**
    The file holding the script, its bound and the status line it ends with.
    */
   const stepPath = join(
@@ -183,21 +188,42 @@ export async function startDetachedGuestScript({
     from: launchPath,
     log: `guest-push-${log}.log`,
   },);
-  // The launcher's text ends with `exit 0`, so its own status says only that the guest accepted the file; what the
-  // script went on to do is read from the shared log below.
-  await runQuietStepCommand({
+  // The launcher's text ends with `exit 0`, so a status other than zero is the launcher's own refusal: either the guest
+  // it names is not the machine the command reached, or `mvm` could not ask the guest at all. What the script went on to
+  // do is read from the shared log below, and this refusal is said here rather than after a wait for a log that no guest
+  // will write.
+  /**
+   The status the launcher exited with, which is this host's only news that the step file was started at all.
+   */
+  const launcherStatus = await runQuietStepCommand({
     program: 'mvm',
     argumentWords: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'exec',
       chosen.name,
       '--',
+      ...backend.rootWords,
       'sh',
-      `${GUEST_SHARED_FOLDER}/${log}.launch.sh`,
+      `${backend.guestSharedFolder}/${log}.launch.sh`,
     ],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
+  if (launcherStatus !== 0) {
+    /**
+     The words that select the backend on a command line, as one word.
+     */
+    const backendWords = backend.mvmArgumentWords
+      .join(' ',);
+    /**
+     The command as the refusal names it, spelled as a person would type it.
+     */
+    const refused = `mvm ${backendWords} exec ${chosen.name} -- sh ${backend.guestSharedFolder}/${log}.launch.sh`;
+    /**
+     The one line a person reads: the command, its status and what that means.
+     */
+    const said = `${refused} exited ${String(launcherStatus,)}: the launcher was refused, so '${chosen.name}' started none of ${log}.step.sh`;
+    throw new GuestDriverError(said,);
+  }
 }
 
 /**
@@ -225,19 +251,22 @@ export async function lastLineFromTheGuest({
   readonly file: string;
 },): Promise<string> {
   /**
+   The backend this run drives, which decides where the guest keeps the log.
+   */
+  const backend = guestBackend();
+  /**
    What the guest answered, which is the log's last line once the script has written one.
    */
   const answer = await runGateCommand({
     program: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'exec',
       chosen.name,
       '--',
       'tail',
       '--lines=1',
-      `${GUEST_SHARED_FOLDER}/${file}`,
+      `${backend.guestSharedFolder}/${file}`,
     ],
     deadlineMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
@@ -272,6 +301,10 @@ export async function pullGuestLog({
   readonly log: string;
 },): Promise<string> {
   /**
+   The backend this run drives, which decides where the guest keeps the log.
+   */
+  const backend = guestBackend();
+  /**
    The host's copy of the guest's log, which the pull writes.
    */
   const pulledPath = join(
@@ -285,20 +318,30 @@ export async function pullGuestLog({
     logDirectory: chosen.logDir,
     program: 'mvm',
     argumentWords: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      `${GUEST_SHARED_FOLDER}/${file}`,
+      `${backend.guestSharedFolder}/${file}`,
       pulledPath,
     ],
     log,
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (status !== 0) {
-    throw new GuestDriverError(
-      `mvm --backend libvirt pull ${chosen.name} ${GUEST_SHARED_FOLDER}/${file} ${pulledPath} exited ${String(status,)}; see ${log}`,
-    );
+    /**
+     The words that select the backend on a command line, as one word.
+     */
+    const backendWords = backend.mvmArgumentWords
+      .join(' ',);
+    /**
+     The command as the refusal names it, spelled as a person would type it.
+     */
+    const refused = `mvm ${backendWords} pull ${chosen.name} ${backend.guestSharedFolder}/${file} ${pulledPath}`;
+    /**
+     The one line a person reads: the command, its status and where its log is.
+     */
+    const said = `${refused} exited ${String(status,)}; see ${log}`;
+    throw new GuestDriverError(said,);
   }
   return await readLog({ path: pulledPath, },);
 }

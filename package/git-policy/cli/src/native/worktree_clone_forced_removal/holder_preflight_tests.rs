@@ -6,6 +6,7 @@
 //!  a structural refusal names its namespace and reason,
 //!  and the route falls to way 7 where way 8 does not fit.
 
+use crate::process::a_locked_holders_own_unit::ALockedHoldersUnit;
 use crate::worktree_clone_forced_removal::caller_chain_walk::SparedBy;
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::holder_preflight::*;
@@ -96,6 +97,7 @@ impl Fixture {
             blind: &[],
             unenterable: &[],
             locked: &[],
+            locked_units: &[],
             parents_not_the_checkout: &[],
             structural: &[],
             unendable: &[],
@@ -154,6 +156,41 @@ fn the_protected_set_refuses_first() {
         ForcedRefusal::ProtectedHolds {
             holder: 4242,
             spared_by: SparedBy::Session
+        }
+    );
+}
+
+/// A locked holder that is a service unit of this account's own user manager is
+/// carried to the structural stage as the unit to stop,
+/// and one that is not such a unit still refuses.
+#[test]
+fn a_locked_holder_of_our_own_unit_is_stopped_and_another_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    let mut reads: PreflightReads<'_> = fixture.reads();
+    let ours: [ALockedHoldersUnit; 1] = [ALockedHoldersUnit {
+        namespace: String::from("mnt:u"),
+        unit: String::from("watcher.service"),
+        cgroup: String::from("/user.slice/user-0.slice/user@0.service/app.slice/watcher.service"),
+        task: 4242,
+    }];
+    reads.locked_units = &ours;
+    let plan: ForcedPlan = plan_the_forced_removal(&reads)
+        .expect("a locked holder that is this account's own unit is stopped");
+    assert_eq!(plan.units_to_stop, ours.to_vec());
+    // The same set with a locked holder that is no such unit still refuses, whatever else it carries.
+    let not_ours: [(String, String); 1] = [(
+        String::from("mnt:other"),
+        String::from("a sandbox of its own"),
+    )];
+    reads.locked = &not_ours;
+    let refused: ForcedRefusal =
+        plan_the_forced_removal(&reads).expect_err("a locked holder that is no such unit refuses");
+    assert_eq!(refused.word(), RefusalWord::HolderLocked);
+    assert_eq!(
+        refused,
+        ForcedRefusal::Locked {
+            namespace: String::from("mnt:other"),
+            holder: String::from("a sandbox of its own"),
         }
     );
 }

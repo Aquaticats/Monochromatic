@@ -859,13 +859,22 @@ pub fn the_checks_pool() -> Pool {
 /// names it,
 /// which is the one field a mark control changes.
 pub fn the_checks_pool_with(mark: u64) -> Pool {
+    return the_checks_pool_of(mark, NvList::new());
+}
+
+/// The same pool with the clone's own properties as a control names them,
+/// which is where a live mount intent stands.
+pub fn the_checks_pool_of(
+    mark: u64,
+    clone_properties: NvList,
+) -> Pool {
     let full: String = the_origin_full_name();
     return Pool::new(vec![
         (
             CLONE,
             Answer::of(
                 the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, full.as_str()),
-                NvList::new(),
+                clone_properties,
             ),
         ),
         (
@@ -883,6 +892,32 @@ pub fn the_checks_pool_with(mark: u64) -> Pool {
             ),
         ),
     ]);
+}
+
+/// The clone's own mount intent,
+/// in the shape OpenZFS answers for a local property:
+/// the pair of `value` and `source`,
+/// whose source is the clone's own name.
+/// Why:
+///  A plan the head-present path adopts needs a live intent,
+///  because nothing else proves the unmount it claims
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "The removal intent").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const properties = anIntentProperty('unmount');
+/// ```
+pub fn an_intent_property(operation: &str) -> NvList {
+    let mut inner: NvList = NvList::new();
+    inner.add_str("value", format!("v1:{RUN_NONCE}:{operation}").as_str());
+    inner.add_str("source", CLONE);
+    let mut properties: NvList = NvList::new();
+    properties.add_nvlist(
+        crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY,
+        inner,
+    );
+    return properties;
 }
 
 /// The check's pool whose origin snapshot is marked for deferred destroy,

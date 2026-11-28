@@ -21,6 +21,11 @@
 //! ```
 
 use crate::testing::test_support::fixture;
+use crate::testing::the_destruction_plan_a_control_plants::{
+    ACloneAPlanNames,
+    APlanAControlPlants,
+    plant,
+};
 use crate::worktree_clone_binding_record::binding_encoding::{
     FolderIdentity,
     bytes_as_hexadecimal,
@@ -39,6 +44,14 @@ use crate::worktree_clone_binding_record::registration_home::{
     origin_inventory_name,
 };
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    PlanAttempt,
+    PlanSnapshot,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
     RecordedBinding,
     read_the_recorded_binding,
@@ -520,5 +533,70 @@ impl RemovalFixture {
     /// for a control that needs its path alone.
     pub fn common(&self) -> &Path {
         return self.common_dir.as_path();
+    }
+
+    /// What:
+    ///  The destruction plan a removal of this fixture's clone leaves,
+    ///  published by the removal's own writer.
+    /// Why:
+    ///  A plan a control writes by hand is one the grammar may refuse,
+    ///  and a refused plan says nothing to the reader the control meant to feed,
+    ///  so the plan comes from `testing::the_destruction_plan_a_control_plants`,
+    ///  which publishes through `PlanFolder::publish` and reads the record back first.
+    ///  The clone and the origin are this fixture's own,
+    ///  because a removal refuses a plan whose six identity fields disagree with the
+    ///  add's record.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const plan = fixture.plantAPlan('present', [fixture.aLineOfThePlan('worktree-own', 0, 'planned')]);
+    /// ```
+    pub fn plant_a_plan(
+        &self,
+        head: HeadWord,
+        attempts: Vec<PlanAttempt>,
+    ) -> PathBuf {
+        let mut clone: ACloneAPlanNames =
+            ACloneAPlanNames::a_fixture_clone(self.common_dir.as_path(), CLONE, guid(CLONE_GUID));
+        clone.clone_createtxg = CLONE_CREATETXG;
+        clone.origin_dataset = String::from(ORIGIN_DATASET);
+        clone.origin_snapshot = self.origin_snapshot.clone();
+        return plant(&APlanAControlPlants {
+            clone,
+            head,
+            attempts,
+        });
+    }
+
+    /// What:
+    ///  One attempt line for one of this clone's own snapshots,
+    ///  at the attempt number and with the outcome a control names.
+    /// Why:
+    ///  The grammar holds one line per attempt of one name,
+    ///  and the name and both numbers are this fixture's own,
+    ///  so a control plants a history of the clone its binding records.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const line = fixture.aLineOfThePlan('worktree-own', OWN_GUID, OWN_CREATETXG, 0, 'destroyed');
+    /// ```
+    pub fn a_line_of_the_plan(
+        &self,
+        snapshot: &str,
+        guid_value: u64,
+        createtxg: u64,
+        attempt: u64,
+        outcome: SnapshotOutcome,
+    ) -> PlanAttempt {
+        return PlanAttempt {
+            snapshot: PlanSnapshot {
+                name: format!("{CLONE}@{snapshot}"),
+                guid: guid(guid_value),
+                createtxg,
+            },
+            attempt,
+            outcome,
+            errno: None,
+        };
     }
 }

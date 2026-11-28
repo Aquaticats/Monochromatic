@@ -1,0 +1,15 @@
+package/ide/app	1	0	still-failed	1
+package/jsonc-edit/core-rust	0	27	ok	0
+package/linter/monochromatic-lint-closure	1	53	ok	0
+package/linter/monochromatic-lint	1	418	ok	0
+package/mpm-shadow/cli	1	250	ok	0
+package/music-player/android-app/rust	0	1	ok	1
+package/music-player/desktop-app	2	53	ok	0
+package/music-player/truepeak-core	1	24	ok	0
+package/nested-wayland-session/cli	0	42	ok	0
+package/pnpm-shadow/cli	1	42	ok	0
+package/search-shadow/cli	1	29	ok	0
+package/terminal/app	0	0	still-failed	1
+package/wg/cli-quicker-exempt	1	1	ok	0
+package/xml-edit/core-rust	0	21	ok	0
+package/zfs/request-to-openzfs-kernel-device	0	23	ok	0

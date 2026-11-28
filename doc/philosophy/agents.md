@@ -903,6 +903,16 @@ By then the user,
  assuming the check was already done,
  had disconnected the phone.
 
+On 2026-11-28 the rule was widened from verifying a provided resource to using it.
+The owner had provided OVHcloud keys so that guests could run there,
+two billed runs failed,
+and the session put a design proposal and its reviews in front of the third run for three hours
+while it kept starting guests on this machine.
+The owner asked why,
+and chose the wording `URF` has now:
+the resource is verified and then carries the work it can,
+and neither a grown scope nor a design question defers that.
+
 #### Documentation standards: why WR5 bans positional references
 
 Positional pointers ("above",
@@ -1062,11 +1072,15 @@ Considered and not chosen by the owner the same day:
 
 Recorded 2026-11-19T18:05:08-05:00.
 The owner asked for a rule worded
- "Don't assume the user, owner, client, or yourself is an idiot",
+ "Don't assume the user,
+owner,
+client,
+or yourself is an idiot",
  and gave the reasoning:
  "most atrocities in history are made by reasonable persons
  due to how they thought or what they heard or whatever.
- Therefore, not dismissing any stupidity as just that person being an idiot could be hugely beneficial."
+ Therefore,
+not dismissing any stupidity as just that person being an idiot could be hugely beneficial."
 
 "Idiot" explains nothing an agent can act on:
  it ends the search and leaves no doc,
@@ -1076,7 +1090,8 @@ The owner asked for a rule worded
  and the cause is what gets kept,
  asked about or fixed.
 
-`RSN` states the positive claim, that everyone is reasonable from where they stand,
+`RSN` states the positive claim,
+ that everyone is reasonable from where they stand,
  because the "Negative prompts" section of this doc steers away from "never assume X".
 
 Reasonable does not mean right.
@@ -1103,3 +1118,29 @@ Considered and not chosen by the owner the same day:
 Offered as a fallback and not taken:
  splitting `RSN` into a rule for choices before overriding them
  and a rule for mistakes after they happen.
+
+#### Hazardous commands: what "normal here, never an excuse" asks for (NHR, NHP)
+
+`NHR` and `NHP` list conditions that are normal on this machine and say they are never an excuse.
+On 2026-11-28 a session read that as carrying on beside the condition:
+no name resolved for a quarter of an hour,
+and the session started a command that waited for names to resolve again,
+in the form `NWC` describes,
+without first tracing the failure to the VPN's resolver or telling the owner which part had failed.
+Asked whether a new rule was needed,
+the owner answered:
+
+> It seems the problem is your interpretion of "normal not excuse".
+> Normal not excuse doesn't mean drag with it,
+> means work with it.
+
+The session's reading of those words:
+a normal condition is worked with.
+Trace it to its failing part,
+change what is ours to change,
+tell the owner at once what is theirs,
+and move the work onto a path the condition does not block.
+A wait is what is left when none of those is possible,
+and only then does `NWC` say how to wait.
+The incident's measurements are in `doc/troubleshooting/ivpn-3-15-inverse-split-tunnel-overrides-wireguard.md`,
+"Name lookups ride the tunnel for every program".

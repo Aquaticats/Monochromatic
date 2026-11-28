@@ -8,6 +8,9 @@ import {
 } from './cloud-init.ts';
 import {
   DEFAULT_DISK_SIZE,
+  DEFAULT_MEMORY_MIB,
+  DEFAULT_VCPUS,
+  MEBIBYTES_PER_GIBIBYTE,
   SHARED_DIR_NAME,
   validateName,
   VMS_DIR,
@@ -100,25 +103,34 @@ async function setWindowsHostname({
  For Windows guests, the hostname is set via guest agent after boot.
  
  @param image - Image identifier (defaults to `ubuntu`)
- 
+
+ @param memoryGiB - Memory the guest gets, in gibibytes, or omitted for the default
+
  @param name - VM name (alphanumeric, hyphens, underscores)
- 
+
+ @param vcpus - Virtual CPUs the guest gets, or omitted for the default
+
  @throws Error on invalid name, unknown image, or disk creation failure
- 
+
  @example
  ```ts
  await create({ name: 'dev-01' });
  await create({ image: 'fedora', name: 'build-box' });
  await create({ image: 'windows', name: 'win-test' });
  await create({ image: 'my-custom', name: 'special' });
+ await create({ memoryGiB: 8, name: 'big', vcpus: 4 });
  ```
  */
 export async function create({
   image = DEFAULT_IMAGE,
+  memoryGiB,
   name,
+  vcpus,
 }: {
   readonly image?: string;
+  readonly memoryGiB?: number;
   readonly name: string;
+  readonly vcpus?: number;
 },): Promise<void> {
   validateName(name,);
   /**
@@ -223,8 +235,10 @@ export async function create({
    */
   const xml = domainXml({
     diskPath,
+    memoryMiB: memoryGiB === undefined ? DEFAULT_MEMORY_MIB : (memoryGiB * MEBIBYTES_PER_GIBIBYTE),
     name,
     osFamily: guest.osFamily,
+    vcpus: vcpus ?? DEFAULT_VCPUS,
     ...(fileTransfer === 'virtiofs' ? { sharedDir, } : {}),
     ...(seedIso !== NO_SEED_ISO ? { seedIsoPath: seedIso, } : {}),
   },);
@@ -238,6 +252,8 @@ export async function create({
     guest,
     image,
     vmDir,
+    ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
+    ...((vcpus === undefined) ? {} : { vcpus, }),
   },);
   await startVm({ name, },);
   await waitForGuestAgent({ name, },);

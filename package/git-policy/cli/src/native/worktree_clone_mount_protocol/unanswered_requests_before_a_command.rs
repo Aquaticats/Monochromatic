@@ -32,6 +32,34 @@ use crate::worktree_clone_mount_protocol::unanswered_request_names::EntryName;
 use crate::worktree_clone_mount_protocol::unanswered_requests_folder::UnansweredRequests;
 use std::path::Path;
 
+// What: The checks this thread has made, counted for the controls that prove the forwarded path makes one.
+// Why:  A control that proves the check ran judges a count of its own command, and the test runner runs several
+//       controls at once in one process, so the counter is the thread's rather than the process's (`AGENTS.md`'s
+//       `QIV`; `layout_folder_links::counted_work` is the same shape for the linter's cost controls). The command's
+//       check is made on the command's own thread, so a thread-local counter sees it, and no test-only statement
+//       above it may be documented as an item: rustdoc does not generate documentation for a macro invocation.
+#[cfg(test)]
+thread_local! {
+    /// The checks this thread made.
+    static CHECKS_THIS_THREAD_MADE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// What:
+///  How many checks this thread has made,
+///  for the controls that prove a command makes one.
+/// Why:
+///   A count read before and after one command is that command's checks,
+///  and no other control of the run can move it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checksThisThreadMade(): number;
+/// ```
+#[cfg(test)]
+pub(crate) fn checks_this_thread_made() -> usize {
+    return CHECKS_THIS_THREAD_MADE.with(|count| return count.get());
+}
+
 /// What:
 ///  Check this repository's folder once,
 ///  for one forwarded command.
@@ -50,6 +78,11 @@ pub fn check_before_a_command(common_dir: Option<&Path>) {
     let Some(where_the_git_directory_is) = common_dir else {
         return;
     };
+    // What: The one place a command's check is counted, so a control can prove the forwarded path made it.
+    // Why:  a command whose layout the wrapper declined returns above and counts nothing, which is the arm that
+    //       proves the count is the check's and not the command's.
+    #[cfg(test)]
+    CHECKS_THIS_THREAD_MADE.with(|count| return count.set(count.get() + 1));
     let folder: UnansweredRequests =
         UnansweredRequests::in_the_common_dir(where_the_git_directory_is);
     check_at(&folder, &ReceiptsFolder::live());

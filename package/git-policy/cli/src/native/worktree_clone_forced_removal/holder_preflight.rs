@@ -31,6 +31,7 @@
 //! plan.route; plan.receivers;
 //! ```
 
+use crate::process::a_locked_holders_own_unit::ALockedHoldersUnit;
 use crate::worktree_clone_forced_removal::caller_chain_walk::SparedBy;
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::receiver_closure::{
@@ -75,8 +76,9 @@ pub enum ForcedRefusal {
         namespace: String,
     },
     /// A holder whose mount namespace is owned by a user namespace of its own,
-    /// so the kernel locked its copy and the design's ending for it is not
-    /// built.
+    /// so the kernel locked its copy,
+    /// and which is no service unit of this account's own user manager,
+    /// so this removal has no manager to stop it through.
     Locked {
         /// The namespace's identity.
         namespace: String,
@@ -223,6 +225,10 @@ pub struct PreflightReads<'a> {
     /// The holder namespaces whose owner is a user namespace of their own,
     /// with the holder the report names.
     pub locked: &'a [(String, String)],
+    /// The locked holders that are service units of this account's own user
+    /// manager,
+    /// which the act stops through that manager before it changes anything else.
+    pub locked_units: &'a [ALockedHoldersUnit],
     /// The namespaces whose copy's parent is not the checkout's own mount.
     pub parents_not_the_checkout: &'a [String],
     /// The structural refusals,
@@ -250,7 +256,7 @@ pub struct PreflightReads<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ForcedPlan = { route; receivers; };
+/// type ForcedPlan = { route; receivers; unitsToStop };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ForcedPlan {
@@ -258,6 +264,9 @@ pub struct ForcedPlan {
     pub route: Route,
     /// The namespaces the unmount reaches and what each holds at the slot.
     pub receivers: ReceiverSet,
+    /// The locked holders' own units the act stops first,
+    /// in the order they were recorded.
+    pub units_to_stop: Vec<ALockedHoldersUnit>,
 }
 
 /// What:
@@ -359,6 +368,14 @@ pub fn plan_the_forced_removal(reads: &PreflightReads<'_>) -> Result<ForcedPlan,
     return Ok(ForcedPlan {
         route,
         receivers,
+        // What: the locked holders' own units, carried to the structural stage, which stops them first.
+        // Why:  the owner's answer stops each through the account's own manager before any other namespace is changed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // unitsToStop: reads.lockedUnits,
+        // ```
+        units_to_stop: reads.locked_units.to_vec(),
     });
 }
 

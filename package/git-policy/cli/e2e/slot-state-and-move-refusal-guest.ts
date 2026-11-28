@@ -33,6 +33,10 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from '../bin/mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -52,6 +56,11 @@ import {
 import {
   shellQuote,
 } from '../bin/mvm-guest-command-line.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  Where the crate is unpacked and built inside the guest, which every account may traverse.
@@ -222,16 +231,17 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
+  // A backend that mounts no share has no folder for the archive to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await host({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -274,7 +284,7 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${SBIN}`,
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
@@ -306,11 +316,10 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      '/mnt/shared/slot-state-arm.log',
+      `${backend.guestSharedFolder}/slot-state-arm.log`,
       pulledPath,
     ],
     log: 'host-pull-slot-state.log',

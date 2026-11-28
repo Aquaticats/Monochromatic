@@ -8,15 +8,20 @@
  `bin/mvm-guest-command-line.ts` and `e2e/guest-host/guest-host-rules-fixture.ts`), and they agreed byte for byte; what
  survived is the shape each question was answered best in.
 
- A detached script is the one place the three did not agree, and the difference is kept: one driver's scripts carry the
- guest's name check in the step file and the other two carry it in the launcher, and the two scripts are identical only
- with that distinction (`{@link detachedScriptFiles}`'s `nameCheck`).
+ A detached script is the one place the three helper sets did not agree, and the difference is kept: the step 22 driver's
+ scripts carry the guest's name check in the step file, the adoption driver's and the start probe's carry it in the
+ launcher, and the scripts of the three drivers that carry none are identical only in having none
+ (`{@link detachedScriptFiles}`'s `nameCheck`).
  */
 
 import {
   GUEST_TIMEOUT_MARGIN_SECONDS,
   MILLISECONDS_PER_SECOND,
 } from './mvm-guest-bounds.ts';
+import {
+  type GuestBackend,
+  guestBackend,
+} from './mvm-guest-backend.ts';
 
 /**
  The first word of the line a detached guest script writes when it ends, followed by its exit status.
@@ -93,6 +98,8 @@ export function shellQuote(script: string,): string {
 
  @param script - the shell script the guest runs
 
+ @param backend - the backend the guest lives on, which decides its hostname and how root is asked for
+
  @returns the command line, for `mvm exec` to hand to the guest's one shell
 
  @example
@@ -104,12 +111,25 @@ export function guestCommandLine({
   name,
   timeoutMilliseconds,
   script,
+  backend = guestBackend(),
 }: {
   readonly name: string;
   readonly timeoutMilliseconds: number;
   readonly script: string;
+  readonly backend?: GuestBackend;
 },): string {
-  return `test "$(hostname)" = ${name} && timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)}`;
+  /**
+   The guest's own words: root when the backend needs asking for it, then the script under the guest's timeout.
+   */
+  const guestWords: readonly string[] = [
+    ...backend.rootWords,
+    'timeout',
+    String(guestSecondsOf({ timeoutMilliseconds, },),),
+    'sh',
+    '-ec',
+    shellQuote(script,),
+  ];
+  return `test "$(hostname)" = ${backend.hostnameOf(name,)} && ${guestWords.join(' ',)}`;
 }
 
 /**
@@ -132,9 +152,10 @@ export function guestSecondsOf({ timeoutMilliseconds, }: { readonly timeoutMilli
  Which of a detached script's two files carries the check that the command reached the guest it names.
 
  - `launcher` puts `test "$(hostname)" = NAME || exit 1` first in the launcher, which refuses a command that reached
-   another machine before the step file is started at all (the adoption driver's scripts);
- - `step` puts `test "$(hostname)" = NAME` first in the step file, so the detached script refuses itself (the step 22
-   driver's);
+   another machine before the step file is started at all (the adoption driver's and the start probe's scripts);
+ - `step` puts the same check first in the step file, so the detached script refuses itself, and writes the status line
+   the host waits for before it exits, so the host reports the refusal at its next look rather than waiting out the
+   script's bound (the step 22 driver's);
  - `none` carries no check, as the removal-lineage and settling drivers' scripts always did, because the host names the
    guest in `mvm exec` and `mvm` itself picks the domain.
  */
@@ -192,33 +213,68 @@ export function detachedScriptFiles({
   log,
   timeoutMilliseconds,
   nameCheck,
+  backend = guestBackend(),
 }: {
   readonly name: string;
   readonly script: string;
   readonly log: string;
   readonly timeoutMilliseconds: number;
   readonly nameCheck: GuestNameCheck;
+  readonly backend?: GuestBackend;
 },): DetachedScriptFiles {
   /**
    The check that the command reached the guest it names, in whichever file carries it.
    */
-  const hostnameCheck = `test "$(hostname)" = ${name}`;
+  const hostnameCheck = `test "$(hostname)" = ${backend.hostnameOf(name,)}`;
+  /**
+   The log inside the guest's shared folder, which the step file writes and the host pulls back.
+   */
+  const sharedLog = `${backend.guestSharedFolder}/${log}`;
+  /**
+   The step file inside that folder, which the launcher starts.
+   */
+  const stepPath = `${backend.guestSharedFolder}/${log}.step.sh`;
   /**
    The bounded script, which is what runs detached.
+
+   A step-shaped check refuses with the status line the host already waits for, because a step file that exited without one
+   would leave the host asking until the script's own bound passed.
+   */
+  /**
+   The step's own words: root when the backend needs asking for it, then the script under the guest's timeout.
+   */
+  const stepWords: readonly string[] = [
+    ...backend.rootWords,
+    'timeout',
+    String(guestSecondsOf({ timeoutMilliseconds, },),),
+    'sh',
+    '-ec',
+    shellQuote(script,),
+  ];
+  /**
+   The step file's lines: the check when it carries one, the bounded script, and the status line the host reads.
    */
   const stepLines = [
-    ...(nameCheck === 'step' ? [hostnameCheck,] : []),
-    `timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)} > /mnt/shared/${log} 2>&1`,
+    ...(nameCheck === 'step' ? [`${hostnameCheck} || { echo "${ENDED_MARK}1" >> ${sharedLog}; exit 1; }`,] : []),
+    `${stepWords.join(' ',)} > ${sharedLog} 2>&1`,
     'status=$?',
-    `echo "${ENDED_MARK}$status" >> /mnt/shared/${log}`,
+    `echo "${ENDED_MARK}$status" >> ${sharedLog}`,
     '',
   ];
   /**
    The launcher, which is what the host starts and which returns at once.
    */
+  const launchWords: readonly string[] = [
+    ...backend.rootWords,
+    'sh',
+    stepPath,
+  ];
+  /**
+   The launcher's lines: the check when it carries one, the detached start, and its own end.
+   */
   const launchLines = [
     ...(nameCheck === 'launcher' ? [`${hostnameCheck} || exit 1`,] : []),
-    `setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`,
+    `setsid nohup ${launchWords.join(' ',)} < /dev/null > /dev/null 2>&1 &`,
     'exit 0',
     '',
   ];
