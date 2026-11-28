@@ -2918,22 +2918,8 @@ and the two `truepeak` files wait on their branch.
   and the coordinator's tip check ran `native:check`,
   Clippy and `source_guard`;
   where the TypeScript checks should run is a proposal for the owner (issue 6584).
-- A threaded test run of the wrapper on the host reached this account's own service manager (issue 6586).
-  In a run of every test whose path holds `worktree`,
-  a control's add asked the manager to start `monochromatic-git-policy-cli@<instance>` units for its fixture,
-  the program the manager ran was the test binary
-  (100 starts refused with "Unrecognized option:
-  'journal'" between 07:31:27 and 08:01:43 on 2026-11-27),
-  and the shared link `/run/user/1000/monochromatic-git-policy-cli-bin` pointed at that binary
-  until another session's wrapper command pointed it back.
-  Release code remembers the running executable,
-  and the route provisions whenever the process's own runtime directory and session bus exist.
-  Issue 6582 put its two controls in a child with a runtime directory of its own (`eeebbfbe22`);
-  issue 6586's round makes it impossible for the whole test process
+- Issue 6586's round makes it impossible for the whole test process to reach this account's own service manager,
   and writes a proposal on whether the release should refuse to provision from a program that is not an installed wrapper.
-  The coordinator stopped and reset the ten failed units the runs of 07:31 to 07:40 left,
-  and removed their sockets and notes,
-  each note naming a Git directory under a cargo build folder's `test-fixtures/`.
 - Issue 6580's fix found seven planted controls whose text no longer occurred in the file their table named
   (four moved by splits,
   three reflowed by the reformat);
