@@ -1993,7 +1993,7 @@ Measured 2026-11-27 in a container with no user manager of its own,
 five rounds of every state,
 with `0.1.5-alpha.16`,
 a byte-identical copy of it and this branch's binary:
-five asks and about 0.86 s a call in each of these states,
+five asks and 0.85 s to 0.88 s a call in each of these states,
 against one ask and about 0.03 s a call where the read finds nothing.
 
 - a socket with nothing listening on it,
