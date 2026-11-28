@@ -411,8 +411,9 @@ fn prune_after_run() {
 ///           the shadow's own line (after `--version`) or section (after `--help`) to standard output.
 /// Why:
 /// A shadow that prints only mpm's text cannot be told apart from mpm.
-/// A closed standard output is ignored:
-/// the real mpm's output already went out.
+/// A standard output that refuses the write is ignored:
+/// the real mpm's output already went out,
+/// and the writer this notice goes through drops the refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -80,7 +80,9 @@ pub mod start_retry;
 /// The depth guard against a shadow starting itself.
 pub mod nesting;
 
-/// The one writer of the lines this program says about its own work,
+/// The one writer of every word this program says of its own:
+/// the report on standard output,
+/// and the lines about its own work and the sentence that ends a failure on standard error,
 /// which a stream that refuses them cannot turn into a failure.
 pub mod notices;
 
