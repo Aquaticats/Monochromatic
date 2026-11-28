@@ -113,9 +113,9 @@ pub(crate) const SESSION_BUS_VARIABLE: &str = "DBUS_SESSION_BUS_ADDRESS";
 /// `bus_connect_transport_systemd` sends a user-scope ask to `bus_connect_user_systemd` (`src/shared/bus-util.c:519-524` at
 /// v262),
 /// which connects `unix:path=$XDG_RUNTIME_DIR/systemd/private` and returns its failure rather than falling back
-/// (`src/shared/bus-util.c:266-289`),
+/// (`src/shared/bus-util.c:266-300`),
 /// and systemd 255's copy of the same function falls back to the session bus where that connect fails
-/// (`src/shared/bus-util.c:234-262`).
+/// (`src/shared/bus-util.c:234-268`).
 pub(crate) const MANAGER_SOCKET: &str = "systemd/private";
 
 /// Where inside the runtime directory the socket of the user bus is (`unix:path=$XDG_RUNTIME_DIR/bus`,
@@ -125,9 +125,9 @@ pub(crate) const MANAGER_SOCKET: &str = "systemd/private";
 /// is set.
 /// Why:
 /// A host that has a bus has this,
-/// and a systemd 255 that cannot connect the private socket answers over it (`src/shared/bus-util.c:234-262` at v255,
-/// `return sd_bus_default_user(ret_bus)` at `:255`),
-/// while a systemd 262 never takes it (`src/shared/bus-util.c:266-289` at v262).
+/// and a systemd 255 that cannot connect the private socket answers over it (`src/shared/bus-util.c:234-268` at v255,
+/// `return sd_bus_default_user(ret_bus)` at `:244` and at `:260`),
+/// while a systemd 262 never takes it (`src/shared/bus-util.c:266-300` at v262).
 /// The read counts it because the package runs beside both.
 /// Where `$DBUS_SESSION_BUS_ADDRESS` is set,
 /// sd-bus takes the address rather than this name
@@ -220,8 +220,10 @@ fn why_no_manager_can_be_reached(settings: &RouteSettings) -> Option<String> {
         // What:     `bus_address.is_none()` is the condition under which `root.join(SESSION_BUS_SOCKET)` is a transport an ask
         //           can take: sd-bus prefers `$DBUS_SESSION_BUS_ADDRESS` to the user bus socket where the address is set.
         // Why:      A read that counted the bus socket beside a bus address would keep the asking again on a host whose only
-        //           named transport is the address (measured 2026-11-27 in a container: with both variables set, systemd 262
-        //           takes `systemd/private` alone and systemd 255 takes the address, and neither takes the bus socket).
+        //           named transport is the address: with both variables set, systemd 262 takes `systemd/private` alone (measured
+        //           read-only on this host and in a container of systemd 262.2 on 2026-11-27) and systemd 255 falls back to the
+        //           address (read from `src/shared/bus-util.c:244` and `:260` at v255, where no manager of 255 was measured),
+        //           and neither takes the bus socket.
         //
         // In TS you'd write (pseudocode):
         // ```ts
