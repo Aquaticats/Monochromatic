@@ -12,8 +12,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   armTimeoutMilliseconds,
   probeDataset,
@@ -40,7 +46,7 @@ export const noConfigurationLog = 'guest-no-configuration.log';
 export async function noConfiguration({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The arm: the configuration removed, one run that must pass, the dataset
@@ -89,6 +95,6 @@ export async function noConfiguration({
     chosen,
     script,
     log: noConfigurationLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

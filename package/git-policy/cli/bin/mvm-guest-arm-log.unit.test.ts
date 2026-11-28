@@ -1,3 +1,7 @@
+/**
+ Guards for the two questions a driver asks about a pulled arm log: whether a word begins one of its lines, which of the
+ markers a passing arm prints the log lacks, and the refusal a log that lacks one earns.
+ */
 import {
   describe,
   expect,
@@ -5,107 +9,160 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  holdsWordLine,
-  missingMarkerRefusal,
+  holdsLineStartingWith,
   missingMarkers,
+  requireMarkers,
 } from './mvm-guest-arm-log.ts';
 
 /**
- The three lines one arm's log holds, in the order the driver asks for them.
+ The markers a test log is asked for.
+
+ @returns two lines a passing log carries
  */
-const claimed = [
-  'LOCK released=yes',
-  'LOCK installed-lock-kept-the-registration=true',
-  'LOCK done',
-] as const;
+function markers(): readonly string[] {
+  return [
+    'ARM started',
+    'ARM done',
+  ];
+}
 
 await describe({
   name: '',
   children: [
     describe({
+      name: holdsLineStartingWith.name,
+      children: [
+        it({
+          name: 'finds the word that begins the first line',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: 'SKIPPED: no ZFS here\nok', word: 'SKIPPED', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'finds the word that begins a line after a newline',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: 'ok\nSKIP\nmore', word: 'SKIP', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'finds the word that begins a last line with no newline after it',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: 'ok\nSKIP', word: 'SKIP', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'does not count a word that only stands inside a line',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: 'the arm printed SKIPPED once\nok', word: 'SKIPPED', },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'does not count the word in the middle of a line that begins with another',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: 'DOCTOR-GUEST SKIP inside\n', word: 'SKIP', },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'does not count an indented word, as a line beginning with a space begins with that space',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: '  SKIPPED\n', word: 'SKIPPED', },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'finds nothing in an empty log',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: '', word: 'SKIPPED', },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'reads a word that is longer than the line as no match',
+          fn: async () => {
+            expect(holdsLineStartingWith({ text: 'SKIP\n', word: 'SKIPPED', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: missingMarkers.name,
       children: [
         it({
-          name: 'answers nothing when the log holds every line',
+          name: 'answers nothing when the log holds every marker',
           fn: async () => {
             expect(missingMarkers({
-              text: 'work\nLOCK released=yes\nLOCK installed-lock-kept-the-registration=true\nLOCK done\n',
-              markers: claimed,
+              text: 'FORCEDACT phase=path-holder-asked\nFORCEDACT phase=arm-finished\n',
+              markers: ['FORCEDACT phase=path-holder-asked', 'FORCEDACT phase=arm-finished',],
             },),).toEqual([],);
           },
         },),
         it({
-          name: 'answers every line the log lacks, in the order they were asked for',
+          name: 'names the markers the log lacks, in the order the driver listed them',
           fn: async () => {
             expect(missingMarkers({
-              text: 'work\nLOCK done\n',
-              markers: claimed,
-            },),).toEqual([
-              'LOCK released=yes',
-              'LOCK installed-lock-kept-the-registration=true',
-            ],);
+              text: 'FORCEDACT phase=arm-finished\n',
+              markers: ['FORCEDACT phase=path-holder-asked', 'FORCEDACT phase=arm-finished', 'FORCEDACT phase=none',],
+            },),).toEqual(['FORCEDACT phase=path-holder-asked', 'FORCEDACT phase=none',],);
           },
         },),
         it({
-          name: 'finds a marker inside a longer line, which the guest s own grep is what rules out',
+          name: 'names every marker of an empty log',
           fn: async () => {
             expect(missingMarkers({
-              text: 'LOCK done=not-yet\n',
-              markers: ['LOCK done',],
-            },),).toEqual([],);
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: holdsWordLine.name,
-      children: [
-        it({
-          name: 'reads a word a line begins with',
-          fn: async () => {
-            expect(holdsWordLine({
-              text: 'building\nSKIP the arm did not run\n',
-              word: 'SKIP',
-            },),).toBe(true,);
-          },
-        },),
-        it({
-          name: 'reads a word only in the middle of a line as absent',
-          fn: async () => {
-            expect(holdsWordLine({
-              text: 'the SKIP line was not printed\n',
-              word: 'SKIP',
-            },),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'reads a log with no such line as absent',
-          fn: async () => {
-            expect(holdsWordLine({
-              text: 'building\nDONE=0\n',
-              word: 'SKIP',
-            },),).toBe(false,);
-            expect(holdsWordLine({
               text: '',
-              word: 'SKIP',
-            },),).toBe(false,);
+              markers: ['SLOT-STATE done', 'REPAIR pruned registration=gone',],
+            },),).toEqual(['SLOT-STATE done', 'REPAIR pruned registration=gone',],);
+          },
+        },),
+        it({
+          name: 'reads a marker inside a longer line as printed, as the drivers have always read it',
+          fn: async () => {
+            expect(missingMarkers({
+              text: '     1  DEFERRED done\n',
+              markers: ['DEFERRED done',],
+            },),).toEqual([],);
           },
         },),
       ],
     },),
     describe({
-      name: missingMarkerRefusal.name,
+      name: requireMarkers.name,
       children: [
         it({
-          name: 'names the line the log lacked, and says the arm ran without performing it',
+          name: 'passes a log that carries every marker',
           fn: async () => {
-            /**
-             What the driver refuses with.
-             */
-            const refusal = missingMarkerRefusal({ marker: 'LOCK done', },);
-            expect(refusal.name,).toBe('GuestDriverError',);
-            expect(refusal.message,)
-              .toBe('the pulled arm log lacks LOCK done; the guest ran the arm without performing it',);
+            expect(function checks(): void {
+              requireMarkers({
+                text: 'ARM started\nARM done\n',
+                markers: markers(),
+                subject: 'the arm log',
+                because: 'the arm did not run',
+              },);
+            },).not.toThrow();
+          },
+        },),
+        it({
+          name: 'names the first marker the log lacks and why a missing marker fails',
+          fn: async () => {
+            expect(function checks(): void {
+              requireMarkers({
+                text: 'ARM started\n',
+                markers: markers(),
+                subject: 'the arm log',
+                because: 'the arm did not run',
+              },);
+            },).toThrow('the arm log lacks ARM done; the arm did not run');
+          },
+        },),
+        it({
+          name: 'refuses with the guest drivers own error class, so a log names what refused it',
+          fn: async () => {
+            expect(function checks(): void {
+              requireMarkers({
+                text: '',
+                markers: markers(),
+                subject: 'the pulled lock log',
+                because: 'the guest ran the arm without performing it',
+              },);
+            },).toThrow('the pulled lock log lacks ARM started; the guest ran the arm without performing it');
           },
         },),
       ],

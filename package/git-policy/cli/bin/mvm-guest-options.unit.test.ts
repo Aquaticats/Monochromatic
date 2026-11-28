@@ -1,6 +1,6 @@
 /**
- Guards for the command line the four ZFS guest drivers read: the step, the guest name, the log folder and the flag that
- keeps a guest, including the lines that give a flag no word at all.
+ Guards for the command line every guest driver reads: the step, the four flags every driver shares, and the words after
+ the step that a driver with flags of its own looks up.
  */
 import {
   describe,
@@ -8,7 +8,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { guestRouteOptions, } from './guest-route-options.ts';
+import {
+  guestDriverOptions,
+  runArguments,
+} from './mvm-guest-options.ts';
 
 /** The guest name a line that names none asks for, which every case below either keeps or replaces. */
 const DEFAULT_NAME = 'forced-act';
@@ -19,17 +22,13 @@ const DEFAULT_LOG_DIR = '/repo/package/git-policy/cli/target/forced-act-guest-lo
 /**
  Read one command line the way a driver reads it.
 
- @param words - the words after the script's own path, which this adds the interpreter's two words to
+ @param words - the words after the script's own path
 
  @returns the step and the values the line gave
  */
-function readLine(words: readonly string[],): ReturnType<typeof guestRouteOptions> {
-  return guestRouteOptions({
-    argv: [
-      '/usr/bin/node',
-      'e2e/forced-act-guest.ts',
-      ...words,
-    ],
+function readLine(words: readonly string[],): ReturnType<typeof guestDriverOptions> {
+  return guestDriverOptions({
+    argv: words,
     defaultName: DEFAULT_NAME,
     defaultLogDir: DEFAULT_LOG_DIR,
   },);
@@ -39,7 +38,7 @@ await describe({
   name: '',
   children: [
     describe({
-      name: guestRouteOptions.name,
+      name: guestDriverOptions.name,
       children: [
         it({
           name: 'reads the step word and the defaults when the line names nothing else',
@@ -57,12 +56,12 @@ await describe({
             const chosen = readLine([
               'prepare',
               '--name',
-              'issue-6581-part3-guest',
+              'issue-6612-guest',
               '--log-dir',
               '/home/person/temp/guest-logs',
             ],);
             expect(chosen.step,).toBe('prepare',);
-            expect(chosen.name,).toBe('issue-6581-part3-guest',);
+            expect(chosen.name,).toBe('issue-6612-guest',);
             expect(chosen.logDir,).toBe('/home/person/temp/guest-logs',);
           },
         },),
@@ -160,6 +159,99 @@ await describe({
           name: 'reads no step at all as the empty step',
           fn: async () => {
             expect(readLine([],).step,).toBe('',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: runArguments.name,
+      children: [
+        it({
+          name: 'takes the first word as the step',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'run',
+              '--name',
+              'guest-one',
+            ], },).step,).toBe('run',);
+          },
+        },),
+        it({
+          name: 'gives an empty step for a command line with no words',
+          fn: async () => {
+            expect(runArguments({ argv: [], },).step,).toBe('',);
+          },
+        },),
+        it({
+          name: 'reads the word after a flag as that flag value',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'run',
+              '--log-dir',
+              'target/logs',
+            ], },).values.get('--log-dir',),).toBe('target/logs',);
+          },
+        },),
+        it({
+          name: 'keeps the first occurrence of a flag, which is the one the drivers always read',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'run',
+              '--name',
+              'first',
+              '--name',
+              'second',
+            ], },).values.get('--name',),).toBe('first',);
+          },
+        },),
+        it({
+          name: 'reads no value for a flag that is the last word',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'run',
+              '--keep-guest',
+            ], },).values.has('--keep-guest',),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'reads a flag-shaped word as the value of the flag before it, as the drivers always did',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'run',
+              '--name',
+              '--keep-guest',
+            ], },).values.get('--name',),).toBe('--keep-guest',);
+          },
+        },),
+        it({
+          name: 'holds every word after the step as a flag, so a bare flag is one lookup',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'run',
+              '--no-build',
+              '--keep-guest',
+            ], },).flags,).toEqual(new Set([
+              '--no-build',
+              '--keep-guest',
+            ],),);
+          },
+        },),
+        it({
+          name: 'leaves the step out of the bare flags',
+          fn: async () => {
+            expect(runArguments({ argv: ['run',], },).flags.has('run',),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'reads the image a run names, which a driver with flags of its own looks up',
+          fn: async () => {
+            expect(runArguments({ argv: [
+              'create',
+              '--image',
+              'ubuntu-24.04-zfs',
+              '--kernel-release',
+              '6.8.0-31-generic',
+            ], },).values.get('--image',),).toBe('ubuntu-24.04-zfs',);
           },
         },),
       ],

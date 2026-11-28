@@ -16,9 +16,18 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { swapGibibytes, } from '../guest-host/guest-host-bounds.ts';
-import { pushWorktreeSnapshot, } from '../guest-host/host-side-commands.ts';
+import {
+  SWAP_GIBIBYTES,
+} from '../../bin/mvm-guest-bounds.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  pushWorktreeSnapshot,
+} from '../../bin/mvm-guest-host-command.ts';
+
+
+
 import { detachedStep, } from './detached-step.ts';
 import {
   crateBuildTimeoutMilliseconds,
@@ -46,7 +55,7 @@ const buildLog = 'guest-crate-build.log';
 export async function buildInGuest({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   await pushWorktreeSnapshot({ chosen, },);
   /**
@@ -71,7 +80,7 @@ export async function buildInGuest({
     'free',
     // One rustc for a crate this size wants more than five gigabytes and the guest has eight, so one job and a swap
     // file are what make the build fit; the customer's own guest-arm drivers measure the same bound.
-    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${swapGibibytes} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
     'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked > /root/step22-build.log 2>&1',
     'tail --lines=3 /root/step22-build.log',
@@ -80,7 +89,7 @@ export async function buildInGuest({
     chosen,
     script,
     log: buildLog,
-    timeout: crateBuildTimeoutMilliseconds,
-    finishTimeout: crateBuildTimeoutMilliseconds + longFinishMarginMilliseconds,
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds,
+    finishTimeoutMilliseconds: crateBuildTimeoutMilliseconds + longFinishMarginMilliseconds,
   },);
 }

@@ -15,11 +15,15 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
 import {
   holdsLineStartingWith,
   requireMarkers,
-} from '../guest-host/guest-host-rules-fixture.ts';
+} from '../../bin/mvm-guest-arm-log.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+
+
 import { detachedStep, } from './detached-step.ts';
 import { pullSharedLog, } from './host-shared-log.ts';
 import {
@@ -66,7 +70,7 @@ const armStepLog = 'guest-arm.log';
 export async function layThePools({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The two pools, each created only when the guest does not already hold it, so
@@ -88,8 +92,8 @@ export async function layThePools({
     chosen,
     script,
     log: poolLog,
-    timeout: poolTimeoutMilliseconds,
-    finishTimeout: poolTimeoutMilliseconds + finishMarginMilliseconds,
+    timeoutMilliseconds: poolTimeoutMilliseconds,
+    finishTimeoutMilliseconds: poolTimeoutMilliseconds + finishMarginMilliseconds,
   },);
 }
 
@@ -111,7 +115,7 @@ export async function layThePools({
 export async function measureStep22({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The arm itself: the built test target's step 22 measurements, run where the
@@ -136,8 +140,8 @@ export async function measureStep22({
     chosen,
     script,
     log: armStepLog,
-    timeout: armTimeoutMilliseconds,
-    finishTimeout: armTimeoutMilliseconds + longFinishMarginMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
+    finishTimeoutMilliseconds: armTimeoutMilliseconds + longFinishMarginMilliseconds,
   },);
   /**
    The arm's own log, which its script copied into the guest's shared folder and
@@ -149,13 +153,13 @@ export async function measureStep22({
     logDir: chosen.logDir,
   },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedMarkers,
     subject: 'the pulled arm log',
     because: 'the guest ran the arm without performing it',
   },);
   if (holdsLineStartingWith({
-    pulled,
+    text: pulled,
     word: 'SKIP',
   },))
     throw new Error('the pulled arm log holds a SKIP line, so the arm did not run');

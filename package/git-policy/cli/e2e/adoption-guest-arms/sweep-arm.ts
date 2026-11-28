@@ -13,11 +13,17 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
 import {
   requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
   shellQuote,
-} from '../guest-host/guest-host-rules-fixture.ts';
+} from '../../bin/mvm-guest-command-line.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+
+
 import {
   armTimeoutMilliseconds,
   crateDirectory,
@@ -29,10 +35,8 @@ import {
   sweepGuestVariable,
   sweepStaleCheckout,
 } from './adoption-fixture.ts';
-import {
-  detachedStep,
-  pullGuestLog,
-} from './detached-step.ts';
+import { pullGuestLog, } from '../../bin/mvm-guest-detached-script.ts';
+import { detachedStep, } from './detached-step.ts';
 
 /**
  The log the sweep arm writes inside the guest's shared folder.
@@ -67,7 +71,7 @@ const sweepFinishMarginMilliseconds = 120_000;
 export async function sweepArms({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The arm itself: a layout an earlier run left mounted is taken down first, so
@@ -136,8 +140,8 @@ export async function sweepArms({
     chosen,
     script,
     log: armStepLog,
-    timeout: armTimeoutMilliseconds * 2,
-    finishTimeout: (armTimeoutMilliseconds * 2) + sweepFinishMarginMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds * 2,
+    finishTimeoutMilliseconds: (armTimeoutMilliseconds * 2) + sweepFinishMarginMilliseconds,
   },);
   /**
    The arm's own log, which the step copied into the guest's shared folder and
@@ -149,7 +153,7 @@ export async function sweepArms({
     log: 'host-pull-sweep.log',
   },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedSweepMarkers,
     subject: 'the pulled sweep-arm log',
     because: 'the guest ran the arm without performing it',

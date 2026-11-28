@@ -14,8 +14,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   armTimeoutMilliseconds,
   pool,
@@ -43,7 +49,7 @@ const controlsLog = 'guest-m2-controls.log';
 export async function m2Controls({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The controls, in the order the design's windows are read: idle, mount, write,
@@ -92,6 +98,6 @@ export async function m2Controls({
     chosen,
     script,
     log: controlsLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

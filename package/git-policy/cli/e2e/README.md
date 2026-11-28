@@ -834,7 +834,23 @@ so they detect the regression.
 which is the mode plan step 5 wires
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 step 5).
-The driver keeps what every guest driver does in `e2e/guest-host/`,
+The driver keeps what every guest driver does in `bin/mvm-guest-*.ts`,
+which is the one set of guest-step helpers since issue 6612
+(`bin/mvm-guest-bounds.ts`,
+`-error.ts`,
+`-guest-facts.ts`,
+`-options.ts`,
+`-command-line.ts`,
+`-arm-log.ts`,
+`-step-command.ts`,
+`-recipe-step.ts`,
+`-host-command.ts`,
+`-script.ts`,
+`-detached-script.ts`,
+`-listing.ts` and
+`-whole-run.ts`;
+each file answers one question,
+and this README's guest sections name which one where they mention it),
 and its arms live in `e2e/adoption-guest-arms/`,
 one file per arm:
 the adoption and store controls,
@@ -844,10 +860,10 @@ the holder scan,
 the unmount mechanics,
 the delegation attempts,
 and the `snapdir` matrix.
-The modes are modes of the one wrapper executable now, so every arm starts the
- built wrapper under the installed ZED history event's name or through the words
- `monochromatic-git-policy-cli zfs-root <mode>`, and the link's name and the
- words come from the library's own constants
+The modes are modes of the one wrapper executable now,
+so every arm starts the built wrapper under the installed ZED history event's name
+or through the words `monochromatic-git-policy-cli zfs-root <mode>`,
+and the link's name and the words come from the library's own constants
  (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
  choice 1).
 The arms write the store folder `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`

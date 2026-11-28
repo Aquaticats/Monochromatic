@@ -38,17 +38,26 @@ import {
 
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
-  runGuestScript,
-  runHostCommand,
-  runRecipeStep,
-} from '../bin/guest-route-commands.ts';
+  host,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
 import {
-  type GuestRouteOptions,
-  guestRouteOptions,
-} from '../bin/guest-route-options.ts';
-import { FOLDER_MODE, } from '../bin/guest-route-permissions.ts';
-import { hasLineStartingWith, } from '../bin/guest-route-log-lines.ts';
-import { shellQuote, } from '../bin/guest-route-shell-quote.ts';
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
+  guestDriverOptions,
+  type GuestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
+import {
+  FOLDER_MODE,
+  HOST_COMMAND_TIMEOUT_MS,
+} from '../bin/mvm-guest-bounds.ts';
+import {
+  holdsLineStartingWith,
+} from '../bin/mvm-guest-arm-log.ts';
+import {
+  shellQuote,
+} from '../bin/mvm-guest-command-line.ts';
 
 /**
  Where the wrapper's tree is unpacked and built inside the guest, which every account may traverse.
@@ -103,10 +112,9 @@ const EXPECTED_MARKERS = [
 
  @param chosen - the run's options
  */
-async function create(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function create(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'create',
   },);
 }
@@ -116,10 +124,9 @@ async function create(chosen: GuestRouteOptions,): Promise<void> {
 
  @param chosen - the run's options
  */
-async function prepare(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function prepare(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'prepare',
   },);
 }
@@ -131,7 +138,7 @@ async function prepare(chosen: GuestRouteOptions,): Promise<void> {
 
  @throws Error naming the step that refused, or the marker the pulled log lacks
  */
-async function run(chosen: GuestRouteOptions,): Promise<void> {
+async function run(chosen: GuestDriverOptions,): Promise<void> {
   /**
    Where the snapshot of this worktree is unpacked before it is pushed.
    */
@@ -161,8 +168,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     chosen.logDir,
     'subject.tar.gz',
   );
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'tar',
     args: [
       '--create',
@@ -176,8 +183,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'mvm',
     args: [
       '--backend',
@@ -206,15 +213,16 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    // `-j 2` because one rustc of this crate took the guest's whole memory when two ran at once (a killed rustc, the
-    // run's own log), and the library's test binary is the only target the arm needs.
-    'cargo test --release --lib --no-run --locked -j 2 > /root/forced-act-build.log 2>&1',
+    // One job, for the same reason the deferred-origin driver runs one: this build is the library's test binary, and
+    // one `rustc` of it takes the guest's whole memory. Measured 2026-11-27 in the guest of issue 6612's round at two
+    // jobs, the build's own samples read `AnonPages` 7,249,568 kB of the guest's 8,131,780 kB with one `rustc` at
+    // 7,418,336 kB resident and `MemAvailable` at 398,408 kB at its lowest.
+    'cargo test --release --lib --no-run --locked -j 1 > /root/forced-act-build.log 2>&1',
     'tail --lines=3 /root/forced-act-build.log',
   ]
     .join('\n',);
-  await runGuestScript({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  await guest({
+    chosen,
     script: build,
     log: 'guest-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
@@ -245,9 +253,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
   ]
     .join('\n',);
-  await runGuestScript({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  await guest({
+    chosen,
     script: arm,
     log: 'guest-forced-act.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
@@ -259,8 +266,8 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     chosen.logDir,
     'forced-act-arm.log',
   );
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'mvm',
     args: [
       '--backend',
@@ -284,9 +291,9 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
       .includes(marker,))
       throw new Error(`the pulled arm log lacks ${marker}; the guest ran the arm without performing it`,);
   }
-  if (hasLineStartingWith({
+  if (holdsLineStartingWith({
     text: pulled,
-    prefix: 'SKIPPED',
+    word: 'SKIPPED',
   },))
     throw new Error('the pulled arm log holds a SKIPPED line, so the arm did not run',);
 }
@@ -296,10 +303,9 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
 
  @param chosen - the run's options
  */
-async function destroy(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function destroy(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'destroy',
   },);
 }
@@ -311,7 +317,7 @@ async function destroy(chosen: GuestRouteOptions,): Promise<void> {
 
  @throws Error naming the step that refused
  */
-async function all(chosen: GuestRouteOptions,): Promise<void> {
+async function all(chosen: GuestDriverOptions,): Promise<void> {
   await create(chosen,);
   await prepare(chosen,);
   await run(chosen,);
@@ -321,7 +327,7 @@ async function all(chosen: GuestRouteOptions,): Promise<void> {
 /**
  The steps this driver knows, and nothing else.
  */
-const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
+const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
   create,
   prepare,
   run,
@@ -332,8 +338,9 @@ const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
 /**
  The step and the values the command line gave this run.
  */
-const chosen = guestRouteOptions({
-  argv: process.argv,
+const chosen = guestDriverOptions({
+  argv: process.argv
+    .slice(2,),
   defaultName: 'forced-act',
   defaultLogDir: resolve(
     import.meta.dirname,
