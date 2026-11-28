@@ -2933,9 +2933,10 @@ The profile is the reason.
 `/etc/apparmor.d/ssh-keygen` grants
 `owner @{user_ssh_dirs}/ rw,` and `owner @{user_ssh_dirs}/* rwl -> @{user_ssh_dirs}/*,`,
 and `@{user_ssh_dirs}` is `@{HOME}/@{XDG_SSH_DIR}` with `@{XDG_SSH_DIR}=".ssh"`
-(`/etc/apparmor.d/tunables/home.d/apparmor.d`, lines 44 and 71).
+(`/etc/apparmor.d/tunables/home.d/apparmor.d`,
+lines 44 and 71).
 `/etc/apparmor.d/local/ssh-keygen` adds the git signing buffer paths under
-`@{tmp}` and `@{HOME}/temp/agent`,
+`@{tmp}` and under `@{HOME}/temp/agent`,
 a cargo build folder,
 `/work/**`,
 and the git verification buffer,

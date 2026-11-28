@@ -611,7 +611,8 @@ OVHcloud's own client names one page per API host for making keys
  "Create script credentials"):
 
 - Europe: <https://eu.api.ovh.com/createToken/>
-- North America, which this backend uses by default:
+- North America,
+  which this backend uses by default:
   <https://ca.api.ovh.com/createToken/>
 - United States: <https://api.us.ovhcloud.com/createToken/>
 
@@ -735,12 +736,14 @@ mise run //package/mvm/cli:run -- --backend ovh update
    so no region name is baked into mvm.
    `--location` or `MVM_OVH_REGIONS` replaces that list,
    with the precedence `--location` and `MVM_HCLOUD_LOCATIONS` have.
-- **Flavors, not server types**:
+- **Flavors,
+   not server types**:
    `--server-type` takes an OVHcloud flavor name or identifier and
   `MVM_OVH_FLAVOR` sets it for a run;
    without one the smallest flavor in stock in the region is used,
   by virtual CPUs and then memory.
-- **The login account is the image's own, never `root`**:
+- **The login account is the image's own,
+   never `root`**:
    mvm reads the image's `user` field,
    so an Ubuntu image logs in as `ubuntu` and a Debian image as `debian`.
    A pushed path such as `/root/setup.sh` is not writable;
