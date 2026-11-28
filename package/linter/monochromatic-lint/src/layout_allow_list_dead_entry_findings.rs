@@ -147,10 +147,7 @@ pub fn dead_entry_findings(
             continue;
         };
         if let Some(identity) = &reading.identity {
-            edits
-                .entry(identity.clone())
-                .or_default()
-                .push(index);
+            edits.entry(identity.clone()).or_default().push(index);
         }
         readings[index] = Some(reading);
     }

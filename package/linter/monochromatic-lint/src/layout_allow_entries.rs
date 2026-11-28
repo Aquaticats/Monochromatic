@@ -868,9 +868,9 @@ fn note_of_an_unseen_character(
     let more: String = characters_beside_the_first(count);
     // What: how many of them stand inside the words the refusal names the folder with.
     // Why: each of those is taken out by renaming the folder, and each of the others by the edit the line can take out itself.
-    let inside: usize = folder
-        .as_ref()
-        .map_or(0, |span| return unseen_characters_in_span(text, column, span.clone()));
+    let inside: usize = folder.as_ref().map_or(0, |span| {
+        return unseen_characters_in_span(text, column, span.clone());
+    });
     // What: the edit for a refusal that names no folder, where the sentence cannot say which character stands in a folder's own name.
     // Why: a sentence that said to take each of them out sent its reader to a line the next run refused for its word count,
     // so it names the edit for the one character it placed, says how many stand beside it, and says what a folder's own character needs instead.
@@ -943,7 +943,8 @@ fn unseen_characters_in_span(
         .chars()
         .enumerate()
         .filter(|(index, letter)| {
-            return prints_as_nothing(*letter) && place_stands_in(column + index, column, text, span.clone());
+            return prints_as_nothing(*letter)
+                && place_stands_in(column + index, column, text, span.clone());
         })
         .count();
 }

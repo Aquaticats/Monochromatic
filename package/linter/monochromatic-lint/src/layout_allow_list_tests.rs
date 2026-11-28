@@ -1989,11 +1989,7 @@ fn a_refusal_names_the_edit_for_each_character_by_where_it_stands() {
     // What: one character outside the folder's name and none inside it.
     // Why: the take-out sentence of a one-character refusal said `where it stands if it stood`, a change no record listed.
     let alone: String = parse_allow_list(
-        format!(
-            "file-uses src/c d on{}e.rs -> two.rs\n",
-            '\u{200b}'
-        )
-        .as_str(),
+        format!("file-uses src/c d on{}e.rs -> two.rs\n", '\u{200b}').as_str(),
         Path::new("allow-list.txt"),
         fixture.path.as_path(),
     )
@@ -2006,11 +2002,7 @@ fn a_refusal_names_the_edit_for_each_character_by_where_it_stands() {
     // Why: the sentence cannot ask which character of a folder's name this is, so it names the placed character's edit
     // and says what a folder's own character needs instead.
     let no_folder: String = parse_allow_list(
-        format!(
-            "file-uses src/x y on{}e.rs -> two.rs\n",
-            '\u{200b}'
-        )
-        .as_str(),
+        format!("file-uses src/x y on{}e.rs -> two.rs\n", '\u{200b}').as_str(),
         Path::new("allow-list.txt"),
         fixture.path.as_path(),
     )
@@ -2031,7 +2023,10 @@ fn a_refusal_names_the_edit_for_each_character_by_where_it_stands() {
     for part in [
         "and that character stands in the name of the folder above: renaming that folder is the edit that takes it out.",
     ] {
-        assert!(in_the_name.contains(part), "{part} missing in {in_the_name}");
+        assert!(
+            in_the_name.contains(part),
+            "{part} missing in {in_the_name}"
+        );
     }
     assert!(
         !in_the_name.contains("take out the one outside the folder's name"),
@@ -2531,7 +2526,9 @@ fn the_count_of_a_file_name_s_edit_covers_the_file_names_characters_only() {
         &["src/g"],
     );
     assert!(
-        one_name.contains("Take both such characters out of the line, then write the file name the rule prints"),
+        one_name.contains(
+            "Take both such characters out of the line, then write the file name the rule prints"
+        ),
         "two characters of one name are two characters of one file name: {one_name}"
     );
     assert!(
@@ -2673,9 +2670,7 @@ fn two_dead_key_lines_whose_edits_give_one_line_are_not_each_told_it_reads() {
     let three: Vec<(String, String)> = dead_line_messages(
         format!(
             "{}uses src/a -> src/b\n{}uses src/a -> src/b\n{}uses src/a -> src/b\n",
-            '\u{feff}',
-            '\u{200b}',
-            '\u{2060}'
+            '\u{feff}', '\u{200b}', '\u{2060}'
         )
         .as_str(),
         &[],
