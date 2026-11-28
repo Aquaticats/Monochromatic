@@ -2829,10 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-- Medium:
-  71 pairs of a source guard and a file it names,
-  where code left the file in a split and the guard does not name where it went.
-  Two were checked and neither was a hole.
 - Low:
   the sweep's warnings carry four new log tags;
   a commit labelled `docs` changed the `shutdown-unmount` help row (`066e33a47d`,
