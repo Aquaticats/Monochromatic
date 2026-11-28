@@ -46,6 +46,7 @@ import {
   sessionHoldsAValue,
   type StandInMasking,
 } from './stand-in-pi-masking-fixture.ts';
+import { armTheStandInMainCheckoutGuard, } from './stand-in-pi-main-checkout-guard-fixture.ts';
 import {
   CRASH_STATUS,
   playPrompt,
@@ -406,6 +407,11 @@ async function actOnCommand({
  What this stand-in's Pi armed, read before any scenario runs so the descriptor is closed before a tool could inherit it.
  */
 const masking: StandInMasking = armTheStandInMasking({ scenario, },);
+/**
+ What this stand-in's Pi guards, read from the folders its driver wrote before any scenario runs, as a real Pi loads its
+ extensions before it takes a prompt.
+ */
+armTheStandInMainCheckoutGuard();
 await logTheNamesOfWhatPiCouldRead({
   log,
   argumentsOfTheStart: argv.slice(2,),

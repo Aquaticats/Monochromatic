@@ -430,6 +430,18 @@ Run every command and make every edit inside it.
 The main checkout (the repository path without `.claude/worktrees`) is read-only for the run:
 an edit left there blocks merges for everyone,
 and a build or test run there does not test the run's code.
+Since 2026-11-27 a run started in a worktree has such an edit refused:
+the driver answers an `edit` or `write` call that names the main checkout
+with the worktree's copy of that path
+(issue 6636;
+`package/pi-shared/subagent-driver/README.md`,
+"The main checkout is read-only for a run").
+That refusal covers those two tools and no shell command:
+a `sed --in-place`,
+a `cp`,
+a redirect,
+or a command run after a change into the main checkout still lands there,
+so a run still keeps to the worktree by its own discipline.
 Where a brief says a file is on `main`,
 read the worktree's copy:
 the worktree was made from `main`,
