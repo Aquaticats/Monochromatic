@@ -640,6 +640,16 @@ the loop and the first build in the arms' own numbers,
 and what a yes would still leave undecided.
 The numbers are the everywhere form's (what the arms measured) unless the option says they are inferred.
 
+Two things are not offered again here.
+Compiling less of the crate per round is the project's already-decided route to a smaller peak (`doc/planning/cli-git-source-layout.md`,
+"Splitting into crates (owner,
+2026-11-04)"),
+and the 2026-11-25 section measured what it can buy:
+leaving out half the library test unit's test lines brought the compared peak to 0.700 times the control,
+at 4,663 MiB of anonymous memory.
+`debug = false` and `codegen-units` are the owner's off-limits settings,
+and neither is measured under this setting.
+
 ### A. The setting as it is
 
 `package/git-policy/cli/Cargo.toml`,
