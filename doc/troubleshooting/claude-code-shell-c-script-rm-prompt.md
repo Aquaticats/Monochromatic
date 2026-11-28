@@ -328,6 +328,27 @@ is in `/proc/<pid>/environ` of OdyTTY,
 of the bash it started,
 and of both live Claude Code sessions (checked 2026-11-28).
 
+The OdyTTY process running on 2026-11-28 started on 2026-11-23,
+before the file existed,
+so its new tabs would not get the variable until the next login.
+On the user's choice of 2026-11-28 ("Add to ~/.bashrc"),
+`~/.bashrc`,
+which OdyTTY's `shell-integration/odytty.bash` sources for every tab,
+also got:
+
+```bash
+# ~/.bashrc (appended)
+# Claude Code reads CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT only from the environment it starts with.
+# ~/.config/environment.d/60-claude-code-inline-shell-rm-prompt.conf sets it for everything started after a login;
+# this export also reaches new OdyTTY tabs whose OdyTTY process started before that file existed.
+# Record: /home/user/Monochromatic/doc/troubleshooting/claude-code-shell-c-script-rm-prompt.md
+export CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT=1
+```
+
+With the variable removed from the parent environment,
+`bash --noprofile --rcfile ~/.config/odytty/shell-integration/odytty.bash -i +m -c 'printenv CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT'`
+printed `1`.
+
 ### Tradeoffs
 
 - Claude Code stops reading `-c` scripts for dangerous removals,
@@ -341,11 +362,10 @@ and of both live Claude Code sessions (checked 2026-11-28).
 - The sibling prompt for a `-c` script that contains a command a deny rule blocks goes away too,
   because it comes from the same analysis.
 - A running Claude Code keeps the environment it started with.
-  The OdyTTY process that hosts the terminal tabs also keeps its own,
-  so new tabs in it get the variable after the next login;
-  whether restarting OdyTTY alone is enough was not measured.
-  Until then,
-  `export CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT=1` in a shell before `claude` applies it to that launch.
+  Sessions started before 2026-11-28T03:36:19-05:00 keep the prompt until they are started again.
+  The `~/.bashrc` export covers interactive bash only;
+  everything else gets the variable from `environment.d` after the next login.
+  Whether restarting OdyTTY alone is enough was not measured.
 - The switch is read from a minified,
   closed-source bundle;
   re-check it after a Claude Code update with
