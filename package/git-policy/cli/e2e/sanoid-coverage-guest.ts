@@ -231,7 +231,10 @@ async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<v
    */
   const listed = await runGateCommand({
     program: 'mvm',
-    args: [...guestBackend().mvmArgumentWords, 'list',],
+    args: [
+      ...backend.mvmArgumentWords,
+      'list',
+    ],
     deadlineMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (holdsGuestName({

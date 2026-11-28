@@ -1082,6 +1082,37 @@ Unapproved and non-final.
   and one for a control that fails only in the threaded run of its module
   (`a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words`).
 
+#### Started and done between 08:02 and 08:16
+
+Unapproved and non-final.
+
+- Merge `034df18341` holds the whole of the guest drivers' round,
+  which has ended.
+  A wrapper driver's arm ran on OVHcloud:
+  two of the doctor driver's three guest tests passed there,
+  and the third failed on a difference `main` itself carries.
+  The times and the two things that do not run there are in
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "The first arm of a wrapper driver on OVHcloud".
+- Merge `5cdc551979` joins the two `cargo-shadow` rounds on the alpha.18 read,
+  with no control's assertion changed.
+  The release of `0.1.5-alpha.19` is dispatched (run 46148606612) and followed;
+  its lock and its second pass follow.
+- The second pass on `mpm-shadow` `0.2.7-alpha.21` came back with no High,
+  one Medium and eight Low.
+  The Medium:
+  a report that cannot be written still ends an install between its plan and its sync.
+  The round `mpm-shadow-alpha-21-read-a-report-that-cannot-be-written-ends-no-install-between-its-plan-and-its-sync`
+  answers it.
+- The `mvm` package's unit task and the wrapper package's TypeScript unit task both passed on `main`
+  after the three merges taken ahead of the guest drivers' round.
+- Every line this morning's OVHcloud merges added was scanned for addresses,
+  identifiers,
+  machine names made by a run and key values,
+  and held none.
+- The sizes revision round was told to quote nothing from the session's probe log,
+  and the fix round on the alpha.53 read to merge `main` first.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
