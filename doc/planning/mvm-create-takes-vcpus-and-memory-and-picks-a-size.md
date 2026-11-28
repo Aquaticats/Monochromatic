@@ -898,6 +898,10 @@ Why not the alternatives:
   `a10`,
   `b300` and `rubin`,
   all of which the price page files under `Cloud GPU`.
+  The same string lists `i1`,
+  the storage family the kept list leaves out,
+  beside the GPU families,
+  and this file does not know why OVHcloud files it there.
   A region selling those would offer them as candidates.
 - **A list of names in the source.**
   It drops exactly the names written into it,
@@ -1881,7 +1885,9 @@ and the refusal gives its reason:
 a clone keeps its source's size.
 That reason is not yet true.
 The libvirt clone writes a fresh domain with 4 vCPUs and 8,192 MiB;
-the OVHcloud clone resolves the region's smallest in-stock flavour and never calls the image check;
+the OVHcloud clone resolves the region's smallest in-stock flavour,
+or the one `MVM_OVH_FLAVOR` names,
+and never calls the image check;
 the Hetzner clone takes the cheapest type of the source's architecture.
 So today a clone of a large source is **predicted**
 to be a smaller machine on OVHcloud and **measured**
@@ -1889,6 +1895,9 @@ to be a different machine on libvirt,
 and a clone of a large source onto a small size is the case nobody has run:
 the OVHcloud clone boots a snapshot,
 and whether OVHcloud refuses a snapshot whose disk is larger than the flavour's disk is not in this repository.
+A clone made to the source's recorded size would also have to say what `MVM_OVH_FLAVOR` means beside it,
+because that variable names one size for a whole run and the source names another,
+and today the variable wins without saying so.
 Two consequences follow for this file's own words:
 the refusal's reason has to become true (a clone made to the source's recorded size) or the refusal has to say the truth,
 and a clone that must take the source's size needs an answer for that size being out of stock,
