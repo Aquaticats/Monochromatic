@@ -107,7 +107,8 @@ pub fn check_the_facts(
             });
         }
     }
-    if facts.namespace_id.is_none() {
+    if facts.reports_namespace_id && facts.namespace_id.is_none() {
+        // A kernel that reports the field and answers zero describes a mount in no namespace, which a lazy unmount leaves.
         return Some(MountRefusal {
             word: "namespace",
             why: String::from(

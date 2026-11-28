@@ -66,6 +66,7 @@ fn facts(over: Option<DescriptorMount>) -> DescriptorMount {
         mount_id: 9001,
         mount_id_old: 41,
         namespace_id: Some(7),
+        reports_namespace_id: true,
         propagation: MountPropagation::of_the_kernel_set(libc::MS_SHARED).expect("shared"),
         peer_group: Some(247),
         master: None,
@@ -155,6 +156,16 @@ fn a_kernel_that_reports_no_source_leaves_the_table_to_answer_it() {
     let refusal: MountRefusal =
         check_the_row(&one, table.as_slice(), DATASET).expect_err("the row names another dataset");
     assert_eq!(refusal.word, "source");
+}
+
+#[test]
+fn a_kernel_that_never_reports_the_namespace_is_not_refused_for_it() {
+    let mut one: DescriptorMount = facts(None);
+    // The answer a kernel before Linux 6.9 gives: the field is absent from the mask, and the mount was still found in
+    // this process's own namespace by the kernel's own lookup.
+    one.reports_namespace_id = false;
+    one.namespace_id = None;
+    assert_eq!(check_the_facts(&one, checkout(), DATASET), None);
 }
 
 #[test]

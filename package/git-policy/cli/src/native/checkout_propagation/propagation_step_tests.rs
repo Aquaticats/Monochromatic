@@ -234,6 +234,7 @@ fn facts(
         mount_id: 9001,
         mount_id_old: 41,
         namespace_id: Some(7),
+        reports_namespace_id: true,
         propagation,
         peer_group: match propagation.carries_shared() {
             true => Some(247),

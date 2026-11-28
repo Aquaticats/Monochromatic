@@ -188,6 +188,11 @@ pub struct DescriptorMount {
     /// The mount namespace's number,
     /// where the kernel reports one.
     pub namespace_id: Option<u64>,
+    /// Whether this kernel reports the namespace's number at all,
+    /// which Linux 6.9 added:
+    /// an older kernel leaves the word spare,
+    /// and a field it never reports is not the same answer as a number of zero.
+    pub reports_namespace_id: bool,
     /// The mount's propagation set.
     pub propagation: MountPropagation,
     /// The shared peer group's number,
@@ -393,6 +398,7 @@ fn facts_of(
             Some(String::from(text))
         }
     };
+    let reports_namespace_id: bool = mask & STATMOUNT_MNT_NS_ID != 0;
     let namespace_id: Option<u64> = match mask & STATMOUNT_MNT_NS_ID == 0 {
         // A kernel older than the field leaves its word spare, so this build says "not reported" rather than guess.
         true => None,
@@ -412,6 +418,7 @@ fn facts_of(
         mount_id: answered_id,
         mount_id_old: number_at(answer, MOUNT_ID_OLD_AT) & 0xffff_ffff,
         namespace_id: nonzero(namespace_id.unwrap_or(0)),
+        reports_namespace_id,
         propagation,
         peer_group: nonzero(peer_group),
         master: nonzero(master),

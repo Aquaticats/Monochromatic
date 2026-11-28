@@ -201,6 +201,7 @@ fn a_full_answer_reports_both_numbers_the_set_the_group_the_master_and_the_names
         "the reused number finds the table's row"
     );
     assert_eq!(facts.namespace_id, Some(4_022_345_678));
+    assert!(facts.reports_namespace_id, "this kernel reports the field");
     assert_eq!(facts.propagation.word(), "private");
     assert_eq!(facts.peer_group, None, "a private mount has no peer group");
     assert_eq!(facts.master, None, "a private mount receives nothing");
@@ -235,6 +236,10 @@ fn an_answer_without_the_namespace_field_is_read_as_no_namespace_rather_than_zer
     one.mask = Some(STATMOUNT_MNT_BASIC | STATMOUNT_MNT_POINT | STATMOUNT_FS_TYPE);
     let facts: DescriptorMount = facts_of(answer(one).as_slice(), 9001).expect("the older answer");
     assert_eq!(facts.namespace_id, None);
+    assert!(
+        !facts.reports_namespace_id,
+        "a kernel that never reports the field is not a mount in no namespace"
+    );
 }
 
 #[test]
