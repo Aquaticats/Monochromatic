@@ -16,10 +16,18 @@
  - way 8, in place by the add's handle, in the shape systemd leaves a unit's parent;
  - the peer shape, where the closure names the host and the act falls to way 7;
  - way 7 in both shapes, with the directory made, the copy unmoved, and the directory removed;
- - a locked holder, refused before any signal.
+ - a locked holder, refused before any signal;
+ - a locked holder that is a service unit of the guest account's own user manager: the same two refusals before the
+   stop, the manager's stop of that unit, and the host's unmount and the head destroy after it.
  The caller's session's other job stays alive through every phase.
 
- Usage: node e2e/forced-act-guest.ts <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]
+ The `user-manager` step is the measurement this round owed: it gives the guest's account a user manager of its own
+ (`loginctl enable-linger`, quoted from the guest's own manual), starts a transient unit that holds a copy of a slot
+ mount, and reads what the kernel answers the unmount and the move before `systemctl --user stop` of that unit and
+ after it. It makes the state twice, once with `PrivateMounts=yes` alone and once with `PrivateUsers=yes` as well,
+ and the arm makes it a third time.
+
+ Usage: node e2e/forced-act-guest.ts <create|prepare|user-manager|run|destroy|all> [--name <guest>] [--log-dir <dir>]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  The evidence of one run is `forced-act-arm.log`, pulled back into the log directory, and a run passes only when it
@@ -58,6 +66,9 @@ import {
 import {
   shellQuote,
 } from '../bin/mvm-guest-command-line.ts';
+import {
+  measureTheStop,
+} from './forced-act-guest-measurement.ts';
 
 /**
  Where the wrapper's tree is unpacked and built inside the guest, which every account may traverse.
@@ -237,6 +248,11 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     `export CLI_GIT_ZFS_FORCED_ACT_POOL=${POOL}`,
     `export CLI_GIT_ZFS_FORCED_ACT_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_FORCED_ACT_ROOT=${FIXTURE_ROOT}`,
+    // The locked holder's phase stops a unit of the account's own user manager, so the account gets one for the arm and
+    // loses it again afterwards: a guest's account is never logged in, and lingering is what starts that manager.
+    'loginctl enable-linger root',
+    'for look in $(seq 1 120); do if systemctl is-active --quiet user@0.service; then break; fi; sleep 0.5; done',
+    'systemctl is-active user@0.service',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level all --filterset "test(the_forced_act_guest_arm_tests)" > /root/forced-act-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=60 /root/forced-act-arm.log',
@@ -248,6 +264,7 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
         return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/forced-act-arm.log`;
       },),
     'cp /root/forced-act-arm.log /mnt/shared/forced-act-arm.log',
+    'loginctl disable-linger root',
     // The pool goes even when the arm left it behind, so the guest is ready for another run.
     `zpool destroy -f ${POOL} 2>/dev/null || true`,
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
@@ -320,6 +337,7 @@ async function destroy(chosen: GuestDriverOptions,): Promise<void> {
 async function all(chosen: GuestDriverOptions,): Promise<void> {
   await create(chosen,);
   await prepare(chosen,);
+  await measureTheStop(chosen,);
   await run(chosen,);
   await destroy(chosen,);
 }
@@ -330,6 +348,7 @@ async function all(chosen: GuestDriverOptions,): Promise<void> {
 const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
   create,
   prepare,
+  'user-manager': measureTheStop,
   run,
   destroy,
   all,

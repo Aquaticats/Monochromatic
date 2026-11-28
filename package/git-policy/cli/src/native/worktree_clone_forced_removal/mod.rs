@@ -236,6 +236,16 @@ pub mod the_refusal_sentences;
 #[path = "the_forced_act_guest_fixture_tests.rs"]
 mod the_forced_act_guest_fixture;
 
+/// What the stop's own answer becomes in this folder's words.
+#[cfg(test)]
+#[path = "the_stops_answer_tests.rs"]
+mod the_stops_answer;
+
+/// The guest arm's phase for a locked holder that is a unit of the account's own manager.
+#[cfg(test)]
+#[path = "the_forced_act_guest_arms_locked_unit_tests.rs"]
+mod the_forced_act_guest_arms_locked_unit;
+
 /// The guest arm that proves every kernel call of the act in a throwaway guest.
 #[cfg(test)]
 #[path = "the_forced_act_guest_arms_tests.rs"]
@@ -323,7 +333,7 @@ pub use holder_endings::{
     HolderKind,
     IN_PLACE_SHOWN_BY,
     KindEvidence,
-    LOCKED_NOT_BUILT,
+    LOCKED_UNIT_SHOWN_BY,
     MOVE_SHOWN_BY,
     MissingKind,
     PATH_HOLDER_SHOWN_BY,

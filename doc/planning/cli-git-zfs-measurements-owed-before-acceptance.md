@@ -3551,3 +3551,163 @@ Not shown:
 - The taskless route for a caller that also holds a snapshot batch that must not be lost:
   the arm measures the scan's reach,
   not the removal's behaviour when the scan misses.
+
+## The stop of a locked holder's own user unit, 2026-11-27T21:40:31-05:00
+
+**Measured by an agent.**
+Unapproved and non-final.
+The heading is the write time of the measurement's own log,
+`forced-act-measurement.log`,
+which the driver copied back out of the guest.
+This section records the arm the owner's answer of 2026-11-26 left owed:
+"the refusal is what the arm does until an arm watches the stop"
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`,
+"The two refusals the built arm keeps").
+It decides nothing the design or the record decides.
+
+### The guest and how its account got a user manager
+
+One guest,
+`zfs-r11-locked-unit`,
+made through `mvm --backend libvirt create` from `mvm`'s Ubuntu image by the
+forced act's own driver
+(`package/git-policy/cli/e2e/forced-act-guest.ts`,
+its `create` and `prepare` steps),
+and destroyed through `mvm` when the round ended.
+It is `Ubuntu 24.04.5 LTS`,
+booting `6.8.0-147-generic`,
+with `systemd 255 (255.4-1ubuntu8.19)`.
+No unit was run on the host,
+and no `/dev/zfs` was opened on it.
+
+A guest's account is never logged in,
+so nothing starts its user manager.
+The guest's own manual,
+`/usr/share/man/man1/loginctl.1.gz`,
+says what does:
+
+```text
+\fBenable\-linger\fR [\fIUSER\fR\&...], \fBdisable\-linger\fR [\fIUSER\fR\&...]
+.RS 4
+Enable/disable user lingering for one or more users\&. If enabled for a specific user, a user manager is spawned for the user at boot and kept around after logouts\&. This allows users who are not logged in to run long\-running services\&. Takes one or more user names or numeric UIDs as argument\&. If no argument is specified, enables/disables lingering for the user of the session of the caller\&.
+```
+
+So the step runs `loginctl enable-linger root`,
+waits for `user@0.service` to be `active`,
+and reads `systemctl --user is-system-running` through the runtime directory and
+the bus the manager listens on (`/run/user/0`, `unix:path=/run/user/0/bus`).
+`loginctl show-user root --property=Linger --value` answered `yes`.
+
+### How many times the state is made, and what each reading answered
+
+The state is made three times:
+twice by the driver's `user-manager` step,
+once with a unit of `PrivateMounts=yes` alone and once with `PrivateUsers=yes`
+as well,
+and once by the arm's own phase.
+The step's doc comment said so before either was run.
+
+Each time the slot's copy is one `tmpfs` mount made in the guest's root mount
+namespace,
+which is the namespace the account's user manager and its units descend from,
+and the unit is a transient service started with
+`systemd-run --user --property=PrivateMounts=yes /usr/bin/sleep infinity`.
+
+The unit of `PrivateMounts=yes` alone:
+
+```text
+MEASURE variant=private-mounts unit=r11-measure-private-mounts pid=147043 namespaces=mnt=mnt:[4026532398] user=user:[4026532396] ours=user:[4026531837] cgroup=0::/user.slice/user-0.slice/user@0.service/app.slice/r11-measure-private-mounts.service
+MEASURE variant=private-mounts the-units-copy=1
+MEASURE variant=private-mounts owner=4026532396 the-guests-own-user-namespace=user:[4026531837]
+MEASURE variant=private-mounts before=move=EINVAL
+unmount=EINVAL
+MEASURE variant=private-mounts stop= after-state=inactive after-namespace=gone after-tasks=gone
+MEASURE variant=private-mounts the-hosts-own-unmount-after=unmount=accepted
+```
+
+The unit with `PrivateUsers=yes` as well answered the same four readings.
+
+What each line is:
+
+- `the-units-copy=1` is one row of the unit's own `/proc/<pid>/mountinfo`
+  whose mount point is the slot.
+- `owner=` is `NS_GET_USERNS` on `/proc/<pid>/ns/mnt`,
+  the read the design's F61 names,
+  and the inode it answers (`4026532396`) is not the guest's own user namespace
+  (`user:[4026531837]`).
+  So the kernel locks every mount that namespace received.
+- `move=EINVAL` and `unmount=EINVAL` are `mount(MS_MOVE)` and `umount2` called
+  through `ctypes`,
+  after the copy's parent was made a slave inside that namespace,
+  because `util-linux`'s `umount` prints `not mounted` for that same `EINVAL`
+  and a program's phrasing is not the kernel's answer.
+- `after-state=inactive`, `after-namespace=gone` and `after-tasks=gone` are
+  `systemctl --user is-active`,
+  the presence of `/proc/<pid>/ns/mnt`,
+  and the task's own `/proc/<pid>/cgroup`,
+  read half a second after `systemctl --user stop` returned.
+- `the-hosts-own-unmount-after=unmount=accepted` is the same `umount2`,
+  in the guest's root namespace,
+  on the mount the unit had only copied.
+
+### The arm that watches the stop
+
+The forced act's guest arm
+(`src/native/worktree_clone_forced_removal/the_forced_act_guest_arms_locked_unit_tests.rs`,
+its phase `locked-holder-stopped-through-its-unit`)
+makes the state its third time and runs the route's own code on it,
+with a `6 GiB` `zpool` of its own rather than a `tmpfs` slot:
+
+```text
+FORCEDACT phase=locked-holder-stopped-through-its-unit manager=running owner=another unit=forced-act-holder.service way8=holder-locked way7=holder-structural holders-copy=stays stop-wait=refused:T_stop stopped=forced-act-holder.service stopped-namespace=mnt:[4026532400] namespace-after=gone tasks-after=gone hosts-copy=stays unmount-after=accepted destroy-after=gone caller-job=alive ms=8309
+```
+
+- `manager=running` is the account's own manager answering
+  `systemctl --user is-system-running`.
+- `owner=another` is `read_the_owner`'s answer for the unit's mount namespace,
+  which is the same read the preflight makes.
+- `unit=forced-act-holder.service` is `the_unit_of_the_accounts_manager`'s answer
+  for the task's unified control-group line,
+  and the unit the manager was then asked to stop.
+- `way8=holder-locked` is the unmount of the copy by the add's recorded handle,
+  refused with the locked holder's word.
+- `way7=holder-structural` is way 7 refusing one stage earlier,
+  at the structural stage that proves the copy and the checkout's own mount,
+  which is a refusal that changes nothing as well;
+  the hand-made holder of the earlier arm refused way 7 at its unmount instead,
+  and the two shapes disagree there.
+- `stop-wait=refused:T_stop` is `the_stop_wait` refusing,
+  because the wait has no value in this build.
+- `stopped=forced-act-holder.service` and `stopped-namespace=mnt:[4026532400]`
+  are the manager's stop and the namespace the journal line names with it.
+- `namespace-after=gone` and `tasks-after=gone` are the wait's own reads.
+- `hosts-copy=stays` is the root namespace's own row at the slot,
+  and `unmount-after=accepted` and `destroy-after=gone` are the removal's own
+  calls after the stop.
+- `ms=8309` is the phase's own wall clock,
+  which is context and not a finding.
+
+### What this does not show
+
+- The stop through a person's command:
+  nothing offers `--force`,
+  so the arm's phase is the only caller,
+  and the release cannot stop anything while `the_stop_wait` has no value.
+- Which shape a unit of `v262` takes:
+  this guest is systemd 255,
+  and the host's own reading (`v262`) is the decision record's,
+  not this section's.
+- A unit of another account or of the system manager:
+  both are refused by the reads and no arm meets one.
+- Why the earlier guest reading of 2026-11-23 answered differently for a
+  `ubuntu` account's unit
+  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`,
+  "What the question rested on"):
+  that reading is of a `ubuntu` account's unit on `7.0.0-43`,
+  and this one is of `root`'s on `6.8.0-147-generic`.
+  The account and the kernel both differ,
+  and this round did not separate them.
+- A locked holder that is no unit of that manager:
+  the arm's `locked-holder-refused` phase shows it refused
+  (`way8=holder-locked way7=holder-locked`),
+  which is the control the decision's own scope names.
