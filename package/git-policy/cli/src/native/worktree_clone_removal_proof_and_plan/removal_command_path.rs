@@ -45,6 +45,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::read_the_recorded_binding;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
+use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::LiveRemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::started_moment::now_with_offset;
 use crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheRemovalCancelling;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::LiveRemovalUnmount;
@@ -180,6 +181,7 @@ pub fn complete_the_bound_clones_removal(
         entry: &entry,
         reads: &reads,
         unmount: &unmount,
+        staging: &LiveRemovalStagingFolder,
         clock: &TheLiveClock,
         check: &check,
         probe: &check,

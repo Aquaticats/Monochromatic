@@ -160,6 +160,9 @@
 //!   or the head-gone path.
 //! - `plan_names_and_states.rs`:
 //!   the plan's names and the state each one's history ends on.
+//! - `removal_staging_folder.rs`:
+//!   the folder a removal's unmount binds,
+//!   made by the wrapper before it asks the handler for anything.
 //! - `removal_self_cancelling_step.rs`:
 //!   the one call each stop point makes,
 //!   turned into the stop a removal ends in.
@@ -225,6 +228,7 @@ pub mod removal_settle;
 pub mod removal_settle_step;
 pub mod removal_slot_claim;
 pub mod removal_snapshot_settlement;
+pub mod removal_staging_folder;
 pub mod removal_start_inputs;
 pub mod removal_stop;
 pub mod removal_stop_sentences;

@@ -89,6 +89,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
     read_the_recorded_binding,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
+use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
     ExpectedUnmount,
@@ -145,6 +146,9 @@ pub struct EnteringTheRemoval<'a> {
     pub reads: &'a dyn RemovalPoolReads,
     /// The request that takes the clone down.
     pub unmount: &'a dyn RemovalUnmount,
+    /// The folder that request's handler binds,
+    /// which the wrapper makes before it asks.
+    pub staging: &'a dyn RemovalStagingFolder,
     /// The process facts the plan's header carries.
     pub clock: &'a dyn RemovalClock,
     /// How many forces this command carried.
@@ -197,6 +201,10 @@ pub struct EnteredRemoval {
 /// Why:
 ///  Every refusal returns before the plan is written and before anything is deleted,
 ///  and the order is the design's own.
+///  The folder the handler binds is made before the request that needs it,
+///  because the handler opens it first and answers `cancelled` when it is absent
+///  (`doc/decision/cli-git-zfs-staging-under-cache.md`,
+///  "Decision").
 ///  A plan that already stands is named and left,
 ///  because the removal that wrote it continues from it.
 ///
@@ -206,19 +214,21 @@ pub struct EnteredRemoval {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const entered = enterTheRemoval(entry, reads, unmount, clock);
+/// const entered = enterTheRemoval(entry, reads, unmount, clock, staging);
 /// ```
 pub fn enter_the_removal(
     entry: &RemovalEntry<'_>,
     reads: &dyn RemovalPoolReads,
     unmount: &dyn RemovalUnmount,
     clock: &dyn RemovalClock,
+    staging: &dyn RemovalStagingFolder,
 ) -> Result<EnteredRemoval, RemovalStop> {
     return enter_the_removal_with_force(&EnteringTheRemoval {
         entry,
         reads,
         unmount,
         clock,
+        staging,
         force: RemovalForce::none(),
         forced_before: ForcedActs::nothing(),
     });

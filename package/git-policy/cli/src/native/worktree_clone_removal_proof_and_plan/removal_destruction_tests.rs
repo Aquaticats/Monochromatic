@@ -44,6 +44,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::{
     SnapshotOutcome,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{
     DestructionUnderway,
     RemovalDestruction,
@@ -327,6 +328,7 @@ fn destroy(
         entry: &at,
         reads: pool,
         unmount: &unmount,
+        staging: &AStagingFolderAControlAnswers::making_nothing(),
         clock: &ScriptedClock,
         check,
         device,

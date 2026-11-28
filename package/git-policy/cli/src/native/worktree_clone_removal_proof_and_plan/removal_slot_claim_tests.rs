@@ -52,6 +52,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
+    AStagingFolderAControlAnswers,
     ADoneUnmount,
     ClearingDevice,
     EpochProbe,
@@ -609,6 +610,7 @@ fn the_claim_is_taken_before_the_first_read_so_a_refused_removal_leaves_it_relea
         entry: &entry,
         reads: &pool,
         unmount: &unmount,
+        staging: &AStagingFolderAControlAnswers::making_nothing(),
         clock: &ScriptedClock,
         check: &probe,
         probe: &probe,
@@ -651,7 +653,7 @@ fn the_head_gone_removal_takes_the_claim_and_releases_it_at_its_last_step() {
         common_dir: fixture.common(),
         slot: THE_SLOT,
     };
-    let _written = enter_the_removal(&entry, &pool, &unmount, &ScriptedClock)
+    let _written = enter_the_removal(&entry, &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect("the entry writes the plan");
     let mut plan: DestructionPlan =
         read_the_plan(fixture.common(), recorded.clone_guid).expect("the plan stands");

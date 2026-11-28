@@ -40,6 +40,7 @@ use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass;
 use crate::worktree_clone_removal_finish_pass::the_plans_folder::TheLivePlansFolder;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::TheLiveHolderScan;
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
@@ -240,6 +241,7 @@ fn the_removal_finish_pass_guest_arms() {
         entry: &at,
         reads: &reads,
         unmount: &unmount,
+        staging: &AStagingFolderAControlAnswers::making_nothing(),
         clock: &TheLiveClock,
         check: &reader,
         probe: &reader,

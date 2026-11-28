@@ -50,6 +50,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{
     DestructionUnderway,
     RemovalDestruction,
@@ -237,6 +238,7 @@ impl<'a> Run<'a> {
             entry: &at,
             reads: self.reads,
             unmount: &self.unmount,
+            staging: &AStagingFolderAControlAnswers::making_nothing(),
             clock: &TheLiveClock,
             check,
             device,

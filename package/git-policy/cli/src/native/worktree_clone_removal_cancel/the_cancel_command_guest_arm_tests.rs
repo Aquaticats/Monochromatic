@@ -53,6 +53,7 @@ use crate::worktree_clone_removal_cancel::the_staged_state::{
 };
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     RemovalEntry,
     enter_the_removal,
@@ -305,7 +306,7 @@ fn the_arm(
     let unmount: ADoneUnmount = ADoneUnmount {
         clone_guid: recorded.clone_guid,
     };
-    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock)
+    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect("the removal's own entry writes its plan");
     the_plan_a_dead_removal_left(common.as_path(), &recorded);
     let plan_path: PathBuf = plans_folder(common.as_path()).join(recorded.clone_guid.file_name());

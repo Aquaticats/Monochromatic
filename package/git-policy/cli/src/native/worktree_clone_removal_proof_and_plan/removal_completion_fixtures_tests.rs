@@ -68,6 +68,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
     SettleAnswer,
     SettleRequest,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
     RemovalUnmount,
@@ -440,6 +441,50 @@ impl RegistrationSettle for ScriptedSettle {
 }
 
 /// What:
+///  The staging folder a control that is not about the folder answers:
+///  it makes nothing and counts the calls it was asked.
+/// Why:
+///  The order makes that folder before it asks for an unmount,
+///  and a control about another step says here that the folder is not what it
+///  is about,
+///  so nothing it does reads this machine's account or its pin.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staging = { asked: 0, makeTheFolder() { this.asked += 1 } };
+/// ```
+pub struct AStagingFolderAControlAnswers {
+    /// How many times the order asked for the folder.
+    pub asked: Cell<usize>,
+}
+
+impl AStagingFolderAControlAnswers {
+    /// An answer that makes nothing and counts its calls.
+    pub fn making_nothing() -> AStagingFolderAControlAnswers {
+        return AStagingFolderAControlAnswers {
+            asked: Cell::new(0),
+        };
+    }
+}
+
+impl RemovalStagingFolder for AStagingFolderAControlAnswers {
+    fn make_the_folder(
+        &self,
+        _clone_guid: DatasetGuid,
+    ) -> Result<(), RemovalStop> {
+        self.asked.set(self.asked.get() + 1);
+        // What: `Ok(())` is the success variant of `Result`, saying this step owes nothing further.
+        // Why: the control says the folder stands, and the order goes on to ask for the unmount.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return;
+        // ```
+        return Ok(());
+    }
+}
+
+/// What:
 ///  One whole-removal call over the fixture,
 ///  with every seam a control scripts.
 /// Why:
@@ -513,6 +558,30 @@ pub fn complete_with_the_moment(
     let unmount: ADoneUnmount = ADoneUnmount {
         clone_guid: recorded.clone_guid,
     };
+    let staging: AStagingFolderAControlAnswers = AStagingFolderAControlAnswers::making_nothing();
+    return complete_with(the, moment, &staging, &unmount);
+}
+
+/// What:
+///  The same call over the folder seam and the unmount seam a control states,
+///  which is how a control about either one observes what the order did.
+/// Why:
+///  The order makes the folder before it asks for an unmount,
+///  so a control that is about that order hands in both answers and reads them
+///  after the removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done = completeTheRemoval(theCompletion({...}, staging, unmount));
+/// ```
+pub fn complete_with(
+    the: &TheCompletion<'_>,
+    moment: &str,
+    staging: &dyn RemovalStagingFolder,
+    unmount: &dyn crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount,
+) -> Result<crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone, RemovalStop>
+{
+    let recorded = the.fixture.recorded();
     let at: RemovalEntry<'_> = RemovalEntry {
         common_dir: the.fixture.common(),
         slot: recorded.slot.as_str(),
@@ -520,7 +589,8 @@ pub fn complete_with_the_moment(
     let input: RemovalCompletion<'_> = RemovalCompletion {
         entry: &at,
         reads: the.pool,
-        unmount: &unmount,
+        unmount,
+        staging,
         clock: &ScriptedClock,
         check: the.check,
         probe: the.probe,

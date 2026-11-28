@@ -87,6 +87,7 @@ pub(crate) fn the_forced_start_past_a_plan(
             reads: request.reads,
             unmount: request.unmount,
             clock: request.clock,
+            staging: request.staging,
             force: request.force,
             forced_before: forced_past_a_plan(plan_path),
         })?,

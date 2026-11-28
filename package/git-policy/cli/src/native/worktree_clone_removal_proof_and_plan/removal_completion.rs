@@ -78,6 +78,7 @@ pub fn complete_the_removal(input: &RemovalCompletion<'_>) -> Result<TheRemovalD
         reads: input.reads,
         unmount: input.unmount,
         clock: input.clock,
+        staging: input.staging,
         probe: input.probe,
         force: input.force,
     })

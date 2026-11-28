@@ -31,6 +31,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
+use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
 use std::path::PathBuf;
 
@@ -90,6 +91,9 @@ pub struct TheStartingRemoval<'a> {
     pub reads: &'a dyn RemovalPoolReads,
     /// The request that takes the clone down.
     pub unmount: &'a dyn RemovalUnmount,
+    /// The folder that request's handler binds,
+    /// which the wrapper makes before it asks.
+    pub staging: &'a dyn RemovalStagingFolder,
     /// The process facts the plan's header carries.
     pub clock: &'a dyn RemovalClock,
     /// The reader the clone's own absence is proved through.

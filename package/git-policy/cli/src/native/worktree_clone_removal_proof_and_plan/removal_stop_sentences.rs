@@ -272,6 +272,12 @@ impl RemovalStop {
             } => format!(
                 "the unmount step `{step}` did not prove the clone absent ({said}), so the removal stops before it records a destruction plan. Nothing was destroyed, every snapshot and bookmark stands, and the clone either stays where the step left it or stands at its slot again. Ways forward: find what holds the clone, release it, and run the removal again; this release's removal ends no holder, and `git worktree remove` offers no way to ask it to."
             ),
+            RemovalStop::TheStagingFolderCouldNotBeMade {
+                step,
+                said,
+            } => format!(
+                "the staging folder this removal's unmount binds, in this account's `.cache`, could not be made (`{step}`: {said}), so the removal stopped before it asked the handler to unmount anything. Nothing was destroyed, and the clone stands with its plan, its binding and its intent as they were. Ways forward: the wrapper makes that folder only after the `user-cache` pin check, so a home that cannot be read, a pin this release cannot read, a `.cache` whose mount is not the pinned dataset, and an entry in the folder's name that is not a folder this route may use each refuse here; fix what the step names and run the removal again."
+            ),
             RemovalStop::TheRemovalCancelledItself {
                 said,
             } => String::from(said.as_str()),

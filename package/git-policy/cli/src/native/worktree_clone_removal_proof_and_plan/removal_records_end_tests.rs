@@ -26,6 +26,7 @@ use crate::worktree_clone_binding_record::registration_home::{
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
+    AStagingFolderAControlAnswers,
     ADoneUnmount,
     ScriptedClock,
 };
@@ -58,7 +59,7 @@ fn a_fixture(name: &str) -> (RemovalFixture, DestructionPlan) {
         slot: SLOT,
     };
     let entered =
-        enter_the_removal(&at, &pool, &unmount, &ScriptedClock).expect("the entry writes the plan");
+        enter_the_removal(&at, &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing()).expect("the entry writes the plan");
     let home: PathBuf = home_folder(fixture.common());
     std::fs::write(
         home.join(clone_inventory_name(SLOT)),

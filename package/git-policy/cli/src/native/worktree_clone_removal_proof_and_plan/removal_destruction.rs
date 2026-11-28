@@ -57,6 +57,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_entry_facts::history_of;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
+use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
@@ -105,6 +106,9 @@ pub struct RemovalDestruction<'a> {
     pub reads: &'a dyn RemovalPoolReads,
     /// The request that takes the clone down.
     pub unmount: &'a dyn RemovalUnmount,
+    /// The folder that request's handler binds,
+    /// which the wrapper makes before it asks.
+    pub staging: &'a dyn RemovalStagingFolder,
     /// The process facts the plan's header carries.
     pub clock: &'a dyn RemovalClock,
     /// The reader the deferred-origin checks read through.
@@ -184,7 +188,13 @@ pub fn destroy_the_removal(
     input: &RemovalDestruction<'_>
 ) -> Result<DestructionUnderway, RemovalStop> {
     let entered: EnteredRemoval =
-        enter_the_removal(input.entry, input.reads, input.unmount, input.clock)?;
+        enter_the_removal(
+            input.entry,
+            input.reads,
+            input.unmount,
+            input.clock,
+            input.staging,
+        )?;
     let planned: PlannedOrigin = planned_origin_of(input.entry.slot, &entered);
     let folder: PlanFolder =
         PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {

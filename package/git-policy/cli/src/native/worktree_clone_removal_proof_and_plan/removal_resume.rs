@@ -64,6 +64,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::settle_the_recorded_names;
+use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::removal_start_inputs::{
     TheStart,
     TheStartingRemoval,
@@ -104,6 +105,7 @@ pub fn start_the_removal(
     unmount: &dyn RemovalUnmount,
     clock: &dyn RemovalClock,
     probe: &dyn DatasetReader,
+    staging: &dyn RemovalStagingFolder,
 ) -> Result<TheStart, RemovalStop> {
     return start_the_removal_with_force(&TheStartingRemoval {
         entry,
@@ -111,6 +113,7 @@ pub fn start_the_removal(
         unmount,
         clock,
         probe,
+        staging,
         force: RemovalForce::none(),
     });
 }
@@ -161,6 +164,7 @@ pub fn start_the_removal_with_force(
                 reads: request.reads,
                 unmount: request.unmount,
                 clock: request.clock,
+                staging: request.staging,
                 force: request.force,
                 forced_before: ForcedActs::nothing(),
             })?,

@@ -30,6 +30,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::{
     SnapshotOutcome,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::AStagingFolderAControlAnswers;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
     EnteringTheRemoval,
@@ -209,7 +210,7 @@ fn a_healthy_removal_writes_the_plan_after_the_unmount_and_prints_its_loss() {
     let pool: ScriptedPool = fixture.healthy_pool();
     let unmount: ScriptedUnmount = ScriptedUnmount::answering();
     let entered: EnteredRemoval =
-        enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock)
+        enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
             .expect("the healthy removal enters");
     assert_eq!(
         unmount.times_asked(),
@@ -263,7 +264,7 @@ fn a_refused_lineage_stops_before_the_unmount_is_asked_and_writes_no_plan() {
         ORIGIN_CREATETXG,
     ));
     let unmount: ScriptedUnmount = ScriptedUnmount::answering();
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock)
+    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect_err("a transferred snapshot refuses the removal")
     {
         RemovalStop::TransferredHistory {
@@ -296,7 +297,7 @@ fn a_refused_bookmark_stops_before_the_unmount_and_names_every_refused_one() {
         21,
     ));
     let unmount: ScriptedUnmount = ScriptedUnmount::answering();
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock)
+    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect_err("a refused bookmark refuses the removal")
     {
         RemovalStop::BookmarksRefused {
@@ -314,7 +315,7 @@ fn an_unmount_that_is_not_proved_stops_before_the_plan_is_written() {
     let fixture: RemovalFixture = RemovalFixture::healthy("entry-unmount");
     let pool: ScriptedPool = fixture.healthy_pool();
     let unmount: ScriptedUnmount = ScriptedUnmount::refusing("unmount");
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock)
+    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect_err("a refused unmount stops the removal")
     {
         RemovalStop::UnmountFailed {
@@ -337,7 +338,7 @@ fn a_registration_swapped_during_the_unmount_stops_the_plan() {
     let pool: ScriptedPool = fixture.healthy_pool();
     let unmount: ScriptedUnmount =
         ScriptedUnmount::swapping_the_registration(fixture.registration.as_path());
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock)
+    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect_err("a registration swapped during the unmount stops the removal")
     {
         RemovalStop::IdentityDiffers {
@@ -364,10 +365,10 @@ fn a_plan_already_standing_is_named_and_left() {
     let pool: ScriptedPool = fixture.healthy_pool();
     let first: ScriptedUnmount = ScriptedUnmount::answering();
     let entered: EnteredRemoval =
-        enter_the_removal(&entry(&fixture), &pool, &first, &ScriptedClock)
+        enter_the_removal(&entry(&fixture), &pool, &first, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
             .expect("the first run writes its plan");
     let second: ScriptedUnmount = ScriptedUnmount::answering();
-    match enter_the_removal(&entry(&fixture), &pool, &second, &ScriptedClock)
+    match enter_the_removal(&entry(&fixture), &pool, &second, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect_err("a standing plan stops this entry")
     {
         RemovalStop::APlanStands {
@@ -399,6 +400,7 @@ fn a_binding_that_is_not_there_stops_before_anything_is_read_from_the_pool() {
         &pool,
         &unmount,
         &ScriptedClock,
+        &AStagingFolderAControlAnswers::making_nothing(),
     )
     .expect_err("an absent binding stops the removal")
     {
@@ -420,7 +422,7 @@ fn a_registration_of_another_identity_stops_the_removal_before_the_pool() {
     std::fs::remove_dir_all(fixture.registration.as_path()).expect("the registration goes");
     std::fs::create_dir_all(fixture.registration.as_path())
         .expect("another registration takes its name");
-    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock)
+    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock, &AStagingFolderAControlAnswers::making_nothing())
         .expect_err("another worktree's registration stops the removal")
     {
         RemovalStop::IdentityDiffers {
@@ -456,6 +458,7 @@ fn a_persons_lock_refuses_one_force_and_two_delete_it() {
             entry: &entry(&fixture),
             reads: &pool,
             unmount: &unmount,
+            staging: &AStagingFolderAControlAnswers::making_nothing(),
             clock: &ScriptedClock,
             force: RemovalForce::of_count(count),
             forced_before: ForcedActs::nothing(),
@@ -494,6 +497,7 @@ fn a_persons_lock_refuses_one_force_and_two_delete_it() {
         entry: &entry(&fixture),
         reads: &pool,
         unmount: &forced_unmount,
+        staging: &AStagingFolderAControlAnswers::making_nothing(),
         clock: &ScriptedClock,
         force: RemovalForce::of_count(2),
         forced_before: ForcedActs::nothing(),
@@ -545,6 +549,7 @@ fn a_clone_the_pool_answers_with_another_guid_refuses_one_force_and_two_destroy_
         entry: &entry(&fixture),
         reads: &pool,
         unmount: &unmount,
+        staging: &AStagingFolderAControlAnswers::making_nothing(),
         clock: &ScriptedClock,
         force: RemovalForce::of_count(1),
         forced_before: ForcedActs::nothing(),
@@ -576,6 +581,7 @@ fn a_clone_the_pool_answers_with_another_guid_refuses_one_force_and_two_destroy_
         entry: &entry(&fixture),
         reads: &pool,
         unmount: &forced_unmount,
+        staging: &AStagingFolderAControlAnswers::making_nothing(),
         clock: &ScriptedClock,
         force: RemovalForce::of_count(2),
         forced_before: ForcedActs::nothing(),

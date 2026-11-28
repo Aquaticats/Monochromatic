@@ -339,6 +339,44 @@ impl RemovalUnmount for ADoneUnmount {
 }
 
 /// What:
+///  The staging folder this arm's entry is given:
+///  there is none,
+///  because this arm asks no handler to bind a folder and its subject is the
+///  record a kill leaves.
+/// Why:
+///  The removal's order makes that folder before it asks for an unmount,
+///  and the library's test fixtures are compiled into that crate's own test
+///  target and not into this one,
+///  so the arm states the answer it owes here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staging = { makeTheFolder() { /* nothing to make */ } };
+/// ```
+struct NoFolderTheHandlerBinds;
+
+impl git_policy_cli::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder
+    for NoFolderTheHandlerBinds
+{
+    fn make_the_folder(
+        &self,
+        _clone_guid: DatasetGuid,
+    ) -> Result<
+        (),
+        git_policy_cli::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop,
+    > {
+        // What: `Ok(())` is the success variant of `Result`, saying this step owes nothing further.
+        // Why: the arm binds no folder, so the entry goes on to ask this arm's own unmount answer.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return;
+        // ```
+        return Ok(());
+    }
+}
+
+/// What:
 ///  The state a removal the wrapper was killed in leaves:
 ///  the entry's own plan,
 ///  its `unmount` request,
@@ -359,7 +397,7 @@ fn the_state_a_kill_leaves(fixture: &TheFixture) {
     let unmount: ADoneUnmount = ADoneUnmount {
         clone_guid: guid,
     };
-    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock)
+    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock, &NoFolderTheHandlerBinds)
         .expect("the removal's own entry writes its plan");
     let mut plan: DestructionPlan =
         git_policy_cli::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(

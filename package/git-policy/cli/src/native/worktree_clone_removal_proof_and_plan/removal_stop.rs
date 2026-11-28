@@ -430,6 +430,17 @@ pub enum RemovalStop {
         /// What it answered.
         said: String,
     },
+    /// The folder the handler binds could not be made,
+    /// so this removal stopped before it asked for an unmount.
+    TheStagingFolderCouldNotBeMade {
+        /// The step that refused:
+        /// the account's home,
+        /// the pin,
+        /// or the folder itself.
+        step: String,
+        /// What it answered.
+        said: String,
+    },
     /// A holder stopped the removal,
     /// its answer put the clone back at its slot,
     /// and the removal's report is the answer's own.
