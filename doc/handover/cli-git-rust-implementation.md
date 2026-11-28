@@ -2988,9 +2988,6 @@ and the two `truepeak` files wait on their branch.
   the round marked it for the owner to weigh.
 - Two rounds split the four byte-identical copies of `src/shadow_identity.rs` in different ways.
   A file that several crates must keep identical belongs to one round.
-- `monochromatic-lint.config.jsonc` turns `rust/max-lines` off for `**/tests/**/*.rs`,
-  so the linter never reported the test files the briefs named.
-
 ### Next
 
 - Merge each round when it has ended and its report is read,
