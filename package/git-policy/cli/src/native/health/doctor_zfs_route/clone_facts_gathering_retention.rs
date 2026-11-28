@@ -56,7 +56,16 @@ pub(crate) fn retention_of(
     snapshots: &CloneSnapshotFacts,
     inventory: &Reading<LiveInventory>,
 ) -> CloneRetentionFacts {
-    let dataset: Reading<AccountingFacts> = reads.accounting(clone);
+    // A slot whose record reads nothing names no dataset, so the pool is not
+    // asked about a name that is a slot's, and the line says why instead.
+    let dataset: Reading<AccountingFacts> = match record {
+        Some(_) => reads.accounting(clone),
+        None => Reading::Unreadable {
+            why: format!(
+                "the binding record filed under this slot names no clone dataset this report can read, so nothing retains blocks of `{clone}` that this line proves"
+            ),
+        },
+    };
     let mut own: Vec<AccountingFacts> = Vec::new();
     let mut inherited: Vec<String> = Vec::new();
     if let Reading::Read(held) = inventory {

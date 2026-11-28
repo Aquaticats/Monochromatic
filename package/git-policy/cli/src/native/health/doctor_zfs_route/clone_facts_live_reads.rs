@@ -37,6 +37,15 @@
 //!  The holder scan is made once per clone and names the namespaces and tasks
 //!  a person can look at,
 //!  as the decision record requires.
+//!  The pool's own reader answers one dataset's identity with a sentence and no
+//!  error number,
+//!  so a clone or a snapshot the pool no longer holds reads here as unreadable
+//!  rather than as absent,
+//!  and a report says "nobody proved it" where a closer reader could say "it is
+//!  gone".
+//!  The staging binds are read from a second sample of the mount table
+//!  (`fs_mount_options`), so a mount made between that sample and the slot's own
+//!  reading shows in one and not the other.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
