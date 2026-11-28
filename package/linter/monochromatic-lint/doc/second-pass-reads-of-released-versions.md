@@ -550,3 +550,361 @@ in its own capped scope:
 - Whether the join should reach a line the author wrote alone.
   Today it reaches only a fragment a break of the same pass cut,
   which is why the wrapper's lone `the` stays.
+
+## 0.5.2-alpha.25, read on 2026-11-28
+
+The read covered the release commit `6f52a414fc`,
+and it used the released binary of `0.5.2-alpha.25`
+(sha256 `34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a` of the x86_64 Linux archive's program)
+with fixture trees only:
+nothing was built,
+no test suite was run,
+and no file of this repository was written.
+Its counts were no High finding,
+no Medium finding,
+and eight Low ones.
+It was written at 2026-11-28T06:22:20-05:00 in a scratch folder that expires a day after its last change,
+so what this file uses from it is restated here,
+reproduced from the release's own binary and from the source of that commit.
+Special characters are written `<U+XXXX>` in this section and `<BOM>` for the byte order mark,
+and the linter's own spelling in a sentence it prints is `\u{...}`.
+`git diff --stat 6f52a414fc main -- package/linter/monochromatic-lint/src` was empty when this round began,
+so the released binary is the tree this round started from.
+
+Five of its findings and two controls of a sixth belonged to this round:
+its Low 1,
+Low 2,
+Low 6,
+Low 7,
+Low 8,
+the first two controls of its Low 5,
+and the figure the alpha.24 record gave for the walk over the entries.
+Its Lows 3 and 4 and the third control of its Low 5 are the Markdown line-break round's,
+and issue 6667 (the closure rule) is another round's.
+
+### What the round changed
+
+#### A refusal names the edit for the unseen characters by where each one stands
+
+The read's Low 2,
+quoted:
+
+> alpha.25 says `... holds a zero-width space at character 16 of the line, ..., and 1 more character a reader cannot see: the reader does not treat them as whitespace, so take each of them out, and write a whitespace character where one stood if it stood where one belongs.`
+> The edit taken (every unseen character out,
+> as the sentence says) gives `file-uses src/c dx one.rs -> two.rs`,
+> and the next run says `A use between two files is written ..., which is five words; this line is 6 words.` with no folder named:
+> a dead end.
+> Taking out only the character the message places (the first) gives the refusal that names the folder and says renaming it takes its character out:
+> right.
+
+Reproduced on the released binary,
+with `src/c d<U+200C>x` a real folder and no module file in it,
+for the line `file-uses src/c<U+200B> d<U+200C>x one.rs -> two.rs`:
+
+- the sentence read
+  `... and 1 more character a reader cannot see: the reader does not treat them as whitespace, so take each of them out, and write a whitespace character where one stood if it stood where one belongs.`
+- the second run over the line that edit leaves,
+  `file-uses src/c dx one.rs -> two.rs`,
+  read ``A use between two files is written `file-uses <folder> <file> -> <file>`, which is five words; this line is 6 words.``
+  and named no folder,
+  which is the dead end the read describes.
+- the same line with only the placed character out,
+  `file-uses src/c d<U+200C>x one.rs -> two.rs`,
+  read the refusal that names the folder and says renaming it takes its character out.
+
+Two mechanisms made the sentence:
+the question whether a character stands in the folder's own name was asked of the first character only,
+so a refusal whose first character stood in the name said nothing about the characters after it;
+and a refusal that names no folder said to take each character out,
+though it cannot know which one stands in a real folder's name.
+
+Changed,
+in `src/layout_allow_entries.rs`:
+
+- `note_of_an_unseen_character` asks the question of every character of the line:
+  `unseen_characters_in_span` counts the characters inside the folder's words,
+  the sentence names the rename for those,
+  and it names the take-out edit for those outside the name.
+  The characters the rename takes out are named as a group (`one of them`,
+  `2 of them`,
+  `every one of them`),
+  because a `that character` after `1 more character` reads as the wrong one.
+- A refusal that names no folder names the edit for the one character it placed,
+  says how many stand beside it,
+  and says that a character standing in a real folder's name is taken out by renaming that folder:
+  it cannot tell the two apart,
+  and the next run names the folder.
+- The one-character sentence says `where it stood if it stood`,
+  where the release said `where it stands if it stood`,
+  a change no record listed.
+
+Before and after,
+for the line `file-uses src/c d<U+200C>x on<U+200B>e.rs -> two.rs`
+(the folder's character first,
+a file name's second),
+whose refusal names the folder:
+
+- before:
+  ``The line also holds a zero-width non-joiner (`\u{200c}`) at character 18 of the line, where a reader cannot see it, and 1 more character a reader cannot see, and that character stands in the name of the folder above: renaming that folder is the edit that takes it out.``
+- after:
+  ``The line also holds a zero-width non-joiner (`\u{200c}`) at character 18 of the line, where a reader cannot see it, and 1 more character a reader cannot see, and one of them stands in the name of the folder above, so renaming that folder takes it out: take out the one outside the folder's name, and write a whitespace character where it stood if it stood where one belongs.``
+
+Before and after,
+for the line whose folder the reader does not find
+(`file-uses src/c<U+200B> d<U+200C>x one.rs -> two.rs`):
+
+- before:
+  `... and 1 more character a reader cannot see: the reader does not treat them as whitespace, so take each of them out, and write a whitespace character where one stood if it stood where one belongs.`
+- after:
+  `... and 1 more character a reader cannot see: the reader does not treat them as whitespace, so take that character out, and write a whitespace character where it stood if it stood where one belongs. A character that stands in the name of a real folder is part of that name, and renaming that folder is the edit that takes it out.`
+
+The controls are
+`a_refusal_names_the_edit_for_each_character_by_where_it_stands`
+(whole sentences,
+for the folder's character second,
+for it in the middle of three,
+for it first with a file name's after it,
+for one character outside the folder's name,
+and for a refusal that names no folder,
+with the all-in-folder sentence as its control)
+and the strengthened
+`a_refusal_leaves_the_folder_s_own_character_out_of_its_advice`.
+Each was shown able to fail by putting the release's shape back:
+with the question asked of no character the new test read
+`... and 1 more character a reader cannot see: the reader does not treat them as whitespace, so take each of them out, ...`,
+and with the release's folder-less sentence back it read
+`... so take each of them out, and write a whitespace character where one stood if it stood where one belongs.`
+The same test asserted both sentences whole.
+
+The way not taken is to teach the reader a reading that folds an unseen character into the folder's own whitespace,
+so that the refusal names the folder in the line the read used.
+That costs a new reading in `spaced_file_use_folder`
+and a membership test that is a set of places rather than a span,
+and it changes which folder a refusal names,
+where this round kept the folder each refusal names exactly as it was.
+The sentence now says what is true without it:
+the placed character's edit,
+and the rename for a character in a real folder's name.
+
+#### A folder a dead key line names is listed once for a list
+
+The read's Low 1,
+quoted:
+
+> a dead key line whose edited text names a real folder with a space and many files costs lines times entries;
+> the record and the README say the cost is linear in the list
+
+Reproduced on the released binary,
+with `src/docs notes` a real folder holding 1,000,
+5,000 and 20,000 files and no `.rs` file,
+and M lines `<BOM>file-uses src/docs notes f<i>.rs -> g<i>.rs`:
+100,
+200 and 400 lines cost 0.050,
+0.092 and 0.177 CPU seconds over 1,000 files,
+0.215,
+0.400 and 0.814 over 5,000,
+and 0.830,
+1.635 and 3.075 over 20,000,
+where the same lines naming a folder of 5,000 files whose name holds no space cost 0.007 to 0.009 s
+and the edit is a five-word line,
+so no refusal is built.
+The cost doubled with the files and with the lines,
+and the source of the release made it plain:
+`entry_of` called `holds_a_module_file`,
+which reads the folder,
+every time a refusal named such a folder,
+and `dead_entry_findings` reads some lines twice.
+
+Changed:
+`PackageFolder` keeps one answer per folder for the module-file question,
+as it already kept the longest name,
+and `entry_of` asks it instead of the free function.
+With the release's per-line call put back,
+`a_list_of_six_word_edits_lists_the_package_folder_once` read
+`50 six-word edits listed the folder they name 100 times for a module file`
+(twice per line,
+the removal reading and then the space reading);
+with the answer kept per folder it reads 1.
+That control now creates files in the folder it names,
+which is what made the old control green:
+it counted the longest-name listing only,
+on a folder created empty.
+
+Measured on 2026-11-28,
+three interleaved rounds on the run's own CPU time,
+each figure a ratio to `0.5.2-alpha.25`'s in the same round,
+with a byte-identical copy of this release's build as the spread of every round:
+
+- 100 lines:
+  0.157 over 1,000 files (range 0.145 to 0.159),
+  0.047 over 5,000 (0.046 to 0.050),
+  and 0.022 over 20,000 (0.021 to 0.025).
+- 200 lines:
+  0.099 (0.085 to 0.119),
+  0.025 (0.023 to 0.027) and 0.012 (0.012 to 0.015).
+- 400 lines:
+  0.058 (0.053 to 0.062),
+  0.015 (0.015 to 0.016) and 0.007 (0.006 to 0.008).
+- the control,
+  200 lines naming a folder whose name holds no space over 5,000 files:
+  1.018 (0.925 to 1.086).
+- the copy over the fixed build:
+  0.830 to 1.144 over the nine shapes.
+
+So the remaining cost is the refusal sentence per line,
+which is linear in the list,
+and one listing of each folder the lines name,
+where the release listed it once per line.
+The README's two sentences now say the listing is read once for the list,
+and carry these figures.
+
+#### The count of a file name's edit covers the characters that edit changes
+
+The read's Low 6,
+quoted:
+
+> The count in a file-name sentence is the edit's count,
+> not the line's,
+> and it includes a real module's name that the advice function itself leaves alone
+
+Reproduced on the released binary:
+for `file-uses src/f o<U+200B>ne.rs -> tw<U+200D>o.rs`,
+where `src/f/o<U+200B>ne.rs` is a real module of the folder,
+the sentence read
+`... and 1 more character a reader cannot see: ... Take both such characters out of the line, then write the file names the rule prints`,
+which asks for a change the same sentence undoes:
+the next sentence writes the name the rule prints,
+which holds that character.
+For `file-uses src/g o<U+200B>n<U+200D>e.rs -> two.rs`
+the sentence said `the file names` where one name holds both characters.
+
+The session's pick,
+with the veto open:
+the count and the edit cover the characters the advice changes and no others,
+a real module's own name left out as a folder's is,
+and the noun follows the number of names.
+`unseen_characters_the_file_name_edit_changes` now skips a file name a module of the folder holds
+and answers both the number of characters and the number of names,
+and `file_names_the_rule_prints` follows the names.
+Before and after for the line above:
+
+- before:
+  `... and 1 more character a reader cannot see: ... Take both such characters out of the line, then write the file names the rule prints; ...`
+- after:
+  `... where a reader cannot see it: ... Take that character out of the line, then write the file name the rule prints; ...`
+
+The control is the same test,
+`the_count_of_a_file_name_s_edit_covers_the_file_names_characters_only`,
+which now asserts the whole sentence for a real module first,
+the whole sentence for one second,
+and the one-name plural;
+with the release's count back it read
+`... and 1 more character a reader cannot see: ... Take both such characters out of the line, then write the file names the rule prints; ...`.
+
+The other count,
+which this round did not take,
+covers every character of the line and names the edit for the file names separately:
+it counts characters the sentence does not ask to change,
+and a reader who counts the invisible characters in an editor still finds one the sentence never mentions.
+
+#### Two dead key lines whose edits give one line say which lines share the edit
+
+The read's Low 8,
+quoted:
+
+> Two or more dead key lines whose edits give one line are each told only to delete,
+> and nothing says that one of them could be kept.
+
+The release,
+for `\u{feff}uses src/a -> src/b` and `\u{200b}uses src/a -> src/b`,
+said of each
+`The allow-list entry ... tolerates nothing any more. Delete the line so the list keeps shrinking. The line also holds a byte order mark ... at character 1 of the line, where a reader cannot see it.`
+and nothing of the other line.
+
+The package's record,
+its README and `two_dead_key_lines_whose_edits_give_one_line_are_not_each_told_it_reads`
+say that no such line is told it reads,
+because the list refuses the second of the two edits as a repeat.
+This round keeps that,
+and adds to each such line's sentence which other lines share its edit and that one of them may be kept:
+
+- before:
+  ``The allow-list entry ... tolerates nothing any more. Delete the line so the list keeps shrinking. The line also holds a byte order mark or zero-width no-break space (`\u{feff}`) at character 1 of the line, where a reader cannot see it.``
+- after:
+  the same sentence and then
+  ` The line's own edit, taking that character out, gives the same line as line 2: making that edit on one of them and deleting the rest keeps one of them.`
+
+The edit each line names is its own:
+a line edited by removing the character says `taking that character out`,
+and one edited by writing a space where it stands says `writing a whitespace character where that character stands`.
+The record gave no reason against naming the edit,
+so the sentence stands.
+The control is the same test,
+which now asserts the whole message for both lines,
+naming two other lines for a group of three,
+naming each line's own edit where the two edits differ,
+and requiring that a line alone says no such sentence;
+with the sentence removed it read the release's message without the added sentence.
+
+#### Two controls that stayed green, and the figure the alpha.24 record gave for the walk
+
+The read's Low 5,
+first two controls,
+quoted:
+
+> `a_list_of_dead_key_lines_that_read_as_uses_scans_no_other_line` stays green if the old scan is put back,
+> because the counter it reads is not on that path;
+> and `a_list_of_six_word_edits_lists_the_package_folder_once` stays green under the cost of point 2.
+
+Both reproduced from the source:
+the counter was incremented in `entry_holds_key` and `covers_file_use` only,
+while the release's repeat question read no entry through either,
+and the second control created its folder empty and counted the longest-name listing alone.
+
+Changed:
+`AllowList::entries` counts the entries it hands out (`note_entries`),
+which is the path every walk over the entries takes,
+and `holds_a_module_file` counts its listings,
+which is the question the second control now asks of a folder that holds files.
+With the release's scan put back,
+the first control read
+`200 dead key lines read 40600 entries of the list, where the reporting hands out at most 3 lists`:
+40,000 for the walk (200 entries per line over 200 lines)
+and 600 for the three times the reporting asks for the entries (its length and its two passes).
+With the release's per-line call put back,
+the second read 100 listings for 50 lines.
+
+The alpha.24 record's sentence
+`the walk over the entries reads 40,000 of them for 200 lines`
+rests on the alpha.24 round's own record commit `23ebfdb868` (2026-11-28T03:19:55-05:00),
+which wrote it;
+no committed counter stood on that path then,
+so the earlier read could not find what produced it.
+The figure is the walk's own count (200 entries per line over 200 lines)
+and is now what the committed counter reads with the scan in place,
+which is why the sentence is kept.
+The same paragraph's `the listing runs 100 times for 50 lines`
+is what the release's per-line call reads,
+two readings per line over 50 lines.
+
+### What this round did not do
+
+- The read's Lows 3 and 4 and the third control of its Low 5,
+  which are the Markdown line-break round's.
+- Issue 6667 (the closure rule).
+- The way not taken for the folder-less refusal,
+  described above.
+- A folder name whose own space the line spells with an unseen character is still no folder the reader finds;
+  the refusal says what is true without it and the next run names the folder.
+
+### Open for the owner
+
+- The count a file-name sentence speaks of.
+  It now covers the characters the file-name edit changes,
+  a real module's own name left out as a folder's is,
+  and the noun follows the number of names.
+  The other count covers every character of the line;
+  it names characters the sentence does not ask to change.
+- Whether a group of dead key lines whose edits give one line should name the edit at all.
+  The record and the tests say no line is told it reads;
+  each line now also names the lines that share its edit and says one of them may be kept.

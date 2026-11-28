@@ -2274,18 +2274,27 @@ and what one list of dead lines costs.
   the help of a line whose folder the package does not hold,
   and the note a refusal adds.
   A person told of one character no longer learns of the second from the next run.
-- The count a file name's edit speaks of is the file names':
+- The note a refusal adds names the edit for the characters outside the folder's own name:
+  a refusal that names a folder asks of every such character whether it stands in that name,
+  and a character that does is taken out by the rename the refusal asks for.
+  A refusal that names no folder names the edit for the one character it placed,
+  says how many stand beside it,
+  and says what a character in a real folder's name needs instead.
+  Following the sentence no longer ends in a line the next run refuses for its word count.
+- The count a file name's edit speaks of is the characters that edit changes:
   a character of the folder's own name belongs to a folder the package holds,
-  and taking it out would name a folder that is not there.
-  A line whose two file names hold one character each says so,
-  and speaks of the file names the rule prints.
+  a character of a real module's own name is part of the name the rule prints,
+  and taking either out would name another folder or file.
+  The noun follows the number of names the edit changes,
+  so two characters inside one file name are spoken of as that one file name.
 - A character this crate has no plain name for is called `a character` and its code point,
   where the phrase said `a character a reader cannot see` and the sentence then said
   `where a reader cannot see it` in the same sentence.
 - A sentence about what an edited line reads as is set off from the one before it,
   where the two ran together as `any more.With`.
-- Two dead key lines whose own edits give one line are each told to delete the line,
-  because the list refuses the second of the two edits as a repeat.
+- Two dead key lines whose own edits give one line are each told to delete the line
+  and told which other lines share that edit:
+  making the edit on one of them and deleting the rest keeps one of them.
   A line whose edit gives a text the list already holds is told the same,
   as it was.
 - The note that leaves taking a character out of the line out of its advice,
@@ -2316,7 +2325,23 @@ and what one list of dead lines costs.
   500 such lines cost it 124 times (86 to 143) against 2.22 (1.69 to 2.55),
   and the copy of that release gives 122 (88 to 131) and 191 (177 to 218).
   The cost that remains is one refusal sentence per line,
-  which is linear in the list.
+  which is linear in the list,
+  and one listing of each folder such a line names,
+  read once for the list rather than once for each line.
+  A dead key line whose edited text is such a line names a folder that holds files and no module file,
+  and `0.5.2-alpha.25` asked that folder whether it holds a module file once per line:
+  over three interleaved rounds on 2026-11-28,
+  on the run's own CPU time,
+  each figure the ratio of this build's time to `0.5.2-alpha.25`'s in the same round,
+  with a byte-identical copy of this build as the control at 0.83 to 1.14,
+  the same lists took this build 0.157 of that release's time for 100 lines over 1,000 files (range 0.145 to 0.159),
+  0.047 (0.046 to 0.050) over 5,000 files,
+  and 0.022 (0.021 to 0.025) over 20,000;
+  400 lines took 0.058 (0.053 to 0.062),
+  0.015 (0.015 to 0.016) and 0.007 (0.006 to 0.008).
+  Where a line names a folder whose name holds no space,
+  the same 200 lines over 5,000 files took 1.02 of that release's time (0.93 to 1.09),
+  so the whole of the change is the listing the shape asks for.
 
 ### Known limits
 
@@ -2411,7 +2436,8 @@ and what one list of dead lines costs.
   and a list whose lines never ask reads it not at all.
   The reading starts at the first name that folder could hold,
   so every name it builds is one it asks about,
-  and a dead key line whose edited text is such a line costs its own length and no more.
+  and a dead key line whose edited text is such a line costs its own length and no more,
+  and a folder such a line names is listed once for the list and not once for the line.
   Measured on 2026-11-27 over three rounds of three arms on a line of 64,033 characters,
   this release's wall time was 1.10 times `0.5.2-alpha.22`'s (range 0.73 to 1.21)
   and its peak resident memory 0.97 times that release's (range 0.95 to 1.02),
@@ -2490,21 +2516,29 @@ and what one list of dead lines costs.
   the note that tells its reader to delete the line,
   the help of a line whose folder the package does not hold,
   and the note a refusal adds.
-  The sentence names the edit as the one that changes each of them,
-  because that is the edit the sentence describes.
+  A refusal that names a folder asks of every such character whether it stands in that folder's own name:
+  a character that does is taken out by the rename the refusal already asks for,
+  and the note names the take-out edit for the characters outside that name and for no others,
+  where a sentence that said to take each of them out sent its reader to a line the next run refused for its word count.
+  A refusal that names no folder cannot tell which of the line's characters stands in a real folder's own name,
+  so it names the edit for the one character it placed,
+  says how many stand beside it,
+  and says that a character standing in a real folder's name is taken out by renaming that folder.
   A line whose only fault is that character is told to take it out:
   a dead line the reader took for one finding's key,
-  a line the reader refuses,
   and a dead `file-uses` line whose file name holds one that no module of its folder holds.
   A file name takes that character out and no whitespace character with it,
   and its line says the entry is live again only if the use still exists.
-  The count such a sentence speaks of is the file names':
+  The count such a sentence speaks of is the characters the advice changes:
   a character of the folder's own name belongs to a folder the package holds,
-  and taking it out would name a folder that is not there.
+  and a character of a real module's own name is part of the name the rule prints,
+  so taking either out would name another file or folder.
   A line that spells a real module file's own name,
   and one whose character stands in the folder's name rather than a file's,
   is told to be deleted,
   because taking the character out would name another file or folder.
+  The noun follows the number of names the edit changes,
+  so two characters inside one file name are still spoken of as that one file name.
   A whitespace character where one belongs replaces it,
   and a sentence about what the line would read as after that edit
   is said only when the edited text does read as a line of the list:
