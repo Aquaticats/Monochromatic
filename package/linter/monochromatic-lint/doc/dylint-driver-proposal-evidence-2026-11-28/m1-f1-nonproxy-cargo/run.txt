@@ -1,0 +1,142 @@
+== clock 2026-11-28T08:02:41+00:00
+== image os: CachyOS
+== rustup toolchains
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+== floating components
+cargo-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+== dated components
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== default toolchain
+nightly-x86_64-unknown-linux-gnu (default)
+== control: rustup show active-toolchain in the library dir, without and with RUSTUP_TOOLCHAIN
+nightly-x86_64-unknown-linux-gnu (default)
+--
+nightly-2026-11-16-x86_64-unknown-linux-gnu (overridden by environment variable RUSTUP_TOOLCHAIN)
+== control: rustup which rustc in the library dir, without and with RUSTUP_TOOLCHAIN
+/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc
+--
+/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc
+== arm F1: which cargo and rustc
+cargo is /opt/nonproxy/cargo
+cargo is /usr/sbin/cargo
+cargo is /usr/bin/cargo
+cargo is /bin/cargo
+rustc is /opt/nonproxy/rustc
+rustc is /usr/sbin/rustc
+rustc is /usr/bin/rustc
+rustc is /bin/rustc
+== rustc version the PATH gives: rustc 1.102.0-nightly (5f4effd57 2026-11-13)
+== arm F1: the linter over the package, offline, with no driver
+linter-before status 0
+{"message":"rust/avoidable-closure skipped pkg: the Dylint driver for toolchain `nightly-x86_64-unknown-linux-gnu` at /root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver is absent (cargo-dylint is 6.4.0), and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache, so `cargo dylint` would have to download it, which this linter does not do; run `env --unset=CARGO_NET_OFFLINE cargo dylint --path lint-closure --manifest-path pkg/Cargo.toml -- --locked` once with network access (it writes the cargo registry and the Dylint driver directory, and is needed again after each cargo-dylint upgrade). Cargo's error: no matching package named `anyhow` found. Nothing in this package was checked by this rule, so a run without findings says nothing about its closures.","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+--- stderr
+== arm F1: the warm command, online, traced for every execve
+warm status 1
+--- stderr tail
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.15
+   Compiling proc-macro2 v1.0.107
+   Compiling pkg-config v0.3.34
+error: linking with `dylint-link` failed: exit status: 1
+ |
+ = note:  "dylint-link" "-m64" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/serde_core/74fb15bde8bde6f6/out/rustcx3UiJi/symbols.o" "<2 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/serde_core/74fb15bde8bde6f6/out/rustcx3UiJi/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/serde_core/74fb15bde8bde6f6/out/build_script_build" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,--strip-debug" "-nodefaultlibs"
+ = note: some arguments are omitted. use `--verbose` to show all linker arguments
+ = note: Error: environment variable not found: RUSTUP_TOOLCHAIN
+         
+
+error: linking with `dylint-link` failed: exit status: 1
+ |
+ = note:  "dylint-link" "-m64" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/libc/11f9fc6e54005192/out/rustc9ixuv2/symbols.o" "<4 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/libc/11f9fc6e54005192/out/rustc9ixuv2/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/libc/11f9fc6e54005192/out/build_script_build" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,--strip-debug" "-nodefaultlibs"
+ = note: some arguments are omitted. use `--verbose` to show all linker arguments
+ = note: Error: environment variable not found: RUSTUP_TOOLCHAIN
+         
+
+error: could not compile `serde_core` (build script) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `libc` (build script) due to 1 previous error
+error: linking with `dylint-link` failed: exit status: 1
+ |
+ = note:  "dylint-link" "-m64" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/proc-macro2/6d2fc9ee0c77405d/out/rustc4biw3U/symbols.o" "<2 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/proc-macro2/6d2fc9ee0c77405d/out/rustc4biw3U/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/work/repo/pkg/target/dylint/libraries/nightly-x86_64-unknown-linux-gnu/release/build/proc-macro2/6d2fc9ee0c77405d/out/build_script_build" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,--strip-debug" "-nodefaultlibs"
+ = note: some arguments are omitted. use `--verbose` to show all linker arguments
+ = note: Error: environment variable not found: RUSTUP_TOOLCHAIN
+         
+
+error: could not compile `proc-macro2` (build script) due to 1 previous error
+Error: Error: `cargo` command failed; the full command can be found in `/tmp/.tmpYXaJpF`
+--- driver tree after the failure
+find: '/root/.dylint_drivers': No such file or directory
+--- execve of rustup/rustc/cargo/git
+      1 97    execve("/opt/nonproxy/rustc"
+      1 92    execve("/opt/nonproxy/rustc"
+      1 90    execve("/opt/nonproxy/rustc"
+      1 88    execve("/usr/sbin/env"
+      1 88    execve("/opt/nonproxy/cargo"
+      1 179   execve("/opt/nonproxy/rustc"
+      1 177   execve("/opt/nonproxy/rustc"
+      1 144   execve("/opt/nonproxy/rustc"
+      1 143   execve("/opt/nonproxy/rustc"
+      1 142   execve("/opt/nonproxy/rustc"
+      1 141   execve("/opt/nonproxy/rustc"
+      1 134   execve("/opt/nonproxy/rustc"
+      1 129   execve("/opt/nonproxy/rustc"
+      1 124   execve("/opt/nonproxy/rustc"
+      1 119   execve("/opt/nonproxy/rustc"
+      1 114   execve("/opt/nonproxy/rustc"
+      1 112   execve("/opt/nonproxy/rustc"
+      1 111   execve("/opt/nonproxy/cargo"
+      1 106   execve("/usr/sbin/rustup"
+      1 106   execve("/usr/local/bin/rustup"
+== the recorded workaround shape: a driver built for the dated toolchain, proxy cargo first
+dated driver build status 101
+Caused by:
+  process didn't exit successfully: `/work/driver-build/target/debug/build/dylint_driver/9f130079cef5d17e/out/build_script_main` (exit status: 1)
+  --- stderr
+  fatal: destination path '/tmp/.tmpEjtkLF' already exists and is not an empty directory.
+  Error: `git` command failed; the full command can be found in `/tmp/.tmpOXqzGs`
+--- git execve in the dated driver build (the clone, F5 dated arm)
+2
+2328  execve("/usr/sbin/git", ["git", "--version"], 0x7fff841d1228 /* 72 vars */) = 0
+2329  execve("/usr/sbin/git", ["git", "clone", "https://github.com/rust-lang/rus"..., "/tmp/.tmpEjtkLF"], 0x7fff841d1228 /* 72 vars */) = 0
+--- checkout directories
+find: '/root/.cargo/git': No such file or directory
+driver built: 
+install: cannot stat '': No such file or directory
+planted driver -V: /work/m1.sh: line 85: /root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver: No such file or directory
+== arm F1 with a driver planted under the name Dylint computes: which compiler runs the check
+check status 1
+ = note: Error: environment variable not found: RUSTUP_TOOLCHAIN
+         
+
+error: could not compile `libc` (build script) due to 1 previous error
+Error: Error: `cargo` command failed; the full command can be found in `/tmp/.tmp6I5iYE`
+--- findings
+0
+--- execve of rustc/cargo/rustup/git in the check
+      1 2415  execve("/usr/local/bin/dylint-link"
+      1 2415  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/self-contained/dylint-link"
+      1 2415  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/dylint-link"
+      1 2415  execve("/opt/nonproxy/dylint-link"
+      1 2411  execve("/usr/local/bin/dylint-link"
+      1 2411  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/self-contained/dylint-link"
+      1 2411  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/dylint-link"
+      1 2411  execve("/opt/nonproxy/dylint-link"
+      1 2408  execve("/usr/local/bin/dylint-link"
+      1 2408  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/self-contained/dylint-link"
+      1 2408  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/dylint-link"
+      1 2408  execve("/opt/nonproxy/dylint-link"
+      1 2403  execve("/usr/local/bin/dylint-link"
+      1 2403  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/self-contained/dylint-link"
+      1 2403  execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/dylint-link"
+== arm F1: the linter again, with the planted driver
+linter-after status 0
+{"message":"rust/avoidable-closure skipped pkg: the Dylint driver for toolchain `nightly-x86_64-unknown-linux-gnu` at /root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver is absent (cargo-dylint is 6.4.0), and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache, so `cargo dylint` would have to download it, which this linter does not do; run `env --unset=CARGO_NET_OFFLINE cargo dylint --path lint-closure --manifest-path pkg/Cargo.toml -- --locked` once with network access (it writes the cargo registry and the Dylint driver directory, and is needed again after each cargo-dylint upgrade). Cargo's error: failed to download `anstyle-wincon v3.0.11`. Nothing in this package was checked by this rule, so a run without findings says nothing about its closures.","code":"rust/avoidable-closure","severity":"warn","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+--- stderr
+== done 2026-11-28T08:03:34+00:00

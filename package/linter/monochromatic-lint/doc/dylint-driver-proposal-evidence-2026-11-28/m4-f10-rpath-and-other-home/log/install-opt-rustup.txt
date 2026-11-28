@@ -1,0 +1,9 @@
+info: syncing channel updates for nightly-2026-11-16-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-16 for version 1.102.0-nightly (5f4effd57 2026-11-13)
+info: downloading 5 components
+
+  nightly-2026-11-16-x86_64-unknown-linux-gnu installed - rustc 1.102.0-nightly (5f4effd57 2026-11-13)
+
+info: default toolchain set to nightly-2026-11-16-x86_64-unknown-linux-gnu
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager

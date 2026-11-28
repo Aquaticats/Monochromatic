@@ -1,0 +1,20 @@
+packages with a linter run: 15
+packages with closure-rule skip records: 3
+packages with a closure processing failure: 1
+packages with closure findings: 3
+packages run:
+  package/browser-selector/desktop-app
+  package/browserslist/core-rust
+  package/cargo-shadow/cli
+  package/catalog-specifier/core-rust
+  package/codex-plugin/bash-limit
+  package/cpu-temperature/cli
+  package/dependency-catalog/core-native
+  package/file-enforcer/cli
+  package/file-enforcer/core-rust
+  package/file-manager/app
+  package/file-manager/variant-gtk-sticky
+  package/file-manager/variant-qt
+  package/forbidden-strings/cli
+  package/forbidden-strings/core
+  package/git-policy/cli

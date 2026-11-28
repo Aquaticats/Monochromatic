@@ -1,0 +1,1 @@
+-rw-r--r-- 1 root root 165416064 Nov 28 07:59 /root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/librustc_driver-5adf19dcd2f7d879.so
