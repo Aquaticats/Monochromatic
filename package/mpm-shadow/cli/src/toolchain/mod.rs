@@ -142,6 +142,23 @@ pub mod load;
 /// The check that every declared bin name fits the longest name the exposure folder's file system holds.
 mod the_bin_names_the_exposure_folder_can_hold;
 
+/// What:
+/// The answer to that check's one question, the folder's name limit, which a build made for controls can
+/// plant.
+/// Why:
+/// The check's claim is that the limit is the file system's,
+/// and a control cannot make this machine's file system answer anything but 255 bytes without a mount.
+/// A shipped build holds no plant at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { plantingTheFoldersNameLimit } from './a-control-plants-a-name-limit.ts';
+/// ```
+mod a_control_plants_a_name_limit;
+/// Re-exports the plant a control makes for its own thread.
+#[cfg(test)]
+pub(crate) use self::a_control_plants_a_name_limit::planting_the_folders_name_limit;
+
 /// The lock file:
 /// build,
 /// render,

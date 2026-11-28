@@ -432,6 +432,84 @@ fn the_fixture_with_standard_error_on(standard_error: std::process::Stdio) -> st
 }
 
 /// What:
+/// The script the second fixture below runs:
+/// it answers inside the shipped bound.
+/// Why:
+/// The bound is a time, and only a program whose answer takes longer or shorter than it can show which
+/// one the shipped call passes:
+/// a control of the constant alone stayed green while `ProcessRunner::run` passed 600 ms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_PROGRAM_THAT_ANSWERS_INSIDE_THE_BOUND = 'sleep 1.0; echo answered';
+/// ```
+const A_PROGRAM_THAT_ANSWERS_INSIDE_THE_BOUND: &str = "sleep 1.0; echo answered";
+
+/// The name that fixture is filtered by,
+/// the way the control below starts it.
+const THE_PROGRAM_THAT_ANSWERS_INSIDE_THE_BOUND: &str =
+    "toolchain::runner_tests::the_program_that_answers_inside_the_bound";
+
+/// What:
+/// A program the shipped runner waits for that answers inside the bound,
+/// started in a process of its own.
+/// Why:
+/// The line the wait prints goes to standard error of whichever process waits,
+/// and only a process of its own lets the control read whether the shipped runner printed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('the program that answers inside the bound', () => { const outcome = ProcessRunner.run(sh(A_PROGRAM_THAT_ANSWERS_INSIDE_THE_BOUND)); expect(outcome.stdout).toBe('answered\n'); });
+/// ```
+#[test]
+#[ignore = "a fixture a control starts: it answers inside the shipped bound"]
+fn the_program_that_answers_inside_the_bound() {
+    let outcome = ProcessRunner.run(&RunRequest::new(
+        "sh",
+        &["-c", A_PROGRAM_THAT_ANSWERS_INSIDE_THE_BOUND],
+    ));
+    assert_eq!(outcome.stdout, "answered\n", "{outcome:?}");
+    assert_eq!(outcome.code, 0, "{outcome:?}");
+}
+
+/// What:
+/// The shipped runner says nothing about an answer that took less than its bound,
+/// read from the standard error of a process that ran it.
+/// Why:
+/// The controls above pass their own bound and their own sink,
+/// and the one control that pins the shipped bound reads the constant rather than the value the shipped
+/// call passes,
+/// so `ProcessRunner::run` passing 600 ms,
+/// or the constant divided by four,
+/// left every one of them green while the line appeared for answers the record calls ordinary.
+/// This control starts the shipped runner with nothing changed and an answer of about one second,
+/// so a bound below that shows up as a line the record says must not be there.
+#[test]
+fn the_shipped_runner_is_silent_for_a_program_that_answers_inside_the_bound() {
+    let output = std::process::Command::new(
+        std::env::current_exe().expect("the test binary's own path"),
+    )
+    .arg("--exact")
+    .arg(THE_PROGRAM_THAT_ANSWERS_INSIDE_THE_BOUND)
+    .arg("--ignored")
+    .arg("--nocapture")
+    .arg("--test-threads=1")
+    .output()
+    .expect("start the fixture the shipped runner waits for");
+    assert!(
+        output.status.success(),
+        "the fixture's own wait ended with an answer: {:?} {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let printed: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(
+        !printed.contains("still waiting for"),
+        "an answer inside the bound prints no line about waiting: {printed}"
+    );
+}
+
+/// What:
 /// The fixture's own assertions,
 /// in one place:
 /// it ran ("1 passed")

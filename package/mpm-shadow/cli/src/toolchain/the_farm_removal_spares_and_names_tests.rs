@@ -69,6 +69,14 @@ use super::sync::sync_tools;
 /// Imports the builder of the lines `install` prints.
 use super::sync_report_text::format_sync_report;
 
+/// Imports the plant that gives the folder a chosen order,
+/// and the two orders it can choose,
+/// which a shipped build holds nothing of.
+use super::exposure::{
+    TheFoldersOrder,
+    reading_the_folder_in,
+};
+
 /// The id the sample plan gives `mpm-shadow`,
 /// which a control that is about a scope without that row removes from its lock.
 const SHADOW_TOOL_ID: &str = "cargo:monochromatic-mpm-shadow";
@@ -644,6 +652,7 @@ fn a_sync_keeps_and_names_the_earlier_builds_temporary_link_while_its_number_is_
 // What:
 // `#[test] fn a_sync_names_each_kept_temporary_link_once_in_name_order_after_the_removals_it_made()`
 // plants two names no run can judge and two orphans a run removes,
+// gives the folder the reverse of name order so its own order cannot be name order,
 // runs the whole sync,
 // and reads the lines.
 // Why:
@@ -653,6 +662,10 @@ fn a_sync_keeps_and_names_the_earlier_builds_temporary_link_while_its_number_is_
 // would read differently on two runs of the same folder:
 // the count, the name order and the place of the kept lines are what make the report
 // the same text every time.
+// The planted order is what makes the name-order assertion hold the sort:
+// on this machine a file system lists `zzz-earlier` before `aaa-earlier` in about two of five fresh
+// folders,
+// so a control that read the directory's own order stayed green with the sort deleted.
 //
 // In TS you'd write (pseudocode):
 // ```ts
@@ -683,6 +696,16 @@ fn a_sync_names_each_kept_temporary_link_once_in_name_order_after_the_removals_i
     for orphan in [AN_ORPHAN, A_SECOND_ORPHAN] {
         symlink(&target, rig.scope.exposure_dir.join(orphan)).expect("leave an orphan");
     }
+    // What: the folder's entries in the reverse of name order, which a directory's own hash order only
+    //  sometimes is.
+    // Why: without it the name-order assertion below holds the sort only in the runs where the file
+    //  system happened to list the two names unsorted.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const _order = readingTheFolderIn(TheFoldersOrder.TheReverseOfNameOrder);
+    // ```
+    let _order = reading_the_folder_in(TheFoldersOrder::TheReverseOfNameOrder);
     let report = sync_tools(&rig.context(), None);
     let text: String = format_sync_report(&report);
     // What: the report's kept lines, in the order the report holds them.
@@ -989,6 +1012,99 @@ fn a_run_names_the_removals_it_made_before_a_later_one_failed() {
     assert!(
         text.lines().any(|line| {
             return line.contains("exposure directory failed") && line.contains(&second);
+        }),
+        "the run names the removal that failed; {text}"
+    );
+}
+
+// What:
+// `#[test] fn a_run_that_fails_a_removal_still_names_the_temporary_link_it_kept()`
+// plants one name no run can judge and two orphans,
+// gives the folder the reverse of name order so the refused removal is the last one the pass reaches,
+// and reads the report.
+// Why:
+// The kept lines are put into the report before the failure is recorded,
+// so a run that stops at a removal still says which names it left;
+// the control above plants orphans only,
+// so an edit that dropped the kept names when the rebuild failed stayed green,
+// and a person would read a failure that says nothing about a name it left in the folder.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a run that fails a removal still names the temporary link it kept', () => { ... });
+// ```
+#[test]
+fn a_run_that_fails_a_removal_still_names_the_temporary_link_it_kept() {
+    let rig: Rig = a_rig_with_no_tools();
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
+    // What: the name no run can judge, built the way an earlier build wrote one.
+    // Why: such a name is the kept line this control is about, and its first letter keeps it ahead of the
+    //  orphans in the reverse of name order below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kept = theNameTheEarlierBuildWrote('zzz-kept-across-the-failure', ended);
+    // ```
+    let kept: String = the_name_the_earlier_build_wrote(
+        "zzz-kept-across-the-failure",
+        pid_of_a_process_that_ended(),
+    );
+    symlink(&target, rig.scope.exposure_dir.join(&kept)).expect("leave a name no run can judge");
+    for orphan in [AN_ORPHAN, A_SECOND_ORPHAN] {
+        symlink(&target, rig.scope.exposure_dir.join(orphan)).expect("leave an orphan");
+    }
+    // What: the three names in the order the planted folder gives them: name order.
+    // Why: a temporary link's name always begins with a dot, so only name order puts the kept name before the
+    //  two orphans; the refused removal has to come after the kept name was judged.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const names = [kept, AN_ORPHAN, A_SECOND_ORPHAN].sort();
+    // ```
+    let mut names: Vec<String> = vec![kept.clone(), AN_ORPHAN.to_string(), A_SECOND_ORPHAN.to_string()];
+    names.sort();
+    // What: the name whose removal is refused, which is the last the pass reaches.
+    // Why: a removal that fails stops the pass, so only a failure after the kept name was judged shows that
+    //  the kept name still reaches the report.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const last = names[names.length - 1];
+    // ```
+    let last: String = names.pop().expect("three names were planted");
+    // What: the number the kernel gives `EIO`, which no fixture can make a real `unlink` answer.
+    // Why: the refusal must be the one a real disk error carries.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const eio = 5;
+    // ```
+    let eio: i32 = rustix::io::Errno::IO.raw_os_error();
+    let _plant = planting_at_the_removal_of(
+        &last,
+        What::Refused {
+            code: eio,
+        },
+    );
+    let _order = reading_the_folder_in(TheFoldersOrder::NameOrder);
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    assert!(
+        std::fs::symlink_metadata(rig.scope.exposure_dir.join(&last)).is_ok(),
+        "the removal of {last} failed, so its link stays; {text}"
+    );
+    assert!(
+        the_line_starting_with(
+            &text,
+            &format!("toolchain install: left the temporary link {kept}: "),
+        )
+        .is_some(),
+        "the run names the temporary link it kept although a later removal failed; {text}"
+    );
+    assert!(
+        text.lines().any(|line| {
+            return line.contains("exposure directory failed") && line.contains(&last);
         }),
         "the run names the removal that failed; {text}"
     );

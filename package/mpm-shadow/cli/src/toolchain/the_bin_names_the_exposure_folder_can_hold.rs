@@ -44,6 +44,9 @@ use super::scope::Scope;
 /// Imports the purpose text a temporary link's name carries,
 /// from the module that builds that name.
 use super::install_support::TEMPORARY_PURPOSE;
+/// Imports the limit a control planted for its own thread,
+/// which a shipped build never answers.
+use super::a_control_plants_a_name_limit::a_planted_name_limit;
 
 /// What:
 /// The number of bytes the UUID form of a boot identifier takes,
@@ -134,6 +137,16 @@ pub(crate) fn the_bytes_a_temporary_name_adds() -> usize {
 /// }
 /// ```
 fn the_longest_name_the_folder_holds(folder: &Path) -> Option<u64> {
+    // What: the limit a control planted, when this thread has one, before any file system is asked.
+    // Why: a control has to be able to make the answer differ from this machine's, and nothing else can.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const planted = aPlantedNameLimit(); if (planted !== undefined) return planted;
+    // ```
+    if let Some(planted) = a_planted_name_limit() {
+        return Some(planted);
+    }
     let mut asking: &Path = folder;
     loop {
         if let Ok(facts) = statvfs(asking)

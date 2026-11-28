@@ -94,6 +94,28 @@ pub(crate) use self::a_control_plants_a_removal::{
     planting_at_the_removal_of,
 };
 
+/// What:
+/// The order the same rebuild reads the folder's entries in,
+/// which a build made for controls can turn into the reverse of name order.
+/// Why:
+/// A control has to be able to make the directory's order differ from name order,
+/// or the sort that makes a report stable is held by the file system's own hash order and not by a
+/// failing assertion.
+/// A shipped build holds no plant at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { readingTheFolderInReverseNameOrder } from './exposure/a-control-plants-the-order-the-folder-is-read-in.ts';
+/// ```
+mod a_control_plants_the_order_the_folder_is_read_in;
+/// Re-exports the plant a control makes for its own thread,
+/// and the two orders it can choose.
+#[cfg(test)]
+pub(crate) use self::a_control_plants_the_order_the_folder_is_read_in::{
+    TheFoldersOrder,
+    reading_the_folder_in,
+};
+
 /// The result of rebuilding the farm:
 /// the names now linked,
 /// the names whose program was not found,

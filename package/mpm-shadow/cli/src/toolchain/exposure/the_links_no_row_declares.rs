@@ -69,6 +69,9 @@ use super::a_control_plants_a_removal::{
     at_the_instant_before_the_link_is_read,
     at_the_instant_before_the_target_is_read,
 };
+/// Imports the order a control can give the folder's entries,
+/// which a shipped build answers with the directory's own.
+use super::a_control_plants_the_order_the_folder_is_read_in::in_the_order_it_is_read;
 /// Imports `declares_bin` from the module that links the farm.
 use super::declares_bin;
 /// Imports the question whether a link is the farm's own link to an installed program.
@@ -143,17 +146,20 @@ struct ARemoval {
 /// ```
 pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
     // What:
-    // the directory's entries, or the error naming the directory that could not be read.
+    // the directory's entries, collected so a control can give them an order of its own,
+    // or the error naming the directory that could not be read.
     // Why:
     // A farm that cannot be listed leaves every stale link in place,
-    // and the run has to say so rather than report a clean pass.
+    // and the run has to say so rather than report a clean pass;
+    // the entries are collected because the order a report is stable in is asserted by a control whose
+    // folder has to disagree with name order, which a lazy read of the directory cannot be given.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const entries = readdirSync(ctx.scope.exposureDir);
+    // const entries = readdirSync(ctx.scope.exposureDir).map(Ok);
     // ```
     let entries = match fs::read_dir(&ctx.scope.exposure_dir) {
-        Ok(entries) => entries,
+        Ok(read) => read.collect::<Vec<std::io::Result<fs::DirEntry>>>(),
         Err(error) => {
             return Removals {
                 sentences: Vec::new(),
@@ -165,6 +171,17 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
             };
         }
     };
+    // What:
+    // the same entries in the order this run reads them.
+    // Why:
+    // A control's folder comes in the reverse of name order and a shipped build's as the directory
+    // lists it, so the loop below needs one answer for both.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const ordered = inTheOrderItIsRead(entries);
+    // ```
+    let ordered = in_the_order_it_is_read(entries);
     // What:
     // the links removed so far, each recorded as it is removed.
     // Why:
@@ -198,7 +215,7 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
     // let error: Error | undefined;
     // ```
     let mut error: Option<ToolchainError> = None;
-    for listed in entries {
+    for listed in ordered {
         // What:
         // one entry of the directory, or the error naming the directory.
         // Why:

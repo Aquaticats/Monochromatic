@@ -50,6 +50,9 @@ use super::the_bin_names_the_exposure_folder_can_hold::{
 /// Imports the disposable directory a control works in.
 use crate::test_scratch::scratch;
 
+/// Imports the plant that makes the file system's answer a number of the control's own.
+use super::planting_the_folders_name_limit;
+
 /// What:
 /// A plan naming one tool whose single bin is `bin`.
 /// Why:
@@ -361,6 +364,110 @@ fn reading_the_plan_refuses_a_bin_the_exposure_folder_cannot_hold() {
     assert!(
         error.message.contains(&format!("declares the bin {bin:?} of fixtool")),
         "the refusal is the check's own, reached through the plan reader: {}",
+        error.message
+    );
+}
+
+/// What:
+/// The reserve is the widest temporary name a run can write, not merely a number above this machine's own
+/// suffix.
+/// Why:
+/// `README.md` promises 95 bytes, a file system of 255 bytes 160 bytes of bin name and 161 as the first refused
+/// length,
+/// and the control above holds none of those numbers:
+/// any reserve from this machine's 70 bytes up to more than 95 passed it.
+/// This one derives the widest name from the fields it carries:
+/// a `u32` process number,
+/// a `u64` start time and a `u64` namespace,
+/// the purpose text the link is held under,
+/// the separators between them,
+/// and the boot identifier's length as the kernel itself writes it,
+/// so a reserve narrowed to this machine's suffix,
+/// a digit count taken from a narrower type,
+/// and a boot identifier's length raised past the kernel's all fail it.
+#[test]
+fn the_reserve_is_the_widest_temporary_name_a_run_can_write() {
+    // What: the boot identifier this machine is running, as the kernel writes it.
+    // Why: the name records that identifier's text, so its length is the kernel's answer and not a number
+    //  written here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const boot = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+    // ```
+    let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
+        .expect("the kernel tells a program which boot it is running")
+        .trim()
+        .to_string();
+    // What: the widest temporary name's surplus over the bin name, derived one field at a time.
+    // Why: each term is one field's widest write: the leading dot, the purpose text and its dots, the
+    //  decimal digits each number can hold, and the boot identifier.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const widest = 1 + 1 + 'tmp'.length + 1 + String(2 ** 32 - 1).length + 1 + String(2 ** 64 - 1).length + 1 + String(2 ** 64 - 1).length + 1 + boot.length;
+    // ```
+    let widest: usize = 1
+        + 1
+        + "tmp".len()
+        + 1
+        + format!("{}", u32::MAX).len()
+        + 1
+        + format!("{}", u64::MAX).len()
+        + 1
+        + format!("{}", u64::MAX).len()
+        + 1
+        + boot.len();
+    assert_eq!(
+        the_bytes_a_temporary_name_adds(),
+        widest,
+        "the reserve is the widest name a run can write, and the widest this machine's fields allow is {widest} bytes over the bin name"
+    );
+}
+
+/// What:
+/// The name limit the check refuses against is the file system's answer, not a number written in the code.
+/// Why:
+/// A folder on eCryptfs holds 143 bytes where this machine's holds 255,
+/// so a hard-coded 255 would accept a bin that file system cannot hold and would name the wrong limit in its
+/// refusal;
+/// no mount-free file system here holds anything but 255, so the control plants the answer the check asks for.
+/// The planted number is the 143 bytes `README.md` names for eCryptfs;
+/// it stands in for a file system this control cannot mount,
+/// and no claim about a real eCryptfs rests on it.
+#[test]
+fn the_name_limit_comes_from_the_file_system_and_not_from_a_number_written_here() {
+    // What: the limit a control plants, which is the one `README.md` names for eCryptfs.
+    // Why: it has to differ from this machine's 255 bytes, or the control could not tell the file system's
+    //  answer from a constant.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const planted = 143;
+    // ```
+    let planted: u64 = 143;
+    let directory = scratch();
+    // What: the longest bin name that fits the planted limit.
+    // Why: the arm that has to be accepted, and the one byte past it has to be refused.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const most = planted - theBytesATemporaryNameAdds();
+    // ```
+    let reserve: u64 = u64::try_from(the_bytes_a_temporary_name_adds()).expect("a small reserve");
+    let most: usize = usize::try_from(planted.saturating_sub(reserve))
+        .expect("a name limit this machine holds");
+    let _plant = planting_the_folders_name_limit(planted);
+    let (plan, scope) = a_plan_and_a_scope(&a_bin_name_of(most), directory.path());
+    refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
+        .expect("the longest bin name the planted limit holds is accepted");
+    let (one_more_plan, one_more_scope) =
+        a_plan_and_a_scope(&a_bin_name_of(most + 1), directory.path());
+    let error = refuse_bin_names_the_exposure_folder_cannot_hold(&one_more_plan, &one_more_scope)
+        .expect_err("one byte past the planted limit is refused");
+    assert!(
+        error.message.contains(&format!("names of at most {planted} bytes")),
+        "the refusal names the limit the file system answered, not a number written here: {}",
         error.message
     );
 }
