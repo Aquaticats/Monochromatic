@@ -12546,3 +12546,80 @@ policy::policy_engine field PolicyFinding::commit_correction
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the same answer as the event carries it, for the renderer that chooses the hint
 policy::policy_events_kinds field FindingEvent::commit_correction
+
+# New code of commit b446bea7ab, published because the commit's own code is, one reason per name:
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the pass a round after this one calls from the mode that runs at shutdown, and the one thing that call is handed
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_turn fn run_the_pass
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the places that call names, which the wiring round hands the boot unit's own rather than a fixture's
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_places struct ShutdownUnmountPlaces
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the installed readiness folder, configuration, claims, store, boot file and `/proc` roots as one value
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_places fn ShutdownUnmountPlaces::live
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the request a caller builds so the pass reads no place and makes no call the caller did not choose
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request struct ShutdownUnmountRequest
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the places field of that request, which a caller sets
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::places
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the mount table field, which is the one reading a guest arm fills from this machine
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::mounts
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the staging calls field, of which the pass makes the held descriptor's unmount
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::calls
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the walk field, which opens a slot across its mount
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::walk
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the fresh capture field a caller states or reads from the machine
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::lookups
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the recorded folder field, which is the store's own `.parent` record
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::worktrees
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the GUID field, which the busy answer's scan is bound to
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::guids
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the holder scan field a busy mount is named by
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::holders
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes what the pass answered, whose lines are the whole answer a mode prints
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_answer struct PassOutcome
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the summary line and one line per mount, which the mode writes to the journal
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_answer fn PassOutcome::lines
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the seam a caller fills to state or read one slot's fresh capture
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources trait SlotLookups
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the release capture, which is the walk the attach and the removal already make
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources struct LiveSlotLookups
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the seam a caller fills to state or read the recorded folder's identity
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources trait WorktreesFolder
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the release reading of that identity, opened under root control
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources struct LiveWorktreesFolder
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes that reading's opener, which a caller hands the store's own path
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources fn LiveWorktreesFolder::open
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes one clone's live GUID, which the removal's own trait asks for
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources struct LiveDatasetGuids
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the pool reader field that GUID is read through
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources field LiveDatasetGuids::reader
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the seam a caller fills to state or read who holds a clone
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources trait HolderScanning
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the release scan, which is the route's own all-namespace reader
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources struct LiveHolderScans
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the `/proc` root field the scan reads
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources field LiveHolderScans::proc_root
+#   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
+#   publishes the own-task field that tells this process's namespace from another's
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources field LiveHolderScans::self_task
