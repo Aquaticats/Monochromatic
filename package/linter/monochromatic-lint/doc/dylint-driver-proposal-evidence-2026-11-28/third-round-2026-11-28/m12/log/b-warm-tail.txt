@@ -1,0 +1,12 @@
+    |
+ 44 | use crate::output::{ErrorOutputType, OutputType, OutputTypes, ResolveDocLinks};
+    |                     ^^^^^^^^^^^^^^^
+help: consider importing this enum instead
+    |
+794 -         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());
+794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());
+    |
+
+For more information about this error, try `rustc --explain E0603`.
+error: could not compile `dylint_linting` (lib) due to 1 previous error
+Error: Error: `cargo` command failed; the full command can be found in `/work/tmp/.tmp9WTz74`

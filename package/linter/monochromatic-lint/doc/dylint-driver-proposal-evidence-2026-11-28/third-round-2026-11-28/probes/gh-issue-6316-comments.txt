@@ -1,0 +1,26 @@
+read with gh on 2026-11-28T08:05:12-05:00, reads only
+== gh issue view 6316 --repo Aquaticats/Monochromatic --comments (the part naming who answered)
+author:	Aquaticat
+association:	member
+edited:	false
+status:	none
+--
+Order set by the owner: this change is done first, and its design talk comes after the ZFS route's. The preference itself is already stated in `doc/decision/mpm-toolchain-adoption.md`.
+
+--
+author:	Aquaticat
+association:	member
+edited:	false
+status:	none
+--
+The repository's tool links folder, `.cache/toolchain-bin` in the main checkout, does not exist on 2026-11-23, though every
+session's `PATH` lists it. `toolchain:list` reports all 66 tools installed and in sync, so only the links are missing, and
+with them `file-enforcer` and `monochromatic-lint` by name: `mise run file-enforcer` fails with `file-enforcer: command not
+found`, the skill mirrors under `.claude/skills` and `.factory/skills` are copied by hand, and agents call the linter by its
+full install path.
+
+Only `mise run toolchain:install` creates that folder. Asked on 2026-11-23 whether to run it in the main checkout, the project
+answered: "Because we need to make mpm-shadow prefer system package managers on non-atomic distros first." So the tool links
+wait for this issue.
+
+--

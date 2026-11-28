@@ -1,0 +1,42 @@
+source folder listing:
+total 98K
+4.5K probe-agents-md-search-for-the-two-readers.txt
+4.5K probe-answers-in-words-only-grep.txt
+4.5K probe-citation-spot-check-output.txt
+4.5K probe-citation-spot-check-script.sh
+4.5K probe-daily-update-timer-and-lock-state.txt
+4.5K probe-issue-6316-comments.txt
+4.5K probe-measurement-claims-vs-kept-logs.txt
+4.5K probe-proposal-cited-doc-paths.txt
+4.5K probe-readme-line-drift.txt
+8.5K probe-records-and-sources-quoted.txt
+8.5K probe-upstream-dylint-lines-at-v6.4.0.txt
+ 41K review.md
+
+diff --recursive --brief (source vs repository copy):
+diff status 0
+
+sha256 of review.md both sides:
+161bbbed57153dd0b0d917751142263374471ba4d93d261da217526499320bfa  /home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/keep/review.md
+161bbbed57153dd0b0d917751142263374471ba4d93d261da217526499320bfa  /home/user/temp/agent/third-gate-review-of-the-dylint-driver-proposal-2026-11-28/evidence-at-e63bf58c19/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/gate-read-second-2026-11-28/review.md
+
+other files in the first read folder:
+ls: cannot access '/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-2026-11-28/keep': No such file or directory
+
+first read copy vs repository copy:
+diff: /home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-2026-11-28/keep/review.md: No such file or directory
+status 2
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-2026-11-27:
+total 8.5K
+8.5K keep
+
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-2026-11-27/keep:
+total 41K
+4.5K ci-run-41274002049-static-step-excerpt.txt
+ 37K review.md
+
+first read copy vs repository copy:
+diff status 0
+71b636ad5095d441597a1ef5fab7c115705422f8ce90b91ff31e18cf281f3934  /home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-2026-11-27/keep/review.md
+71b636ad5095d441597a1ef5fab7c115705422f8ce90b91ff31e18cf281f3934  /home/user/temp/agent/third-gate-review-of-the-dylint-driver-proposal-2026-11-28/evidence-at-e63bf58c19/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/gate-read/review.md
+cmp status 0

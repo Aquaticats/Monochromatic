@@ -1,0 +1,9 @@
+# git grep over the whole tree at e63bf58c19 for commands that move or install the floating nightly channel, 2026-11-28T07:35:21-05:00
+## 'rustup update'
+(files outside doc/ and markdown above; count: 0)
+## 'toolchain install nightly' outside doc and markdown (file:count)
+e63bf58c19:.github/workflows/cargo-publish.yml:17
+e63bf58c19:.github/workflows/crate-release.yml:1
+e63bf58c19:package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/scripts/m4-in-container.sh:1
+e63bf58c19:package/mpm-shadow/cli/src/toolchain/runner_tests.rs:1
+## systemd units for the daily update
