@@ -1,0 +1,116 @@
+# Which numbers and statuses the proposal states have a line in the kept logs (searched 2026-11-28)
+
+## exit statuses and durations that any kept file records (grep -rn 'status [0-9]|after [0-9]+s', gate-read and scripts excluded)
+m6-clean-driver-and-probe/run.txt:11:clean driver build status 0 after 75s
+m6-clean-driver-and-probe/run.txt:24:probe fetch status 0 after 4s
+m6-clean-driver-and-probe/run.txt:28:offline metadata status 0
+m6-clean-driver-and-probe/run.txt:30:control status 2; findings: 1
+m6-clean-driver-and-probe/run.txt:33:no-file status 2
+m4-f10-rpath-and-other-home/run.txt:9:control status 0
+m4-f10-rpath-and-other-home/run.txt:12:install status 0
+m4-f10-rpath-and-other-home/run.txt:18:other-path status 127
+m4-f10-rpath-and-other-home/run.txt:21:ld-library-path status 0
+m2a-proxy-alone-fails-at-rustc-dev/run.txt:24:warm status 1 after 113s
+m2a-proxy-alone-fails-at-rustc-dev/run.txt:115:linter status 0
+m2a-proxy-alone-fails-at-rustc-dev/run.txt:120:dated driver build status 101 after 0s
+m2a-proxy-alone-fails-at-rustc-dev/run.txt:136:non-proxy driver build status 101 after 0s
+m1-f1-nonproxy-cargo/run.txt:38:linter-before status 0
+m1-f1-nonproxy-cargo/run.txt:42:warm status 1
+m1-f1-nonproxy-cargo/run.txt:98:dated driver build status 101
+m1-f1-nonproxy-cargo/run.txt:114:check status 1
+m1-f1-nonproxy-cargo/run.txt:139:linter-after status 0
+
+## files each measurement folder keeps (run.txt present?)
+m1-f1-nonproxy-cargo: run.txt kept
+m2a-proxy-alone-fails-at-rustc-dev: run.txt kept
+m2-f2-proxy-cargo: NO run.txt
+m3-f3-skips-with-a-driver-1: NO run.txt
+m3-f3-skips-with-a-driver-2: NO run.txt
+m4-f10-rpath-and-other-home: run.txt kept
+m5-option-k-end-to-end: NO run.txt
+m6-clean-driver-and-probe: run.txt kept
+
+## m5 and m2 component-add logs (the 24 s and 63 s figures)
+info: downloading 3 components
+info: downloading 3 components
+
+## the word fontconfig anywhere in the evidence (excluding gate-read)
+no file
+
+## M3 closure-failures.txt, last bytes of each (cut at 'messages was:')
+0000300       e   n   d       o   f       c   a   r   g   o   '   s    
+0000320   m   e   s   s   a   g   e   s       w   a   s   :  \n
+0000336
+0000300       o   f       c   a   r   g   o   '   s       m   e   s   s
+0000320   a   g   e   s       w   a   s   :  \n
+0000332
+
+## M3 skip messages for ide/app and terminal/app are cut at 400 characters; the git fetch failure named in the proposal is not kept
+package/ide/app: 400 chars
+package/terminal/app: 400 chars
+
+## M3 results.tsv: metadata column values and the sum of seconds
+rows=30 seconds_sum=1688 metadata_not_ok: package/ide/app(still-failed) package/terminal/app(still-failed)
+
+## M3 recount by category from results.tsv, closure-findings.txt, closure-skips.txt, closure-failures.txt
+findings: package/cargo-shadow/cli 6
+findings: package/cpu-temperature/cli 13
+findings: package/git-policy/cli 1502
+findings: package/linter/monochromatic-lint 31
+findings: package/mpm-shadow/cli 72
+findings: package/wg/cli-quicker-exempt 6
+findings: package/zfs/request-to-openzfs-kernel-device 44
+packages with findings=7, findings total=1674, packages with zero findings=23
+skip: package/file-manager/app
+skip: package/file-manager/variant-gtk-sticky
+skip: package/file-manager/variant-qt
+skip: package/ide/app
+skip: package/music-player/android-app/rust
+skip: 
+skip: help: view all installed commands with `cargo --list`
+skip: help: find a package to install `ndk-env` with `cargo search cargo-ndk-env`. Nothing in this package was checked by this rule, so a run with
+skip: package/terminal/app
+failure: package/browser-selector/desktop-app
+failure: package/music-player/desktop-app
+
+## M5 execve-counts.txt (two runs in one file, unlabelled)
+execve("/usr/sbin/git" : 0
+execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc" : 241
+execve("/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc" : 4
+execve("/usr/sbin/git" : 3
+
+## M5 skip probe: which skip was measured (rustc-dev, not driver gap)
+{"message":"rust/avoidable-closure skipped pkg: the active compiler lacks the rustc-dev component; add it with `rustup component add rustc-dev` or mise install. Nothing in this package was checked by 
+0 /home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/m5-option-k-end-to-end/log/skip-quiet.jsonl
+
+## M5 script order: component add before the K run; RUSTUP_TOOLCHAIN export absent in m5, present in m1, m2, m3
+28:rustup component add rustc-dev llvm-tools-preview rust-src --toolchain nightly > "$log/component-add.txt" 2>&1
+29:echo "component add status $? after ${SECONDS}s"
+61:cp -a /work/repo/lint-closure /work/repo/lint-closure-k
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/scripts/m5-in-container.sh:0
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/scripts/m3-in-container.sh:1
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/scripts/m2-in-container.sh:1
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/scripts/m1-in-container.sh:1
+
+## M1 planted-driver arm: nothing was planted
+110:driver built: 
+111:install: cannot stat '': No such file or directory
+112:planted driver -V: /work/m1.sh: line 85: /root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver: No such file or directory
+
+## file names the proposal cites that do not exist: m1-run.txt, m6-run.txt (the files are run.txt)
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/m1-f1-nonproxy-cargo/:
+log
+run.txt
+
+/home/user/temp/agent/gate-review-of-the-dylint-driver-proposal-second-read-2026-11-28/ev/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/m6-clean-driver-and-probe/:
+log
+run.txt
+
+## export RUSTUP_TOOLCHAIN per script (line numbers; none for m5)
+m1: 34:export RUSTUP_TOOLCHAIN="$short"
+
+m2: 28:export RUSTUP_TOOLCHAIN="$short"
+
+m3: 9:export RUSTUP_TOOLCHAIN=nightly-2026-11-16
+
+m5: 

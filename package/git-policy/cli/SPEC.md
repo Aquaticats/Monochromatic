@@ -287,7 +287,7 @@ The default invocation,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and names the unit that runs it,
+whose pass is built and whose mode refuses and names the unit that runs it,
 `holder-scan` is the all-namespace holder scan of one dataset under a nonce of
 its own,
 which reads and changes nothing,
@@ -5951,8 +5951,35 @@ and what a person still has to do.
 Nothing is left for a second command to delete.
 Every spelling of `git worktree remove` takes this path,
 `-f -f` included,
-and no spelling makes the wrapper end a holder,
-lock another session or force anything:
+and the force each spelling carries is counted the way Git counts it
+(`worktree_remove_plan::count_of_the_force`,
+`worktree_clone_removal_proof_and_plan::removal_force`).
+The owner answered on 2026-11-28 that two forces pass every refusal this removal has and that one force passes the states the removal can answer for itself
+("Two force does everything.
+One force - you pick.",
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`),
+so:
+
+- Two forces delete a person's lock file and then run the removal,
+  go past a destruction plan that cannot be read
+  (proving the clone by the record's GUID against the pool,
+  destroying the clone and its snapshots from the pool's own list,
+  and removing that plan file with the run's records),
+  take a clone off the staging folder and destroy it,
+  and destroy the dataset the slot's record names even when the pool's answer does not match the record,
+  reporting the dataset destroyed and both GUIDs,
+  because nothing can prove afterwards which clone it was.
+- One force goes past a destruction plan that cannot be read,
+  past a clone an earlier unmount left on the staging folder where the record's GUID proves it,
+  and past Git's own cleanliness refusal,
+  and it refuses a person's lock and a clone the wrapper cannot prove,
+  each naming two forces,
+  the lock's sentence naming `git worktree unlock <slot>` as well.
+- No force refuses each of those four and Git's cleanliness refusal,
+  and the two the owner's answers of 2026-11-28 name print the command each way forward uses.
+
+No spelling makes the wrapper end a holder,
+lock another session or force a mount:
 this release's removal meets a holder,
 cancels itself and puts the clone back,
 which the stop points below state.
@@ -6129,30 +6156,40 @@ and no other fact decides its path
   whose route is the finish pass once the pool answers.
 
 A lock on the registration whose words are not the add's own refuses the removal
-before its first write,
+before its first write with no force and with one,
 in the same words the add's own resume uses,
 because the Git settle is the order's only step that reads `locked` and it comes
 after every destroy:
 nothing is unmounted,
 nothing is destroyed,
 no intent is filed and no plan is written,
-and the sentence names `git worktree unlock <slot>`.
+and the sentence names `git worktree unlock <slot>` and the double force.
+Two forces delete the lock file and then run the removal,
+as the force section above states.
 
 What this release does not do:
 
-- It ends no holder and forces nothing.
-  `--force` is refused in every spelling,
-  `-f -f` among them,
-  and a removal that meets a holder cancels itself and puts the clone back.
+- It ends no holder and forces no mount.
+  A holder stops the removal at each of the three stop points,
+  the clone goes back with every loss reported,
+  and no force count ends a process,
+  unmounts what a namespace holds or locks a session.
 - It runs the origin cleanup look from no command but the removal itself.
   The look the five worktree commands make
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It resumes no removal whose destruction plan it cannot read.
-  A slot whose plan does not read is left to Git with the other readings the
-  owner's answer of 2026-11-26 does not name,
-  and the slot's report says which reading it met.
+- It resumes no removal whose destruction plan it can read only partly.
+  A plan that does not read at all refuses the removal without force,
+  naming the plan's file and
+  `git monochromatic-git-policy-cli settle-worktree-clone-record`,
+  and one force goes past it as the force section above states;
+  a slot whose plan does read is the pending removal the resume path takes.
+- It adds no line to `doctor` for a clone a removal left on its staging folder.
+  The slot's report and the refusal name
+  `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` and
+  `git worktree remove --force <slot>`,
+  and `doctor`'s staging check reports the folder and the sharing of its bind.
 
 #### The cancel command
 
@@ -6288,9 +6325,10 @@ so the stop is built and measured ahead of the value that would let it run.
 A kind the evidence does not show is identified and refused,
 never ended,
 and the receipt's seven refusal words name what stopped the act.
-No sentence of this release offers `--force`,
-the removal a person's command runs ends no holder and offers no way to ask it to,
+No sentence of this release offers `--force` as a way to end a holder,
+the removal a person's command runs ends no holder whatever force count it carries,
 and the only callers of this folder are its own controls and its guest arms.
+What a force count does pass is the force section of this heading's own list.
 
 #### The settling command
 
@@ -8587,7 +8625,7 @@ and no command writes one of them:
   the ordering the owner's answers fix after the checkout and the key providers,
   `ExecStart` running `zfs-root boot-reconcile`,
   and `ExecStopPost` running `zfs-root shutdown-unmount`,
-  whose mode refuses in this build.
+  whose pass is built and whose mode refuses in this build.
 - Its stop-failure drop-in,
   the provider drop-in that asks the gate to reconcile again after post-key-load checkout readiness,
   the propagation service and the mount drop-in that start it,
@@ -8605,6 +8643,67 @@ No command installs any of it:
 `doctor` prints the root-once commands and runs none,
 no release writes a unit file,
 and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
+
+##### The shutdown pass, built and reached by no command
+
+The work that unit's stop line does is built in
+`src/native/worktree_clone_shutdown_unmount_pass/`,
+and no command reaches it in this release:
+`zfs-root shutdown-unmount` still answers the refusal above,
+and the round that wires the mode calls the pass from there.
+The pass does five things in the design's order
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit"):
+
+- It withdraws this boot's readiness record,
+  the file `boot-reconcile` publishes,
+  through the proved root-owned directory,
+  syncs that directory,
+  and asks the route's own reader again,
+  so the absence that closes admission is a fact rather than an assumption;
+  a record this route's reader refuses is removed too,
+  because the directory is root's and the content is a cache that already
+  admits nothing,
+  and a directory another account owns is refused with its file left exactly
+  as it was.
+- It reads the same root-owned configuration the gate's `ExecStart` read,
+  and refuses when this boot's record and that configuration name different
+  pools or different checkouts,
+  because the two say which place this boot verified.
+- It reads this process's mount table once and takes every standing mount
+  whose source is an immediate child of the configured clone container and
+  which stands at `<checkout>/.claude/worktrees/<slot>`.
+  A boot whose record published no readiness,
+  or published a pool or a checkout that was not ready,
+  unmounts nothing and answers why.
+- It proves each mount before any kernel call:
+  the `.claude/worktrees` identity now is the one the route recorded,
+  a fresh walk reaches the mount the descriptor the walk opened is on,
+  the descriptor's device and inode are that walk's,
+  the path the kernel reports for it is the slot's,
+  a second walk reaches the same mount,
+  and the table's row has the clone dataset as its source,
+  `zfs` as its filesystem,
+  `/` as its root,
+  the slot as its mount point and the slot's folder's mount as its parent.
+  It then takes the slot's per-slot claim,
+  leaving a slot another handler holds to that handler.
+- It unmounts from the held descriptor with no force and no lazy detach.
+  A mount the kernel answers `EBUSY` for stays exactly as it was,
+  and the all-namespace holder scan names the namespaces that hold it,
+  with the reads that could not be completed.
+  It writes no receipt and changes no clone's durable intent,
+  because it answered no request.
+
+The pass's answer is a summary line and one line per mount it reached,
+beginning `unmounted`,
+`held` or `left`,
+so an operator reads each mount rather than a total,
+and one mount that refused never stops the mounts after it.
+The proof is one guest arm
+(`src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`,
+driven by `e2e/shutdown-unmount-guest.ts`),
+which calls the pass itself as root on a file-backed pool.
 The migration,
 the property changes and the install are the agent's act,
 logged,
@@ -8615,6 +8714,66 @@ merged as `0a58781554`,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`;
 the owner chooses the moment of the migration and of any reboot.
 
+#### The private-propagation step, built and reached by no command
+
+Plan step 19's step lives in `src/native/checkout_propagation/`,
+and no command and no root mode reaches it:
+its call at the head of `boot-reconcile` and of the default sweep is that step's
+wiring,
+which is not built,
+so `zfs-root boot-reconcile` and the ZED event's own run do exactly what they did
+before.
+
+- One mount's propagation is read as the kernel's three flags,
+  by the descriptor's own unique mount number (`statx(2)`) and `statmount(2)`,
+  and named `private`,
+  `shared`,
+  `slave`,
+  `unbindable` or `shared+slave`.
+  A mount that is shared and slave at once counts as shared,
+  which is the project's answer of 2026-11-22,
+  and its master is recorded as the cost the set paid.
+- The step changes the checkout's own mount and no mount beneath it,
+  and only through the descriptor it verified:
+  `mount_setattr(2)` with `AT_EMPTY_PATH`,
+  no path fallback and no `AT_RECURSIVE`.
+- Before it touches anything it proves which instance it read:
+  the point is the checkout path,
+  the type is `zfs`,
+  the source is the resolved checkout dataset,
+  the instance has a namespace,
+  and the mount table's row found by the reused number describes the same mount.
+- A set is proved by a second read of the same unique number with no peer group
+  and no master,
+  so a set that answers success and leaves the previous set standing is a
+  refusal.
+- The states the project decided to report and leave are reported and left:
+  `already-private` for a private mount,
+  `left` for a slave or an unbindable one.
+- The shared mounts beneath the checkout are counted exactly,
+  four of them are named in the kernel's own spelling,
+  and the count reads `unread` for a run that refused before it read the table.
+- The answer is filed in `/run/git-worktree-clone-mount-propagation/result`,
+  a root-owned `0755` directory and a `0644` record published by one rename,
+  carrying both mount numbers,
+  the set before and after,
+  the master a set detached,
+  the outcome,
+  the act that refused and the kernel's error number.
+  A refusal files no receipt and still writes the record,
+  and the writer reads its own record back before it calls the write done.
+
+Nothing in the folder opens `/dev/zfs`,
+writes a checkout or asks a service manager for anything,
+so its decisions are tested on fixture facts on this machine,
+and its kernel half is the arm in a throwaway guest:
+a mount made shared and slave,
+private,
+slave and unbindable,
+and one that is not the checkout's,
+each driven through the step as root,
+beside the measurement of the provisional systemd trigger the accepted design
+asks for.
 #### The event filter and the merge device, built and reached by no command
 
 Plan step 19's lost-event triggers have a handler side that lives in two folders,
@@ -17642,7 +17801,8 @@ so no caller waits for a reader,
 and a line longer than the room the stream has at that moment reaches the reader up to what fitted,
 while the rest of it is dropped and counted as a line the queue could not say
 (issue 6476;
-`src/native/foundation/lines_written_by_a_thread.rs`).
+`src/native/foundation/the_line_a_refused_thread_writes_where_it_is_said.rs`,
+which the queue in `src/native/foundation/the_queue_and_its_thread.rs` hands a line to once its thread is refused).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -18420,8 +18580,9 @@ each with its reason in the code and here:
   no file and no other lock,
   so a commit's question is answered from memory and never waits for a volume.
 - The mutex and the condition of a queue of lines written by a thread of their own
-  (`foundation/lines_written_by_a_thread.rs`,
-  which the service's own log lines and the command's diagnostic lines are both made of):
+  (`foundation/the_queue_and_its_thread.rs`,
+  which the service's own log lines and the command's diagnostic lines are both made of,
+  through the caller's side in `foundation/lines_written_by_a_thread.rs`):
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;

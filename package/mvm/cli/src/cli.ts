@@ -11,6 +11,14 @@ import {
   resolveBackendKind,
   selectBackend,
 } from './backend/registry.ts';
+import {
+  describeSizeRequest,
+  isEmptySizeRequest,
+  memoryGiBArgument,
+  sizeRequest,
+  vcpusArgument,
+  type SizeRequest,
+} from './backend/size-request.ts';
 import { parser, } from './index-parsers.ts';
 
 
@@ -164,18 +172,37 @@ async function dispatch(): Promise<void> {
 
   if (args.cmd
     === 'create') {
-    await (args.from
-      !== undefined
-      ? backend.clone({
-        destination: args.name,
-        source: args.from,
-      },)
-      : backend.create({
+    /**
+     The floors this create set, empty when it set none.
+     */
+    const request: SizeRequest = sizeRequest({
+      memoryGiB: memoryGiBArgument(args.memoryGiB,),
+      vcpus: vcpusArgument(args.vcpus,),
+    },);
+    if (args.from
+      === undefined) {
+      await backend.create({
         name: args.name,
         ...(args.image !== undefined ? { image: args.image, } : {}),
         ...(args.serverType !== undefined ? { serverType: args.serverType, } : {}),
         ...(args.location !== undefined ? { location: args.location, } : {}),
-      },));
+        ...(isEmptySizeRequest({ request, },) ? {} : request),
+      },);
+    }
+    else {
+      // A clone boots its source's own size, so a floor cannot be honoured by one.
+      if (!isEmptySizeRequest({ request, },)) {
+        throw new Error(
+          `--from clones an existing machine and keeps its size, so --vcpus and --memory cannot be honoured with it: ${
+            describeSizeRequest({ request, },)
+          } was asked; drop --from, or drop the size and clone as the source is`,
+        );
+      }
+      await backend.clone({
+        destination: args.name,
+        source: args.from,
+      },);
+    }
   }
   else if (args.cmd
     === 'shell')
@@ -195,8 +222,18 @@ async function dispatch(): Promise<void> {
        */
       const NAME_COL_WIDTH = 24;
       vms.forEach(function printVm(vm: ReadonlyDeep<(typeof vms)[number]>,) {
-        console.log(`${vm.name
-          .padEnd(NAME_COL_WIDTH,)} ${vm.state}`,);
+        /**
+         The size the machine was made with, as two clauses the terminal can
+         compare down the column, empty when the backend cannot tell.
+         */
+        const size = [
+          ...((vm.vcpus === undefined) ? [] : [`${String(vm.vcpus,)} vCPUs`,]),
+          ...((vm.memoryGiB === undefined) ? [] : [`${String(vm.memoryGiB,)} GiB`,]),
+        ].join(', ',);
+        console.log(
+          `${vm.name
+            .padEnd(NAME_COL_WIDTH,)} ${vm.state}${(size === '') ? '' : `  (${size})`}`,
+        );
       },);
     }
   }
@@ -274,6 +311,8 @@ async function dispatch(): Promise<void> {
     const result = await backend.run({
       command: args.command,
       ...(args.from !== undefined ? { from: args.from, } : {}),
+      ...((args.vcpus === undefined) ? {} : { vcpus: args.vcpus, }),
+      ...((args.memoryGiB === undefined) ? {} : { memoryGiB: args.memoryGiB, }),
     },);
     if (result.stdout
       .length

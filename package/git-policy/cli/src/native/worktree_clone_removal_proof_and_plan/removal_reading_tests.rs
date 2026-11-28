@@ -216,14 +216,12 @@ fn a_promoted_clone_is_refused_and_nothing_is_written() {
     match read_without_writing(&fixture, &promoted)
         .expect_err("a promoted clone's lineage is not the recorded one")
     {
-        RemovalStop::OriginIsNotTheRecordedOne {
-            clone,
-            recorded,
-            live,
+        RemovalStop::TheCloneCannotBeProved {
+            cause,
+            ..
         } => {
-            assert_eq!(clone, CLONE);
-            assert_eq!(recorded, ORIGIN_SNAPSHOT);
-            assert_eq!(live.as_deref(), Some(ORIGIN_DATASET));
+            assert!(cause.contains(ORIGIN_SNAPSHOT), "{cause}");
+            assert!(cause.contains(ORIGIN_DATASET), "{cause}");
         }
         other => panic!("a promoted clone refuses on its origin, not {other:?}"),
     }
@@ -294,13 +292,16 @@ fn a_clone_of_another_guid_is_refused() {
     match read_without_writing(&fixture, &replacement)
         .expect_err("a same-name replacement clone is not the recorded one")
     {
-        RemovalStop::IdentityDiffers {
-            object,
-            field,
+        RemovalStop::TheCloneCannotBeProved {
+            cause,
+            recorded_guid,
+            answered_guid,
             ..
         } => {
-            assert_eq!(object, CLONE);
-            assert_eq!(field, "cloneGuid");
+            assert!(cause.contains(CLONE), "{cause}");
+            assert!(cause.contains("cloneGuid"), "{cause}");
+            assert_eq!(recorded_guid, CLONE_GUID.to_string().as_str());
+            assert!(answered_guid.is_some(), "the pool's answer is named too");
         }
         other => panic!("a replacement clone refuses on its GUID, not {other:?}"),
     }
@@ -324,15 +325,19 @@ fn a_clone_of_another_creation_group_is_refused() {
     match read_without_writing(&fixture, &another)
         .expect_err("a clone of another group is not the recorded one")
     {
-        RemovalStop::IdentityDiffers {
-            field,
-            recorded,
-            live,
+        RemovalStop::TheCloneCannotBeProved {
+            cause,
             ..
         } => {
-            assert_eq!(field, "cloneCreatetxg");
-            assert_eq!(recorded, CLONE_CREATETXG.to_string());
-            assert_eq!(live, (CLONE_CREATETXG + 1).to_string());
+            assert!(cause.contains("cloneCreatetxg"), "{cause}");
+            assert!(
+                cause.contains(CLONE_CREATETXG.to_string().as_str()),
+                "{cause}"
+            );
+            assert!(
+                cause.contains((CLONE_CREATETXG + 1).to_string().as_str()),
+                "{cause}"
+            );
         }
         other => panic!("a clone of another group refuses on its group, not {other:?}"),
     }
@@ -505,13 +510,12 @@ fn a_pool_of_another_pool_guid_is_refused() {
     match read_without_writing(&fixture, &another)
         .expect_err("a pool of another GUID is not the recorded one")
     {
-        RemovalStop::IdentityDiffers {
-            object,
-            field,
+        RemovalStop::TheCloneCannotBeProved {
+            cause,
             ..
         } => {
-            assert_eq!(object, POOL);
-            assert_eq!(field, "poolGuid");
+            assert!(cause.contains(POOL), "{cause}");
+            assert!(cause.contains("poolGuid"), "{cause}");
         }
         other => panic!("another pool refuses on its pool GUID, not {other:?}"),
     }

@@ -18,116 +18,7 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Open: what a ZFS removal does at a person's lock, at a plan it cannot read and at a staged clone, with one pick beside them (recorded 2026-11-28T05:17:09-05:00)
-
-The round that answered the lock question merged on 2026-11-28 as `2d5f167ae9`.
-Its control showed that on `main` a `git worktree remove` of a ZFS slot under a lock a person wrote
-sent the clone's snapshot request,
-the head destroy and the origin snapshot's request,
-and only then met the lock.
-The removal now reads the lock before its first write.
-What it built and measured is in `package/git-policy/cli/SPEC.md`,
-"Removal of a ZFS worktree clone".
-
-### Two forces at a person's lock
-
-A person ran `git worktree lock --reason 'keep this' <slot>` on a ZFS worktree,
-and someone then runs `git worktree remove --force --force <slot>`.
-In Git alone two forces drop a locked registration and leave the files.
-Here the removal destroys the clone and its own snapshots.
-
-- 1:
-  every spelling refuses,
-  two forces among them,
-  and the sentence names `git worktree unlock <slot>` as the way on.
-  The wrapper reads the lock file before it claims the slot,
-  compares its words with the sentence this add wrote,
-  and stops when they differ;
-  nothing is unmounted,
-  destroyed or written.
-  A person who means it types `git worktree unlock <slot>` and then the removal:
-  two commands.
-  This is what is built.
-- 2:
-  two forces pass.
-  The wrapper deletes the person's lock file itself and then destroys the clone.
-  One command,
-  with Git's own meaning of two forces;
-  the lock's one confirmation is gone,
-  and the function that never removes a lock it cannot attribute to this add would have to.
-- 3:
-  a spelling of the wrapper's own,
-  `--no-enforce-…`,
-  that says "and the lock too".
-  The wrapper would read that option,
-  delete the lock and destroy the clone.
-  One command;
-  it adds an option to a Git command whose grammar is Git's,
-  where `git worktree unlock` already says the same.
-
-Ranking:
-1 > 3 > 2.
-1 over 3:
-both keep a person's lock from being passed by habit,
-and 1 does it with a command Git already has.
-3 over 2:
-3 asks for a spelling nobody types by reflex,
-and 2 gives the destruction to the spelling Git's own refusal suggests.
-
-### A slot whose destruction plan does not read
-
-A removal was killed part way and its plan file is damaged.
-Today such a slot is left to Git:
-`git worktree remove` drops the registration and the slot folder,
-and the clone and the damaged plan stay.
-The owner's answer of 2026-11-26 named three refusals "and no more",
-and this is not one of them.
-
-- 1:
-  leave it to Git,
-  as now.
-  The wrapper classes the slot as a reading it cannot prove and answers nothing.
-  A clone stays on the pool with no registration,
-  which `doctor` reports.
-- 2:
-  refuse the removal there too,
-  naming the plan file and `git monochromatic-git-policy-cli settle-worktree-clone-record`.
-  The wrapper would add this reading to the ones that refuse.
-  Nothing is dropped until a person has settled the plan;
-  it is a fourth refusal beside the three the owner named.
-
-Ranking:
-2 > 1.
-Both destroy nothing;
-2 keeps the registration that says where the clone belongs,
-and 1 leaves a clone nothing points at.
-
-### A clone mounted at the staging folder, with no plan
-
-- 1:
-  leave it to Git,
-  as now:
-  the registration and the slot folder go,
-  and the clone stays mounted at the staging folder.
-- 2:
-  refuse the removal,
-  naming `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
-  which is the command the cancellation design gives for putting the mount back.
-- 3:
-  take the slot and let the removal's own unmount request run.
-  No record says what that request does to a clone already at the staging folder,
-  so this one needs a guest measurement before it could be built.
-
-Ranking:
-2 > 1 > 3.
-2 over 1:
-2 names the command that repairs the state,
-and 1 leaves it for `doctor` to find.
-1 over 3:
-3 could destroy snapshots while the mount still stands,
-and nothing has measured it.
-
-### The pick the session made, with the veto open
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
 
 The check before a command is wired with the nudge's switch off
 (`fcaea34f36`),
@@ -357,11 +248,23 @@ Taken on 2026-11-28 by the coordinating session's pick,
 with the owner's veto open:
 the third way,
 because it alone changes no signature and keeps the notice said when it is said today.
-A round builds it
-(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
-started at 2026-11-28T03:13:06-05:00),
-and it stops and reports if the third way turns out to change a signature,
-a behaviour or the moment the notice is said.
+It is built and on `main` since 2026-11-28T05:54:10-05:00
+(merge `74f34f6af9`).
+No signature changed,
+and the notice is said from the same place,
+on the same thread,
+once:
+the queue's own wait says it through a function its policy names,
+which is how the queue's file names no diagnostic file.
+A control written before the change holds the notice's words,
+its moment and that it is said once,
+and was shown red by a plant.
+The folder's three file-loop lines left the allow list,
+and `lines_written_by_a_thread.rs` is split in three.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
@@ -394,7 +297,6 @@ Ranking:
 3 > 1 > 2.
 3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
 1 beats 2 because a returned answer is more local than a flag another file has to take.
-`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
 ### What a landing writes for a path it has not read (issue 6566)
 
@@ -5061,3 +4963,181 @@ and each can be undone.
   wrote records for its two controls,
   and measures the pause from a stand-in's own start and end lines,
   which showed the planted edit in one gap of four on the loaded host.
+
+## For the owner, and veto open: what the morning of 2026-11-28 left between 06:14 and 07:17 (recorded 2026-11-28T07:17:43-05:00)
+
+The owner's stated priority this morning is guests on OVHcloud,
+so every question here waits until that work is moving,
+and none of them holds it.
+
+### Six proposals whose questions come after their gate reads
+
+Each was revised against its last gate read and merged on 2026-11-28,
+and each has a gate read by Claude Sonnet running;
+its questions are put through the question tool when that read is back:
+
+- the wrapper's development profile (`471d462ccf`),
+  six questions;
+- `mvm`'s sizes (`4217d02664`),
+  five still open of six;
+- the crate split's round 4 signatures (`39d9ec0b51`),
+  six questions;
+- GitHub's hosted runners (`60064b0024`),
+  six questions;
+- the linter's Dylint driver (`e63bf58c19`),
+  eight questions;
+- the linter's line breaks (`dc42566e69`),
+  nine questions.
+
+The paragraph of this file that begins with the linter's closure rule and issue 6643 describes the Dylint proposal's first draft.
+The proposal at `e63bf58c19` ranks differently:
+the floating channel with its components first for the toolchain,
+the lint task warming the driver first among local providers,
+and the pull-request surface as a question of its own.
+
+### `mvm` on OVHcloud: two picks with the veto open
+
+The owner chose the cheapest size that fits.
+The session's two other picks were shown beside that question and not answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families.
+Both are being built that way.
+
+### `mpm-shadow`: seven items the alpha.20 read left
+
+They are restated with their evidence,
+their options and a ranking in `package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`,
+"What stays open after the alpha.20 read":
+temporary links of an earlier shape named on every install for ever;
+a bin name that is long only together with its folder;
+the two-second line for installers that routinely run longer;
+an install by `0.2.7-alpha.19` beside one by `0.2.7-alpha.20`;
+two locks in one scope;
+a killed move of `current`;
+and the report on standard output,
+which still ends the command when its reader has left.
+
+### The ZFS route: three proposed values a measurement contradicts
+
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md` now shows that the mount-request deadline and step 9's unmount deadline,
+both proposed at 5,000 ms,
+hold only to a parent of about 256 clones,
+and that the heartbeat's four periods of 1,000 ms hold to about 205.
+The round's ways:
+bound a parent's clones;
+set the deadline from the clone count;
+chunk the sweep so a request is answered between chunks;
+or accept a missed window on a large parent.
+No constant was changed.
+
+### `mvm`: what a published copy runs
+
+Merge `9afd7194ab` makes the command run the TypeScript source beside it.
+A copy published to a registry cannot do that,
+because Node refuses TypeScript under `node_modules`,
+so it would need a built copy and a check of another kind.
+`mvm` is private today.
+Issue 6660 lists the twenty other commands and `mvm-mcp` that have the old shape.
+
+## Veto open: what the shutdown pass's round chose (recorded 2026-11-28T07:29:00-05:00)
+
+Merge `871e0be314` built the ZFS route's shutdown pass ahead of its wiring.
+Its round made these picks beyond its brief,
+each with the way not taken and its cost in the round's report,
+whose scratch expires a day after its last change:
+
+- the pass compares no live dataset GUID,
+  so a dataset destroyed and made again under the same name and mounted at the same slot is unmounted and not refused;
+  comparing one would make every check wait on `/dev/zfs` at shutdown;
+- a readiness record the route's reader refuses is removed all the same,
+  and a directory the route did not make is refused,
+  so a corrupt record is deleted and named in the pass's line and no mount is left standing over it;
+- the withdrawal removes the record and publishes no second one,
+  so nothing under `/run` says the boot is ending;
+- a busy mount's holder is named by mount namespace and never by process,
+  because naming the process would mean reading another account's descriptors;
+- the unmount is named by the descriptor opened without crossing the slot's mount,
+  after the clone's own descriptor is dropped,
+  which a guest run measured:
+  with the clone's descriptor held the kernel answered that the mount was busy.
+
+## Veto open: what the cheapest size that fits comes to (recorded 2026-11-28T07:45:46-05:00)
+
+The owner decided on 2026-11-28 that among sizes that fit the cheapest is taken,
+and merge `b7f9f7ed2c` builds it.
+What that decision was not shown,
+from the build's report and the proposal's second gate read:
+
+- for small asks the cheapest size is a `d2` one,
+  which OVHcloud's own table calls Discovery:
+  shared resources,
+  for testing and proof of concept.
+  The billed run asked for two cores and 4 GiB and got `d2-4` at 0.033 CAD an hour;
+  `c3-4`,
+  with the same numbers and cores of its own,
+  is 0.0732;
+- the hourly figures the proposal lists leave out two billed lines the price page shows:
+  a public IPv4 address at 0.00432 CAD an hour,
+  and local storage on the `b3`,
+  `c3` and `r3` sizes at 0.011665 CAD an hour for each 50 GB.
+  Whether the build's price read counts them is not checked;
+- `--memory` is compared with the catalogue's own memory number with no unit change,
+  so `--memory 4` is met by a size listed with 4.
+  The repository's comment calls that number GiB and the proposal treated it as GB;
+  one create settles which;
+- the build leaves the storage family `i1` out,
+  where the proposal's allow-list kept it;
+- a clone that is given either number refuses,
+  where it used to ignore nothing because the numbers did not exist.
+
+Guest rounds meanwhile name a size outright,
+`b3-16`,
+which is the session's pick.
+
+## Veto open: what the round that made the removal read force chose (recorded 2026-11-28T08:02:12-05:00)
+
+Merge `7c4962988d` built the owner's answers of 2026-11-28 on forces at a ZFS removal.
+Where the round went past what was decided,
+each with the way not taken in its report,
+whose scratch expires a day after its last change:
+
+- two forces do not loosen four refusals:
+  the transferred-history refusal,
+  the origin-side hit,
+  the deferred-origin checks and the holder scans.
+  The owner's words were that force "overrides anything and delete and destroy no matter what";
+  no design says what destroying inherited history or a marked origin should do,
+  and the two-forces design asks about holders;
+- a forced removal whose plan cannot be read and whose clone no longer answers refuses,
+  with one force and with two,
+  because deleting that plan would delete the only record of what an earlier run destroyed.
+  The settling command refuses such a plan too,
+  so a person has no way out of that state in this build;
+- a worktree with modified or untracked files refuses without force and passes one force,
+  which is Git's own gradation.
+  Before this merge the clone was destroyed with no force at all;
+- the bookmark rule is waived whenever a force was given,
+  and the report names each bookmark that went;
+- a spelling Git itself refuses counts as no force;
+- a clone mounted somewhere that is no staging folder stays Git's,
+  with or without force.
+
+## Veto open: what the private propagation step's round chose (recorded 2026-11-28T08:02:12-05:00)
+
+Merge `ce0d52a686` built the step ahead of its wiring:
+
+- on a kernel that reports no namespace number for a mount (before Linux 6.9),
+  the step does not refuse for want of it and the record's field reads `none`;
+- the record gains one step word the accepted design did not list,
+  `record`,
+  for a run whose answer could not be filed;
+- every item of the step is published from the crate,
+  with its names in the list of published names,
+  because an unwired piece's private items fail the build as dead code;
+- the trigger measurement read:
+  ten of ten replacements at a person's pace seen once each,
+  no loop,
+  and a burst of eight held to three starts.
+  On that reading the provisional systemd trigger stays;
+  the decision is the owner's.

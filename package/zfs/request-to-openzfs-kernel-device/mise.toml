@@ -52,8 +52,8 @@ run = ["cargo nextest run --release", "mise run test:tooling"]
 # before any guest is made. See e2e/load-the-built-module-step.check.ts and
 # e2e/load-the-template-module-step.check.ts.
 [tasks."test:tooling"]
-description = "Check the guest recipe's module steps on this host, without a guest"
-run = ["node e2e/load-the-built-module-step.check.ts", "node e2e/load-the-template-module-step.check.ts"]
+description = "Check the guest recipe's module steps and its one place for a backend on this host, without a guest"
+run = ["node e2e/load-the-built-module-step.check.ts", "node e2e/load-the-template-module-step.check.ts", "node e2e/guest-backend.check.ts"]
 
 [tasks."test:debug"]
 description = "cargo nextest run in debug mode for fast iteration"

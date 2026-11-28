@@ -31,6 +31,9 @@
 //!   the root-owned `/run` directory a record lives in,
 //!   made when it is absent and proved through its own descriptor,
 //!   which uses nothing in this folder and is used by the two writers below.
+//! - `staging_folder_component.rs`:
+//!   the component every staging folder of a removed clone begins with,
+//!   and the question whether a mount point is one.
 //! - `clone_mount_property_names.rs`:
 //!   the two property names,
 //!   the version and operation words and the intent's byte bound.
@@ -90,6 +93,10 @@
 //! - `clone_mount_readiness_file.rs`:
 //!   the root-owned readiness directory and its record:
 //!   where one boot's readiness lives and how it is written.
+//! - `clone_mount_readiness_file_withdraw.rs`:
+//!   the withdrawal of one boot's record,
+//!   the removal through the proved directory,
+//!   and the read that proves nothing answers after it.
 //! - `clone_mount_intent_write.rs`:
 //!   the wrapper's request and nudge payloads and the gated writes.
 //! - `unanswered_request_entry.rs`:
@@ -139,6 +146,9 @@
 
 /// The root-owned `/run` directory a record lives in.
 pub mod root_owned_directory;
+
+/// The component every staging folder of a removed clone begins with.
+pub mod staging_folder_component;
 
 /// The route's fixed property names,
 /// words and bounds.
@@ -193,6 +203,9 @@ pub mod clone_mount_readiness_parse;
 
 /// The root-owned readiness directory and its file.
 pub mod clone_mount_readiness_file;
+
+/// The withdrawal of one boot's readiness record.
+pub mod clone_mount_readiness_file_withdraw;
 
 /// The wrapper's intent and nudge writes behind the gate.
 pub mod clone_mount_intent_write;

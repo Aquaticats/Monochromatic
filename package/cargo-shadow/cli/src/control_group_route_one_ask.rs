@@ -86,6 +86,10 @@ use crate::control_group_route_discovery::RouteSettings;
 /// whether the words are that refusal is decided in the discovery (`the_manager_answered_a_start`).
 /// Each program is timed on its own,
 /// because the discovery starts one program per ask and a slow one followed by a fast failure must still be put again.
+/// A failure can also be one no wait of this tool ends,
+/// which `stops_the_call` says:
+/// a route the manager reports beside a job a start could not wait out is that kind,
+/// because a scope made there is refused while the job stands.
 pub(crate) struct FailedAsk {
     /// The words the refusal names.
     pub(crate) reason: String,
@@ -93,6 +97,8 @@ pub(crate) struct FailedAsk {
     /// false where a program spent the bound the ask gave it,
     /// and false where the manager itself answered.
     pub(crate) may_be_put_again: bool,
+    /// Whether this failure stops the call rather than the run standing in for it with a process group of its own.
+    pub(crate) stops_the_call: bool,
 }
 
 /// What one ask of where the slice is answered:
@@ -285,6 +291,7 @@ pub(crate) fn ask_where_the_slice_is_once(
                     settings.slice
                 ),
                 may_be_put_again: !spent_its_bound(settings, began.elapsed()),
+                stops_the_call: false,
             });
         }
     };

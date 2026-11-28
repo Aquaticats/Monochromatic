@@ -78,6 +78,22 @@ is what the same binary reported on the fixed copies of the run's `222` host fil
 `65` findings,
 `64` of them in one file
 and one in the old control copy that run's harness never passed to the fix.
+The command was one run of the binary over the copies folder the harness left,
+with the harness's own one-rule configuration
+(`../reported-paragraphs-after-the-fix-config.jsonc`):
+
+```sh
+# the copies folder the harness wrote, outside the repository and since deleted
+monochromatic-lint --config <the one-rule configuration> --no-ignore --concurrency 2 <the copies folder>
+```
+
+The findings go to stdout,
+one JSON object per finding,
+which is the format of that file;
+this round checked the format on a fixture of its own
+(`monochromatic-lint --config <one rule> --no-ignore <paths>` prints one object per finding and exits `1`),
+and did not repeat the run,
+whose copies folder is gone and whose `filename` fields therefore name paths that no longer exist.
 
 `../repository-configuration-on-package-git-policy-cli.jsonl`
 is the output of

@@ -15,6 +15,7 @@
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
@@ -25,14 +26,18 @@ import {
   statusOf,
 } from '../../bin/mvm-guest-step-command.ts';
 
-
-
 import {
   armTimeoutMilliseconds,
   longArmTimeoutMilliseconds,
   pool,
   probeScript,
 } from './probe-fixture.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
 
 /**
  The log the warm and cold timing arm writes inside the run's log folder.
@@ -154,8 +159,7 @@ export async function timingsBootFirst({
   await statusOf({
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'exec',
       chosen.name,
       '--',
@@ -232,8 +236,7 @@ async function waitForTheGuestToAnswer({
   const status = await statusOf({
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'exec',
       chosen.name,
       '--',

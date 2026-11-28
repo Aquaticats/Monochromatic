@@ -1660,8 +1660,17 @@ One control group accounts for it.
   31,575 MiB held and 27,983 MiB in swap,
   59,558 MiB between them,
   which is 7,445 MiB (7.3 GiB) a guest on average.
-  Two guests read alone through `smaps_rollup` held 5,189 MiB and 4,180 MiB,
-  nearly all of it in swap.
+- A guest's own share cannot be read from its QEMU process's `smaps_rollup`.
+  Read over all eight at 05:34:38,
+  `Rss` plus `Swap` summed to 29,535 MiB while the unit held 59,561 MiB:
+  the read counts the pages swapped out
+  (28,559 MiB,
+  against the unit's 27,986 MiB of swap)
+  and the pages mapped at that instant
+  (976 MiB),
+  and leaves out the shared memory that is in memory and unmapped,
+  about 30.6 GiB of the unit's.
+  `doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` used that same read as a guest's charge.
 
 So eight guests that between them had touched 58.2 GiB sat in a unit allowed 30.8 GiB,
 and the unit swapped against its own limit while memory stood free outside it.
@@ -1680,6 +1689,41 @@ The machine-wide pressure line reads that unit's stall as the machine's.
   That number was never set against the unit's limit.
 - `package/mvm/cli/README.md` gives the limit's basis as a measurement of 2026-11-21 in which a unit with one 8 GiB guest was charged 990 MB.
   A guest that builds the wrapper's crate inside itself touches several times that.
+
+### After the limit was raised
+
+The owner chose three quarters of the machine's memory for the unit,
+applied to the running unit
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The guests' memory").
+`systemctl --user set-property --runtime mvm-libvirt-session.service MemoryMax=47364M` ran at 05:45:26
+and moved the unit's `memory.max` from 33,109,835,776 to 49,664,753,664 bytes.
+The readings of a sampler that wrote one line a minute:
+
+- 05:45:10,
+  before:
+  the unit `full avg10=88.29`,
+  the machine `full avg10=82.37`,
+  the count of meetings with `max` at 1,409,996 and rising by thousands a minute.
+- 05:46:11:
+  the unit `full avg10=1.70`,
+  the machine `full avg10=1.71`,
+  the count at 1,411,196.
+- 05:47:12:
+  both `full avg10=0.00`,
+  the count still 1,411,196,
+  the unit holding 35,664 MiB with 24,491 MiB in swap.
+- 05:50:15,
+  with seven guests alive:
+  the unit at 33,930 MiB with 20,333 MiB in swap,
+  both `full avg60` under 1,
+  the count unchanged,
+  and `MemAvailable` at 6,276,260 kB.
+
+So the stall ended within two minutes of the limit moving,
+and the machine-wide line followed the unit's to zero.
+What the larger limit costs the rest of the machine is not read yet:
+`MemAvailable` moved between 4.0 GB and 9.8 GB in those minutes.
 
 ### Six of the eight guests could not give memory back
 

@@ -19,6 +19,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
@@ -57,6 +58,12 @@ import {
 import { GuestDriverError, } from '../../bin/mvm-guest-error.ts';
 
 /**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
+
+/**
  The environment the boot arm's phases read, which every phase of it shares.
 
  @param chosen - the run's guest, whose name the arm's gate reads
@@ -87,7 +94,7 @@ function bootEnvironment({
     `export CLI_GIT_ZFS_STEP19_SBIN=${openZfsSbin}`,
     `export CLI_GIT_ZFS_STEP19_CHECKOUT_DATASET=${checkoutDataset}`,
     `export CLI_GIT_ZFS_STEP19_CONTAINER=${containerDataset}`,
-    `export CLI_GIT_ZFS_STEP19_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_STEP19_GUEST=${backend.hostnameOf(chosen.name)}`,
   ];
 }
 
@@ -179,12 +186,11 @@ export async function rebootTheGuest({
     logDirectory: chosen.logDir,
     program: 'mvm',
     argumentWords: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'exec',
       chosen.name,
       '--',
-      `test "$(hostname)" = ${chosen.name} && (systemctl reboot || true)`,
+      `test "$(hostname)" = ${backend.hostnameOf(chosen.name)} && (systemctl reboot || true)`,
     ],
     log: 'guest-step19-reboot.log',
     timeoutMilliseconds: 180_000,
@@ -231,12 +237,11 @@ async function waitForTheGuest({
   const answered = await statusOf({
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'exec',
       chosen.name,
       '--',
-      `test "$(hostname)" = ${chosen.name} && hostname`,
+      `test "$(hostname)" = ${backend.hostnameOf(chosen.name)} && hostname`,
     ],
     timeoutMilliseconds: 60_000,
   },);

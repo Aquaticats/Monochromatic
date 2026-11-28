@@ -160,8 +160,12 @@ pub fn pointer_site_of(mount: &CloneMount) -> PointerSite {
     return match mount {
         CloneMount::AtItsSlot => PointerSite::AtTheCloneRoot,
         CloneMount::Nowhere => PointerSite::Underlay,
-        // A clone mounted elsewhere leaves the slot's own folder showing, which is the underlay this route made.
+        // A clone mounted elsewhere leaves the slot's own folder showing, which is the underlay this route made, and a
+        //  clone left on a staging folder shows the same folder.
         CloneMount::Elsewhere {
+            ..
+        }
+        | CloneMount::AtTheStagingFolder {
             ..
         } => PointerSite::Underlay,
         CloneMount::SomethingElseAtTheSlot {

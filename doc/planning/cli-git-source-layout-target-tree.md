@@ -4716,6 +4716,55 @@ that wording is kept.
   Saying the notice through `standard_error_descriptor` is not one of them:
   it would ignore `MONOCHROMATIC_VERBOSE` and write where the caller stands,
   which is what a reader that stopped draining must never cost.
+  Note of 2026-11-28T04:48:30-05:00,
+  from the round whose branch is
+  `refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`
+  (`244bb5ffe1` and `523f698920`):
+  the third way was built and the loop is closed.
+  The words of a diagnostic line,
+  with the two switches and the per-thread memory of the lines written,
+  are `foundation/the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote.rs`;
+  the notice a stopped reader is owed is the queue policy's own field,
+  `reader_stopped_notice`,
+  which `foundation/diagnostic_lines_off_the_calling_thread.rs` fills with a function that
+  says the line through its own `write`;
+  the queue calls it from the arm where a caller's wait gives the reader up,
+  after dropping the lock and before it answers,
+  so the notice's call site,
+  its thread,
+  its order and its once-per-process saying are the ones the queue's own `debug` call had
+  (`994fb747a8`,
+  which replaced a first shape that said it after the wait returned and was argued down:
+  that shape let a caller whose answer was already stopped win the saying,
+  lost a second notice for a reader a control replaced,
+  and read the queue's reader state in release code);
+  `foundation/diagnostic_log.rs` keeps `debug` and `warn` and re-exports the three published
+  names,
+  so a consumer's path still resolves.
+  No signature changed,
+  and the notice keeps its words,
+  its moment and its saying once for one reader that stopped,
+  which the control
+  `diagnostic_lines_off_the_calling_thread::tests::the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound`
+  holds,
+  in five arms:
+  no notice while a reader keeps up,
+  one at the bound with the words,
+  no second one for a later line,
+  the words in the stream the queue's thread writes,
+  and a fresh notice for a reader that a control replaced and that stopped in its turn.
+  The three `file-uses` lines left `layout-allow-list/file-rule.txt`,
+  so `foundation/` has no file loop and the list lost its three lines.
+  The choice of this way is the coordinating session's,
+  and the owner may still veto it for way 1 or way 2.
+  `foundation/lines_written_by_a_thread.rs` then split,
+  as the handover entry said it waited to,
+  into `the_queue_and_its_thread.rs`,
+  `the_line_a_refused_thread_writes_where_it_is_said.rs`
+  and itself as the caller's side,
+  which keeps its name and names the other two files' items again,
+  so no caller changed,
+  and each of the three is under the 300 code lines the rule allows.
 
 - Loop of 3,
   `landing`:

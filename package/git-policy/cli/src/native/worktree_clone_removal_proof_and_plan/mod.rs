@@ -35,6 +35,10 @@
 //!   the one spelling a plan's numbers take.
 //! - `loss_names.rs`:
 //!   the list of names a removal prints as lost.
+//! - `removal_force.rs`:
+//!   how many forces one command carried,
+//!   counted the way Git counts them,
+//!   and what each count passes.
 //! - `plan_refusal.rs`:
 //!   why bytes are not a plan,
 //!   and the sentence a person reads.
@@ -51,12 +55,19 @@
 //!   a dataset's name and a snapshot's.
 //! - `removal_stop.rs`:
 //!   every way the removal stops.
+//! - `removal_force_refusal_sentences.rs`:
+//!   the sentences of the five refusals a force count decides.
 //! - `removal_stop_sentences.rs`:
 //!   the sentence each way of stopping prints.
+//! - `removal_forced_acts.rs`:
+//!   the acts a removal does only because of a force,
+//!   and the lines a person reads about them.
 //! - `the_lock_a_removal_refuses.rs`:
 //!   the refusal a removal owes a lock whose words are not its add's.
 //! - `fresh_holder_scan.rs`:
 //!   the fresh all-namespace scan each destroy is preceded by.
+//! - `holder_report.rs`:
+//!   one scan's answer as a report that names holders reads it.
 //! - `removal_identities.rs`:
 //!   the identities the add recorded,
 //!   the origin-side inventory it recorded,
@@ -108,6 +119,10 @@
 //!   the removal intent and the verified answer.
 //! - `removal_clock.rs`:
 //!   the three process facts a removal's plan records.
+//! - `removal_entry_facts.rs`:
+//!   the loss a standing plan records,
+//!   the plan fields the first write carries,
+//!   and the answer to a plan that names another clone.
 //! - `removal_entry.rs`:
 //!   the one order a removal's proof,
 //!   intent,
@@ -133,6 +148,11 @@
 //!   the removal's read-only reading:
 //!   what a removal would prove and lose,
 //!   and the lines a command prints instead of writing.
+//! - `removal_start_inputs.rs`:
+//!   the seams one removal's start reads,
+//!   and the two answers it can end in.
+//! - `removal_forced_start.rs`:
+//!   where a forced removal starts past a plan it may not read.
 //! - `removal_resume.rs`:
 //!   where a removal starts:
 //!   a fresh entry,
@@ -162,6 +182,7 @@
 pub mod bookmark_rule;
 pub mod canonical_decimal;
 pub mod fresh_holder_scan;
+pub mod holder_report;
 pub mod lineage_proof;
 pub mod loss_names;
 pub mod plan_attempt_parse;
@@ -185,6 +206,11 @@ pub mod removal_completion_head_present;
 pub mod removal_completion_inputs;
 pub mod removal_destruction;
 pub mod removal_entry;
+pub mod removal_entry_facts;
+pub mod removal_force;
+pub mod removal_force_refusal_sentences;
+pub mod removal_forced_acts;
+pub mod removal_forced_start;
 pub mod removal_head_destroy;
 pub mod removal_identities;
 pub mod removal_inventory;
@@ -199,6 +225,7 @@ pub mod removal_settle;
 pub mod removal_settle_step;
 pub mod removal_slot_claim;
 pub mod removal_snapshot_settlement;
+pub mod removal_start_inputs;
 pub mod removal_stop;
 pub mod removal_stop_sentences;
 pub mod started_moment;
@@ -307,6 +334,8 @@ pub use removal_entry::{
     RemovalEntry,
     enter_the_removal,
 };
+pub use removal_force::RemovalForce;
+pub use removal_forced_acts::ForcedActs;
 pub use removal_head_destroy::{
     CloneAbsence,
     DatasetDestroyDevice,
@@ -340,10 +369,7 @@ pub use removal_report::{
     OriginCleanupDone,
     TheRemovalDone,
 };
-pub use removal_resume::{
-    TheStart,
-    start_the_removal,
-};
+pub use removal_resume::start_the_removal;
 pub use removal_settle::{
     RegistrationSettle,
     SettleAnswer,
@@ -355,6 +381,10 @@ pub use removal_slot_claim::{
     RemovalClaim,
     release_at_the_last_step,
     take_the_removals_claim,
+};
+pub use removal_start_inputs::{
+    TheStart,
+    TheStartingRemoval,
 };
 pub use removal_stop::{
     BookmarkRefusalReason,

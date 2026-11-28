@@ -7,8 +7,7 @@
  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`): it creates the Ubuntu 24.04 guest, prepares it with
  OpenZFS 2.4.4, Rust and cargo-nextest, builds this crate's binaries and tests inside it, runs the arm, and destroys the
  guest. The arm itself creates the design's layout, the store, the installed files and the records, asserts every group
- passes, compares the release's gatherer of the machine's route facts with the arm's own helper line for line, then
- breaks one fact at a time and asserts the finding through the release's gatherer.
+ passes, then breaks one fact at a time and asserts the finding.
 
  Every line a run must find is printed by the arm as `DOCTOR-GUEST <claim>`. `create` refuses a name `mvm list` already
  reports, and `destroy` removes only a guest this driver created.
@@ -25,6 +24,10 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from '../bin/mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -52,6 +55,11 @@ import {
 import {
   captureHostCommand,
 } from '../bin/mvm-guest-step-command.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -100,17 +108,41 @@ const REMOVAL_PREFIX = '/opt/openzfs-2.4.4';
  */
 const REMOVAL_ROOT = '/home/zfs-doctor-removal-fixture';
 /**
+ The variable the gatherer's arm reads for its guest.
+ */
+const CLONE_FACTS_GUEST_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_GUEST';
+/**
+ The variable the gatherer's arm reads for its pool.
+ */
+const CLONE_FACTS_POOL_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_POOL';
+/**
+ The variable the gatherer's arm reads for its OpenZFS prefix.
+ */
+const CLONE_FACTS_PREFIX_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_PREFIX';
+/**
+ The variable the gatherer's arm reads for its fixture root.
+ */
+const CLONE_FACTS_ROOT_VARIABLE = 'CLI_GIT_ZFS_CLONE_FACTS_ROOT';
+/**
+ The pool the gatherer's six clones are built in.
+ */
+const CLONE_FACTS_POOL = 'zfsclonefacts';
+/**
+ The folder the gatherer's arm lives under.
+ */
+const CLONE_FACTS_ROOT = '/home/zfs-clone-facts-fixture';
+/**
  The swap file the guest's build and arm make before they start: the image has none, and a kernel that ends the
  largest process of a command also ends the guest agent whose table holds that command's result
  (`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`, "The fix, and what it cannot do").
  */
 const SWAP_STEPS: readonly string[] = [
-  'if ! swapon --show | grep --quiet /swapfile; then fallocate --length 4G /swapfile && chmod 600 /swapfile && mkswap --quiet /swapfile && swapon /swapfile; fi',
+  'if ! swapon --show | grep --quiet /swapfile; then fallocate --length 6G /swapfile && chmod 600 /swapfile && mkswap --quiet /swapfile && swapon /swapfile; fi',
 ];
 /**
  Milliseconds the guest's crate build may take.
- 2,400,000 s was a build that took 516 s on 2026-11-27's earlier guest; the same build on the same host at a load
- average of 82 was still compiling the release binaries when 2,400,000 ms ran out, so the bound is 5,400,000 ms.
+ 2,400,000 ms was a build that took 516 s in one guest; the same build on the same host at a load average of 82 was
+ still compiling the release binaries when 2,400,000 ms ran out, so the bound is 5,400,000 ms.
  */
 const CRATE_BUILD_TIMEOUT_MS = 5_400_000;
 /**
@@ -118,7 +150,7 @@ const CRATE_BUILD_TIMEOUT_MS = 5_400_000;
  */
 const BUILD_FINISH_MARGIN_MS = 120_000;
 /**
- Milliseconds one arm may take: two release test binaries, the pools their arms build, and the host's load.
+ Milliseconds one arm may take: three release test binaries, the pools their arms build, and the host's load.
  */
 const ARM_TIMEOUT_MS = 2_700_000;
 /**
@@ -140,7 +172,6 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST rename-grant-is-a-finding',
   'DOCTOR-GUEST readiness-from-another-boot-is-a-finding',
   'DOCTOR-GUEST unread-step-facts-are-unknown',
-  'DOCTOR-GUEST the-releases-gatherer-answers-the-same-report',
   'DOCTOR-GUEST snapdir-visible-is-a-finding',
   'DOCTOR-GUEST snapdir-hidden-is-a-finding',
   'DOCTOR-GUEST snapdir-default-is-a-finding',
@@ -155,6 +186,13 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST-REMOVAL origin-mark-is-a-finding',
   'DOCTOR-GUEST-REMOVAL pruned-registration-is-a-finding',
   'DOCTOR-GUEST-REMOVAL retention-names-its-fields',
+  'CLONE-FACTS-GUEST mounted-clone-passes',
+  'CLONE-FACTS-GUEST unmounted-clone-passes',
+  'CLONE-FACTS-GUEST staged-clone-is-a-staging-finding',
+  'CLONE-FACTS-GUEST stopped-removal-stands-with-its-plan',
+  'CLONE-FACTS-GUEST marked-origin-is-a-finding',
+  'CLONE-FACTS-GUEST held-clone-names-its-namespace-and-task',
+  'CLONE-FACTS-GUEST gather-writes-nothing',
 ];
 
 //endregion Constants
@@ -174,7 +212,7 @@ async function create(chosen: GuestDriverOptions,): Promise<void> {
    */
   const listed = await captureHostCommand({
     command: 'mvm',
-    args: ['list',],
+    args: [...backend.mvmArgumentWords, 'list',],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (holdsGuestName({
@@ -253,16 +291,17 @@ async function build(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
+  // A backend that mounts no share has no folder for the archive to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await host({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -317,21 +356,28 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
-    // The arm runs as root, and its facts name the account's own cache; `mvm exec` hands the command no HOME, so the
-    // arm states the guest root account's home rather than letting the gather read none.
+    // The arm runs as root, and its facts name the account's own cache; a command started without HOME would leave the
+    // gather reading none, so the arm states the guest root account's home.
     'export HOME=/root',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${POOL_VARIABLE}=${POOL}`,
-    `export ${REMOVAL_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${REMOVAL_GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
     `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
+    `export ${CLONE_FACTS_GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
+    `export ${CLONE_FACTS_POOL_VARIABLE}=${CLONE_FACTS_POOL}`,
+    `export ${CLONE_FACTS_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
+    `export ${CLONE_FACTS_ROOT_VARIABLE}=${CLONE_FACTS_ROOT}`,
     'if /root/.cargo/bin/cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all --filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/doctor-route-arm.log',
     'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_removal_lines_guest > /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
     'cat /root/doctor-removal-arm.log',
+    'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_clone_facts_guest > /root/doctor-clone-facts-arm.log 2>&1; then clonefacts=0; else clonefacts=$?; fi',
+    'cat /root/doctor-clone-facts-arm.log',
     'if test $status -ne 0; then exit $status; fi',
-    'exit $removal',
+    'if test $removal -ne 0; then exit $removal; fi',
+    'exit $clonefacts',
   ]
     .join('\n',);
   await startDetachedGuestScript({

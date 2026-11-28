@@ -119,6 +119,231 @@ mise run //package/mvm/cli:run -- create --image fedora build-box
 mise run //package/mvm/cli:run -- create --image windows win-box
 ```
 
+## Choosing a machine's size
+
+`mvm create` and `mvm run` take `--vcpus <count>` and `--memory <GiB>`.
+Each is optional and each works alone.
+The two numbers are floors,
+never exact demands:
+
+> the machine has at least that many virtual CPUs and at least that much memory.
+
+Without either option every backend does exactly what it did before,
+so no existing command changes.
+
+A size named outright with `--server-type` (or `MVM_OVH_FLAVOR`,
+or `MVM_HCLOUD_SERVER_TYPE`) cannot be combined with either number:
+the two can disagree,
+and the create refuses naming both and how to choose one.
+`mvm create --from` clones a machine and keeps the source's size,
+so a floor beside it is refused rather than quietly ignored.
+
+### On the libvirt backend
+
+A libvirt guest gets exactly the numbers asked:
+
+```sh
+# package/mvm/cli/README.md -- two vCPUs and 4 GiB of memory
+mvm create --vcpus 2 --memory 4 dev-01
+```
+
+That defines a domain with two vCPUs and `4096` MiB.
+Without the options a guest keeps the [VM defaults](#vm-defaults),
+four vCPUs and 8 GiB.
+
+The guest lives in the cgroup of `mvm-libvirt-session.service`,
+whose `MemoryMax` is three quarters of the machine's total memory
+([Session daemon](#session-daemon)).
+A guest that asks for more than that cap is not refused:
+the domain is accepted and the guest starts.
+The cap limits how much the whole unit may touch,
+not how much one domain may declare,
+and a guest seldom touches every page it was given.
+What the cap does is bind every guest together:
+once they touch more than those three quarters,
+the kernel's out-of-memory killer ends a process inside a guest
+instead of letting the host's own work be swapped out.
+mvm refuses only what it can prove wrong,
+and what a guest will touch later is not something it can prove.
+
+`mvm list` shows the numbers a guest was given,
+read from the metadata mvm wrote beside its disk.
+A guest made before mvm recorded them shows no size at all
+rather than a default it never had.
+
+### On the hetzner backend
+
+The same rule runs over server types,
+from the fields Hetzner's own server type object carries:
+
+- a type is a candidate only when it is not deprecated,
+  is offered in at least one of the requested locations,
+  and is sold with **shared** virtual CPUs;
+  a plan sold with `dedicated` cores is a different product and is never picked
+  without being named
+  (Hetzner:
+  "Every dedicated resources instance has its own dedicated CPU
+  resources",
+  [server types][hetzner-server-types]);
+- of those,
+  only types whose `cores` and `memory` are both at least what was
+  asked;
+- the smallest candidate wins:
+  cores,
+  then memory,
+  then disk,
+  then the name.
+
+```sh
+# package/mvm/cli/README.md -- at least two vCPUs and 4 GB of memory, fsn1 then nbg1
+mvm --backend hetzner create --vcpus 2 --memory 4 build-box
+```
+
+Before it creates anything the command prints the type it picked with its
+numbers,
+in the shape `cx23 (2 cores, 4 GB of memory, 40 GB of disk)`.
+Which type that is,
+and what its numbers are,
+comes from the catalogue at call time:
+Hetzner publishes a table per plan,
+and
+[deprecated plans][hetzner-deprecated-plans] carries the table's shape
+(`CX22` is 2 vCPUs,
+4 GB of RAM and 40 GB of SSD).
+A create never picks a deprecated plan,
+so the type it prints is not one from that table.
+
+### On the ovh backend
+
+Among the flavors the region has in stock,
+the backend keeps only families OVHcloud sells as general-purpose Linux
+machines,
+keeps those whose vCPUs and memory are both at least what was asked,
+reads their hourly prices,
+and takes the cheapest.
+The price comes from OVHcloud's public order catalogue,
+`GET /v1/order/catalog/public/cloud`,
+whose answer prices each flavor's hourly plan code
+(`c3-4.consumption`) in the currency its own `locale` names.
+A flavor record carries no price,
+so this is one extra read,
+made once per
+create.
+
+A size the catalogue publishes no hourly price for is never picked,
+so a flavor that has no price is not a candidate even when it would fit.
+The same applies to every `-flex` twin:
+no flex name has a published hourly
+price.
+
+When the price read cannot be had,
+the order falls back to the numbers alone:
+vCPUs,
+then memory,
+then disk,
+then the plain size before its `-flex` twin,
+then the name.
+The command says which order it used:
+
+```text
+size at least 2 vCPUs fits d2-4 (2 vCPUs, 4 GiB of memory, 50 GB of disk), 0.033 CAD per hour
+```
+
+That line is printed before anything is created.
+
+```sh
+# package/mvm/cli/README.md -- at least two vCPUs and 4 GiB of memory in BHS5
+mvm --backend ovh create --vcpus 2 --memory 4 build-box
+```
+
+Before it creates anything the command prints the size it picked,
+its numbers and its hourly price,
+for example `flavor d2-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk, 0.033 CAD per hour`.
+That is what a live `BHS5` catalogue gives for those floors:
+`d2-4` and `c3-4`
+both have 2 vCPUs and 4 GiB,
+and `d2-4` costs less.
+
+Families kept,
+by the catalogue's own names:
+
+- `b2` and `b3`,
+  general purpose;
+- `c2` and `c3`,
+  compute optimized;
+- `r2` and `r3`,
+  memory optimized;
+- `d2`,
+  discovery,
+  the entry-level shared-resource family.
+
+Families left out:
+
+- GPU and accelerator families,
+  which OVHcloud's worker-node guide names as `GPU (T2-*, L4-*, L40S-*)`,
+  and the `t1` family the catalogue files under `ovh.raid-nvme.t1`.
+  The region also carries one image whose `flavorType` restricts it to
+  `g1,g2,g3,t1,t2,i1,a100,l4,rtx5000,l40s`;
+- the storage-shaped `i1` family,
+  which OVHcloud calls **Storage Optimized**
+  and sells for NVMe input and output rather than for memory;
+- bare metal sizes,
+  named `bm-*` and called **Metal Instances**;
+- anything whose flavor targets another operating system,
+  which a `win-*` name and a `windows` `osType` mark;
+- any family this build does not know.
+  A family added to the catalogue after this code was written is therefore
+  refused rather than booted unseen,
+  which is what keeps a GPU machine out even when it is the only in-stock size
+  that would fit.
+
+The rule is a keep list and not a drop list on purpose:
+a name nobody has seen yet cannot be picked by accident.
+
+In the fallback order,
+a size equal to its `-flex` twin in vCPUs,
+memory and disk is ordered with the plain one first.
+OVHcloud documents flex instances as the ones whose local disk stays at 50 GB so
+the size can be resized up and down
+([resize an instance][ovh-flex]).
+mvm never resizes a machine,
+it destroys and remakes one,
+so the flex benefit is unused;
+and the same guide says a flex instance cannot be turned back into a classic
+one,
+a door mvm has no reason to walk through for a machine whose life is one
+command.
+
+`mvm list` shows the vCPUs and memory of each instance,
+read from its own region's flavor list.
+One flavor list is read per region in play,
+never one per instance.
+
+[hetzner-deprecated-plans]: https://docs.hetzner.com/cloud/servers/deprecated-plans/
+[hetzner-server-types]: https://docs.hetzner.com/cloud/servers/overview#:~:text=Every%20dedicated%20resources%20instance%20has%20its%20own%20dedicated%20CPU%20resources
+[ovh-flex]: https://docs.ovhcloud.com/en/guides/public-cloud/compute/resize-instance-manager#:~:text=Flex%20instances%20allow%20resizing%20to%20higher%20or%20lower%20models
+
+## What the `mvm` command runs
+
+`mvm` runs this package's TypeScript source,
+`src/cli.ts`,
+and Node strips the types on the way in.
+No build output stands between the command and its code,
+so a change that lands in the source reaches the next run,
+and no worktree runs a build older than the source beside it (issue 6655).
+`mise run //package/mvm/cli:run` runs the same file.
+
+`dist/final/node/cli.mjs` is a launcher for that source,
+never a copy of the program:
+a `node_modules/.bin/mvm` shim written by an install older than this manifest names that path,
+so the build writes a file there that runs the source beside it.
+`pnpm install` in a checkout writes a shim naming the source directly,
+and `mise run //package/mvm/cli:build` refreshes the launcher in a worktree whose build is
+older than this change.
+The ways weighed,
+their costs and the measurements:
+[`doc/what-the-mvm-command-runs.md`](doc/what-the-mvm-command-runs.md).
+
 ## Host tools
 
 The libvirt backend runs two host commands,
@@ -216,13 +441,17 @@ so a variable set in a shell profile is not in its environment.
 The unit's settings,
 each with its basis:
 
-- `MemoryMax` is half of this machine's total memory,
+- `MemoryMax` is three quarters of this machine's total memory,
   read from `MemTotal` in `/proc/meminfo` when the unit starts,
-  which is 30.8 GiB on a machine with 61.7 GiB:
-  the project chose "half of total" for issue 6338 on 2026-11-21,
-  so every guest together may use half the machine and the other half stays with the session
+  which is 46.3 GiB on a machine with 61.7 GiB (`MemoryMax=47364M`):
+  the owner chose "Three quarters,
+  six guests" on 2026-11-28,
+  replacing the project's choice of "half of total" for issue 6338 on 2026-11-21,
+  so every guest together may use three quarters of the machine and everything outside the unit gets the rest
   (rule `LQM` in `AGENTS.md`,
-  cited beside the value in `package/mvm/cli/src/session-daemon-memory.ts`).
+  cited beside the value in `package/mvm/cli/src/session-daemon-memory.ts`,
+  and recorded in `doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "The unit's cap").
   Measured on 2026-11-21:
   the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
   one running guest's `virtiofsd` processes held 1.7 MiB and 15.4 MiB,
@@ -230,6 +459,13 @@ each with its basis:
   and a unit holding that guest and another session's 8 GiB guest charged 2.7 GB.
   A guest is charged what it touches,
   not the memory its domain asks for.
+  Read on 2026-11-28:
+  a guest that builds the wrapper's crate inside itself is charged several GiB,
+  where the measurement of 2026-11-21 put one guest's unit at 990 MB,
+  and eight guests that between them had touched 58.2 GiB swapped against a unit allowed half the machine
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+  "The guests' unit at its own memory cap,
+  2026-11-28").
   A host whose `/proc/meminfo` cannot be read fails the start with an error naming the file.
 - `OOMPolicy=continue`:
   when the guests' memory exceeds the cap,
@@ -278,12 +514,12 @@ and a cleanup that stops the units it started must leave this one alone.
 
 The cap belongs to the whole unit,
 not to each guest:
-four guests at mvm's default memory of 8 GiB each exceed it on a machine with 61.7 GiB,
+six guests at mvm's default memory of 8 GiB each exceed it on a machine with 61.7 GiB,
 and the kernel then kills the guest it picks rather than the daemon.
-Because the cap is half the machine's total,
-guests can never take more than half of it,
+Because the cap is three quarters of the machine's total,
+guests can never take more than three quarters of it,
 and everything outside the unit is handled by the machine as it was before.
-The other half is not reserved for the session:
+The last quarter is not reserved for the session:
 it is simply memory the unit may not have.
 
 `MVM_VIRTQEMUD_COMMAND` names the command that runs `virtqemud`,
@@ -516,6 +752,9 @@ mise run //package/mvm/cli:run -- --backend hetzner push dev-01 ./setup.sh /root
 mise run //package/mvm/cli:run -- --backend hetzner shell dev-01
 mise run //package/mvm/cli:run -- --backend hetzner destroy dev-01
 
+# Ask for at least two vCPUs and 4 GB of memory; the smallest type that fits wins
+mise run //package/mvm/cli:run -- --backend hetzner create --vcpus 2 --memory 4 build-box
+
 # List or destroy every mvm-managed server (scoped by the mvm=true label)
 mise run //package/mvm/cli:run -- --backend hetzner list
 mise run //package/mvm/cli:run -- --backend hetzner destroy --all
@@ -533,6 +772,14 @@ Notes:
    an unrecognised value is passed through as a literal Hetzner image
   slug.
    `alpine` and `windows` are not offered by Hetzner.
+- **Server types**:
+   without `--server-type` and without `--vcpus` or `--memory`,
+  the cheapest non-deprecated type offered in the target locations is used.
+   With either number,
+  the smallest type that is not deprecated,
+  is sold with shared virtual CPUs,
+  and has at least the asked cores and memory wins;
+  see [Choosing a machine's size](#on-the-hetzner-backend).
 - **Location fallback**:
    `--location` (or `MVM_HCLOUD_LOCATIONS`) is an ordered
   list;
@@ -723,9 +970,42 @@ mise run //package/mvm/cli:run -- --backend ovh destroy dev-01
 mise run //package/mvm/cli:run -- --backend ovh list
 mise run //package/mvm/cli:run -- --backend ovh destroy --all
 
+# Ask for at least two vCPUs and 4 GiB of memory; the smallest size that fits wins
+mise run //package/mvm/cli:run -- --backend ovh create --vcpus 2 --memory 4 build-box
+
 # Report each Canadian region's smallest flavor in stock and its instance quota
 mise run //package/mvm/cli:run -- --backend ovh update
 ```
+
+`destroy` returns only once OVHcloud has stopped billing the machine.
+An accepted delete leaves the instance in the project's listing as `DELETING`
+first and as `DELETED` afterwards,
+and only then does it leave the listing;
+a read of one instance by its identifier answers `DELETED` even after the
+listing has dropped it.
+`destroy` reads the listing every three seconds and says each status once,
+`destroy --all` sends every delete before it waits for all of them,
+and the wait gives up after five minutes with an error that names the machine,
+its last status and the bill,
+and prints `mvm --backend ovh list` and `mvm --backend ovh destroy <name>`.
+
+`list`,
+`destroy --all` and every lookup by name leave out an instance the listing
+calls `DELETED`,
+because it runs nowhere and its name is free again.
+An instance the listing calls `DELETING` is still billed,
+so `list` shows it as `deleting` and it counts against any limit on how many
+machines run at once.
+`exec`,
+`push`,
+`pull` and `shell` match it and refuse at once,
+saying the machine is being deleted;
+`destroy` matches it,
+so repeating the command the timeout error prints finishes the delete.
+`create` and `clone` refuse a name the project is still deleting,
+because OVHcloud does not make instance names unique,
+and a second machine of that name would make every later lookup on it
+ambiguous.
 
 ### Differences from the Hetzner backend
 
@@ -741,8 +1021,14 @@ mise run //package/mvm/cli:run -- --backend ovh update
    not server types**:
    `--server-type` takes an OVHcloud flavor name or identifier and
   `MVM_OVH_FLAVOR` sets it for a run;
-   without one the smallest flavor in stock in the region is used,
+   without it and without a floor the smallest flavor in stock in the region is
+  used,
   by virtual CPUs and then memory.
+   `--vcpus` or `--memory` replaces that walk with the size rule,
+  which also keeps special families out;
+  see [Choosing a machine's size](#on-the-ovh-backend).
+   A region with no size that fits is skipped before anything is created,
+  and the next region is asked for the same floors.
 - **The login account is the image's own,
    never `root`**:
    mvm reads the image's `user` field,
@@ -870,6 +1156,10 @@ measurement.
 - All VM names are prefixed with `mvm-` in libvirt to avoid collisions
 
 ## VM defaults
+
+These are what a libvirt guest gets when the create asks for nothing.
+`--vcpus` and `--memory` override them;
+see [Choosing a machine's size](#choosing-a-machines-size).
 
 - 4 vCPUs
 - 8 GiB RAM

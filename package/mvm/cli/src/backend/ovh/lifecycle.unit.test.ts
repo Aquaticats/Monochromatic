@@ -1,9 +1,11 @@
 /**
  Unit tests for the ovh backend's lifecycle against a stand-in HTTP layer: a
  create never asks for monthly billing, waits for SSH as the account the image
- names, and deletes what it made when it cannot finish; a sweep touches only the
- machines whose name carries the tool's prefix; and a clone deletes its snapshot
- once the new machine runs.
+ names, and deletes what it made when it cannot finish; a create or a clone
+ refuses a name the project is still deleting; exec refuses a machine that is
+ being deleted; a destroy returns only once the project's listing has let its
+ machine go, and a sweep waits for every machine it deleted; and a clone deletes
+ its snapshot once the new machine runs.
 
  Every body here is a stand-in written by hand from OVHcloud's schema of the
  cloud API, never a recording, so nothing in this file claims what OVHcloud
@@ -24,7 +26,10 @@ import {
 import {
   ovhClone,
   ovhCreate,
+  ovhDestroy,
   ovhDestroyAll,
+  ovhExec,
+  ovhList,
 } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
@@ -96,6 +101,7 @@ function routed(routes: Routes,): (call: RecordedCall,) => Response {
  */
 function createRoutes(): Routes {
   return {
+    [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([],),],
     [`GET ${cloudPath('/sshkey',)}`]: [jsonAnswer([],),],
     [`POST ${cloudPath('/sshkey',)}`]: [jsonAnswer(sshKeyAnswer(),),],
     [`GET ${cloudPath('/region',)}`]: [jsonAnswer(['bhs5',],),],
@@ -116,12 +122,20 @@ function createRoutes(): Routes {
  */
 function cloneRoutes(): Routes {
   return {
-    [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
-      instanceAnswer({
-        id: 'instance-dev',
-        name: 'mvm-dev',
-      },),
-    ],),],
+    [`GET ${cloudPath('/instance',)}`]: [
+      jsonAnswer([
+        instanceAnswer({
+          id: 'instance-dev',
+          name: 'mvm-dev',
+        },),
+      ],),
+      jsonAnswer([
+        instanceAnswer({
+          id: 'instance-dev',
+          name: 'mvm-dev',
+        },),
+      ],),
+    ],
     [`POST ${cloudPath('/instance/instance-dev/snapshot',)}`]: [jsonAnswer({ snapshotId: 'snapshot-1', },),],
     [`GET ${cloudPath('/image/snapshot-1',)}`]: [jsonAnswer(imageAnswer({
       id: 'snapshot-1',
@@ -249,6 +263,37 @@ await describe({
       },
     },),
     it({
+      name: 'a create refuses a name the project is still deleting',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              id: 'instance-dev',
+              name: 'mvm-dev',
+              status: 'DELETING',
+            },),
+          ],),],
+        },),);
+        const error = await errorFrom({ run: () => ovhCreate({ name: 'dev', },) },);
+        /**
+         What the refusal says, which has to name the status, the bill and the command that finishes the delete.
+         */
+        const message = caughtValueText(error,);
+        expect(message,).toContain('DELETING',);
+        expect(message,).toContain('bills an instance until it is deleted',);
+        expect(message,).toContain('mvm --backend ovh destroy dev',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'POST',
+            path: cloudPath('/instance',),
+          },).length,
+        ).toBe(0,);
+      },
+    },),
+    it({
       name: 'a create walks past a region with nothing in stock and creates in the next one',
       fn: async () => {
         await using _env = await installEnv();
@@ -280,6 +325,284 @@ await describe({
         expect(body.region,).toBe('gra9',);
       },
     },),
+
+    //region The size a create asks for
+
+    it({
+      name: 'a create with two floors sends the smallest general-purpose size that meets both',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 'd2-2',
+              ram: 2,
+              vcpus: 1,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'c3-4',
+              ram: 4,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'b3-8',
+              ram: 8,
+              vcpus: 2,
+            },),
+          ],),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 4,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly flavorId: string; };
+        expect(body.flavorId,).toBe('c3-4',);
+      },
+    },),
+    it({
+      name: 'a create whose floors only a GPU size meets refuses and creates nothing',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 'd2-2',
+              ram: 2,
+              vcpus: 1,
+            },),
+            flavorAnswer({
+              disk: 25,
+              id: 't1-45',
+              ram: 45,
+              vcpus: 8,
+            },),
+          ],),],
+        },),);
+        const error = await errorFrom({
+          run: () => ovhCreate({
+            memoryGiB: 40,
+            name: 'dev',
+            vcpus: 8,
+          },),
+        },);
+        expect((error as Error).message,).toContain('t1-45',);
+        expect((error as Error).message,).toContain('left out as a family mvm does not pick without being told',);
+        expect((error as Error).message,).toContain('--server-type',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'POST',
+            path: cloudPath('/instance',),
+          },),
+        ).toHaveLength(0,);
+      },
+    },),
+    it({
+      name: 'a create that names a flavor outright and also sets a floor refuses before reading anything',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(
+          routed(createRoutes(),),
+        );
+        const error = await errorFrom({
+          run: () => ovhCreate({
+            name: 'dev',
+            serverType: 'b3-8',
+            vcpus: 2,
+          },),
+        },);
+        expect((error as Error).message,).toContain('b3-8',);
+        expect((error as Error).message,).toContain('at least 2 vCPUs',);
+        expect(standIn.calls,).toHaveLength(0,);
+      },
+    },),
+    it({
+      name: 'a create walks past a region with no size that fits and asks the next region for the same floors',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/region',)}`]: [jsonAnswer(['bhs5', 'gra9',],),],
+          [`GET ${cloudPath('/region/gra9',)}`]: [jsonAnswer(regionAnswer({ name: 'gra9', },),),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 'd2-2',
+              ram: 2,
+              vcpus: 1,
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=gra9`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              id: 'b3-8',
+              ram: 8,
+              region: 'gra9',
+              vcpus: 2,
+            },),
+          ],),],
+          [`GET ${cloudPath('/image',)}?region=gra9`]: [jsonAnswer([imageAnswer({},),],),],
+          [`POST ${cloudPath('/instance',)}`]: [jsonAnswer(instanceAnswer({
+            region: 'gra9',
+            status: 'BUILD',
+          },),),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 4,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        const body = created?.body as {
+          readonly flavorId: string;
+          readonly region: string;
+        };
+        expect(body.region,).toBe('gra9',);
+        expect(body.flavorId,).toBe('b3-8',);
+      },
+    },),
+
+    it({
+      name: 'a create with the prices in hand sends the cheapest size that fits, not the smallest numbers',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer({
+            addons: [
+              {
+                planCode: 'b2-7.consumption',
+                pricings: [{
+                  interval: 1,
+                  intervalUnit: 'hour',
+                  price: 11_350_000,
+                  type: 'consumption',
+                },],
+              },
+              {
+                planCode: 'd2-8.consumption',
+                pricings: [{
+                  interval: 1,
+                  intervalUnit: 'hour',
+                  price: 5_960_000,
+                  type: 'consumption',
+                },],
+              },
+            ],
+            locale: { currencyCode: 'CAD', },
+          },),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly flavorId: string; };
+        expect(body.flavorId,).toBe('d2-8',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'GET',
+            path: '/v1/order/catalog/public/cloud?ovhSubsidiary=CA',
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a create whose price read is refused falls back to the smallest numbers and says so',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [failureAnswer({
+            errorCode: 'REFUSED',
+            message: 'the price catalogue is not readable with these rights',
+            status: 403,
+          },),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        expect((created.body as { readonly flavorId: string; }).flavorId,).toBe('b2-7',);
+      },
+    },),
+
+    //endregion The size a create asks for
 
     //endregion Create
 
@@ -408,6 +731,77 @@ await describe({
 
     //endregion Clone
 
+    //region Lookups by name
+
+    it({
+      name: 'exec refuses a machine the project is listing as deleting',
+      fn: async () => {
+        await using env = await installEnv();
+        using _standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              id: 'instance-dev',
+              name: 'mvm-dev',
+              status: 'DELETING',
+            },),
+          ],),],
+        },),);
+        const error = await errorFrom({
+          run: () => ovhExec({
+            command: 'true',
+            name: 'dev',
+          },),
+        },);
+        /**
+         What the refusal says, which has to name the status and the state it stands for.
+         */
+        const message = caughtValueText(error,);
+        expect(message,).toContain('DELETING',);
+        expect(message,).toContain('being deleted',);
+        expect(await sshCalls({ dir: env.dir, },),).toHaveLength(0,);
+      },
+    },),
+
+    //endregion Lookups by name
+
+    //region Destroy
+
+    it({
+      name: 'destroy returns only once the project stops listing the machine',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [
+            jsonAnswer([instanceAnswer({
+              id: 'instance-dev',
+              name: 'mvm-dev',
+            },),],),
+            jsonAnswer([],),
+          ],
+          [`DELETE ${cloudPath('/instance/instance-dev',)}`]: [new Response(null, { status: 204, },),],
+        },),);
+        await ovhDestroy({ name: 'dev', },);
+        /**
+         Requests in the order they were made, by method and path.
+         */
+        const order = standIn.calls.map(function methodAndPath(call,) {
+          return `${call.method} ${call.path}`;
+        },);
+        /**
+         Where the delete sits, after which the listing has to be read again before destroy may return.
+         */
+        const deletedAt = order.indexOf(`DELETE ${cloudPath('/instance/instance-dev',)}`,);
+        expect(deletedAt,).toBeGreaterThan(-1,);
+        expect(
+          order.filter(function readAfterDelete(entry, index,) {
+            return (index > deletedAt) && (entry === `GET ${cloudPath('/instance',)}`);
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+
+    //endregion Destroy
+
     //region Destroy all
 
     it({
@@ -415,16 +809,19 @@ await describe({
       fn: async () => {
         await using _env = await installEnv();
         using standIn = installStandIn(routed({
-          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
-            instanceAnswer({
-              id: 'instance-dev',
-              name: 'mvm-dev',
-            },),
-            instanceAnswer({
-              id: 'instance-web',
-              name: 'web-1',
-            },),
-          ],),],
+          [`GET ${cloudPath('/instance',)}`]: [
+            jsonAnswer([
+              instanceAnswer({
+                id: 'instance-dev',
+                name: 'mvm-dev',
+              },),
+              instanceAnswer({
+                id: 'instance-web',
+                name: 'web-1',
+              },),
+            ],),
+            jsonAnswer([],),
+          ],
           [`DELETE ${cloudPath('/instance/instance-dev',)}`]: [new Response(null, { status: 204, },),],
           [`DELETE ${cloudPath('/instance/instance-web',)}`]: [new Response(null, { status: 204, },),],
           [`GET ${cloudPath('/snapshot',)}`]: [jsonAnswer([
@@ -471,7 +868,138 @@ await describe({
         ).toBe(0,);
       },
     },),
+    it({
+      name: 'destroy --all sends every delete before it waits, and waits for every machine',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [
+            jsonAnswer([
+              instanceAnswer({
+                id: 'instance-dev',
+                name: 'mvm-dev',
+              },),
+              instanceAnswer({
+                id: 'instance-dev-2',
+                name: 'mvm-dev-2',
+              },),
+            ],),
+            jsonAnswer([],),
+          ],
+          [`DELETE ${cloudPath('/instance/instance-dev',)}`]: [new Response(null, { status: 204, },),],
+          [`DELETE ${cloudPath('/instance/instance-dev-2',)}`]: [new Response(null, { status: 204, },),],
+          [`GET ${cloudPath('/snapshot',)}`]: [jsonAnswer([],),],
+        },),);
+        await ovhDestroyAll();
+        /**
+         Requests in the order they were made, by method and path.
+         */
+        const order = standIn.calls.map(function methodAndPath(call,) {
+          return `${call.method} ${call.path}`;
+        },);
+        /**
+         Where each machine's delete sits.
+         */
+        const deletedAt = [
+          order.indexOf(`DELETE ${cloudPath('/instance/instance-dev',)}`,),
+          order.indexOf(`DELETE ${cloudPath('/instance/instance-dev-2',)}`,),
+        ];
+        expect(deletedAt.at(0,),).toBeGreaterThan(-1,);
+        expect(deletedAt.at(1,),).toBeGreaterThan(-1,);
+        /**
+         Where the second read of the listing sits, the first one after the deletes being the wait's own.
+         */
+        const waitedAt = order.indexOf(
+          `GET ${cloudPath('/instance',)}`,
+          1,
+        );
+        expect(waitedAt,).toBeGreaterThan(Math.max(...deletedAt,),);
+      },
+    },),
 
     //endregion Destroy all
+    //region Listing
+
+    it({
+      name: 'a listing reports each machine size from its own region flavor list, read once per region',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              flavorId: 'flavor-c3',
+              id: 'instance-1',
+              name: 'mvm-dev',
+            },),
+            instanceAnswer({
+              flavorId: 'flavor-b3',
+              id: 'instance-2',
+              ip: '192.0.2.11',
+              name: 'mvm-build',
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              id: 'flavor-c3',
+              name: 'c3-4',
+              ram: 4,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'flavor-b3',
+              name: 'b3-8',
+              ram: 8,
+              vcpus: 2,
+            },),
+          ],),],
+        },),);
+        const vms = await ovhList();
+        expect(vms,).toEqual([
+          {
+            memoryGiB: 4,
+            name: 'dev',
+            state: 'active',
+            vcpus: 2,
+          },
+          {
+            memoryGiB: 8,
+            name: 'build',
+            state: 'active',
+            vcpus: 2,
+          },
+        ],);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'GET',
+            path: `${cloudPath('/flavor',)}?region=bhs5`,
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a listing says nothing about a size whose flavor the region no longer lists',
+      fn: async () => {
+        await using _env = await installEnv();
+        using _standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              flavorId: 'flavor-gone',
+              id: 'instance-1',
+              name: 'mvm-dev',
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([flavorAnswer(),],),],
+        },),);
+        expect(await ovhList(),).toEqual([{
+          name: 'dev',
+          state: 'active',
+        },],);
+      },
+    },),
+
+    //endregion Listing
   ],
 },);

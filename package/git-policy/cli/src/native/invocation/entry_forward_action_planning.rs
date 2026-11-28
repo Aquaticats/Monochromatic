@@ -63,6 +63,7 @@ use crate::worktree_identity::{
     common_directory,
 };
 use crate::worktree_remove_plan::{
+    count_of_the_force,
     parse_removal_target,
     parse_remove_plan,
 };
@@ -234,6 +235,7 @@ pub(crate) fn forward_action(
                     // The ladder serves no command that stands in no worktree: its steps read a worktree and a checkout.
                     remove_plan: None,
                     removal_target: Some(target),
+                    removal_force: count_of_the_force(&read.arguments[read.subcommand_index + 2..]),
                     quiet: false,
                 }),
                 stderr,
@@ -307,6 +309,14 @@ pub(crate) fn forward_action(
         }
         _ => None,
     };
+    // The force is counted from the same words the target is read from, in every spelling Git accepts, because a slot a
+    //  whole clone is bound to passes or refuses on the count (`worktree_remove_plan::count_of_the_force`).
+    let removal_force: usize = match (slot_command.as_ref(), removal_target.as_ref()) {
+        (Some(read), Some(_)) if read.word() == b"worktree" => {
+            count_of_the_force(&read.arguments[read.subcommand_index + 2..])
+        }
+        _ => 0,
+    };
     let serves_ladder: bool = add_plan.is_some() || removal_target.is_some();
     let copy: Option<CopyFacts> =
         if !copy_bypassed && copy_applies_with(&location.identity, creates, serves_ladder) {
@@ -318,6 +328,7 @@ pub(crate) fn forward_action(
                 add_plan,
                 remove_plan,
                 removal_target,
+                removal_force,
                 quiet,
             })
         } else {
