@@ -1,10 +1,12 @@
 //! What:
-//!  Plan step 14's refusal arms through the built wrapper's own command path,
-//!  on a real file-backed pool:
-//!  `git worktree remove --force <slot>` of a slot a whole managed clone is
-//!  bound to,
-//!  which runs the removal's lineage proof,
-//!  inventory and bookmark rule read-only and refuses.
+//!  The removal a person's `git worktree remove` makes through the built wrapper,
+//!  on a real file-backed pool,
+//!  with the mount handler answering the unmount it asks for:
+//!  the clone,
+//!  its own snapshots,
+//!  its binding and plan and its registration all gone,
+//!  and the loss printed in the same invocation;
+//!  beside the refusals that stay refusals.
 //! Why:
 //!  The proof reads `/dev/zfs`,
 //!  and a promotion is a real pool's own lineage change:
@@ -14,23 +16,23 @@
 //!  (`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
 //!  items 11,
 //!  12 and 13).
-//!  The host controls answer the proof with a scripted pool,
-//!  so only this arm shows the wrapper's refusal on the answers a kernel gives,
-//!  and it runs where `CLI_GIT_ZFS_REMOVAL_REFUSAL_GUEST` names a disposable
-//!  guest,
+//!  The host controls answer every seam with a scripted value,
+//!  so only this arm shows the order's own writes on the answers a kernel gives,
+//!  and the removal's readiness proof is the handler's own:
+//!  a sweeper runs beside the wrapper and files the `unmount` receipt the removal
+//!  waits for.
+//!  It runs where `CLI_GIT_ZFS_REMOVAL_REFUSAL_GUEST` names a disposable guest,
 //!  printing `SKIP` everywhere else.
-//!  No arm writes:
-//!  the release files no removal intent,
-//!  unmounts nothing and writes no destruction plan until plan step 16's
-//!  wiring,
-//!  so every arm asserts the plan folder holds no entry,
+//!  A refusing arm asserts what a refusal leaves:
+//!  the plan folder holds no entry,
 //!  the clone's intent property still holds what it held,
-//!  and the binding record's bytes are the ones the add wrote.
+//!  the binding record's bytes are the ones the add wrote,
+//!  and every snapshot and bookmark still stands.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const said = wrapperGit(checkout, ['worktree', 'remove', '--force', slot]);
-//! expect(said).toContain('the lineage proof a removal makes passed');
+//! const said = wrapperGit(checkout, ['worktree', 'remove', slot]);
+//! expect(said).toContain('is destroyed');
 //! ```
 
 use super::zfs_slot_state_guest_fixture::{
@@ -167,12 +169,12 @@ fn said_of(output: &Output) -> String {
 
 /// What:
 ///  The wrapper's removal of the bound slot,
-///  which must be refused,
+///  which the removal's own checks must stop,
 ///  with the lines it printed.
 /// Why:
-///  Every arm asks the same command and reads a different refusal,
+///  Every refusing arm asks the same command and reads a different stop,
 ///  and a command that ran Git instead would have changed the slot.
-fn the_refusal(
+fn the_stopped_removal(
     checkout: &Path,
     slot: &Path,
 ) -> String {
@@ -181,11 +183,11 @@ fn the_refusal(
     assert_eq!(
         removed.status.code(),
         Some(1),
-        "the wrapper refuses the removal of a bound clone: {said}"
+        "a removal the checks stop ends in the wrapper's refusal status: {said}"
     );
     assert!(
-        said.contains("this release has no removal for a clone"),
-        "{said}"
+        !said.contains("this release has no removal for a clone"),
+        "no sentence of this release says a removal does not exist: {said}"
     );
     assert!(
         slot.is_dir(),
@@ -537,51 +539,6 @@ fn zfs_removal_refusal_guest() {
     let intent: String = the_intent_of(sbin.as_str(), clone.as_str());
     let binding: Vec<u8> = the_binding_bytes(common.as_path());
 
-    // Arm 1: the healthy removal proves its lineage read-only and prints the one name it would lose.
-    let healthy: String = the_refusal(checkout.as_path(), slot.as_path());
-    assert!(
-        healthy.contains("the lineage proof a removal makes passed without writing anything"),
-        "{healthy}"
-    );
-    assert!(
-        healthy.contains(&format!("the clone `{clone}`")),
-        "{healthy}"
-    );
-    assert!(
-        healthy.contains(&format!(
-            "descends from the origin snapshot `{origin_snapshot}`"
-        )),
-        "{healthy}"
-    );
-    assert!(
-        healthy.contains(&format!("snapshot {clone}@{OWN_SNAPSHOT}")),
-        "{healthy}"
-    );
-    assert!(
-        healthy.contains("this release does not remove a clone yet"),
-        "{healthy}"
-    );
-    assert!(
-        !healthy.contains("the removal's own checks stopped it"),
-        "{healthy}"
-    );
-    assert_eq!(
-        the_plan_folder_holds(common.as_path()),
-        0,
-        "the refusal wrote no destruction plan"
-    );
-    assert_eq!(
-        the_intent_of(sbin.as_str(), clone.as_str()),
-        intent,
-        "the refusal filed no removal intent"
-    );
-    assert_eq!(
-        the_binding_bytes(common.as_path()),
-        binding,
-        "the refusal rewrote no binding record"
-    );
-    println!("REMOVAL-ARMS healthy=proved wrote=nothing");
-
     // Arm 2: an administrator promotes the clone, and the next removal refuses before any delete with every protected
     // snapshot and bookmark still there.
     // The recorded tuple is read before the promotion, because a promotion moves the origin snapshot under the clone.
@@ -593,7 +550,7 @@ fn zfs_removal_refusal_guest() {
         "the arm read the checkout's snapshot and the clone's own: {protected:?}"
     );
     zfs_ok(sbin.as_str(), &["promote", clone.as_str()]);
-    let promoted: String = the_refusal(checkout.as_path(), slot.as_path());
+    let promoted: String = the_stopped_removal(checkout.as_path(), slot.as_path());
     assert!(
         promoted.contains("the removal's own checks stopped it before anything was written"),
         "{promoted}"
@@ -647,7 +604,7 @@ fn zfs_removal_refusal_guest() {
         recorded_tuple,
         "a bookmark made from a transferred snapshot carries that snapshot's tuple"
     );
-    let inherited: String = the_refusal(checkout.as_path(), slot.as_path());
+    let inherited: String = the_stopped_removal(checkout.as_path(), slot.as_path());
     assert!(
         inherited.contains("the removal's own checks stopped it before anything was written"),
         "{inherited}"
@@ -664,11 +621,21 @@ fn zfs_removal_refusal_guest() {
         );
     }
     assert_eq!(the_plan_folder_holds(common.as_path()), 0);
+    assert_eq!(
+        the_intent_of(sbin.as_str(), clone.as_str()),
+        intent,
+        "a stopped removal filed no intent of its own"
+    );
+    assert_eq!(
+        the_binding_bytes(common.as_path()),
+        binding,
+        "a stopped removal rewrote no binding record"
+    );
     println!(
         "REMOVAL-ARMS inherited-tuple=measured guid={transferred_guid} group={transferred_group} refused=before-any-write"
     );
 
-    // Arm 4: the reverse promotion restores the recorded lineage, and the removal proves again.
+    // Arm 4: the reverse promotion restores the recorded lineage.
     // The bookmarks follow the snapshot they were made from, so the reverse promotion puts the transferred one back
     // under the checkout.
     zfs_ok(sbin.as_str(), &["promote", checkout_dataset.as_str()]);
@@ -679,21 +646,15 @@ fn zfs_removal_refusal_guest() {
             format!("{checkout_dataset}#from-origin").as_str(),
         ],
     );
-    let reversed: String = the_refusal(checkout.as_path(), slot.as_path());
-    assert!(
-        reversed.contains("the lineage proof a removal makes passed without writing anything"),
-        "{reversed}"
+    assert_eq!(
+        identity_of(sbin.as_str(), origin_snapshot.as_str()),
+        recorded_tuple,
+        "the reverse promotion puts the origin snapshot's tuple back under the checkout"
     );
-    assert!(
-        reversed.contains(&format!(
-            "descends from the origin snapshot `{origin_snapshot}`"
-        )),
-        "{reversed}"
-    );
-    println!("REMOVAL-ARMS reverse-promotion=proved");
+    println!("REMOVAL-ARMS reverse-promotion=restored-lineage");
 
-    // Arm 5: a bookmark one of the clone's own live snapshots explains passes and is printed as lost; one whose snapshot
-    // the kernel destroyed is refused by name.
+    // Arm 5: a bookmark one of the clone's own live snapshots explains is a loss the healthy removal prints; one whose
+    // snapshot the kernel destroyed is refused by name.
     zfs_ok(
         sbin.as_str(),
         &[
@@ -702,16 +663,6 @@ fn zfs_removal_refusal_guest() {
             format!("{clone}#from-own").as_str(),
         ],
     );
-    let explained: String = the_refusal(checkout.as_path(), slot.as_path());
-    assert!(
-        explained.contains("the lineage proof a removal makes passed without writing anything"),
-        "{explained}"
-    );
-    assert!(
-        explained.contains(&format!("bookmark {clone}#from-own")),
-        "{explained}"
-    );
-    println!("REMOVAL-ARMS bookmark-live=printed");
     zfs_ok(
         sbin.as_str(),
         &["snapshot", format!("{clone}@gone").as_str()],
@@ -728,7 +679,7 @@ fn zfs_removal_refusal_guest() {
         sbin.as_str(),
         &["destroy", format!("{clone}@gone").as_str()],
     );
-    let refused: String = the_refusal(checkout.as_path(), slot.as_path());
+    let refused: String = the_stopped_removal(checkout.as_path(), slot.as_path());
     assert!(
         refused.contains(&format!("`{clone}#from-gone`")),
         "the refused bookmark is named: {refused}"
@@ -741,41 +692,129 @@ fn zfs_removal_refusal_guest() {
     );
     println!("REMOVAL-ARMS bookmark-stale=refused name={clone}#from-gone");
 
-    // Arm 6: a same-name replacement clone is another clone, and the removal refuses on its GUID.
-    zfs_ok(
-        sbin.as_str(),
-        &["destroy", format!("{clone}#from-own").as_str()],
-    );
-    zfs_ok(
-        sbin.as_str(),
-        &["destroy", format!("{clone}#from-gone").as_str()],
-    );
-    zfs_ok(
-        sbin.as_str(),
-        &["destroy", format!("{clone}@{OWN_SNAPSHOT}").as_str()],
-    );
-    let recorded: Vec<u8> = the_binding_bytes(common.as_path());
-    zfs_ok(sbin.as_str(), &["destroy", clone.as_str()]);
-    zfs_ok(
-        sbin.as_str(),
-        &["clone", origin_snapshot.as_str(), clone.as_str()],
-    );
-    let replaced: String = the_refusal(checkout.as_path(), slot.as_path());
-    assert!(
-        replaced.contains(&format!("`{clone}` answers with cloneGuid")),
-        "{replaced}"
-    );
-    assert!(replaced.contains("not the one the add made"), "{replaced}");
+    // Arm 6: the whole removal through the built wrapper, with the mount handler answering the unmount it asks for.
+    // The clone is attached first, so the unmount is a real unmount at a real slot rather than a state the arm assumed.
+    let attached: super::zfs_sweep_guest::Run = super::zfs_sweep_guest::sweep();
     assert_eq!(
-        the_binding_bytes(common.as_path()),
-        recorded,
-        "the refusal never rewrites a record to match the pool"
+        attached.status,
+        Some(0),
+        "the handler's sweep attaches the clone: {}",
+        attached.said
     );
-    assert_eq!(the_plan_folder_holds(common.as_path()), 0);
-    println!("REMOVAL-ARMS replacement=refused field=cloneGuid");
+    let mounted: Output = std::process::Command::new("findmnt")
+        .args([
+            "--noheadings",
+            "--output",
+            "SOURCE",
+            "--target",
+            shown(slot.as_path()),
+        ])
+        .output()
+        .expect("findmnt reads this guest's mount table");
+    assert!(
+        String::from_utf8_lossy(mounted.stdout.as_slice()).contains(clone.as_str()),
+        "the clone stands at the slot before the removal asks for its unmount"
+    );
+    // A sweeper runs beside the wrapper, because the removal files one `unmount` request and waits for the handler's
+    // receipt: no second pass of this arm can answer a request the wrapper has not filed yet.
+    let sweeper_binary: PathBuf = super::support_installed_name::installed_name("sweep");
+    let mut sweeper: std::process::Child = std::process::Command::new("sh")
+        .args([
+            "-c",
+            "while :; do \"$0\" >/dev/null 2>&1; sleep 1; done",
+            shown(sweeper_binary.as_path()),
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("the sweeper starts under the installed name");
+    let removal: Output = wrapper_git(
+        checkout.as_path(),
+        &["worktree", "remove", shown(slot.as_path())],
+    );
+    let said: String = said_of(&removal);
+    // The sweeper is this arm's own child, and it ends here whether the assertions pass or not.
+    let _ended: std::io::Result<std::process::ExitStatus> =
+        sweeper.kill().and_then(|()| return sweeper.wait());
+    assert_eq!(
+        removal.status.code(),
+        Some(0),
+        "the removal of a slot a whole managed clone is bound to finishes: {said}"
+    );
+    assert!(
+        said.contains(&format!(
+            "the ZFS worktree clone at `{}` (dataset `{clone}`) is destroyed",
+            shown(slot.as_path())
+        )),
+        "the loss is printed in the same invocation: {said}"
+    );
+    assert!(
+        said.contains(&format!("destroyed snapshot {clone}@{OWN_SNAPSHOT}")),
+        "every snapshot the removal destroyed is named: {said}"
+    );
+    assert!(
+        said.contains("bookmark(s) went with the clone's head and cannot be restored"),
+        "the bookmark the head took is named as a loss: {said}"
+    );
+    assert!(
+        said.contains("the removal's plan, its binding and both inventories are removed"),
+        "the records are removed and the slot is free for the next add: {said}"
+    );
+    let clone_gone: (bool, String, String) = zfs(
+        sbin.as_str(),
+        "zfs",
+        &["list", "-H", "-o", "name", clone.as_str()],
+        None,
+    );
+    assert!(!clone_gone.0, "the clone dataset is gone: {}", clone_gone.1);
+    let snapshot_gone: (bool, String, String) = zfs(
+        sbin.as_str(),
+        "zfs",
+        &[
+            "list",
+            "-H",
+            "-o",
+            "name",
+            "-t",
+            "snapshot",
+            format!("{clone}@{OWN_SNAPSHOT}").as_str(),
+        ],
+        None,
+    );
+    assert!(
+        !snapshot_gone.0,
+        "the clone's own snapshot is gone: {}",
+        snapshot_gone.1
+    );
+    assert_eq!(
+        the_plan_folder_holds(common.as_path()),
+        0,
+        "no destruction plan stands after a finished removal"
+    );
+    assert!(
+        !home_folder(common.as_path())
+            .join(
+                git_policy_cli::worktree_clone_binding_record::registration_home::binding_name(
+                    SLOT
+                )
+            )
+            .exists(),
+        "the binding record is removed with the other records"
+    );
+    assert!(
+        !common.join("worktrees").join(SLOT).exists(),
+        "the Git registration is removed"
+    );
+    assert!(
+        !slot.exists(),
+        "the slot folder is gone with the underlay pointer it held"
+    );
+    println!(
+        "REMOVAL-ARMS whole-removal=done clone=gone snapshots=gone records=gone unmount=the-handler"
+    );
 
     // The fixture's own cleanup, which is this arm's and no record's.
-    zfs_ok(sbin.as_str(), &["destroy", clone.as_str()]);
     let _unmounted: (bool, String, String) = zfs(
         sbin.as_str(),
         "zfs",

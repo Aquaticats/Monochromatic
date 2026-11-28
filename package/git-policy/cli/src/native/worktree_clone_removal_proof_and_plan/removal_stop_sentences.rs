@@ -265,7 +265,11 @@ impl RemovalStop {
                     Some(held) => held.to_string(),
                     None => String::from("none"),
                 },
-                if names.is_empty() { String::from("  no snapshot of this clone is left") } else { names.join("\n") }
+                if names.is_empty() {
+                    String::from("  no snapshot of this clone is left")
+                } else {
+                    names.join("\n")
+                }
             ),
             RemovalStop::TheRemovalCouldNotCancelItself {
                 stop,

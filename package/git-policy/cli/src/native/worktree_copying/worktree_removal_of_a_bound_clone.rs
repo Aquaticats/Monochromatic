@@ -327,10 +327,10 @@ pub fn the_removal_with(
     return match reads {
         RemovalReads::Live => {
             let answer: TheRemovalAnswer = complete_the_bound_clones_removal(
-                    common_dir,
-                    slot.as_str(),
-                    crate::worktree_clone_add_route::the_removals_cancelling(),
-                );
+                common_dir,
+                slot.as_str(),
+                crate::worktree_clone_add_route::the_removals_cancelling(),
+            );
             stderr.push_str(answer.lines.as_str());
             stderr.push('\n');
             Some(BoundSlotRemovalAnswer {

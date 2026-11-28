@@ -117,13 +117,11 @@ pub fn complete_the_bound_clones_removal(
         Ok(recorded) => recorded,
         Err(stop) => return TheRemovalAnswer::stopped(stop.message()),
     };
-    let unmount = match LiveRemovalUnmount::open(
-        recorded.clone_dataset.as_str(),
-        recorded.clone_guid,
-    ) {
-        Ok(unmount) => unmount,
-        Err(stop) => return TheRemovalAnswer::stopped(stop.message()),
-    };
+    let unmount =
+        match LiveRemovalUnmount::open(recorded.clone_dataset.as_str(), recorded.clone_guid) {
+            Ok(unmount) => unmount,
+            Err(stop) => return TheRemovalAnswer::stopped(stop.message()),
+        };
     let reads = match LiveRemovalReads::open() {
         Ok(reads) => reads,
         Err(reason) => {

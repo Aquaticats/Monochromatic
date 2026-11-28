@@ -115,6 +115,10 @@
 //!   intent,
 //!   unmount and plan take,
 //!   and every step of it that changes nothing.
+//! - `the_self_cancelling_seam.rs`:
+//!   what a removal that a holder stops asks of the answer that puts the clone
+//!   back,
+//!   and which stop points this build reaches.
 //! - `removal_completion_inputs.rs`:
 //!   everything one whole removal drives,
 //!   as named seams a control answers without a pool.
@@ -138,19 +142,15 @@
 //!   or the head-gone path.
 //! - `plan_names_and_states.rs`:
 //!   the plan's names and the state each one's history ends on.
+//! - `removal_self_cancelling_step.rs`:
+//!   the one call each stop point makes,
+//!   turned into the stop a removal ends in.
 //! - `removal_completion_head_present.rs`:
 //!   the steps one removal takes while its clone still stands.
 //! - `removal_completion_head_gone.rs`:
 //!   the steps a removal takes when its plan's head word is already `gone`.
 //! - `removal_completion.rs`:
 //!   the whole order from the plan to the report.
-//! - `the_self_cancelling_seam.rs`:
-//!   what a removal that a holder stops asks of the answer that puts the clone
-//!   back,
-//!   and which stop points this build reaches.
-//! - `removal_self_cancelling_step.rs`:
-//!   the one call each stop point makes,
-//!   turned into the stop a removal ends in.
 //! - `removal_command_path.rs`:
 //!   the whole removal over the live seams a person's command runs.
 //!
@@ -291,12 +291,12 @@ pub use removal_clock::{
     RemovalClock,
     TheLiveClock,
 };
-pub use removal_completion::complete_the_removal;
 pub use removal_command_path::{
     REMOVED_EXIT_CODE,
     TheRemovalAnswer,
     complete_the_bound_clones_removal,
 };
+pub use removal_completion::complete_the_removal;
 pub use removal_completion_inputs::RemovalCompletion;
 pub use removal_destruction::{
     DestructionUnderway,
@@ -362,6 +362,10 @@ pub use removal_stop::{
     RefusedBookmark,
     RemovalStop,
 };
+pub use started_moment::{
+    is_seconds_with_offset,
+    now_with_offset,
+};
 pub use the_self_cancelling_seam::{
     THE_ROLLBACK_STEPS,
     TheCancellationFailed,
@@ -370,10 +374,6 @@ pub use the_self_cancelling_seam::{
     TheStopPoint,
     TheStoppedRemoval,
     is_the_handlers_rollback,
-};
-pub use started_moment::{
-    is_seconds_with_offset,
-    now_with_offset,
 };
 pub use unmount_request::{
     ExpectedUnmount,

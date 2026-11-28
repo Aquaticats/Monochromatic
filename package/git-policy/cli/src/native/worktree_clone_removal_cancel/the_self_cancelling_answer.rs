@@ -72,13 +72,12 @@ impl TheRemovalCancelling for TheSelfCancellingAnswer {
         &self,
         request: &TheStoppedRemoval<'_>,
     ) -> Result<TheCancelledRemoval, TheCancellationFailed> {
-        let recorded = read_the_recorded_binding(request.common_dir, request.slot).map_err(
-            |stop| {
+        let recorded =
+            read_the_recorded_binding(request.common_dir, request.slot).map_err(|stop| {
                 return TheCancellationFailed {
                     sentence: stop.message(),
                 };
-            },
-        )?;
+            })?;
         let home: PathBuf = match passwd_home_of(unsafe { libc::geteuid() }) {
             Ok(home) => home,
             Err(refusal) => {
@@ -90,15 +89,13 @@ impl TheRemovalCancelling for TheSelfCancellingAnswer {
                 });
             }
         };
-        let mount_request = LiveTheMountRequest::open(
-            recorded.clone_dataset.as_str(),
-            recorded.clone_guid,
-        )
-        .map_err(|refusal| {
-            return TheCancellationFailed {
-                sentence: refusal.message(),
-            };
-        })?;
+        let mount_request =
+            LiveTheMountRequest::open(recorded.clone_dataset.as_str(), recorded.clone_guid)
+                .map_err(|refusal| {
+                    return TheCancellationFailed {
+                        sentence: refusal.message(),
+                    };
+                })?;
         let staged: LiveTheStagedFolder<'_> = LiveTheStagedFolder {
             home: home.as_path(),
             common_dir: request.common_dir,

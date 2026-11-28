@@ -55,12 +55,12 @@ use crate::worktree_clone_removal_proof_and_plan::removal_report::{
     OriginCleanupDone,
     TheRemovalDone,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
-use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
 use crate::worktree_clone_removal_proof_and_plan::removal_self_cancelling_step::{
     TheStopTheRemovalTakes,
     cancelled_at,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
+use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
 use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::{
     amend_the_plan,
@@ -163,9 +163,7 @@ pub(super) fn the_head_present_path(
     //  one of the clone's own snapshots already gone, which is a holder and not a name this run left.
     if head.head == HeadWord::Refused {
         let left: Vec<String> = the_names_not_destroyed(&plan);
-        if left.is_empty()
-            && head.errno == u32::try_from(libc::EBUSY).ok()
-        {
+        if left.is_empty() && head.errno == u32::try_from(libc::EBUSY).ok() {
             let the: TheStopTheRemovalTakes<'_> = TheStopTheRemovalTakes {
                 cancelling: input.cancelling,
                 common_dir: input.entry.common_dir,
