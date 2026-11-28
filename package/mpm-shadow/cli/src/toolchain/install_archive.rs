@@ -35,6 +35,7 @@ use std::path::{
 
 /// Imports what this module uses from `super::archive_staging`.
 use super::archive_staging::{
+    WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY,
     discard_path,
     publish_staged,
     staging_dir_of,
@@ -440,6 +441,20 @@ fn install_archive_files(
     // ```ts
     // publishStaged(staging, installDir, requiredProgram(tool) ?? '');
     // ```
-    publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""))?;
+    if let Err(error) = publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""))
+    {
+        // What: the failure's own words, followed by what a later install does with the finished copy they name.
+        // Why: no install of this tool follows such a failure in this run, so a person reading it has only that later
+        //  install to wait for, and the sentence says what that one does and which run does not.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // throw new ToolchainError(`${error.message}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}`);
+        // ```
+        return Err(ToolchainError::failure(format!(
+            "{}. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}",
+            error.message
+        )));
+    }
     return Ok(());
 }

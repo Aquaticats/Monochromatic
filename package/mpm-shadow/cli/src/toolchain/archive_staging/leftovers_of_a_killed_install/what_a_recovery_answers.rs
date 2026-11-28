@@ -41,36 +41,75 @@ use super::super::the_owner_of_a_hidden_sibling::{
     Liveness,
     Owner,
 };
-/// Imports the three purposes a hidden sibling's name may carry.
+/// Imports the three purposes a hidden sibling's name may carry,
+/// and the sentence a failure that named a finished copy is followed by.
 use super::super::{
     RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     STAGING_PURPOSE,
+    WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY,
 };
+
+/// What:
+/// Which copy a failed recovery's own message named,
+/// or that it named none,
+/// which is what the warning built around that message may say a later install does.
+/// Why:
+/// The warning follows the recovery's words with what this run then did,
+/// and only a failure that named a finished copy can go on to say what a later install does with that copy:
+/// the listing named nothing,
+/// and the put-back named the copy that was there,
+/// which is not a finished copy and whose own fate is where it waits.
+/// Each value is held by a control:
+/// the publish's own failure by the five that read the end of its warning,
+/// the claim's by one that reads which copy its failure named
+/// (`a_failed_claim_says_what_a_later_install_does_with_the_finished_copy_it_named`),
+/// and the put-back's by one that reads what is said about the copy it named
+/// (`a_failed_put_back_of_the_copy_that_was_there_claims_nothing_about_a_finished_copy`).
+/// Neither of the last two is held past a failure:
+/// that claim's and that put-back's renames fail only in a tool directory that refuses writes,
+/// and an install into such a directory cannot create its own staging directory either,
+/// so no state a test can build carries either failure into a warning a run prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhatTheFailureNamed = 'nothing' | 'a-finished-copy' | 'the-copy-that-was-moved-aside';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WhatTheFailureNamed {
+    /// The failure named no copy at all,
+    /// which is the tool directory's listing that could not be read.
+    Nothing,
+    /// The failure named a finished copy:
+    /// the one the publish kept,
+    /// or the one a dead install left and the claim could not take.
+    AFinishedCopy,
+    /// The failure named the copy that was moved aside,
+    /// which the put-back could not return to the version's name.
+    TheCopyThatWasMovedAside,
+}
 
 /// What:
 /// A recovery that failed:
 /// the error a person reads,
-/// and whether the failure was the publish's own,
-/// whose message names the finished copy the run keeps.
+/// and which copy that error named.
 /// Why:
-/// The warning an install makes of a failed recovery states what a later run does with the copy that failure kept,
-/// and it may state it only for the publish's own failure:
-/// the claim and the put-back fail on a rename the tool's directory refuses,
-/// and a directory that refuses that rename refuses the install's writes too,
-/// so no control reaches the state such a sentence would speak about.
+/// The warning an install makes of a failed recovery states what a later install does with the copy that failure named,
+/// and the sentence depends on which copy that was:
+/// a finished copy is published or removed,
+/// while the copy that was moved aside waits to be put back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ARecoveryThatFailed = { error: ToolchainError; thePublishKeptItsCopy: boolean };
+/// type ARecoveryThatFailed = { error: ToolchainError; named: WhatTheFailureNamed };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ARecoveryThatFailed {
     /// The error the run prints.
     pub(crate) error: ToolchainError,
-    /// Whether the failure was the publish's own,
-    /// which keeps the finished copy this run holds at the path its message names.
-    pub(crate) the_publish_kept_its_copy: bool,
+    /// Which copy that error named,
+    /// which decides what the warning around it may say.
+    pub(crate) named: WhatTheFailureNamed,
 }
 
 /// The methods of `ARecoveryThatFailed`.
@@ -89,26 +128,52 @@ impl ARecoveryThatFailed {
     pub(crate) fn nothing_read(error: ToolchainError) -> ARecoveryThatFailed {
         return ARecoveryThatFailed {
             error,
-            the_publish_kept_its_copy: false,
+            named: WhatTheFailureNamed::Nothing,
         };
     }
 
     /// What:
-    /// A recovery whose claim or put-back failed,
-    /// whose message names the copy that step left.
+    /// A recovery whose claim failed,
+    /// whose message names the finished copy a dead install left at its hidden name.
     /// Why:
-    /// The warning adds nothing about that copy's fate:
-    /// a control cannot build the state it would speak about
-    /// (see this type's own note on the publish's failure).
+    /// That copy is still there and still finished,
+    /// so a later install reads it as a second finished copy once the version is at its name,
+    /// and this run's warning says so.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function aCopyItNamed(error: ToolchainError): ARecoveryThatFailed { return { error, thePublishKeptItsCopy: false }; }
+    /// function aFinishedCopyItNamed(error: ToolchainError): ARecoveryThatFailed {
+    ///   return { error, named: 'a-finished-copy' };
+    /// }
     /// ```
-    pub(crate) fn a_copy_it_named(error: ToolchainError) -> ARecoveryThatFailed {
+    pub(crate) fn a_finished_copy_it_named(error: ToolchainError) -> ARecoveryThatFailed {
         return ARecoveryThatFailed {
             error,
-            the_publish_kept_its_copy: false,
+            named: WhatTheFailureNamed::AFinishedCopy,
+        };
+    }
+
+    /// What:
+    /// A recovery whose put-back of the copy that was moved aside failed,
+    /// whose message names that copy and says nothing was put back at the version's name.
+    /// Why:
+    /// That copy is the one that was there,
+    /// not a finished copy,
+    /// so the sentence about a finished copy would be false of it,
+    /// and the warning says what this run then did and nothing about that copy.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function theCopyThatWasMovedAsideItNamed(error: ToolchainError): ARecoveryThatFailed {
+    ///   return { error, named: 'the-copy-that-was-moved-aside' };
+    /// }
+    /// ```
+    pub(crate) fn the_copy_that_was_moved_aside_it_named(
+        error: ToolchainError
+    ) -> ARecoveryThatFailed {
+        return ARecoveryThatFailed {
+            error,
+            named: WhatTheFailureNamed::TheCopyThatWasMovedAside,
         };
     }
 
@@ -116,17 +181,59 @@ impl ARecoveryThatFailed {
     /// The publish's own failure,
     /// whose message names the finished copy this run keeps.
     /// Why:
-    /// This is the one failure arm whose warning states what a later run does with that copy,
-    /// and five run-level controls hold that sentence.
+    /// This is the failure arm an install reaches on its own,
+    /// and its warning states what a later install does with that copy.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function thePublishKeptItsCopy(error: ToolchainError): ARecoveryThatFailed { return { error, thePublishKeptItsCopy: true }; }
+    /// function thePublishKeptItsCopy(error: ToolchainError): ARecoveryThatFailed {
+    ///   return { error, named: 'a-finished-copy' };
+    /// }
     /// ```
     pub(crate) fn the_publish_kept_its_copy(error: ToolchainError) -> ARecoveryThatFailed {
         return ARecoveryThatFailed {
             error,
-            the_publish_kept_its_copy: true,
+            named: WhatTheFailureNamed::AFinishedCopy,
+        };
+    }
+
+    /// What:
+    /// What the warning says after "the install this run went on to make put <tool> <version> at its name".
+    /// Why:
+    /// The run did not fail for the recovery's failure,
+    /// and which copy that failure named decides whether the warning can go on to say what a later install does with it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function whatALaterInstallDoes(self: ARecoveryThatFailed): string {
+    ///   const nothingFailed = 'so the run does not fail for it';
+    ///   if (self.named !== 'a-finished-copy') return nothingFailed;
+    ///   return `${nothingFailed}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}`;
+    /// }
+    /// ```
+    pub(crate) fn what_a_later_install_does(&self) -> String {
+        let nothing_failed: &str = "so the run does not fail for it";
+        return match self.named {
+            // What: the two arms whose message names no finished copy.
+            // Why: a later install's act on a copy the warning cannot name is nothing this run may state.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (self.named !== 'a-finished-copy') return nothingFailed;
+            // ```
+            WhatTheFailureNamed::Nothing | WhatTheFailureNamed::TheCopyThatWasMovedAside => {
+                nothing_failed.to_string()
+            }
+            // What: the finished copy this run keeps, or the one a dead install left.
+            // Why: the install that followed put the version at its name, so a later install removes that copy as a second one.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return `${nothingFailed}. ${WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}`;
+            // ```
+            WhatTheFailureNamed::AFinishedCopy => {
+                format!("{nothing_failed}. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}")
+            }
         };
     }
 }
