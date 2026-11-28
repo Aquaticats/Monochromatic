@@ -933,7 +933,8 @@ Which answer fixes which:
   the class cannot ship,
   and their answers become a plan for later.
   It does not settle whether the two merged sweeps were within it,
-  which stays the owner's to say.
+  which stays the owner's to say,
+  and it leaves the class's own first report waiting on that answer.
 - Question 2 fixes the population,
   and so fixes every count in question 3 and the order of the ranking:
   a kind the owner permits leaves every predicate.
@@ -1028,8 +1029,8 @@ said here rather than in a note:
   and that standing is the author's.
 - The class is not all defect:
   `26,558` of its `127,985` breaks sit in a clause at or over `120` characters,
-  which no rewrap of that clause clears,
-  so the proxy counts as a defect `20.8` percent of breaks nobody can clear by hand.
+  which no rewrap of that clause clears short of adding punctuation or words,
+  so the proxy counts as a defect `20.8` percent of breaks a person cannot clear by rewrapping.
 - It is not the only criterion a reader would use.
   Four others reorder the list,
   each computable from `output.txt`:
@@ -1258,11 +1259,13 @@ not reasons to place a predicate lower.
     a rewrap clears the finding.
     The forced short-next-line example in this proposal is the proof:
     `android-emulator/SKILL.md:22` joins to `162` characters and stays forced,
-    and it rewraps into a `66`-character line ending `... the headful rule and`
-    and a `95`-character line that begins `name the launch form in`
-    and ends with the path's code span and a semicolon,
-    six words in all,
-    whose next line is no longer short,
+    and it rewraps into two lines:
+    the first `66` characters,
+    ending with `the headful rule and`;
+    the second `95` characters,
+    ending with the path's code span and a semicolon,
+    and six words long,
+    so the next line is no longer short,
     so the forced `14,694` of the short next line and the `5,613` of the short line
     are clearable by hand even though their clauses stay forced.
   - The unforced clause:
@@ -1538,7 +1541,8 @@ The options:
   `62,521` are joinable and a rewrap clears every one.
   What it gives up:
   `43.87` percent of its findings sit at the three edges question 2 may permit,
-  so the widest answer there removes `32,208` of them.
+  so the three-edge answer removes `32,208` of them,
+  and the answer that adds the conjunction kind removes `33,911`.
   A yes here leaves undecided the severity,
   the rule id and the fix.
 - **Nothing.**
@@ -1972,7 +1976,9 @@ each under its own scope:
   clause width and forced flag,
   checked against the three examples `output.txt` prints,
   and used for the real examples in "What each predicate would report";
-- a run of the installed binary over the three files those examples come from,
+- a run of the installed binary over three published files,
+  two of them the sources of
+  those examples,
   which shows the paragraphs they sit in carry no finding of the shipped rule;
 - the corrected after-the-fix control,
   run once on fixtures with the installed binary:
