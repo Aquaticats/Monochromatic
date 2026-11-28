@@ -1873,12 +1873,18 @@ With the slot's folder gone:
   `r55` and `r56` are typed inside the slot itself,
   and nothing runs in a folder that is gone.
 
-The two binaries are the tree before the fix
+The binaries are the tree before the fix
 (`package/git-policy/cli/target/debug/monochromatic-git-policy-cli`,
-sha256 `44d32b18f79d101e1c28f649a950c24447fbe3c253dccc83a62974bd074b23b5`)
-and after it
-(sha256 `3b1ed25bd4a51234d59d611fbfe77cf57b6456a1d3f4a134de9b3a7cfdc1cd44`),
-each run under its own capped scope and under
+sha256 `44d32b18f79d101e1c28f649a950c24447fbe3c253dccc83a62974bd074b23b5`),
+the first fix that read the registration's path alone
+(sha256 `b7ebf49be157667a4d28aa96d2d51a947ab424f8fcde05ebe86ae1f4876f1160`),
+and the merged tree after both fixes
+(sha256 `d2c7373bfe0c72dcea10ce3e905884aa136658aed1dd57fef14938bbaa05268c`),
+which is the `after` column above;
+the table was run twice,
+once before the merge of `origin/main` and once after it,
+and answered the same in every row.
+Each run went under its own capped scope and under
 `env --ignore-environment` with a runtime directory of the round's own and no
 session bus at all.
 Real Git is `/usr/bin/git` at `2.56.1`;
@@ -2051,7 +2057,14 @@ The module docs of the two readers say what they read and why:
   as Git refuses it.
 - No whole container gate and no independent review ran.
 
-### The checks this round ran
+### The checks this round ran, before and after the merge
+
+Each of these ran twice:
+once on the branch as the two commits left it,
+and once again after `origin/main` was merged into it (`89ad974aaa`),
+which brought the linter's own alpha.25 changes and nothing under the wrapper.
+Both rounds answered the same,
+and the numbers below are the merged tree's.
 
 - `cargo fmt --check`:
   no output.
