@@ -840,9 +840,9 @@ fn add_findings_come_from_what_the_add_would_stage() {
         path: Some(EventPath::from_git_bytes("a.txt".as_bytes())),
         location: None,
         fix_available: false,
-        // What: an `add` stages worktree bytes a commit would take and correct.
-        // Why:  the hint of this finding says so, so the event carries that answer.
-        commit_correction: Some(CommitCorrection::Corrects),
+        // What: an `add` puts bytes in the index that a plain commit corrects and a read-only selection records.
+        // Why:  the hint of this finding says both, so the event carries that answer.
+        commit_correction: Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
     });
     assert_eq!(
         run(&["add", "a.txt"], facts.clone(), &[]),
