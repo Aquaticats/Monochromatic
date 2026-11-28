@@ -366,6 +366,25 @@ which item 12's subset could not exercise,
 and
 `e2e/README.md` says which arm proves each.
 
+### `prepare` in a guest that is already prepared
+
+`prepare` can be run again in the guest it prepared,
+and in one whose arms have since made pools:
+it compares the version the loaded module publishes
+(`/sys/module/zfs/version`)
+with the version the module file it installed carries
+(`modinfo --field version`),
+and then it leaves a guest that already runs the built module alone and says so,
+inserts that module where none is loaded,
+replaces another module it can remove,
+or refuses with the loaded version,
+the built version and the mounted datasets and imported pools the kernel reports,
+because a mounted dataset is what keeps the loaded module from going.
+`e2e/README.md` states each state and the words it prints,
+and
+`mise run //package/zfs/request-to-openzfs-kernel-device:test:tooling`
+checks that step on the host without a guest.
+
 ## What this crate does not do
 
 - It proves no module release.
@@ -436,8 +455,10 @@ mise run //package/zfs/request-to-openzfs-kernel-device:build:gate-image -- --ta
 ```
 
 The build itself is bounded:
-`podman build` has no weight, CPU or process option,
-so the build takes the shared container bound's memory, CFS period and quota,
+`podman build` has no weight,
+CPU or process option,
+so the build takes the shared container bound's memory,
+CFS period and quota,
 the size every container gets unless its task asks for another.
 
 The checks run there as `podman run --rm --init --network none --cpus 4

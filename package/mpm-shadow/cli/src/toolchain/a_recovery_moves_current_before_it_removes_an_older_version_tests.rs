@@ -62,6 +62,7 @@ use super::archive_staging::{
     REPLACED_PURPOSE,
     RenameRefused,
     STAGING_PURPOSE,
+    WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY,
     clear_the_plant,
     hidden_sibling,
     plant_these_steps,
@@ -929,8 +930,16 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         "the warning says what the run then did: {warning}"
     );
     assert!(
-        warning.contains("so a later run publishes nothing from that copy and removes it"),
+        warning.contains(&format!(
+            "so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}"
+        )),
         "the warning says what the next run does with the copy this run replaced: {warning}"
+    );
+    assert!(
+        warning.contains(
+            "an install in another process namespace does not judge that name and leaves the copy where it is"
+        ) && warning.contains("prune --toolchain prints that name and what deleting it costs"),
+        "the warning says which later install acts on the copy and which one leaves it for a person: {warning}"
     );
     assert!(
         !warning.contains("running the command again publishes it without downloading"),
@@ -1117,8 +1126,7 @@ fn a_failed_publish_of_a_name_that_holds_nothing_says_what_the_next_run_does() {
             "toolchain install: warning: cannot move the finished install to {}: Input/output error (os error 5); \
              the finished copy this run holds is still at {}; \
              the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
-             so a later run publishes nothing from that copy and removes it, \
-             and the run does not fail for it\n",
+             so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}\n",
             version_dir.display(),
             claim.display()
         )),
@@ -1162,8 +1170,7 @@ fn a_failed_exchange_says_what_the_next_run_does_with_the_copy_it_kept() {
             "toolchain install: warning: cannot put the finished install in place of the copy at {}: Input/output error (os error 5); \
              that copy is as it was, the finished copy this run holds is still at {}; \
              the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
-             so a later run publishes nothing from that copy and removes it, \
-             and the run does not fail for it\n",
+             so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}\n",
             version_dir.display(),
             claim.display()
         )),
@@ -1207,8 +1214,7 @@ fn a_failed_aside_rename_says_what_the_next_run_does_with_the_copy_it_kept() {
             "toolchain install: warning: cannot move the copy at {} aside to install over it: Input/output error (os error 5); \
              that copy is as it was, the finished copy this run holds is still at {}; \
              the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
-             so a later run publishes nothing from that copy and removes it, \
-             and the run does not fail for it\n",
+             so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}\n",
             version_dir.display(),
             claim.display()
         )),
@@ -1252,8 +1258,7 @@ fn a_failed_rename_into_a_name_put_back_says_what_the_next_run_does_with_the_kep
             "toolchain install: warning: cannot move the finished install to {}: Input/output error (os error 5); \
              the copy that was there is back at {}, the finished copy this run holds is still at {}; \
              the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
-             so a later run publishes nothing from that copy and removes it, \
-             and the run does not fail for it\n",
+             so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}\n",
             version_dir.display(),
             version_dir.display(),
             claim.display()
@@ -1306,8 +1311,7 @@ fn a_failed_put_back_of_a_finished_copy_says_what_the_next_run_does_with_the_kep
             "toolchain install: warning: cannot put the finished install that was at {} back from {}: Input/output error (os error 5); \
              the finished copy this run holds is still at {}; \
              the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
-             so a later run publishes nothing from that copy and removes it, \
-             and the run does not fail for it\n",
+             so the run does not fail for it. {WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY}\n",
             version_dir.display(),
             aside.display(),
             claim.display()
