@@ -87,7 +87,8 @@ use crate::control_group_route_discovery::RouteSettings;
 /// Each program is timed on its own,
 /// because the discovery starts one program per ask and a slow one followed by a fast failure must still be put again.
 /// A failure can also be one no wait of this tool ends,
-/// which `stops_the_call` says: a route the manager reports beside a job a start could not wait out is that kind,
+/// which `stops_the_call` says:
+/// a route the manager reports beside a job a start could not wait out is that kind,
 /// because a scope made there is refused while the job stands.
 pub(crate) struct FailedAsk {
     /// The words the refusal names.

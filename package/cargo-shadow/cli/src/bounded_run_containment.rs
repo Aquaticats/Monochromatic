@@ -376,7 +376,9 @@ pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
 /// Why:
 /// The notice is printed once per process,
 /// and a refused route is the one answer that must not become a process group:
-/// the manager has a job on the slice, so a scope made there is refused, and a scope launcher that waited for the job would wait
+/// the manager has a job on the slice,
+/// so a scope made there is refused,
+/// and a scope launcher that waited for the job would wait
 /// with no bound of this tool's (`RouteRefused`).
 ///
 /// In TS you'd write (pseudocode):

@@ -91,16 +91,19 @@ pub enum RunError {
     },
     /// The route to a delegated control group was asked for and answered a path no scope can be made under while a job stands
     /// on the slice:
-    /// nothing was started, and the call stops rather than waiting for another unit's stop.
+    /// nothing was started,
+    /// and the call stops rather than waiting for another unit's stop.
     RouteRefused {
-        /// Why the route was refused, in the discovery's own words.
+        /// Why the route was refused,
+        /// in the discovery's own words.
         reason: String,
     },
 }
 
 /// The opening of the words a refused route leaves.
 /// Why:
-/// The words travel to a caller as text, and one caller must stop the command for this failure where every other failure of a
+/// The words travel to a caller as text,
+/// and one caller must stop the command for this failure where every other failure of a
 /// cargo call only adds `--locked` (the install step).
 /// The opening is what that caller recognises,
 /// so it is written once here and beside the reading of it (`install_error`).

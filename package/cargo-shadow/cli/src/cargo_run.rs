@@ -256,9 +256,11 @@ impl CargoRunner for RealCargo {
             // ```ts
             // catch (error) { if (error.kind === 'routeRefused') throw new Error(String(error)) }
             // ```
-            Err(error @ RunError::RouteRefused {
-                ..
-            }) => return Err(error.to_string()),
+            Err(
+                error @ RunError::RouteRefused {
+                    ..
+                },
+            ) => return Err(error.to_string()),
             Err(RunError::Io(error)) => {
                 return Err(format!(
                     "could not start {}: {error}",

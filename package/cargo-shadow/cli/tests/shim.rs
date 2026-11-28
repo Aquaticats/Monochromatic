@@ -2013,10 +2013,12 @@ fn a_running_slice_with_no_job() -> Option<String> {
 /// makes the start spend the bound it is given,
 /// and answers the ask after it with the same path and job.
 /// The path beside that job is the stop the start was waiting out,
-/// so the call must stop there, name the program and the bound,
+/// so the call must stop there,
+/// name the program and the bound,
 /// leave the lockfile as it found it,
 /// and run none of the user's command
-/// (measured 2026-11-28 against the released `0.1.5-alpha.18`: the same state made that release take the path as its route and
+/// (measured 2026-11-28 against the released `0.1.5-alpha.18`:
+/// the same state made that release take the path as its route and
 /// wait 29.8 s to 29.9 s inside the scope launcher).
 #[test]
 fn a_start_that_spends_the_discovery_s_bound_stops_the_command_and_leaves_the_lockfile_as_it_was() {

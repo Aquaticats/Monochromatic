@@ -686,7 +686,8 @@ fn a_stop_job_queued_on_the_slice_is_asked_through_before_the_route_is_taken() {
 /// The path beside that job is the stop the start was waiting out,
 /// so the discovery must refuse rather than plan a scope the launcher would wait for,
 /// and the refusal names the program and the bound
-/// (the state itself was measured 2026-11-27: a slice held by a stop of 30 s took 29.8 s to 29.9 s of a call,
+/// (the state itself was measured 2026-11-27:
+/// a slice held by a stop of 30 s took 29.8 s to 29.9 s of a call,
 /// under `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`).
 #[test]
 fn a_start_that_spent_its_bound_leaves_no_route_beside_the_job_it_left_queued() {
@@ -756,7 +757,8 @@ fn a_start_that_spent_its_bound_leaves_no_route_beside_the_job_it_left_queued() 
 /// so the discovery must refuse rather than plan a scope under a group it was not told about.
 /// Both answers are the ones a same-vendor second read of `0.1.5-alpha.18` staged on 2026-11-28:
 /// `/system.slice` (a group of the host's own system manager) and `/init.scope` (a unit of this account's manager that is not
-/// its slice), each of which that release accepted as the route.
+/// its slice),
+/// each of which that release accepted as the route.
 /// The stand-in is a stand-in:
 /// the answers are paths this host really has,
 /// and no claim about a real manager rests on it here.

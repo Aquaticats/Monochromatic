@@ -2060,7 +2060,8 @@ A path beside a job queued on the slice after a start that spent `DISCOVERY_BOUN
 is the stop that start was waiting out:
 a scope made there is refused while the job stands,
 so the call stops with the words instead of waiting for another unit's stop,
-and it starts nothing, so it changes no lockfile
+and it starts nothing,
+so it changes no lockfile
 (measured 2026-11-28 in a container of its own:
 29.375 s to 29.584 s a call on the released `0.1.5-alpha.18` against 10.026 s to 10.036 s on this branch,
 2.93 to 2.95 times).

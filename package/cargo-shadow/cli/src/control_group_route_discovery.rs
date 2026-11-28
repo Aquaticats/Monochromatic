@@ -11,7 +11,9 @@
 //! The items are re-exported from `control_group`,
 //! so their paths there are unchanged.
 //! The mount view a route records is `control_group_route_view.rs`,
-//! and the programs the discovery runs are `control_group_route_child_runs.rs`.
+//! the programs the discovery runs are `control_group_route_child_runs.rs`,
+//! the settings it is made with are `control_group_route_settings.rs`,
+//! and the refusals it answers are `control_group_route_refusal.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -76,17 +78,6 @@ use crate::inherited_limits::{
     caller_limits,
 };
 /// What:
-/// `use std::fmt;` imports the standard library's formatting module,
-/// which holds `Display` (a type that can be printed with `{}`) and `Formatter` (the printer it writes into).
-/// Why:
-/// A refusal is printed as the reason the delegated scope is missing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // String(value) and template literals
-/// ```
-use std::fmt;
-/// What:
 /// `use std::fs;` imports the standard library's file-system module so this file can name it unqualified.
 /// Why:
 /// The slice the manager reports must exist as a directory before it can be used.
@@ -96,6 +87,7 @@ use std::fmt;
 /// import { statSync } from 'node:fs';
 /// ```
 use std::fs;
+/// What:
 /// What:
 /// `use std::io;` imports the standard library's input/output module so this file can name it unqualified.
 /// Why:
@@ -166,6 +158,15 @@ use std::time::{
 
 /// The check that a group directory can be killed through `cgroup.kill` (split out of this module).
 pub(crate) use crate::control_group_route_child_runs::kill_file_present;
+/// Why a route was not had,
+/// in the two kinds the run tells apart (split out of this module).
+pub(crate) use crate::control_group_route_refusal::{
+    GroupUnavailable,
+    refuses_the_call,
+    unavailable,
+};
+/// The settings one discovery is made with (split out of this module).
+pub(crate) use crate::control_group_route_settings::RouteSettings;
 /// The mount view a route records (split out of this module).
 pub(crate) use crate::control_group_route_view::{
     View,
@@ -227,88 +228,6 @@ pub(crate) const DISCOVERY_POLL: Duration = Duration::from_millis(5);
 /// 16 bytes are 128 bits,
 /// so a name repeated by chance is not a case to plan for.
 pub(crate) const TOKEN_BYTES: usize = 16;
-
-/// Why no control group could be had,
-/// in words that name the missing capability.
-/// Two kinds of refusal are told apart by `stops_the_call`:
-/// one that means this host has no capability, which the run stands in for with a process group of its own,
-/// and one that is a moment no wait of this tool ends, which stops the call instead.
-#[derive(Clone, Debug)]
-pub(crate) struct GroupUnavailable {
-    /// The missing capability and what was tried.
-    pub(crate) reason: String,
-    /// Whether this refusal stops the call instead of taking the weaker path.
-    pub(crate) stops_the_call: bool,
-}
-
-/// How the reason reads to a person.
-impl fmt::Display for GroupUnavailable {
-    /// What:
-    /// `fn fmt(&self, formatter)` writes the reason.
-    /// Why:
-    /// The one-line notice of the weaker path is this text.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// toString(): string
-    /// ```
-    fn fmt(
-        &self,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        return write!(formatter, "{}", self.reason);
-    }
-}
-
-/// What the discovery of the route uses,
-/// so a test can make the host look like one that lacks a capability.
-#[derive(Clone, Debug)]
-pub(crate) struct RouteSettings {
-    /// The program that makes the scope.
-    pub(crate) systemd_run: String,
-    /// The program that asks the manager where the slice is.
-    pub(crate) systemctl: String,
-    /// Where the cgroup v2 hierarchy is mounted.
-    pub(crate) cgroup_root: PathBuf,
-    /// The slice the scopes are made in.
-    pub(crate) slice: String,
-    /// Variables set (`Some`) or removed (`None`) for the program that asks the manager.
-    pub(crate) environment: Vec<(String, Option<String>)>,
-    /// The arguments of the question to the manager when a test replaces the ordinary ones (`None` is the ordinary question).
-    pub(crate) question: Option<Vec<String>>,
-    /// How long the question may take.
-    pub(crate) discovery_bound: Duration,
-    /// The file that names this process's own control group.
-    pub(crate) own_cgroup_file: PathBuf,
-}
-
-/// The settings of an ordinary host.
-impl Default for RouteSettings {
-    /// What:
-    /// `fn default()` is the ordinary settings:
-    /// `systemd-run`,
-    /// `systemctl`,
-    /// `/sys/fs/cgroup` and `app.slice`.
-    /// Why:
-    /// `app.slice` is where the user manager puts application scopes.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const defaults: RouteSettings = { ... }
-    /// ```
-    fn default() -> RouteSettings {
-        return RouteSettings {
-            systemd_run: "systemd-run".to_string(),
-            systemctl: "systemctl".to_string(),
-            cgroup_root: PathBuf::from(CGROUP_ROOT),
-            slice: "app.slice".to_string(),
-            environment: Vec::new(),
-            question: None,
-            discovery_bound: DISCOVERY_BOUND,
-            own_cgroup_file: PathBuf::from(OWN_CGROUP_FILE),
-        };
-    }
-}
 
 /// What a host can give:
 /// the way to a delegated scope.
@@ -397,38 +316,6 @@ pub(crate) fn is_executable_file(candidate: &Path) -> bool {
     }
 }
 
-/// What:
-/// `fn unavailable(reason: String) -> GroupUnavailable` wraps a reason in the refusal that route discovery returns.
-/// Why:
-/// A function replaces the closure that `detect_route` called at every refusal.
-pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
-    return GroupUnavailable {
-        reason,
-        stops_the_call: false,
-    };
-}
-
-/// What:
-/// `fn refuses_the_call(reason: String) -> GroupUnavailable` wraps a reason in the refusal that stops the call,
-/// instead of the one the run stands in for with a process group of its own.
-/// Why:
-/// The reason it exists for is a route the manager reports beside a job a start could not wait out:
-/// a scope planned there is refused while that job stands,
-/// and waiting for another unit's stop has no bound this tool sets,
-/// so a run that took the weaker path there would go on uncontained behind a stop of unknown length (rule "nothing waits forever")
-/// while running the command it was asked to check.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refusesTheCall(reason: string): GroupUnavailable  // the kind that throws instead of falling back
-/// ```
-pub(crate) fn refuses_the_call(reason: String) -> GroupUnavailable {
-    return GroupUnavailable {
-        reason,
-        stops_the_call: true,
-    };
-}
-
 /// How many times the discovery asks the manager where its slice is before a failed ask is read as a capability this host has not
 /// got.
 /// Why:
@@ -506,7 +393,8 @@ pub(crate) const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
 /// and no control group after a start whose own failure was a transport rather than the manager's answer.
 /// A path reported beside a job queued on the slice is a slice being stopped,
 /// which the start waits out;
-/// where that start spent the bound it was given, the job is still there and the path beside it is not the route,
+/// where that start spent the bound it was given,
+/// the job is still there and the path beside it is not the route,
 /// because no wait of this tool ends another unit's stop (see `ask_once`).
 /// The words are the refusal the caller names,
 /// so they say which ask failed.
@@ -703,18 +591,27 @@ fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
 
 /// What:
 /// `fn names_the_slice(reported: &str, slice: &str) -> bool` says whether the control group the manager reported is the
-/// slice's own, which is the group named after the unit that was asked about.
+/// slice's own,
+/// which is the group named after the unit that was asked about.
 /// Why:
 /// A unit's own control group carries the unit's name,
 /// so an answer whose last component is another name is an answer about another unit,
 /// and a scope planned under it would be made somewhere else than the group this run shows empty
-/// (measured 2026-11-28 against a stand-in: `0.1.5-alpha.18` took `/system.slice` and `/init.scope` as `app.slice`'s route and
+/// (measured 2026-11-28 against a stand-in:
+/// `0.1.5-alpha.18` took `/system.slice` and `/init.scope` as `app.slice`'s route and
 /// then reported quiescence it never showed).
 /// What it does not decide:
 /// which account's slice the path belongs to,
 /// because the manager's own slice is spelled differently on different hosts
-/// (`user-1000.slice`, `user@1000.service` and a container's own service were seen beside this check)
+/// (`user-1000.slice`,
+/// `user@1000.service` and a container's own service were seen beside this check)
 /// and a guess at that spelling would refuse routes that are right.
+/// Where it is asked:
+/// after the check for `cgroup.kill`,
+/// because a manager that answers the root group answers `/`,
+/// which names no unit at all,
+/// and that group is the one the records already name as "a manager group without `cgroup.kill`"
+/// (`containment_record_tests`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -882,20 +779,6 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
         Err(failed) if failed.stops_the_call => return Err(refuses_the_call(failed.reason)),
         Err(failed) => return Err(unavailable(failed.reason)),
     };
-    // What:     `names_the_slice(&reported, &settings.slice)` says whether the manager's answer is the slice's own control group.
-    // Why:      A path of another unit is no route to this one: the scope this run plans under it would not be the scope the
-    //           manager makes, so the run's end would read an absent directory as an empty scope (Medium 2 of the alpha.18 read).
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (!namesTheSlice(reported, settings.slice)) throw new GroupUnavailable(...)
-    // ```
-    if !names_the_slice(&reported, &settings.slice) {
-        return Err(unavailable(format!(
-            "the user manager reports {reported} for {}, and that group is another unit's, so a scope planned there would never be the scope this run makes",
-            settings.slice
-        )));
-    }
     let slice_dir: PathBuf = settings.cgroup_root.join(reported.trim_start_matches('/'));
     if slice_dir.to_str().is_none() {
         return Err(unavailable(format!(
@@ -917,6 +800,20 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
         return Err(unavailable(format!(
             "{} has no cgroup.kill; Linux 5.14 or later is needed",
             slice_dir.display()
+        )));
+    }
+    // What:     `names_the_slice(&reported, &settings.slice)` says whether the manager's answer is the slice's own control group.
+    // Why:      A path of another unit is no route to this one: the scope this run plans under it would not be the scope the
+    //           manager makes, so the run's end would read an absent directory as an empty scope (Medium 2 of the alpha.18 read).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (!namesTheSlice(reported, settings.slice)) throw new GroupUnavailable(...)
+    // ```
+    if !names_the_slice(&reported, &settings.slice) {
+        return Err(unavailable(format!(
+            "the user manager reports {reported} for {}, and that group is another unit's, so a scope planned there would never be the scope this run makes",
+            settings.slice
         )));
     }
     let namespace: u64 = match namespace_id() {

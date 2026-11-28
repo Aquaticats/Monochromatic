@@ -409,17 +409,15 @@ fn run_bounded(
     let scope: Option<Rc<ScopeState>> = current_scope();
     let deadline: Instant = Instant::now() + bound.limit;
     configure_stdio(command, input.is_some());
-    // What:     `containment` is the scope the run is given, or the refusal of a route no wait of this tool ends.
+    // What:     `contain` answers the scope the run is given, and `?` gives the caller the refusal instead, which is the route
+    //           no wait of this tool ends.
     // Why:      A refused route stops the run before anything is started, so no program writes a file behind another unit's stop.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const containment = contain()  // throws RunError
+    // const containment: Containment = contain()  // throws RunError
     // ```
-    let containment: Containment = match contain() {
-        Ok(found) => found,
-        Err(error) => return Err(error),
-    };
+    let containment: Containment = contain()?;
     let mut child: Child = match start_contained(
         command,
         &containment,

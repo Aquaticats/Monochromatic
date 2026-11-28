@@ -7,16 +7,16 @@ one section per release.
 Status:
 **unapproved and non-final**.
 Written by the coordinating session from the second passes' reports,
-and, for the alpha.18 section, by the round that answered that read,
-which says so where its section begins.
+with the alpha.18 section written by the round that answered that read,
+which says so where the section begins.
 Each pass was another agent of the same vendor,
 so a second pass and not an independent review,
 and each is named by the release it read.
 Every figure below is one that pass measured;
 the behaviour it confirmed is stated where this package's `README.md` states
 it,
-and a section holds what the released binaries themselves showed
-and, where its own round answered the read, what that answer changed.
+and a section holds what the released binaries themselves showed,
+and what that answer changed where its own round answered the read.
 
 ## The alpha.13 pass: cost of a trivial call against alpha.11
 
@@ -111,10 +111,21 @@ one call of each arm in every round and the arms alternated within it,
 so three calls an arm,
 every call meeting the state):
 
-- `0.1.5-alpha.18`: exit 0, 29.584 s, 29.579 s and 29.375 s, on the delegated route.
-- the answering branch: exit 1, 10.027 s, 10.036 s and 10.026 s,
-  with the refusal naming the program, the bound and the job.
-- the ratio of the released call to the branch's, per round: 2.95, 2.95 and 2.93.
+- `0.1.5-alpha.18`:
+  exit 0,
+  29.584 s,
+  29.579 s and 29.375 s,
+  on the delegated route.
+- the answering branch:
+  exit 1,
+  10.027 s,
+  10.036 s and 10.026 s,
+  with the refusal naming the program,
+  the bound and the job.
+- the ratio of the released call to the branch's,
+  per round:
+  2.95,
+  2.95 and 2.93.
 - without `--dry-run` from the same state:
   the released binary exited 0 after 29.477 s and left the lockfile updated,
   and the branch exited 1 after 10.029 s and left the lockfile exactly as it found it.

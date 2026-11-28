@@ -1308,7 +1308,8 @@ and `contain` turns it into `RunError::RouteRefused` before anything is started.
 The install step reads those words as a refusal rather than an operational failure,
 so the person's command does not run with `--locked` added and the lockfiles are put back as they were found.
 
-The state, staged once in a rootless container whose own user manager was systemd 262.2
+The state,
+staged once in a rootless container whose own user manager was systemd 262.2
 (the recipe is under "The two controls of the span" above,
 with a service in `app.slice` that ignores SIGTERM under `TimeoutStopSec=30`
 and `systemctl --user stop app.slice --no-block` issued about 0.7 s before each call):
@@ -1318,24 +1319,33 @@ so three calls an arm,
 the released `0.1.5-alpha.18` (sha256 starting `2cccd94c`) and the branch's binary.
 Every call met the state (`active` with a job number on the slice at the moment it began).
 
-- `0.1.5-alpha.18`: exit 0 every time,
-  29.584 s, 29.579 s and 29.375 s,
+- `0.1.5-alpha.18`:
+  exit 0 every time,
+  29.584 s,
+  29.579 s and 29.375 s,
   the delegated route,
   the stop waited out.
-- the branch: exit 1 every time,
-  10.027 s, 10.036 s and 10.026 s,
+- the branch:
+  exit 1 every time,
+  10.027 s,
+  10.036 s and 10.026 s,
   the bound spent on the start and the call stopped at once after it.
 - the ratio of the released call to the branch's,
-  per round: 2.95, 2.95 and 2.93.
+  per round:
+  2.95,
+  2.95 and 2.93.
 
-The refusal's own words, as the branch printed them:
+The refusal's own words,
+as the branch printed them:
 
 ```text
 no delegated control group can be had now: the user manager cannot start app.slice (systemctl did not answer within 10s), and a job is still queued on app.slice: a scope made there while that job stands is refused, so no delegated control group can be had until it ends, and this tool does not wait for another unit's stop; nothing was started, so this call changed no file
 ```
 
-The lockfiles, from the same state without `--dry-run`
-(the fixture's lockfile holds `# stale`, and the stand-in cargo writes `# satisfied` when it runs):
+The lockfiles,
+from the same state without `--dry-run`
+(the fixture's lockfile holds `# stale`,
+and the stand-in cargo writes `# satisfied` when it runs):
 `0.1.5-alpha.18` exited 0 after 29.477 s with the lockfile at `# satisfied`,
 and the branch exited 1 after 10.029 s with the lockfile still at `# stale`.
 So the refusal leaves the lockfiles as it found them,
@@ -1364,13 +1374,18 @@ the discovery took any path whose directory exists and holds `cgroup.kill`,
 so a stand-in answering `/system.slice` or `/init.scope` for `app.slice` gave a call that exited 0,
 reported the delegated route and left its straggler alive,
 where the same call on the real route killed it.
-`detect_route` now asks `names_the_slice` first:
+`detect_route` now asks `names_the_slice` before it plans anything:
 a unit's own control group carries the unit's name,
 so an answer whose last component is not the slice's is an answer about another unit,
 and the run refuses that route instead of planning a scope under it.
+That question comes after the check for `cgroup.kill`,
+so a manager that answers the root group answers `/`,
+which names no unit at all and is the group the records already call
+"a manager group without `cgroup.kill`".
 What it does not decide is which account's slice the path belongs to,
 because the manager's slice is spelled differently on different hosts
-(`user-1000.slice`, `user@1000.service` and a container's own service were all seen beside this round);
+(`user-1000.slice`,
+`user@1000.service` and a container's own service were all seen beside this round);
 that gap is in the Open list.
 
 The control is
@@ -1378,7 +1393,8 @@ The control is
 which plants each of those two answers and requires one ask and a refusal that names the group.
 It failed on the code before this change for both answers,
 with `Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`.
-Measured 2026-11-28 in the same container, through a stand-in that answers the ask of where the slice is with
+Measured 2026-11-28 in the same container,
+through a stand-in that answers the ask of where the slice is with
 `ControlGroup=/system.slice` and hands the start to the real manager:
 `0.1.5-alpha.18` exited 0 in 146 ms and took the delegated route,
 and the branch exited 0 in 32 ms on the weaker path,
