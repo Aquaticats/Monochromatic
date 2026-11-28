@@ -2949,20 +2949,6 @@ and the two `truepeak` files wait on their branch.
 - A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
-- The wrapper package's unit tests no longer reach the account's service manager (`bc24b2e688`,
-  issue 6620).
-  Every fixture's `git` is the standing Git on a search path of the fixture's own,
-  with no bus address and a runtime directory of the fixture's own
-  (`bin/fixture-git-environment-for-tests.ts`).
-  Unsetting the bus alone would not have done:
-  the wrapper with no bus refuses a commit outright,
-  which the round measured with a released binary.
-  A control records what each fixture `git` was given,
-  and failed with eight calls carrying a bus address when the change was taken out.
-  One whole `native:ts-checks` with the account's own environment then left no line for a fixture repository in the journal
-  and the shared link as it was.
-  The round's commit drew a `final-newline` warning for two new files that end with one newline,
-  not reproduced (issue 6622).
 - The driver's launcher clears a finished run's scratch folder beside `keep/` (`a40a99467c`,
   issue 6618),
   as the owner's answer of 2026-11-13 has it.
