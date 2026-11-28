@@ -2829,17 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-- Low:
-  the sweep's warnings carry four new log tags;
-  a commit labelled `docs` changed the `shutdown-unmount` help row (`066e33a47d`,
-  noted on the commit);
-  the panic notice's source locations moved;
-  34 items lost a platform gate on split-off files,
-  with no effect on x86_64 Linux;
-  tag constants are copied into more files;
-  the README's allow-list counts are stale;
-  two commits in the range cannot build alone;
-  the linter the binary carries moved four alphas.
 - Its count of tests that run under the gate's build is the gate's own,
   12,115.
 
