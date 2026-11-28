@@ -2949,19 +2949,6 @@ and the two `truepeak` files wait on their branch.
 - A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
-- The driver's launcher clears a finished run's scratch folder beside `keep/` (`a40a99467c`,
-  issue 6618),
-  as the owner's answer of 2026-11-13 has it.
-  It clears once the run's unit has ended,
-  the run's own work has stopped,
-  no process works in the folder and no newer run of the name has started;
-  it never follows a link,
-  and an empty run name or a home that is not absolute is refused before anything is read.
-  A round started before the merge was started by the earlier launcher,
-  so its folder stays whole until `~/temp` expires it.
-  A launcher killed before its unit ends,
-  and a run started by hand,
-  clear nothing.
 - Claude Code restarted this session unasked at 2026-11-27T14:02:39-05:00
   (`doc/troubleshooting/claude-code-restarts-a-session-unasked-and-stops-its-tracked-background-commands.md`;
   rules `RZN` to `RZG` of `CLAUDE.md`).
