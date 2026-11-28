@@ -122,6 +122,120 @@ which the same incident also needed;
 and the launcher's own `git worktree add` runs with the launcher's own `PATH`,
 which a protected session already sets.
 
+### The main checkout is read-only for a run
+
+A run works in a worktree,
+and the checkout it was made from is read-only for it:
+an edit left there blocks merges for everyone,
+and a build run there tests a tree that is not the run's
+(`doc/rules-every-pi-brief-carries.md`,
+"Where the run works").
+The rounds of issues 6632 and 6625 left edits there on 2026-11-27 (issue 6636),
+so the driver now arms a guard in every Pi it starts.
+
+`src/main-checkout-guard-extension.ts` is loaded with `--extension` beside the masking extension
+and registers one `tool_call` handler.
+The driver reads the folders from the folder the run works in
+(`src/main-checkout-guard-of-a-run.ts`):
+the repository that folder belongs to,
+the worktree it was started in,
+and the folder every worktree of the repository lies in,
+each resolved through the file system.
+It hands them over on `MONOCHROMATIC_RUN_MAIN_CHECKOUT_GUARD` as JSON,
+or as the word `off`
+(`src/main-checkout-guard-words.ts`).
+
+An `edit` or `write` call is refused when the path it names lies inside the main checkout
+and outside that checkout's `.claude/worktrees/`,
+after being read the way Pi's own tools read it
+(a leading `@`,
+the Unicode spaces,
+`~`,
+a `file://` URL)
+and after every `..` segment and symbolic link is resolved
+(`src/refusal-of-a-write-to-the-main-checkout.ts`,
+`src/path-with-symbolic-links-resolved.ts`).
+The refusal names the path as the call gave it,
+says that it is the main checkout's copy,
+and gives the worktree copy of the same path:
+
+```text
+this run may not change the main checkout. The edit call's path "<given>" is the main
+checkout's copy of that path, under <main checkout>. This run works in the worktree
+<worktree>, so the worktree's copy of the same path is <copy>: edit that copy instead.
+Reading the main checkout's copy of a path stays allowed. Nothing was written.
+```
+
+What stays allowed,
+and each is a test of its own:
+
+- the worktree's own copy of the same path,
+  and any other worktree's copy;
+- the run's scratch folder,
+  and every other path outside the repository;
+- a read of the main checkout,
+  which most briefs tell a run to do;
+- every path at all in a session that is not a run started in a worktree.
+
+A run started in no worktree,
+which is `--branch=none`,
+and a run started in a folder that is in no repository,
+are handed `off` and refuse nothing.
+A Pi the driver did not start never loads the extension,
+so a person's own session behaves exactly as it did before.
+The feed says which of the two every run got,
+as a `main-checkout-guard` line naming the folders or the word `off`.
+
+The path is read the way Pi's own tools read it
+(`resolveToCwd` in `dist/core/tools/path-utils.js` of `@earendil-works/pi-coding-agent` 1.6.0):
+a leading `@`,
+the Unicode spaces,
+`~`
+and a `file://` URL are Pi's own,
+and only then is the path walked through the file system.
+So `link/../x` is the folder above whatever `link` names,
+which `path.resolve` would have read as this folder's own `x`.
+
+#### What is not refused, and what would catch it
+
+A shell command that changes the main checkout is not refused.
+`bash` calls are not read here at all:
+a command that reads the checkout is what most briefs tell a run to do,
+and telling a read from a write needs the shell grammar read as a whole.
+So `sed --in-place <main checkout>/x.ts`,
+`cp x <main checkout>/`,
+`git -C <main checkout> commit`,
+`cd <main checkout> && mise run build`
+and `some-command > <main checkout>/y` all still land there.
+
+What would catch it is a shell guard reading the same two folders:
+the analyzer this repository ships
+(`@monochromatic-dev/agent-harness-shared-shell-command-analyzer`)
+reports every redirect's target and every command's words with the spelling the command gave them,
+so such a guard could refuse a redirect into the main checkout
+and an operand of `cp`,
+`mv`,
+`tee`,
+`sed --in-place`,
+`touch`
+and `git -C` that lies there,
+while allowing every read.
+It is not built here,
+for three reasons:
+
+- a guard that allows every read cannot refuse a command that changes into the main checkout,
+  and that `cd` is the shape most rounds use or a shell command that writes there takes,
+  so it would close the least common form and leave the common one open;
+- the driver's own extension would need a dependency on the analyzer package,
+  and adding one regenerates the lockfile,
+  which this change did not run because `pnpm install` is forbidden in a run's worktree;
+- put in `pi-plugin/guardrail` instead,
+  such a guard would protect only the runs whose session loads that plugin,
+  and the driver never learns whether one did.
+
+What catches a change there today is a reader:
+the coordinating session's `git status` in the main checkout found the three files of the round of 6625.
+
 ### The provider pools
 
 A pool is how many runs one provider account answers at once,
@@ -1454,6 +1568,14 @@ before it makes anything
   and an answer of the run's own `process` tool that names processes also gets a `processes` line holding it whole,
   because the driver reads those answers to tell whether work of the run's still runs,
   and text cut inside a JSON string cannot be read back.
+  A `tool_start` line of an `edit` or `write` call also carries the `path` the call named,
+  whole,
+  because the args preview is cut at `FEED_PREVIEW_CHARACTERS.toolArguments`,
+  and a `write` that names its text before its path loses the path there
+  (`src/whole-path-of-a-call.ts`).
+  A `main-checkout-guard` line says which folders the run's guard holds,
+  or that it holds none and why
+  (the section "The main checkout is read-only for a run").
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
