@@ -34,7 +34,6 @@
 //! process.exit(answer.code);
 //! ```
 
-use crate::foundation::iso_time::now_iso;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::TheLiveHolderScan;
@@ -46,6 +45,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::read_the_recorded_binding;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
+use crate::worktree_clone_removal_proof_and_plan::started_moment::now_with_offset;
 use crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheRemovalCancelling;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::LiveRemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::the_removals_request_budget;
@@ -93,10 +93,16 @@ impl TheRemovalAnswer {
 ///  which is the moment the plan's `started=` field and the origin cleanup
 ///  record's `startedAt` field both name.
 /// Why:
-///  Both records are read back by their own readers,
-///  and a reader refuses a moment whose spelling it does not know,
-///  so the clock is read through one function that the control of this file
-///  calls the same way the command does.
+///  The origin cleanup record's reader accepts one spelling of a moment,
+///  the design's own whole second with the machine's offset
+///  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
+///  "`startedAt` is when the writing command first wrote the record",
+///  whose example reads `2026-11-22T18:28:41-05:00`),
+///  and the plan's `started=` field writes the same one
+///  (`started_moment.rs`).
+///  So the clock is read through one function that the control of this file
+///  calls the same way the command does,
+///  and a change of the clock is caught there rather than in a guest.
 ///  It is read once per run,
 ///  so one run's records agree with each other.
 ///
@@ -105,7 +111,7 @@ impl TheRemovalAnswer {
 /// const now = nowWithOffset();
 /// ```
 fn the_moment_the_records_carry() -> String {
-    return now_iso();
+    return now_with_offset();
 }
 
 /// What:
