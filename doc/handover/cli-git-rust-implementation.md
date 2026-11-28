@@ -2932,12 +2932,6 @@ and the two `truepeak` files wait on their branch.
   and its choices are
   `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`,
   ranked C > A > B there.
-- The gate's suite container peaked at 1,486.0 MiB in a measured run,
-  and 892 MiB of it was one control for 25 seconds,
-  `service::service_main::tests::the_service_setup_and_its_words_are_used_only_by_the_service_mode`,
-  which reads the source tree with a walk of its own that follows the `uses/` links (issue 6598).
-  The suite's bound is 4 GiB since `2da7ccd13a`,
-  beside that measurement.
 - The five controls that failed once under load are each fixed by what the control owns
   (issues 6589 to 6593,
   merged `69b4c4dc3e` to `c6e5d5846c`),
