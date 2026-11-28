@@ -1177,7 +1177,8 @@ and neither is the owner's word:
   Those `1,785` are findings of the rule as it stands,
   not breaks of the quiet population,
   and the record does not say who answered.
-- At lines 123 to 137 it lists the three behaviors that made the fixer's run refuse files:
+- At lines 128 to 136 it lists the three behaviors that made the fixer's run refuse files,
+  under a heading that counts two:
   it breaks `///` doc comments inside fenced Rust listings,
   it wraps a URL that sits inside a code span,
   and it converts a pipe table to an HTML table,
@@ -1450,9 +1451,11 @@ What it changes for good:
 a break before a span is still reported.
 What it gives up:
 `25,355` findings at a shape no line of `AGENTS.md` ends a line at.
+A yes here leaves undecided nothing about this kind,
+and leaves MD1 as it is.
 
-Recommendation:
-**no**.
+#### Recommendation
+The recommendation is no.
 The repository's own rule file breaks before a span `0` times,
 in `1,030` breaks,
 and MD8's "only between whole inline spans" is written about avoiding a split,
@@ -1490,9 +1493,11 @@ What it changes for good:
 a break before a parenthetical is still reported.
 What it gives up:
 `37,033` findings at a shape the rule file uses `7` times of its `21` no-boundary breaks.
+A yes here leaves undecided nothing about this kind,
+and leaves MD1 as it is.
 
-Recommendation:
-**yes**.
+#### Recommendation
+The recommendation is yes.
 The rule file breaks before a parenthesis `7` times of the `21` breaks at no boundary,
 and the fixer could not have written those,
 because it breaks only after its six characters.
@@ -1534,9 +1539,11 @@ a break before `and`,
 What it gives up:
 `19,749` findings at the commonest no-boundary shape the rule file itself uses
 (`13` of its `21`).
+A yes here leaves undecided nothing about this kind,
+and leaves MD1 as it is.
 
-Recommendation:
-**yes**.
+#### Recommendation
+The recommendation is yes.
 `13` of the rule file's `21` no-boundary breaks are before a conjunction,
 the largest shape it uses,
 and the fixer cannot have written them for the same reason as 2b.
@@ -1577,9 +1584,11 @@ and with it the character WR2 forbids.
 What it gives up:
 `20` findings,
 which is the smallest kind by two orders of magnitude.
+A yes here leaves undecided nothing about this kind,
+and leaves MD1 as it is.
 
-Recommendation:
-**no**.
+#### Recommendation
+The recommendation is no.
 The rule file ends no line in a dash anywhere,
 and WR2 forbids the character in prose.
 A yes would hide findings about a construction the repository has already ruled out,
@@ -1614,9 +1623,11 @@ What it changes for good:
 a break after an unmatched closer is still reported.
 What it gives up:
 `9,603` findings a reader may think are blessed.
+A yes here leaves undecided nothing about this kind,
+and leaves MD1 as it is.
 
-Recommendation:
-**no**,
+#### Recommendation
+The recommendation is no.
 and the reason is that nothing measured here separates a closer that closes a parenthetical
 from one that closes a sentence fragment,
 so a yes would be a yes to an uncounted share of every predicate's findings.
@@ -1831,8 +1842,8 @@ because:
   and nothing reports none,
   so the last pair compares a finding class with the absence of one.
 
-Recommendation:
-**`B`**,
+#### Recommendation
+The recommendation is `B`,
 with what it leaves undecided:
 the exact guards of the removal fix it needs (decision 5),
 the anchor and message of a finding (no rule id exists yet),
@@ -2342,7 +2353,7 @@ which this set of decisions reaches and the earlier version did not:
 - Decision 3's veto with a removal fix.
   Reachable now:
   the fix's counts move by the Rust doc share decision 3 prints,
-  and the order of decision 4's ranking does not change.
+  and decision 4's ranking is then read as a bound rather than as an order.
 
 "Both,
 in this order" is reachable at decision 5,
