@@ -2827,14 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- Right as claimed,
-  exercised with both binaries:
-  the slot refusals for the spellings they name,
-  the merge pass's union of deletions,
-  the self-check's memory (62.7 to 66.1 MB in alpha.47,
-  9.3 to 11.0 MB in alpha.48),
-  named pipes answered and not waited on,
-  and the typed ssh relay ending about 100 ms sooner at a terminal.
 - Read only,
   because nothing outside the process can start them:
   the prune race,
