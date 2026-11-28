@@ -8,6 +8,14 @@
  and every case each of them held is stated here against the surviving answer.
  */
 import { spawnSync, } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, } from 'node:path';
 
 import {
   describe,
@@ -16,6 +24,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { GUEST_TIMEOUT_MARGIN_SECONDS, } from './mvm-guest-bounds.ts';
+import { createGateScratchDirectory, } from './stand-in-gate-programs-for-tests.ts';
 import {
   detachedScriptFiles,
   doneStatusOf,
@@ -31,6 +40,141 @@ const GUEST = 'issue-6612-guest';
 
 /** Milliseconds in one second, stated here so the cases read their own arithmetic rather than the module's. */
 const MILLISECONDS_PER_SECOND = 1_000;
+
+/**
+ Permission bits that give the owner alone access.
+ */
+const ownerOnlyMode = 0o700;
+
+/**
+ The log name the shell cases give the detached script, which also names its step file.
+ */
+const shellLogName = 'arm.log';
+
+/**
+ What one step file run with `sh` left: the shell's own status, and the log the file would have written inside the guest.
+ */
+type RunStepFile = {
+  /**
+   The status `sh` exited with, or minus one when a signal ended it, as the package's gate commands report the same case.
+   */
+  readonly status: number;
+  /**
+   The log the step file left, or the words saying it left none.
+   */
+  readonly log: string;
+};
+
+/**
+ Write the stand-in `hostname` of one case, whose answer is the machine name the case is about.
+
+ The check reads `$(hostname)`, so this is how a command that reached another machine's guest is stood in for, and how the
+ guest the file names is stood in for too.
+
+ @param folder - the fixture folder whose `hostname` is written
+
+ @param machineName - the name that `hostname` prints
+
+ @example
+ ```ts
+ standInHostname({ folder: '/scratch', machineName: 'another-machine' });
+ ```
+ */
+function standInHostname({
+  folder,
+  machineName,
+}: {
+  readonly folder: string;
+  readonly machineName: string;
+},): void {
+  writeFileSync(
+    join(
+      folder,
+      'hostname',
+    ),
+    `#!${process.execPath}\nconsole.log(${JSON.stringify(machineName,)});\n`,
+  );
+  chmodSync(
+    join(
+      folder,
+      'hostname',
+    ),
+    ownerOnlyMode,
+  );
+}
+
+/**
+ Run one step-shaped detached script with `sh`, on a machine whose name the case chose.
+
+ The step file is the package's own text with the guest's shared folder replaced by one of the fixture's, so the run
+ writes nothing outside the fixture and needs no guest.
+
+ @param folder - the fixture folder the run writes in
+
+ @param machineName - the name that `hostname` prints during the run
+
+ @returns the shell's status and the log the step file left
+
+ @example
+ ```ts
+ runTheStepFile({ folder: '/scratch', machineName: 'another-machine' });
+ ```
+ */
+function runTheStepFile({
+  folder,
+  machineName,
+}: {
+  readonly folder: string;
+  readonly machineName: string;
+},): RunStepFile {
+  /**
+   The folder standing in for the guest's `/mnt/shared`.
+   */
+  const sharedFolder = join(
+    folder,
+    'shared',
+  );
+  mkdirSync(sharedFolder, { recursive: true, mode: ownerOnlyMode, },);
+  standInHostname({
+    folder,
+    machineName,
+  },);
+  /**
+   The step file as the module builds it, written where this fixture's shell can run it.
+   */
+  const stepPath = join(
+    sharedFolder,
+    `${shellLogName}.step.sh`,
+  );
+  writeFileSync(
+    stepPath,
+    detachedScriptFiles({
+      name: GUEST,
+      script: 'echo the script itself ran',
+      log: shellLogName,
+      timeoutMilliseconds: 70_000,
+      nameCheck: 'step',
+    },).step.replaceAll('/mnt/shared/', `${sharedFolder}/`,),
+  );
+  /**
+   The shell's own run of that file.
+   */
+  const ran = spawnSync('sh', [stepPath,], {
+    encoding: 'utf8',
+    env: {
+      PATH: `${folder}:/usr/bin:/bin`,
+      LANG: 'C.UTF-8',
+    },
+  },);
+  /**
+   The log the run left, or the words saying it left none.
+   */
+  const logPath = join(sharedFolder, shellLogName,);
+  return {
+    status: ran.status ?? (-1),
+    log: existsSync(logPath,) ? readFileSync(logPath, 'utf8',) : '(the run left no log)',
+  };
+}
 
 await describe({
   name: '',
@@ -236,7 +380,7 @@ await describe({
           },
         },),
         it({
-          name: 'puts the naming check in the step when the launcher does not carry it',
+          name: 'puts a check that refuses, and its status line, in the step when the launcher carries none',
           fn: async () => {
             const files = detachedScriptFiles({
               name: GUEST,
@@ -245,7 +389,7 @@ await describe({
               timeoutMilliseconds: 900_000,
               nameCheck: 'step',
             },);
-            expect(files.step.startsWith(`test "$(hostname)" = ${GUEST}\n`,),).toBe(true,);
+            expect(files.step.startsWith(`test "$(hostname)" = ${GUEST} || { echo "DONE=1" >> /mnt/shared/arm.log; exit 1; }\n`,),).toBe(true,);
             expect(files.launch.includes('hostname',),).toBe(false,);
           },
         },),
@@ -259,7 +403,7 @@ await describe({
               timeoutMilliseconds: 70_000,
               nameCheck: 'step',
             },).step,).toBe(
-              `test "$(hostname)" = ${GUEST}\n`
+              `test "$(hostname)" = ${GUEST} || { echo "DONE=1" >> /mnt/shared/build.log; exit 1; }\n`
                 + `timeout 10 sh -ec 'true' > /mnt/shared/build.log 2>&1\n`
                 + 'status=$?\n'
                 + 'echo "DONE=$status" >> /mnt/shared/build.log\n',
@@ -321,6 +465,41 @@ await describe({
               nameCheck: 'launcher',
             },);
             expect(files.step.includes(`sh -ec 'grep --quiet --fixed-strings '\\''ARM done'\\'' /root/arm.log' > /mnt/shared/arm.log 2>&1`,),).toBe(true,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'a step-shaped check run with sh',
+      children: [
+        it({
+          name: 'refuses at once, and writes the status line the host waits for, on a machine of another name',
+          fn: async () => {
+            await using scratch = await createGateScratchDirectory({ prefix: 'mvm-guest-command-line-other-machine-', },);
+            /**
+             What the step file left on a machine whose name is not the guest's.
+             */
+            const run = runTheStepFile({
+              folder: scratch.path,
+              machineName: 'another-machine',
+            },);
+            expect(run.status,).toBe(1,);
+            expect(run.log,).toBe('DONE=1\n',);
+          },
+        },),
+        it({
+          name: 'runs the script on the guest it names, which is what the refusal is told apart from',
+          fn: async () => {
+            await using scratch = await createGateScratchDirectory({ prefix: 'mvm-guest-command-line-its-guest-', },);
+            /**
+             What the step file left on the guest it names.
+             */
+            const run = runTheStepFile({
+              folder: scratch.path,
+              machineName: GUEST,
+            },);
+            expect(run.status,).toBe(0,);
+            expect(run.log,).toBe('the script itself ran\nDONE=0\n',);
           },
         },),
       ],

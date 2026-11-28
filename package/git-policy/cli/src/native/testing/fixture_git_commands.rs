@@ -3,7 +3,7 @@
 //! one that answers its output,
 //! one that requires it to have succeeded,
 //! and one that keeps a bound on the query and answers,
-//! for the last status the wait returned,
+//!  for the last status the wait returned,
 //! whether that status was the signal this helper sends at the bound.
 //! Why:
 //!  Every control that needs a repository,

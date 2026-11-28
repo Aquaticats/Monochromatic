@@ -12,7 +12,7 @@
 //!  `dsl_destroy_snapshots_nvl` states that on failure no snapshot is
 //!  destroyed and the error list is filled
 //! (`module/zfs/dsl_destroy.c:596` to `:600`,
-//! OpenZFS `zfs-2.4.4`).
+//!  OpenZFS `zfs-2.4.4`).
 //!  So a refused name is `refused`,
 //! a submitted name the list does not name is
 //!  `intact`,

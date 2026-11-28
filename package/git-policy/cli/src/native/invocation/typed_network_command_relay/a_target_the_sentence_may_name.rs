@@ -1,15 +1,15 @@
 //! What:
 //!  The host a remote URL names as the person typed it,
-//! and the words an `ssh` command needs to connect there.
+//!  and the words an `ssh` command needs to connect there.
 //! Why:
 //!  The sentence after a refusal names the host the person's remote names,
-//! because a `known_hosts` line is recorded under the
+//!  because a `known_hosts` line is recorded under the
 //!  name the connection asked about;
 //!  and every command it offers is built from bytes a host name and a user may hold,
-//! so nothing it prints can be read by a
+//!  so nothing it prints can be read by a
 //!  shell as anything but a word
 //!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-//! "Where the host comes from").
+//!  "Where the host comes from").
 //!  Where a URL's host ends,
 //!  whether a number after it is a port,
 //!  and which bytes a host or a user may hold are read in
@@ -39,14 +39,14 @@ use super::a_remote_url_s_words_a_sentence_may_print::{
 
 /// What:
 ///  The host as the person's remote names it,
-/// and the words an `ssh` command needs to connect there.
+///  and the words an `ssh` command needs to connect there.
 /// Why:
 ///   The sentence names the host in backticks and offers an `ssh` command;
 ///   both are built from the URL's own grammar,
-/// and every byte a host name cannot hold is dropped,
+///  and every byte a host name cannot hold is dropped,
 ///   so nothing the sentence offers can be read by a shell as anything but a word
 ///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-/// "Where the host comes from").
+///  "Where the host comes from").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,7 +66,7 @@ pub struct Target {
 
 /// What:
 ///  The target a URL names,
-/// or nothing when it names no host this sentence may print.
+///  or nothing when it names no host this sentence may print.
 /// Why:
 ///  A sentence that named an empty host would offer `ssh ` and help nobody,
 ///  and one that put a shell word into a command would be a command the wrapper must never print.

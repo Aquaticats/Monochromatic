@@ -1,0 +1,7 @@
+   Compiling dylint_driver v6.4.0
+error: failed to run custom build command for `dylint_driver v6.4.0`
+
+Caused by:
+  process didn't exit successfully: `/work/driver-build-nonproxy/debug/build/dylint_driver/9f130079cef5d17e/out/build_script_main` (exit status: 1)
+  --- stderr
+  Error: environment variable not found: RUSTUP_TOOLCHAIN

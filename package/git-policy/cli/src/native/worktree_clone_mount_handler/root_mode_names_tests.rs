@@ -12,7 +12,7 @@
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
 //!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
 //!  "What the answer decides,
-//! case by case").
+//!  case by case").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

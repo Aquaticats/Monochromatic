@@ -9,7 +9,7 @@
 //!  so the arm runs inside the throwaway `mvm` guest the package's e2e recipe drives
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 //!  "Measurements owed",
-//! M1 and control 28).
+//!  M1 and control 28).
 //!  The reap is the arm's positive control:
 //!  a harness that cannot see the loss cannot show that the refusal avoids it
 //!  (rule `QPC`).
@@ -18,7 +18,7 @@
 //!  The tuple is read from the live objects here because step 1's lineage proof is step 14's and
 //!  no removal of this route exists yet;
 //!  the arm judges the check,
-//! never the proof.
+//!  never the proof.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -2,8 +2,8 @@
 //!  Controls for the handle's record and its plain reads:
 //!  the line round-trips,
 //!  a longer handle,
-//! a bad digit,
-//! a wrong version and an extra field are each
+//!  a bad digit,
+//!  a wrong version and an extra field are each
 //!  refused,
 //!  and a folder's mount id and facts come from the kernel's own records.
 //! Why:

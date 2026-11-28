@@ -1,6 +1,6 @@
 //! What:
 //!  The add's steps after the claim,
-//! one per phase:
+//!  one per phase:
 //!  the empty slot and its identity,
 //!  Git's registration and the scan that adopts or clears it,
 //!  the checkout snapshot and its inventory,
@@ -10,7 +10,7 @@
 //! Why:
 //!  Each step reads the state a kill at the step before it leaves and writes
 //!  only the facts it confirmed,
-//! so a resume continues from the phase the
+//!  so a resume continues from the phase the
 //!  record names
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "The add's writes in one order" and "What the writer confirms before each write").
@@ -31,6 +31,7 @@ use super::add_zfs::{
     CloneMade,
     ObjectIdentity,
 };
+use crate::foundation::iso_time::now_iso;
 use crate::worktree_clone_binding_record::binding_inventory::InventoryKind;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
@@ -40,6 +41,12 @@ use crate::worktree_clone_binding_record::record_publication::{
     read_inventory,
 };
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
+use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
+use crate::worktree_clone_mount_protocol::unanswered_request_entry::{
+    RequestEntry,
+    RequestOutcome,
+};
+use crate::worktree_clone_mount_protocol::unanswered_requests_folder::UnansweredRequests;
 
 /// The fixed facts one add's steps share,
 /// the refusal a step stops with and the one write that persists a phase.
@@ -61,13 +68,13 @@ pub use super::add_route_steps_snapshot_and_capture::step_snapshot;
 
 /// What:
 ///  Make the clone when it is not there,
-/// adopt it when only its record is
+///  adopt it when only its record is
 ///  missing,
-/// publish its inventory,
-/// and ask for its mount.
+///  publish its inventory,
+///  and ask for its mount.
 /// Why:
 ///  A successful clone does not imply a mount,
-/// and the request is what the
+///  and the request is what the
 ///  handler sweeps for.
 pub fn step_clone(
     steps: &Steps<'_>,
@@ -189,9 +196,9 @@ fn the_clone_came_from(
 ///  wait that would time out
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
 ///  The add destroys nothing:
-/// a wrong clone stands until the removal's settle
+///  a wrong clone stands until the removal's settle
 ///  step,
-/// plan step 14.
+///  plan step 14.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,10 +223,10 @@ fn refuse_a_clone_that_is_not_legacy_from_the_container(
 
 /// What:
 ///  Ask for the mount and verify it at the slot,
-/// then move to `mounted`.
+///  then move to `mounted`.
 /// Why:
 ///  The slot shows the clone only in this command's own namespace,
-/// so the wait
+///  so the wait
 ///  reads the mount table through the slot and not the handler's word.
 pub fn step_mount(
     steps: &Steps<'_>,
@@ -241,6 +248,33 @@ pub fn step_mount(
             record.clone_dataset
         )));
     }
+    let requests: UnansweredRequests =
+        UnansweredRequests::in_the_common_dir(steps.route.common_dir.as_path());
+    let guid: crate::worktree_clone_mount_protocol::DatasetGuid =
+        record.clone_guid.ok_or_else(|| {
+            return StepRefusal::refused(String::from(
+                "the record names no clone GUID, so the request cannot be filed in the folder of unanswered requests; the claim, the slot and the Git registration stand, and running the add again resumes them",
+            ));
+        })?;
+    let entry: RequestEntry = RequestEntry {
+        guid,
+        nonce: record.nonce.clone(),
+        operation: MountOperation::Mount,
+        written_at: now_iso(),
+        outcome: RequestOutcome::Waiting,
+        dataset: record.clone_dataset.clone(),
+    };
+    // What: the entry is written with the request, before the durable intent, and a report that could not write
+    //  it does not stop the add.
+    // Why:  a wait killed before its deadline must leave the trigger a later command reads, and a `.git` this
+    //       command cannot write in costs the trigger rather than the whole add, whose intent still runs the
+    //       handler's own event (the design's V15, and L22's cost of the write on every add).
+    if let Err(refusal) = requests.record_the_request(&entry) {
+        steps.out.borrow_mut().push(format!(
+            "the request is not recorded in this repository's folder of unanswered requests, so the next Git command here cannot nudge it: {}",
+            refusal.message()
+        ));
+    }
     steps
         .device
         .request_the_mount(record.clone_dataset.as_str(), &record.nonce)
@@ -252,6 +286,10 @@ pub fn step_mount(
     )
     .map_err(StepRefusal::refused)?;
     let _mount = mounted;
+    // What: the answered request's entry goes before the step reports the mount.
+    // Why:  a repository whose request was answered returns to the one-`stat` case, and a command's receipt read
+    //       would otherwise be the only thing that clears it.
+    requests.remove_every_attempt(guid);
     steps.stops.after("mount");
     return record_mounted(steps, record);
 }
@@ -269,7 +307,7 @@ fn record_mounted(
 ///  Fill the mounted clone and mark the record usable.
 /// Why:
 ///  The phase follows the exchange and its verification,
-/// so a reader never sees
+///  so a reader never sees
 ///  a usable record before the worktree it names is whole.
 pub fn step_fill(
     steps: &Steps<'_>,

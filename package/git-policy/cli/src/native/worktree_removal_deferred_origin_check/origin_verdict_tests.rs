@@ -8,7 +8,7 @@
 //!  These are plan step 15's host controls
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 //!  "The tests a build must have",
-//! controls 1 to 9 and 12 to 14,
+//!  controls 1 to 9 and 12 to 14,
 //!  and controls 19 to 21 for the look).
 //!  A control for what a refusal leaves unsent needs step 16's call sites and a control for the
 //!  proof's own refusals needs step 14's hook,

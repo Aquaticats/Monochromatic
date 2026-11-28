@@ -7,7 +7,7 @@
 //!  so the files go before the lock and the directory goes last
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "The recipe that clears rows 1 to 5,
-//! 7 and 8").
+//!  7 and 8").
 //!  The slot's pointer goes first and only when its bytes name this registration,
 //!  `logs/HEAD` goes before `logs/`,
 //!  `ENOENT` at any step means the name is already gone and never a failure,

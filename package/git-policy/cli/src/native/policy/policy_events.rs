@@ -176,12 +176,7 @@ fn push_finding(
     push_text_field(line, "message", finding.message.as_str());
     push_hint_field(
         line,
-        finding_hint(
-            policy_name,
-            finding.code,
-            finding.fix_available,
-            finding.commit_correction,
-        ),
+        finding_hint(policy_name, finding.code, finding.commit_correction),
     );
     // `if let Some(path) = &finding.path` borrows the path only when one is present.
     if let Some(path) = &finding.path {

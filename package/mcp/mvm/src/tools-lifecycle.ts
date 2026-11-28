@@ -68,7 +68,7 @@ export const updateTool: ToolEntry = defineTool({
   name: 'update_templates',
   entry: {
     description:
-      'Refreshes provider-managed images. libvirt re-downloads base images and rebuilds all templates (Windows rebuild takes 15-30 minutes); hetzner validates the token and reports available system images (nothing is built locally).',
+      'Refreshes provider-managed images. libvirt re-downloads base images and rebuilds all templates (Windows rebuild takes 15-30 minutes); hetzner and ovh validate their credentials and report what the provider offers (nothing is built locally).',
     schema: strictArguments({ backend: BACKEND_ARGUMENT, },),
     handler: async function handleUpdateTemplates(args,) {
       try {

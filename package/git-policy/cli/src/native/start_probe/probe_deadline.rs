@@ -139,9 +139,9 @@ pub fn deadline_from_words(value: Option<&str>) -> Duration {
 
 /// What:
 ///  The bound this build uses:
-/// the shipped one,
+///  the shipped one,
 ///  or a control's,
-/// when this build was made for a control.
+///  when this build was made for a control.
 /// Why:
 ///   A variable that can raise the bound turns a missed deadline into a pass,
 ///  and a unit's `Environment=` line can set one;

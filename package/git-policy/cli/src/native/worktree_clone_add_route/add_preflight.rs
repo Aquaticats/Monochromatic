@@ -19,15 +19,15 @@
 //!  the clone and the snapshot would stay
 //!  (`super::add_source_the_restore_cannot_prove`,
 //!  and `SPEC.md`,
-//! "What this release does not yet do").
+//!  "What this release does not yet do").
 //!  The preflight answers nothing for such a source and the add reaches the
 //!  ladder,
-//! which settles its own failed restore and falls back to Git's own
+//!  which settles its own failed restore and falls back to Git's own
 //!  checkout.
 //!  That answer is judged before the route's own invocation rules,
-//! so the person's
+//!  so the person's
 //!  `--lock`,
-//! `--reason` or `--checkout` reaches the ladder with the add instead of
+//!  `--reason` or `--checkout` reaches the ladder with the add instead of
 //!  failing in a rule of a route that is not serving it (issue 6453).
 //!
 //! In TS you'd write (pseudocode):
@@ -269,7 +269,7 @@ pub(super) fn preflight_the_add(
 ///  (`doc/planning/cli-git-zfs-clone-mountpoint-without-the-forbidden-grant.md`,
 ///  Choice 2);
 ///  the sentence names the container,
-/// the property and the value it needs.
+///  the property and the value it needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

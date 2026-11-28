@@ -30,7 +30,7 @@ fn short_directory(name: &str) -> std::path::PathBuf {
 ///   A connect waits only for room in that queue,
 /// so a full queue is the one state in which the bound has anything to end.
 /// The listener and the connections that fill the queue are kept alive by the value that returns them:
-/// a closed listener
+///  a closed listener
 ///  would make the connect refuse instead of wait.
 ///
 /// In TS you'd write (pseudocode):

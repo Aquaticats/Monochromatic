@@ -40,6 +40,11 @@
 #       below take their lines. No release code changed with them, so nothing here was published that a build of
 #       0.6.1-alpha.51 did not already publish.
 #
+# What changed on 2026-11-28, in the round for the alpha.52 read's L2: one name left this list and none joined
+#       it. The dirty refusal of the linked-worktree policy takes the two places it judged, so it takes one
+#       destructured reading and is built by the checks that read them; nothing outside this crate called it, and
+#       `command::rule_linked_worktree_messages fn dirty_worktree_message` no longer names it from outside.
+#
 # Named by another crate of this package, which is what needs the reach: the fuzz sidecar
 # (`package/git-policy/cli.fuzz`), the executable target (`src/native/main.rs`) and the two integration test
 # targets name these by a `git_policy_cli::…` path. A `git grep 'git_policy_cli::'` over those three on
@@ -93,8 +98,6 @@ worktree_copying::worktree_copy_owner struct CopyOwner
 invocation::real_git_candidate const COMPARED_CHUNK_BYTES
 #   5defef5371 fix(git-policy-cli): the printed sentences name only commands this release has
 #   publishes the sentence the add's answer prints for a state this release has not admitted
-worktree_clone_binding_record::add_state_commands const NOT_ADMITTED_YET
-#   5defef5371 fix(git-policy-cli): the printed sentences name only commands this release has
 #   publishes the sentence the receipts refusal prints where neither line exists
 worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals const NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT
 #   fba7104d6f fix(git-policy-cli): refuse the -C spelling and three more unproven slot removals
@@ -107,36 +110,26 @@ invocation::entry_zfs_slot_commands fn is_a_slot_command_behind_an_unread_global
 #   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the identity and common directory one Git answer names
 worktree::worktree_identity fn parse_identity_and_common_directory
-#   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the forwarded run a copy performs with steps of its own
-worktree_copying::worktree_copy_forward field TheRunsOwnSteps::refuse_a_bound_slots_removal
 worktree_copying::worktree_copy_forward field TheRunsOwnSteps::stop_units
 worktree_copying::worktree_copy_forward fn run_forwarded_git_with_its_own_steps
 #   43ef699749 fix(git-policy-cli): doctor's group-drop report prints only where the ZFS route applies
 #   publishes whether the checkout is a ZFS dataset, read before the group-drop report prints
 health::doctor_filesystem fn the_checkout_is_a_zfs_dataset
-#   43ef699749 fix(git-policy-cli): doctor's group-drop report prints only where the ZFS route applies
 #   publishes the same question asked of a host the caller hands in
 health::doctor_filesystem fn the_checkout_is_a_zfs_dataset_with
-#   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the endings of every slot word set
 invocation::entry_zfs_slot_commands fn the_slot_endings
-#   7e087d684d fix(git-policy-cli): refuse a slot removal behind an unread global and one whose record cannot be read
 #   publishes the refusal one unread global earns
 invocation::entry_zfs_slot_commands fn unread_global_refusal_of
-#   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the refusal one bound slot removal earns
-worktree_copying::worktree_removal_of_a_bound_clone struct BoundSlotRemovalRefusal
 #   b3618338e1 fix(git-policy-cli): the add's preflight asks the device source its caller hands in
 #   publishes the device a live preflight opens
 worktree_clone_add_route::add_zfs struct TheLiveDevice
-#   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the steps one forwarded run owns
 worktree_copying::worktree_copy_forward struct TheRunsOwnSteps
-#   b3618338e1 fix(git-policy-cli): the add's preflight asks the device source its caller hands in
 #   publishes the source of the device a preflight opens
 worktree_clone_add_route::add_zfs trait TheDeviceOpened
-#   43ef699749 fix(git-policy-cli): doctor's group-drop report prints only where the ZFS route applies
 #   publishes what reading the host kind answered
 health::doctor_filesystem type HostKindRead
 #   78dd6c4e11 fix(git-policy-cli): each batch of the service's work reads the room it has when it starts
@@ -146,24 +139,65 @@ foundation::parallel_budget fn TheHostOfABatch::now
 #   c95613e116 fix(git-policy-cli): a notice's record outlives the line that could not be written
 #   publishes the answer a caller reads when its line was handed to the writing thread
 foundation::lines_written_by_a_thread enum HandedOver
-#   c95613e116 fix(git-policy-cli): a notice's record outlives the line that could not be written
 #   publishes what the standard error of a notice is measured through
 foundation::standard_error_off_the_calling_thread type StandardErrorHand
 #   c71f8e51dd fix(git-policy-cli): the slot refusals read the command the guard reads, and three sentences say what they do
 #   publishes the command one forwarded invocation really runs
 invocation::forwarded_command fn the_command_git_runs
-#   c71f8e51dd fix(git-policy-cli): the slot refusals read the command the guard reads, and three sentences say what they do
 #   publishes the words of one global option this release cannot read
 invocation::global_arguments fn unread_global_words
-#   c71f8e51dd fix(git-policy-cli): the slot refusals read the command the guard reads, and three sentences say what they do
 #   publishes whether a common directory holds a slot's binding record
 worktree_clone_binding_record::registration_home fn holds_a_record
 #   fafcb43620 fix(git-policy-cli): a region at a file's last line with no line end reaches the merge pass
 #   publishes where in a stage one line's text sits
 merge::merge_second_pass_stage_line_places fn place_in_stage
-#   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes whether a common directory outside a worktree holds one, which the location reader names
 repo_read::repository_location field RepositoryLocation::common_directory_outside_a_worktree
+
+#   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
+#   publishes the reads that tell a locked holder's own service unit from every other holder
+process::a_locked_holders_own_unit const ACCOUNT_MANAGER_SEGMENT
+process::a_locked_holders_own_unit const SERVICE_UNIT_SUFFIX
+process::a_locked_holders_own_unit const UNIFIED_HIERARCHY_PREFIX
+process::a_locked_holders_own_unit enum NotTheAccountsUnit
+process::a_locked_holders_own_unit field ALockedHoldersUnit::cgroup
+process::a_locked_holders_own_unit field ALockedHoldersUnit::namespace
+process::a_locked_holders_own_unit field ALockedHoldersUnit::task
+process::a_locked_holders_own_unit field ALockedHoldersUnit::unit
+process::a_locked_holders_own_unit fn NotTheAccountsUnit::word
+process::a_locked_holders_own_unit fn a_locked_holders_unit
+process::a_locked_holders_own_unit fn the_unit_of_the_accounts_manager
+process::a_locked_holders_own_unit fn the_unit_the_manager_holds
+process::a_locked_holders_own_unit struct ALockedHoldersUnit
+#   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
+#   publishes the stop of that unit through the account's own manager, and the wait that follows it
+process::a_service_unit_stopped_through_the_accounts_manager const A_TASKS_CONTROL_GROUP_LIMIT
+process::a_service_unit_stopped_through_the_accounts_manager const HOLDER_LOCKED_WORD
+process::a_service_unit_stopped_through_the_accounts_manager const POLLS_IN_ONE_STOP_WAIT
+process::a_service_unit_stopped_through_the_accounts_manager enum UnitNotStopped
+process::a_service_unit_stopped_through_the_accounts_manager field LeftBehind::namespace
+process::a_service_unit_stopped_through_the_accounts_manager field LeftBehind::state
+process::a_service_unit_stopped_through_the_accounts_manager field LeftBehind::tasks_cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field StoppedUnit::cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field StoppedUnit::namespace
+process::a_service_unit_stopped_through_the_accounts_manager field StoppedUnit::unit
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::identity
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::namespace
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::tasks_cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::unit
+process::a_service_unit_stopped_through_the_accounts_manager fn UnitNotStopped::said
+process::a_service_unit_stopped_through_the_accounts_manager fn UnitNotStopped::word
+process::a_service_unit_stopped_through_the_accounts_manager fn stop_every_locked_unit
+process::a_service_unit_stopped_through_the_accounts_manager fn stop_the_unit
+process::a_service_unit_stopped_through_the_accounts_manager fn the_stops_verdict
+process::a_service_unit_stopped_through_the_accounts_manager struct LeftBehind
+process::a_service_unit_stopped_through_the_accounts_manager struct StoppedUnit
+process::a_service_unit_stopped_through_the_accounts_manager struct TheUnitsStop
+#   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
+#   publishes the plan's list of locked units to stop, and the preflight read it comes from
+worktree_clone_forced_removal::holder_preflight field ForcedPlan::units_to_stop
+worktree_clone_forced_removal::holder_preflight field PreflightReads::locked_units
 
 # The rest of the surface 0.6.1-alpha.47 already had.
 # What: every entry below was nameable at 68af165851 (0.6.1-alpha.47) with the same kind and name: an item declared
@@ -1073,7 +1107,6 @@ command::rule_linked_worktree fn resolve_linked_worktree
 command::rule_linked_worktree fn target_tree
 command::rule_linked_worktree struct TargetTree
 command::rule_linked_worktree_messages fn conflicted_files_message
-command::rule_linked_worktree_messages fn dirty_worktree_message
 command::rule_linked_worktree_messages fn exemption_notice
 command::rule_linked_worktree_messages fn ignored_file_message
 command::rule_linked_worktree_messages fn main_worktree_message
@@ -2047,10 +2080,10 @@ foundation::diagnostic_lines_off_the_calling_thread const WAIT_BEFORE_AN_EXIT
 foundation::diagnostic_lines_off_the_calling_thread fn write
 foundation::diagnostic_lines_off_the_calling_thread fn write_bytes
 foundation::diagnostic_log fn debug
-foundation::diagnostic_log fn diagnostic_line
-foundation::diagnostic_log fn verbose_enabled
 foundation::diagnostic_log fn warn
-foundation::diagnostic_log fn warnings_suppressed
+foundation::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote fn diagnostic_line
+foundation::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote fn verbose_enabled
+foundation::the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote fn warnings_suppressed
 foundation::earlier_folder_entries_moved_into_current_folder enum FolderFold
 foundation::earlier_folder_entries_moved_into_current_folder fn fold_folder
 foundation::earlier_log_lines_added_to_current_log const JOURNAL_SUFFIX
@@ -2470,6 +2503,7 @@ health::doctor_hook_entries fn render_hooks
 health::doctor_hook_entries fn scan_hooks_directory
 health::doctor_hook_entries fn scan_hooks_directory_with
 health::doctor_hook_entries type EntryListing
+health::doctor_zfs_route::backup_coverage_checks fn check_backup_coverage
 health::doctor_zfs_route::binding_record_checks const NOT_RECORDED
 health::doctor_zfs_route::binding_record_checks fn check_binding_record
 health::doctor_zfs_route::blocked_removal_checks field BlockedRemovalFacts::clone
@@ -2482,6 +2516,28 @@ health::doctor_zfs_route::blocked_removal_checks field BlockedRemovalFacts::slot
 health::doctor_zfs_route::blocked_removal_checks field BlockedRemovalFacts::the_forced_arm_is_measured
 health::doctor_zfs_route::blocked_removal_checks fn check_blocked_removal
 health::doctor_zfs_route::blocked_removal_checks struct BlockedRemovalFacts
+health::doctor_zfs_route::boot_protection_checks field BootProtectionFacts::entry
+health::doctor_zfs_route::boot_protection_checks field BootProtectionFacts::wanted_owner
+health::doctor_zfs_route::boot_protection_checks fn check_boot_protection
+health::doctor_zfs_route::boot_protection_checks struct BootProtectionFacts
+health::doctor_zfs_route::boot_setup_checks fn check_service_unit
+health::doctor_zfs_route::boot_setup_facts enum FileAtInstallPath
+health::doctor_zfs_route::boot_setup_facts field BootSetupFacts::gate
+health::doctor_zfs_route::boot_setup_facts field BootSetupFacts::key_unit
+health::doctor_zfs_route::boot_setup_facts field BootSetupFacts::nested
+health::doctor_zfs_route::boot_setup_facts field BootSetupFacts::others
+health::doctor_zfs_route::boot_setup_facts field NestedDatasetSetting::canmount
+health::doctor_zfs_route::boot_setup_facts field NestedDatasetSetting::dataset
+health::doctor_zfs_route::boot_setup_facts field PlannedFileReading::at_the_path
+health::doctor_zfs_route::boot_setup_facts field PlannedFileReading::path
+health::doctor_zfs_route::boot_setup_facts field PlannedFileReading::planned_text
+health::doctor_zfs_route::boot_setup_facts struct BootSetupFacts
+health::doctor_zfs_route::boot_setup_facts struct NestedDatasetSetting
+health::doctor_zfs_route::boot_setup_facts struct PlannedFileReading
+health::doctor_zfs_route::cancel_command_checks field CancelCommandFacts::usage_line
+health::doctor_zfs_route::cancel_command_checks field CancelCommandFacts::word
+health::doctor_zfs_route::cancel_command_checks fn check_cancel_command
+health::doctor_zfs_route::cancel_command_checks struct CancelCommandFacts
 health::doctor_zfs_route::check_outcome enum Check
 health::doctor_zfs_route::check_outcome enum CheckOutcome
 health::doctor_zfs_route::check_outcome field CheckReport::check
@@ -2616,11 +2672,12 @@ health::doctor_zfs_route::identity_checks fn check_slot_identity
 health::doctor_zfs_route::identity_checks fn walk_refusal_is_unproved
 health::doctor_zfs_route::identity_checks struct ParentIdentityFacts
 health::doctor_zfs_route::identity_checks struct SlotIdentityFacts
-health::doctor_zfs_route::later_step_checks enum LaterStep
-health::doctor_zfs_route::later_step_checks fn LaterStep::check
-health::doctor_zfs_route::later_step_checks fn LaterStep::name
-health::doctor_zfs_route::later_step_checks fn LaterStep::reason
-health::doctor_zfs_route::later_step_checks fn check_later_step
+health::doctor_zfs_route::later_checks_report_lines field LaterCheckFacts::boot_protection
+health::doctor_zfs_route::later_checks_report_lines field LaterCheckFacts::boot_setup
+health::doctor_zfs_route::later_checks_report_lines field LaterCheckFacts::cancel_command
+health::doctor_zfs_route::later_checks_report_lines field LaterCheckFacts::sanoid
+health::doctor_zfs_route::later_checks_report_lines fn later_checks_reports
+health::doctor_zfs_route::later_checks_report_lines struct LaterCheckFacts
 health::doctor_zfs_route::managed_lock_checks field ManagedLockFacts::classification
 health::doctor_zfs_route::managed_lock_checks field ManagedLockFacts::slot
 health::doctor_zfs_route::managed_lock_checks fn check_managed_lock
@@ -2669,6 +2726,9 @@ health::doctor_zfs_route::route_checks field CloneFacts::retention
 health::doctor_zfs_route::route_checks field CloneFacts::snapshots
 health::doctor_zfs_route::route_checks field CloneFacts::state
 health::doctor_zfs_route::route_checks field RouteFacts::abi
+health::doctor_zfs_route::route_checks field RouteFacts::boot_protection
+health::doctor_zfs_route::route_checks field RouteFacts::boot_setup
+health::doctor_zfs_route::route_checks field RouteFacts::cancel_command
 health::doctor_zfs_route::route_checks field RouteFacts::clones
 health::doctor_zfs_route::route_checks field RouteFacts::configuration
 health::doctor_zfs_route::route_checks field RouteFacts::datasets
@@ -2682,6 +2742,7 @@ health::doctor_zfs_route::route_checks field RouteFacts::parent_identity
 health::doctor_zfs_route::route_checks field RouteFacts::pool
 health::doctor_zfs_route::route_checks field RouteFacts::readiness
 health::doctor_zfs_route::route_checks field RouteFacts::requests
+health::doctor_zfs_route::route_checks field RouteFacts::sanoid
 health::doctor_zfs_route::route_checks field RouteFacts::slots
 health::doctor_zfs_route::route_checks field RouteFacts::staging
 health::doctor_zfs_route::route_checks field RouteFacts::staging_binds
@@ -2690,6 +2751,10 @@ health::doctor_zfs_route::route_checks field RouteFacts::wiring
 health::doctor_zfs_route::route_checks fn route_checks
 health::doctor_zfs_route::route_checks struct CloneFacts
 health::doctor_zfs_route::route_checks struct RouteFacts
+health::doctor_zfs_route::sanoid_report field SanoidReport::lines
+health::doctor_zfs_route::sanoid_report field SanoidReport::outcome
+health::doctor_zfs_route::sanoid_report fn SanoidReport::new
+health::doctor_zfs_route::sanoid_report struct SanoidReport
 health::doctor_zfs_route::snapshot_directory_checks const SNAPDIR_DISABLED
 health::doctor_zfs_route::snapshot_directory_checks const SNAPDIR_HIDDEN
 health::doctor_zfs_route::snapshot_directory_checks const SNAPDIR_PROPERTY
@@ -2755,12 +2820,16 @@ health::doctor_zfs_route::zfs_checks_key_and_clones fn check_clone_properties
 health::doctor_zfs_route::zfs_checks_key_and_clones fn check_key
 health::doctor_zfs_route::zfs_checks_limits const CANMOUNT_OFF
 health::doctor_zfs_route::zfs_checks_limits const CANMOUNT_PROPERTY
+health::doctor_zfs_route::zfs_checks_limits const CANMOUNT_AUTO
+health::doctor_zfs_route::zfs_checks_limits const CANMOUNT_NOAUTO
+health::doctor_zfs_route::zfs_checks_limits const CANMOUNT_ON
 health::doctor_zfs_route::zfs_checks_limits const ENCRYPTION_OFF
 health::doctor_zfs_route::zfs_checks_limits const FILESYSTEM_OBJECT_SET
 health::doctor_zfs_route::zfs_checks_limits const FLAG_OFF
 health::doctor_zfs_route::zfs_checks_limits const KEY_UNAVAILABLE
 health::doctor_zfs_route::zfs_checks_limits const LEGACY_MOUNTPOINT
 health::doctor_zfs_route::zfs_checks_limits const NOT_FOUND_ERRNO
+health::doctor_zfs_route::zfs_checks_limits fn canmount_word
 health::doctor_zfs_route::zfs_checks_machine_prerequisites enum AbiFacts
 health::doctor_zfs_route::zfs_checks_machine_prerequisites enum DeviceState
 health::doctor_zfs_route::zfs_checks_machine_prerequisites field DeviceFacts::path
@@ -2788,6 +2857,7 @@ health::lfs_shims fn is_lfs_shim
 health::lfs_shims fn lfs_shim_text
 health::lfs_shims fn render_lfs_shims
 health::sanoid_coverage::coverage_checks fn check_coverage
+health::sanoid_coverage::coverage_checks fn sanoid_report
 health::sanoid_coverage::coverage_facts const COVERAGE_CHECK_NAME
 health::sanoid_coverage::coverage_facts field CoverageFacts::config
 health::sanoid_coverage::coverage_facts field CoverageFacts::config_path
@@ -9549,8 +9619,8 @@ worktree_clone_add_route::add_zfs_pool_answers field ObjectIdentity::guid
 worktree_clone_add_route::add_zfs_pool_answers fn the_clones_mountpoint_failure
 worktree_clone_add_route::add_zfs_pool_answers struct CloneMade
 worktree_clone_add_route::add_zfs_pool_answers struct ObjectIdentity
-worktree_clone_binding_record::add_state_commands const NO_REMOVAL_WORDS
 worktree_clone_binding_record::add_state_commands const SETTLING_COMMAND_WORDS
+worktree_clone_binding_record::add_state_commands const THE_REMOVALS_WORDS
 worktree_clone_binding_record::add_state_commands enum ClonePresence
 worktree_clone_binding_record::add_state_commands enum NextCommand
 worktree_clone_binding_record::add_state_commands enum PlanHeadWord
@@ -9848,7 +9918,7 @@ worktree_clone_forced_removal::forced_removal_words fn Stage::order
 worktree_clone_forced_removal::forced_removal_words fn Stage::parse_word
 worktree_clone_forced_removal::forced_removal_words fn Stage::word
 worktree_clone_forced_removal::holder_endings const IN_PLACE_SHOWN_BY
-worktree_clone_forced_removal::holder_endings const LOCKED_NOT_BUILT
+worktree_clone_forced_removal::holder_endings const LOCKED_UNIT_SHOWN_BY
 worktree_clone_forced_removal::holder_endings const MOVE_SHOWN_BY
 worktree_clone_forced_removal::holder_endings const OTHER_ACCOUNT_OWED
 worktree_clone_forced_removal::holder_endings const OTHER_SESSION_SHOWN_BY
@@ -12354,10 +12424,6 @@ worktree_copying::worktree_copy_vanished_entry fn lstat_or_absent
 worktree_copying::worktree_copy_vanished_entry fn names_or_absent
 worktree_copying::worktree_copy_vanished_entry fn went_away
 worktree_copying::worktree_removal_of_a_bound_clone enum RemovalReads
-worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalRefusal::code
-worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalRefusal::stderr
-worktree_copying::worktree_removal_of_a_bound_clone fn refuse_the_removal_of_a_bound_clone
-worktree_copying::worktree_removal_of_a_bound_clone fn refuse_the_removal_with
 worktree_removal_deferred_origin_check::origin_mark const DEFER_DESTROY_PROPERTY
 worktree_removal_deferred_origin_check::origin_mark const MARK_OFF
 worktree_removal_deferred_origin_check::origin_mark const MARK_ON
@@ -12519,42 +12585,33 @@ conflict::discarded_store pub use other::Directory
 conflict::discarded_store pub use other::OpenFailure
 conflict::discarded_store pub use other::Store
 #   in dependent_version/dependent_version_yaml_lines.rs: the module `crate::dependent_version_yaml_lines_scalar` is not reached by a `pub mod` chain,
-#   and the statement publishes 1 of its names at the public path.
 dependent_version::dependent_version_yaml_lines pub use crate::dependent_version_yaml_lines_scalar::read_scalar
 #   in landing/service_land_follow.rs: the module `self::index_reset` is not reached by a `pub mod` chain,
-#   and the statement publishes 3 of its names at the public path.
 landing::service_land_follow pub use self::index_reset::IndexPaths
 landing::service_land_follow pub use self::index_reset::reset_entries
 landing::service_land_follow pub use self::index_reset::reset_entries_awaiting
 #   in repair/package_repair_prewarm_job.rs: the module `self::names` is not reached by a `pub mod` chain,
-#   and the statement publishes 1 of its names at the public path.
 repair::package_repair_prewarm_job pub use self::names::staging_of
 #   in repair/package_repair_toolchain.rs: the module `self::install` is not reached by a `pub mod` chain,
 #   and the statement publishes 2 of its names at the public path.
 repair::package_repair_toolchain pub use self::install::repair_toolchain
 repair::package_repair_toolchain pub use self::install::repair_toolchain_awaiting
 #   in repair/package_repair_toolchain.rs: the module `self::launcher_records` is not reached by a `pub mod` chain,
-#   and the statement publishes 1 of its names at the public path.
 repair::package_repair_toolchain pub use self::launcher_records::stale_launch_records
 #   in worktree/worktree_ladder.rs: the module `other` is not reached by a `pub mod` chain,
 #   and the statement publishes 4 of its names at the public path.
-#   That module exists only where the crate is built for another platform, so these names
-#   are published in that build and not in this one.
 worktree::worktree_ladder pub use other::Ladder
 worktree::worktree_ladder pub use other::LadderResult
 worktree::worktree_ladder pub use other::begin_ladder
 worktree::worktree_ladder pub use other::begin_ladder_holding
 #   in worktree_clone_mount/mod.rs: the module `clone_folder_identity_acl` is not reached by a `pub mod` chain,
-#   and the statement publishes 1 of its names at the public path.
 worktree_clone_mount pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES
 #   in worktree_clone_mount/mod.rs: the module `slot_identity_store_control` is not reached by a `pub mod` chain,
-#   and the statement publishes 4 of its names at the public path.
 worktree_clone_mount pub use slot_identity_store_control::RECORD_MODE
 worktree_clone_mount pub use slot_identity_store_control::STORE_FOLDER_MODE
 worktree_clone_mount pub use slot_identity_store_control::STORE_OWNER
 worktree_clone_mount pub use slot_identity_store_control::store_control_refusal
 #   in worktree_clone_mount/mod.rs: the module `slot_identity_store_reading` is not reached by a `pub mod` chain,
-#   and the statement publishes 1 of its names at the public path.
 worktree_clone_mount pub use slot_identity_store_reading::RECORD_MAXIMUM_BYTES
 #   in worktree_clone_mount/mod.rs: the module `slot_identity_store_records` is not reached by a `pub mod` chain,
 #   and the statement publishes 6 of its names at the public path.
@@ -12565,14 +12622,11 @@ worktree_clone_mount pub use slot_identity_store_records::STORE_HEADER
 worktree_clone_mount pub use slot_identity_store_records::StoredIdentity
 worktree_clone_mount pub use slot_identity_store_records::is_known_staging_name
 #   in worktree_clone_mount_protocol/clone_mount_readiness_file.rs: the module `self::clone_mount_readiness_file_publish` is not reached by a `pub mod` chain,
-#   and the statement publishes 2 of its names at the public path.
 worktree_clone_mount_protocol::clone_mount_readiness_file pub use self::clone_mount_readiness_file_publish::READINESS_STAGING_NAME
 worktree_clone_mount_protocol::clone_mount_readiness_file pub use self::clone_mount_readiness_file_publish::readiness_staging_name
 #   in worktree_clone_mount_protocol/clone_mount_readiness_file.rs: the module `self::clone_mount_readiness_file_refusals` is not reached by a `pub mod` chain,
-#   and the statement publishes 1 of its names at the public path.
 worktree_clone_mount_protocol::clone_mount_readiness_file pub use self::clone_mount_readiness_file_refusals::ReadinessFileRefusal
 #   in worktree_clone_removal_cancel/the_proof.rs: the module `self::the_proof_inputs` is not reached by a `pub mod` chain,
-#   and the statement publishes 3 of its names at the public path.
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::TheRecordsProof
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::WORKTREES_FOLDER
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::WhatTheRecordsProve
@@ -12586,12 +12640,90 @@ invocation::guarded_forwarded_command field GuardedForwarded::globals_that_place
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes what a commit that takes the bytes a finding names does with them, which its hint says
 policy::event_hints enum CommitCorrection
-#   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the finding's own answer about that commit, which the stage copies into its event
 policy::policy_engine field PolicyFinding::commit_correction
-#   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the same answer as the event carries it, for the renderer that chooses the hint
 policy::policy_events_kinds field FindingEvent::commit_correction
+worktree_clone_removal_proof_and_plan::removal_command_path const REMOVED_EXIT_CODE
+worktree_clone_removal_proof_and_plan::removal_command_path field TheRemovalAnswer::code
+worktree_clone_removal_proof_and_plan::removal_command_path field TheRemovalAnswer::lines
+worktree_clone_removal_proof_and_plan::removal_command_path fn complete_the_bound_clones_removal
+worktree_clone_removal_proof_and_plan::removal_command_path struct TheRemovalAnswer
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam const THE_ROLLBACK_STEPS
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam enum TheStopPoint
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheCancelledRemoval::code
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheCancelledRemoval::lines
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheCancellationFailed::sentence
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::common_dir
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::destroyed
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::holders
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::plan
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::slot
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::stop
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam fn is_the_handlers_rollback
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam struct TheCancellationFailed
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam struct TheCancelledRemoval
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam struct TheStoppedRemoval
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam trait TheRemovalCancelling
+worktree_clone_snapshot_batch::request_budget const THE_REMOVALS_REQUEST_BUDGET_BYTES
+worktree_clone_snapshot_batch::request_budget fn the_removals_request_budget
+worktree_copying::worktree_copy_forward field TheRunsOwnSteps::the_bound_slots_removal
+worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalAnswer::code
+worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalAnswer::stderr
+worktree_copying::worktree_removal_of_a_bound_clone fn the_removal_of_a_bound_clone
+worktree_copying::worktree_removal_of_a_bound_clone fn the_removal_with
+worktree_copying::worktree_removal_of_a_bound_clone struct BoundSlotRemovalAnswer
+worktree_clone_add_route::the_removals_cancelling fn the_removals_cancelling
+worktree_clone_removal_cancel::the_self_cancelling_answer struct TheSelfCancellingAnswer
+worktree_clone_removal_finish_pass::the_live_pass fn finish_the_removal_plans_live
+worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::cancelling
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam fn TheStopPoint::clause
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the request one managed clone's facts are read for, which the wiring round builds per clone
+health::doctor_zfs_route::clone_facts_reads struct CloneFactsRequest
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::common_dir
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::slot
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::slot_path
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::cache
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::caller_task
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes a clone dataset's GUID and creation group, which split a clone's own history from the one it inherited
+health::doctor_zfs_route::clone_facts_reads struct CloneFactsIdentity
+health::doctor_zfs_route::clone_facts_reads field CloneFactsIdentity::guid
+health::doctor_zfs_route::clone_facts_reads field CloneFactsIdentity::createtxg
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the seam every read of one clone's facts passes through, so a control scripts a reading and the release answers the same one
+health::doctor_zfs_route::clone_facts_reads trait CloneFactsReads
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the one function the wiring round calls for one clone's group of lines
+health::doctor_zfs_route::clone_facts_gathering fn gather_clone_facts
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the release reader of one clone's facts, which the wiring round makes once per report
+health::doctor_zfs_route::clone_facts_live_reads struct LiveCloneFactsReads
+health::doctor_zfs_route::clone_facts_live_reads fn LiveCloneFactsReads::open
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes what stands at a path, which every handler check reads and no report may guess
+health::doctor_zfs_route::clone_facts_live_answers fn the_state_of_a_path
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes which holder tasks the caller's own session keeps, which a removal spares
+health::doctor_zfs_route::clone_facts_live_answers fn the_tasks_in_the_callers_session
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes one scan's answer as a holder per namespace with a representative task, which a report and a refusal both name
+worktree_clone_removal_proof_and_plan::holder_report struct TheHoldersOfOneClone
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::holders
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::own_mounts
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::own_namespace
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::incomplete
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes one namespace that holds a dataset with one live task a person can look at
+worktree_clone_removal_proof_and_plan::holder_report struct AProvenHolder
+worktree_clone_removal_proof_and_plan::holder_report field AProvenHolder::namespace
+worktree_clone_removal_proof_and_plan::holder_report field AProvenHolder::task
+worktree_clone_removal_proof_and_plan::holder_report field AProvenHolder::mount_point
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the fresh scan one clone's holders are read from, and the mapping a control drives from a scan it wrote
+worktree_clone_removal_proof_and_plan::holder_report fn the_holders_of_one_clone
+worktree_clone_removal_proof_and_plan::holder_report fn holders_of
 
 # Members of a type a `pub use` publishes at a facade path: the type's own declaration sits in a module no
 # `pub mod` chain reaches, so the facade statement is the only public path to it, and these are the names a
@@ -12621,3 +12753,66 @@ worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::intent
 worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::plan
 worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::recorded
 worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::slot_path
+# New code of commit dfbcbc3e0a, published because the commit's own code is, one reason per name:
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the event filter's rule and the two values it reads, which this release's guest arm
+#   drives with a real ZED delivery and which plan step 19's wiring calls at the head of the dispatch
+worktree_clone_mount_event_filter::event_filter_decision enum DroppedWhy
+worktree_clone_mount_event_filter::event_filter_decision enum FilterDecision
+worktree_clone_mount_event_filter::event_filter_decision enum PassedWhy
+worktree_clone_mount_event_filter::event_filter_decision fn FilterDecision::line
+worktree_clone_mount_event_filter::event_filter_decision fn FilterDecision::passes
+worktree_clone_mount_event_filter::event_filter_scope const SNAPSHOT_MARKER
+worktree_clone_mount_event_filter::event_filter_scope fn decide_about_the_event
+worktree_clone_mount_event_filter::event_identity const DATASET_VARIABLE
+worktree_clone_mount_event_filter::event_identity const POOL_VARIABLE
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::dataset
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::live
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::of
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::pool
+worktree_clone_mount_event_filter::event_identity fn EventIdentity::read
+worktree_clone_mount_event_filter::event_identity struct EventIdentity
+worktree_clone_mount_event_filter::parent_scope fn ParentScope::dataset
+worktree_clone_mount_event_filter::parent_scope fn ParentScope::of_dataset
+worktree_clone_mount_event_filter::parent_scope fn ParentScope::pool
+worktree_clone_mount_event_filter::parent_scope struct ParentScope
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the merge device's folder and the two records it keeps there, which the guest arm
+#   drives as root and which plan step 19's wiring calls at the entry of the default sweep
+worktree_clone_mount_sweep_merge::sweeps_folder const PASS_MARK_MODE
+worktree_clone_mount_sweep_merge::sweeps_folder const PASS_MARK_NAME
+worktree_clone_mount_sweep_merge::sweeps_folder const PASS_MARK_TEXT
+worktree_clone_mount_sweep_merge::sweeps_folder const RUN_CLAIM_PREFIX
+worktree_clone_mount_sweep_merge::sweeps_folder const SWEEPS_FOLDER
+worktree_clone_mount_sweep_merge::sweeps_folder const SWEEPS_FOLDER_MODE
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::at
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::directory
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::live
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::pass_mark_path
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::prepare
+worktree_clone_mount_sweep_merge::sweeps_folder fn SweepsFolder::run_claim_file
+worktree_clone_mount_sweep_merge::sweeps_folder struct SweepsFolder
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the run claim and the mark one event-driven pass uses, which the guest arm holds and
+#   plants to force the device's contended paths and which `doctor` will read in plan step 18
+worktree_clone_mount_sweep_merge::pass_mark enum MarkReading
+worktree_clone_mount_sweep_merge::pass_mark fn MarkReading::asks_for_a_pass
+worktree_clone_mount_sweep_merge::pass_mark fn remove_the_mark
+worktree_clone_mount_sweep_merge::pass_mark fn the_mark_is_there
+worktree_clone_mount_sweep_merge::pass_mark fn write_the_mark
+worktree_clone_mount_sweep_merge::run_claim enum ClaimAnswer
+worktree_clone_mount_sweep_merge::run_claim fn HeldRunClaim::path
+worktree_clone_mount_sweep_merge::run_claim fn HeldRunClaim::release
+worktree_clone_mount_sweep_merge::run_claim fn take_the_run_claim
+worktree_clone_mount_sweep_merge::run_claim struct HeldRunClaim
+#   dfbcbc3e0a feat(git-policy-cli): the event filter and the merge device of the lost-event triggers
+#   publishes the taker and the count of passes one invocation runs, which the wiring round calls
+#   and the guest arm drives as root
+worktree_clone_mount_sweep_merge::merge_pass const MOST_PASSES
+worktree_clone_mount_sweep_merge::merge_pass fn run_a_merge_pass
+worktree_clone_mount_sweep_merge::merge_pass fn run_a_merge_pass_seamed
+# The check a forwarded command makes in its repository's folder of unanswered requests: step 10 of the ZFS route builds
+# it ahead of its call site, because a use of the protocol folder by `invocation/` is a new use inside a loop the layout
+# allow list tolerates and no line may record it; the forwarded path's one line lands with that untangling
+# (doc/planning/cli-git-zfs-lost-last-event-triggers-design.md, "Which commands, and where").
+worktree_clone_mount_protocol::unanswered_requests_before_a_command fn check_before_a_command

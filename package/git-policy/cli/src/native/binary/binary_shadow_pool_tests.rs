@@ -114,12 +114,12 @@ fn a_wrapped_command_removes_the_pool_of_a_worktree_git_no_longer_lists() {
 ///  A wrapped command removes a drawn shadow nothing renewed and leaves one a commit holds.
 /// Why:
 ///  A drawn tree is used where it stands,
-/// so no other sweep reaches it:
+///  so no other sweep reaches it:
 ///  the pool's own removal takes the pool's folder,
-/// and the release of a commit's scratch takes the scratch tree.
+///  and the release of a commit's scratch takes the scratch tree.
 ///  The command is the named event that collects what a killed commit left,
 ///  and the age is the scratch tree's own,
-/// so a tree a live command renews is never old enough.
+///  so a tree a live command renews is never old enough.
 #[test]
 fn a_wrapped_command_removes_a_drawn_shadow_nothing_renewed_and_leaves_a_fresh_one() {
     let fixture: Fixture = fixture("drawn-shadow-swept");

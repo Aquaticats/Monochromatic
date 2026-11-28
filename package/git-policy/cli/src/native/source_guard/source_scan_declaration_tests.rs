@@ -213,10 +213,72 @@ fn starts_a_module_declaration(line: &str) -> bool {
 }
 
 /// What:
+///  `fn leading_attributes(line: &str) -> (Vec<&str>, &str)` splits the attributes a line starts with from the
+///  declaration written after them on the same line.
+///  `Vec<&str>` is a growable list of borrowed views of the line (sibling:
+///  `String`,
+///  owned).
+/// Why:
+///  An attribute may stand on the declaration's own line (`#[inline] pub fn inlined() {}`,
+///  `#[cfg(test)] mod support;`),
+///  and a reader that took such a line for an attribute alone placed no declaration below it
+///  (the alpha.52 read's L1).
+///  The module tree and the published surface both read a declaration line through this one split,
+///  so a shape one of them places is a shape the other places too.
+///  An attribute's `]` is found with its square brackets counted and its string literals skipped,
+///  so `#[cfg(all(not(test), unix))]` and a value that holds a bracket end where the attribute ends.
+/// Gotcha:
+///  A line whose attribute is not closed answers the whole line as one attribute and no declaration,
+///  which is the reading these scans gave a line starting with `#[` before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leadingAttributes(line: string): [string[], string]
+/// ```
+pub(crate) fn leading_attributes(line: &str) -> (Vec<&str>, &str) {
+    let bytes: &[u8] = line.as_bytes();
+    let mut found: Vec<&str> = Vec::new();
+    let mut at: usize = 0;
+    while line[at..].starts_with("#[") {
+        let start: usize = at;
+        let mut depth: usize = 1;
+        let mut index: usize = at + "#[".len();
+        while index < bytes.len() && depth > 0 {
+            match bytes[index] {
+                b'"' => {
+                    index += 1;
+                    while index < bytes.len() && bytes[index] != b'"' {
+                        if bytes[index] == b'\\' {
+                            index += 1;
+                        }
+                        index += 1;
+                    }
+                }
+                b'[' => depth += 1,
+                b']' => depth -= 1,
+                _ => {}
+            }
+            index += 1;
+        }
+        if depth > 0 {
+            found.push(line.trim_end());
+            return (found, "");
+        }
+        found.push(&line[start..index]);
+        at = index;
+        while at < bytes.len() && bytes[at] == b' ' {
+            at += 1;
+        }
+    }
+    return (found, &line[at..]);
+}
+
+/// What:
 ///  `pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String>` lists the file-module declarations
 ///  of one source text in order,
 /// each with the attributes written directly above it (comments and blank lines
-///  between do not detach them).
+///  between do not detach them)
+///  and those written on its own line before it.
 /// Why:
 ///  The resolver follows these to find every file the compiler would read.
 /// It fails on an indented declaration (an
@@ -238,18 +300,26 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
         if trimmed.is_empty() || trimmed.starts_with("//") {
             continue;
         }
-        if trimmed.starts_with("#[") {
-            attributes.push(trimmed);
+        // What: the attributes this line starts with, and the declaration written after them on it.
+        // Why: `#[cfg(test)] mod support;` declares a module, and a reader that took the line for an
+        //      attribute alone left that module out of every scan of the tree in silence.
+        let (written_attributes, declaration): (Vec<&str>, &str) = if trimmed.starts_with("#[") {
+            leading_attributes(trimmed)
+        } else {
+            (Vec::new(), trimmed)
+        };
+        attributes.extend(written_attributes);
+        if declaration.trim().is_empty() {
             continue;
         }
-        let Some(name) = module_name(trimmed) else {
+        let Some(name) = module_name(declaration) else {
             // What: A `mod` statement at a file's first column that this reading cannot place stops the scan.
             // Why: Stepping over it would leave its module out of the tree, and the surface would be short by
             //      every name that module publishes, with nothing said.
             //      An indented one is inside an inline module or a fixture's own text, which is no file of the
             //      tree either way.
-            if starts_a_module_declaration(trimmed)
-                && !trimmed.contains('{')
+            if starts_a_module_declaration(declaration)
+                && !declaration.contains('{')
                 && !line.starts_with(char::is_whitespace)
             {
                 return Err(format!(
@@ -294,7 +364,7 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
             name: name.to_owned(),
             path_attribute,
             test_only,
-            public: line.starts_with("pub mod "),
+            public: declaration.starts_with("pub mod "),
         });
     }
     // `Ok(found)` is the success variant of `Result`; the tail expression is the return value.

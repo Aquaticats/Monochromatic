@@ -12,7 +12,7 @@
 //! a method,
 //!  and a `pub use` over several lines were all invisible).
 //!  Each control here names one shape and shows what the reader answers for it,
-//!  and the last control pins the shapes it still answers nothing for,
+//!  and `what_this_reading_cannot_see_stays_out_of_the_surface` pins the shapes it still answers nothing for,
 //!  so a later change to the reading has to change the reader's own doc with it.
 //!  Three shapes the reading answers for are pinned beside them:
 //!  a `mod` line it cannot place stops the scan rather than shortening the tree in silence,
@@ -582,6 +582,127 @@ fn a_private_type_sharing_a_published_types_name_has_its_members_read() {
             String::from("outer field Shared::seen"),
             String::from("outer struct Shared"),
             String::from("outer::inside field Shared::reached_by_no_one"),
+        ]
+    );
+}
+
+/// A macro the crate publishes with `#[macro_export(local_inner_macros)]` is a name,
+/// whatever stands inside the attribute's parentheses.
+/// Why:
+///  the attribute was read as the exact text `#[macro_export]`,
+///  so this form published a macro with no line in the list beside this reader
+///  (the alpha.52 read's L1).
+#[test]
+fn a_macro_export_with_parentheses_is_a_name() {
+    let root = fixture("surface-macro-export-with-parentheses");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "#[macro_export]\n\
+                 macro_rules! plain {\n\
+                 \x20   () => {};\n\
+                 }\n\
+                 #[macro_export(local_inner_macros)]\n\
+                 macro_rules! local {\n\
+                 \x20   () => { plain!() };\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer macro_rules local"),
+            String::from("outer macro_rules plain"),
+        ]
+    );
+}
+
+/// An attribute and a `pub` item written on one line publish the item,
+/// and a test gate on that line still keeps it out of the surface.
+/// Why:
+///  a line that started with `#[` was taken for an attribute and never read as a declaration,
+///  so the item it carried published a name with no line
+///  (the alpha.52 read's L1).
+#[test]
+fn an_item_on_its_attributes_line_is_a_name() {
+    let root = fixture("surface-item-on-its-attribute-line");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "#[inline] pub fn inlined() {}\n\
+                 #[allow(dead_code)] pub struct Held;\n\
+                 #[macro_export] macro_rules! exported {\n\
+                 \x20   () => {};\n\
+                 }\n\
+                 #[cfg(test)] pub fn only_in_the_test_build() {}\n\
+                 pub fn plain() {}\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer fn inlined"),
+            String::from("outer fn plain"),
+            String::from("outer macro_rules exported"),
+            String::from("outer struct Held"),
+        ]
+    );
+}
+
+/// An `impl` whose own generics run over several lines publishes the members of its type,
+/// which is the header `rustfmt` writes for a long generic list.
+/// Why:
+///  the type was read from the `impl` line alone,
+///  so a header with no `>` on it named no type and its body was not read
+///  (the alpha.52 read's L1).
+#[test]
+fn an_impl_whose_generics_run_over_several_lines_publishes_its_members() {
+    let root = fixture("surface-impl-generics-over-lines");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "pub struct Published<\n\
+                 \x20   'a,\n\
+                 \x20   T: Clone,\n\
+                 > {\n\
+                 \x20   pub held: &'a T,\n\
+                 }\n\
+                 impl<\n\
+                 \x20   'a,\n\
+                 \x20   T: Clone,\n\
+                 > Published<'a, T> {\n\
+                 \x20   pub fn seen(&self) -> &'a T {\n\
+                 \x20       return self.held;\n\
+                 \x20   }\n\
+                 }\n\
+                 struct Hidden<T> {\n\
+                 \x20   held: T,\n\
+                 }\n\
+                 impl<\n\
+                 \x20   T: Clone,\n\
+                 > Hidden<T> {\n\
+                 \x20   pub fn reached_by_nothing(&self) {}\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer field Published::held"),
+            String::from("outer fn Published::seen"),
+            String::from("outer struct Published"),
         ]
     );
 }

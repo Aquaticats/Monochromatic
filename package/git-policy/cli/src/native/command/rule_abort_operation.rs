@@ -68,11 +68,11 @@ pub fn operation_name(operation: AbortOperation) -> &'static str {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OperationEnd {
     /// `--abort`:
-    /// the operation goes,
+    ///  the operation goes,
     ///  and the state before it comes back.
     Abort,
     /// `--skip`:
-    /// the operation goes on with the next commit or patch,
+    ///  the operation goes on with the next commit or patch,
     ///  and what its reset discards is copied first.
     Skip,
 }

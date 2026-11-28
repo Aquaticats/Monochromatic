@@ -11,7 +11,7 @@
 //!  A plan that lacks one of these fields is a refusal rather than a check with a missing
 //!  expectation,
 //!  and the refusal names the field and the plan's own file,
-//! so a person knows which record
+//!  so a person knows which record
 //!  to look at.
 //!  This folder reads no plan itself:
 //!  the plan's grammar and reader belong to the removal

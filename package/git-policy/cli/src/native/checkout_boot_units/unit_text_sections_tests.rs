@@ -10,11 +10,29 @@
 //!  The shape check is one place because a file missing its last newline,
 //!  or one still carrying a `<placeholder>`,
 //!  is wrong whichever unit it is.
+//!  The classification of a plan's files is here for the guest arm's sake:
+//!  `systemd-analyze verify` refuses a drop-in path by name
+//!  (`Failed to prepare filename .../checkout.service.d/x.conf: Invalid argument`,
+//!  measured in the step 19 guest of 2026-11-27),
+//!  so the arm verifies the plan's unit files and reads the drop-ins back from
+//!  the manager,
+//!  and this answer is what keeps the two apart.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! expect(linesOf(text, '[Unit]')).toContain('Before=umount.target');
 //! ```
+
+use crate::checkout_boot_units::boot_unit_facts::{
+    CheckoutBootFacts,
+    InstalledUnitFile,
+    NestedDatasetMount,
+};
+use crate::checkout_boot_units::boot_unit_install_plan::install_plan;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directive lines of one section,
 /// trimmed,
@@ -59,6 +77,44 @@ pub(crate) fn carries(
         .any(|line| return line.starts_with(beginning));
 }
 
+/// What:
+///  Which of a plan's paths `systemd-analyze verify` can read at all:
+///  the unit files,
+///  and never the drop-ins under a `<unit>.d` folder.
+/// Why:
+///  the verifier's first argument is a unit file,
+/// and a drop-in path answers
+///  `Failed to prepare filename ...: Invalid argument` on every systemd tested,
+///  so an arm that handed it one proved nothing about that file and could not
+///  pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const verifiable = plan.filter((file) => !file.path.parent.endsWith('.d'));
+/// ```
+pub(crate) fn unit_files_of(plan: &[InstalledUnitFile]) -> Vec<PathBuf> {
+    return plan
+        .iter()
+        .filter(|file| return !is_drop_in(file.path.as_path()))
+        .map(|file| return file.path.clone())
+        .collect();
+}
+
+/// Whether one plan path is a drop-in,
+/// which is a file inside a folder named `<unit>.d`.
+///
+/// Why:
+///  the folder is the one fact that separates a file the manager merges into a
+///  unit from a unit of its own,
+/// and the install paths are built from it.
+pub(crate) fn is_drop_in(path: &Path) -> bool {
+    return path
+        .parent()
+        .and_then(|folder| return folder.file_name())
+        .and_then(|name| return name.to_str())
+        .is_some_and(|name| return name.ends_with(".d"));
+}
+
 /// Whether one section carries the whole line.
 pub(crate) fn holds(
     text: &str,
@@ -93,6 +149,37 @@ pub(crate) fn assert_file_shape(text: &str) {
         !text.contains('>'),
         "the file carries no placeholder: {text}"
     );
+}
+
+#[test]
+fn the_plan_s_units_and_drop_ins_are_told_apart() {
+    let facts: CheckoutBootFacts = crate::checkout_boot_units::boot_unit_facts::tests::facts_of(
+        "/home/user/Monochromatic",
+        "/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets",
+    );
+    let nested: NestedDatasetMount = crate::checkout_boot_units::boot_unit_facts::tests::nested_of(
+        "zpcachyos/nosnap/vm-builder-output",
+        "/home/user/Monochromatic/package/vm-builder/cli/output",
+        "output",
+    );
+    let plan: Vec<InstalledUnitFile> =
+        install_plan(&facts, &[nested]).unwrap_or_else(|refusal| panic!("{}", refusal.message()));
+    let units: Vec<PathBuf> = unit_files_of(&plan);
+    for path in &units {
+        assert!(
+            !is_drop_in(path.as_path()),
+            "the verifier's list holds no drop-in: {}",
+            path.display()
+        );
+    }
+    assert_eq!(
+        units.len(),
+        3,
+        "the gate, the propagation service and the nested dataset's unit are the plan's unit files; the list read {:?}",
+        units
+    );
+    let drop_ins: usize = plan.len() - units.len();
+    assert_eq!(drop_ins, 3, "the plan writes three drop-ins");
 }
 
 #[test]

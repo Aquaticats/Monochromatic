@@ -1,7 +1,7 @@
 //! What:
 //!  The forced act's guest arm:
 //!  every kernel call the act makes,
-//! run by the route's own code in one
+//!  run by the route's own code in one
 //!  throwaway guest,
 //!  phase by phase,
 //!  for every kind of holder the earlier arm measured,
@@ -27,10 +27,10 @@
 //!  the directory's removal,
 //!  `NS_GET_USERNS` on the holder's namespace,
 //!  and the pinned `SIGTERM`,
-//! wait and `SIGKILL` of the signal stage.
+//!  wait and `SIGKILL` of the signal stage.
 //!  The wait and the heartbeat are a harness's provisional values,
 //!  recorded with the run and shipped by nothing:
-//! the release's constants have
+//!  the release's constants have
 //!  no value until step 22 measures them.
 //!  A run on this machine prints one `SKIPPED` line,
 //!  which the recipe reads as a failure when it meant the arm to run.
@@ -142,20 +142,20 @@ const THE_RESERVED_NAME: &str = ".git-worktree-clone-removal-0";
 /// ```ts
 /// type AHolder = { pid: number; kind: string };
 /// ```
-struct AHolder {
-    pid: libc::pid_t,
+pub(crate) struct AHolder {
+    pub(crate) pid: libc::pid_t,
 }
 
 impl AHolder {
     /// Whether the kernel still answers for the holder's number.
-    fn alive(&self) -> bool {
+    pub(crate) fn alive(&self) -> bool {
         // SAFETY: signal 0 asks for the process's existence and reaches nothing.
         return unsafe { libc::kill(self.pid, 0) } == 0;
     }
 
     /// End the holder and reap it,
     /// which every phase does whatever it proved.
-    fn end(self) {
+    pub(crate) fn end(self) {
         // SAFETY: the pid is this phase's own child, and signal 9 ends it.
         let _sent: libc::c_int = unsafe { libc::kill(self.pid, libc::SIGKILL) };
         let mut status: libc::c_int = 0;
@@ -357,7 +357,7 @@ fn a_harness_window() -> TimeoutWindow {
 ///  The design's one promise to the person is that the caller's session's other
 ///  jobs live through the act,
 ///  and a phase that did not have one could not show it.
-fn a_job_of_the_callers_session() -> AHolder {
+pub(crate) fn a_job_of_the_callers_session() -> AHolder {
     // SAFETY: `fork` takes no argument, and the child below returns through `_exit` only.
     let child: libc::pid_t = unsafe { libc::fork() };
     assert!(
@@ -380,7 +380,7 @@ fn a_job_of_the_callers_session() -> AHolder {
 }
 
 /// Mount the checkout's own dataset at its path in this namespace.
-fn mount_the_checkout(fixture: &Fixture) -> PathBuf {
+pub(crate) fn mount_the_checkout(fixture: &Fixture) -> PathBuf {
     let checkout: PathBuf = fixture.checkout_path();
     std::fs::create_dir_all(checkout.as_path()).expect("the checkout's own path");
     let (worked, said) = fixture.ask(
@@ -709,11 +709,63 @@ fn the_forced_act_guest_arm_tests() {
         );
     }
 
+    // Phase 9: the same locked shape, but the holder is a service unit of the guest account's own user manager, so the
+    // manager's stop ends the unit, its control group and its namespace, and the removal then goes on.
+    let stopped_unit: String =
+        in_a_private_namespace("locked-holder-stopped-through-its-unit", &|| {
+            return super::the_forced_act_guest_arms_locked_unit::the_locked_holders_unit_phase(
+                &fixture,
+            );
+        });
+    println!("{stopped_unit}");
+    assert!(
+        stopped_unit.contains("owner=another"),
+        "the read names a user namespace of its own: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("unit=forced-act-holder.service"),
+        "the holder runs in the account's own manager's unit: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("way8=holder-locked"),
+        "way 8's unmount is refused with the locked holder's word: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("way7=holder-locked")
+            || stopped_unit.contains("way7=holder-structural"),
+        "way 7 refuses too, at its unmount or at the stage before it: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("holders-copy=stays") && stopped_unit.contains("hosts-copy=stays"),
+        "nothing was unmounted before the stop: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("stop-wait=refused:T_stop"),
+        "the release's own stop wait has no value: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("stopped=forced-act-holder.service"),
+        "the manager's stop named the unit it stopped: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("namespace-after=gone") && stopped_unit.contains("tasks-after=gone"),
+        "the unit's namespace and control group went with it: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("unmount-after=accepted")
+            && stopped_unit.contains("destroy-after=gone"),
+        "the removal's own unmount and the head destroy follow the stop: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("caller-job=alive"),
+        "the caller's session's other job lived through the stop: {stopped_unit}"
+    );
+
     println!(
         "{}",
         phase_line(
             "arm-finished",
-            &[("phases", "8"), ("result", "every-phase-held")]
+            &[("phases", "9"), ("result", "every-phase-held")]
         )
     );
     fixture.teardown();
@@ -721,8 +773,8 @@ fn the_forced_act_guest_arm_tests() {
 
 /// What:
 ///  Wait,
-/// bounded,
-/// until the holder has the namespaces and the session its shape promises.
+///  bounded,
+///  until the holder has the namespaces and the session its shape promises.
 /// Why:
 ///  `fork` returns in the parent before the child has run a line,
 ///  so a phase that read the holder's session at once would read the caller's:
@@ -856,13 +908,13 @@ fn phase_path_holder(
 
 /// What:
 ///  One holder namespace's copy,
-/// its own descriptor and the tables the arm reads.
+///  its own descriptor and the tables the arm reads.
 /// Why:
 ///  The act takes the namespace's descriptor and the identity the report names,
 ///  and the descriptor must be dropped when the phase's act is over:
-/// it is a
+///  it is a
 ///  reference to that namespace,
-/// and a namespace kept alive keeps its mounts and
+///  and a namespace kept alive keeps its mounts and
 ///  the dataset their superblock holds.
 ///
 /// In TS you'd write (pseudocode):
@@ -1675,6 +1727,8 @@ fn phase_taskless(fixture: &Fixture) -> String {
         blind: &[],
         unenterable: &[],
         locked: &[],
+        // A namespace no task holds is no service unit of the account's own manager, so there is none to stop here.
+        locked_units: &[],
         parents_not_the_checkout: &[],
         structural: &[],
         unendable: &[],

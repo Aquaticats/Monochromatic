@@ -4,7 +4,7 @@
 //! Why:
 //!  cargo-binstall requires every `[[bin]]` of a crate to be in the archive (`[package.metadata.binstall]`),
 //!  and the release job packages that one file,
-//! `monochromatic-git-policy-cli`.
+//!  `monochromatic-git-policy-cli`.
 //!  A second `[[bin]]` once made the `catalog-specifiers` workflow fail from 2026-11-01
 //!  (`When resolving monochromatic-git-policy-cli bin cli-git-service is not found. This binary is not optional`)
 //!  while local installs,
@@ -34,7 +34,7 @@ const RELEASED_BINS: &[&str] = &["monochromatic-git-policy-cli"];
 
 /// What:
 ///  The `[[bin]]` tables of a manifest as `(name, path)` pairs,
-/// in the order they are written.
+///  in the order they are written.
 /// Why:
 ///  The release builds one file per declared name,
 ///  and the entry pin reads the file the manifest's `path` names,

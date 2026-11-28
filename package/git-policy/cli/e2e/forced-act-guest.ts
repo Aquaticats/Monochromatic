@@ -17,12 +17,23 @@
  - the peer shape, where the closure names the host and the act falls to way 7;
  - way 7 in both shapes, with the directory made, the copy unmoved, and the directory removed;
  - a locked holder, refused before any signal;
+ - a locked holder that is a service unit of the guest account's own user manager: the same two refusals before the
+   stop, the manager's stop of that unit, and the host's unmount and the head destroy after it;
  - a mount namespace no task holds, found by `listns` and ended by the act's own stages, or refused
    `holder-unendable` on a kernel that answers the listing `ENOSYS`.
  The caller's session's other job stays alive through every phase.
 
- Usage: node e2e/forced-act-guest.ts <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]
+ The `user-manager` step is the measurement this round owed: it gives the guest's account a user manager of its own
+ (`loginctl enable-linger`, quoted from the guest's own manual), starts a transient unit that holds a copy of a slot
+ mount, and reads what the kernel answers the unmount and the move before `systemctl --user stop` of that unit and
+ after it. It makes the state twice, once with `PrivateMounts=yes` alone and once with `PrivateUsers=yes` as well,
+ and the arm makes it a third time.
+
+ Usage: node e2e/forced-act-guest.ts <create|prepare|user-manager|run|arm|destroy|all> [--name <guest>] [--log-dir <dir>]
         [--image <mvm template>] [--kernel-release <release>]
+ `--image` names a custom `mvm` template, such as step 23's CachyOS one, and the recipe then checks what the template
+ already carries instead of installing OpenZFS into an Ubuntu guest; `--kernel-release` names the release that template
+ must boot. A run that names neither gets the Ubuntu 24.04 guest this driver always made.
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
  `--image` names a custom `mvm` template, such as step 23's CachyOS one, and the recipe then checks what the template
  already carries instead of installing OpenZFS into an Ubuntu guest; `--kernel-release` names the release that template
@@ -60,48 +71,42 @@ import {
 import {
   FOLDER_MODE,
   HOST_COMMAND_TIMEOUT_MS,
-  SWAP_GIBIBYTES,
 } from '../bin/mvm-guest-bounds.ts';
 import {
   holdsLineStartingWith,
 } from '../bin/mvm-guest-arm-log.ts';
 import {
-  shellQuote,
-} from '../bin/mvm-guest-command-line.ts';
+  awaitDetachedGuestScript,
+  pullGuestLog,
+  startDetachedGuestScript,
+} from '../bin/mvm-guest-detached-script.ts';
+import {
+  armScript,
+  buildScript,
+} from './forced-act-guest-arm-scripts.ts';
+import {
+  measureTheStop,
+} from './forced-act-guest-measurement.ts';
 
-/**
- Where the wrapper's tree is unpacked and built inside the guest, which every account may traverse.
- */
-const CRATE_DIR = '/opt/forced-act';
 /**
  Milliseconds the guest's build of the library and its tests may take.
+
+ The bound is a stop for a build that hangs and not a deadline the machine is expected to meet. Measured in the guest of
+ this round while five or more other guests ran on this host: 34m55s on 2026-11-27T22:50, 29m54s twice after that, and
+ one run cut at the 39 minutes a 40-minute bound leaves on 2026-11-28T01:38 without finishing.
  */
-const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
+const CRATE_BUILD_TIMEOUT_MS = 5_400_000;
 /**
- Milliseconds the guest arm may take: seven phases, two of them waiting the harness's termination wait.
+ Milliseconds the guest arm may take: eight phases, two of them waiting the harness's termination wait and the locked
+ holder's stop its own.
  */
 const ARM_TIMEOUT_MS = 900_000;
+/**
+ Milliseconds the host waits past a detached script's own bound before it gives up on the script.
 
-/**
- The environment the arm reads, so it never runs anywhere but this guest.
+ The script's own `timeout` fires inside the guest first, so this margin only covers the guest agent's own lateness.
  */
-const GUEST_VARIABLE = 'CLI_GIT_ZFS_FORCED_ACT_GUEST';
-/**
- The pool the arm builds and destroys.
- */
-const POOL = 'forcedact';
-/**
- The folder the pool's image lives under.
- */
-const FIXTURE_ROOT = '/home/forced-act-fixture';
-/**
- The OpenZFS 2.4.4 prefix the guest's recipe installs.
- */
-const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
-/**
- The `PATH` the guest's OpenZFS userspace needs.
- */
-const OPENZFS_PATH = `${OPENZFS_PREFIX}/sbin:${OPENZFS_PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+const FINISH_MARGIN_MS = 600_000;
 
 /**
  The lines a run must find in the guest's arm log, one per phase it performed.
@@ -114,6 +119,7 @@ const EXPECTED_MARKERS = [
   'FORCEDACT phase=namespace-way7-repaired',
   'FORCEDACT phase=namespace-way7-shared',
   'FORCEDACT phase=locked-holder-refused',
+  'FORCEDACT phase=locked-holder-stopped-through-its-unit',
   // The taskless namespace's one marker covers both kernels: a kernel without `listns` writes
   // `phase=taskless-namespace-unlistable`, which holds this text and states the refusal word.
   'FORCEDACT phase=taskless-namespace',
@@ -265,100 +271,94 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'guest-push.log',
   },);
-  /**
-   The guest's own script: unpack the archive and build the crate's library and its tests.
-   */
-  const build = [
-    'set -eu',
-    // `mvm push` lands the tarball on the shared folder, so the guest copies it where the build reads it, over whatever
-    // an earlier run left there: a kept copy from an earlier run is a stale tree, not this run's.
-    'cp --force /mnt/shared/subject.tar.gz /root/subject.tar.gz',
-    // The dependency build is the guest's heaviest work and outlives one run, so it is kept out of the tree this run
-    // replaces: a second run then compiles this crate's own test binary alone.
-    `if test -d ${CRATE_DIR}/package/git-policy/cli/target; then rm --recursive --force /root/target-kept; mv ${CRATE_DIR}/package/git-policy/cli/target /root/target-kept; fi`,
-    `rm --recursive --force ${CRATE_DIR}`,
-    `mkdir --parents ${CRATE_DIR}`,
-    `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
-    `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
-    `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'export PATH=/root/.cargo/bin:$PATH',
-    // A custom template carries no swap, and one `rustc` of this crate's test binary has been measured at 5.06 GiB of
-    // anonymous memory inside a guest before the kernel killed it (step 23's record, "The guest and how the arms
-    // ran"), so the file is added here rather than left to the image.
-    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
-    // One job, for the same reason the deferred-origin driver runs one: this build is the library's test binary, and
-    // one `rustc` of it takes the guest's whole memory. Measured 2026-11-27 in the guest of issue 6612's round at two
-    // jobs, the build's own samples read `AnonPages` 7,249,568 kB of the guest's 8,131,780 kB with one `rustc` at
-    // 7,418,336 kB resident and `MemAvailable` at 398,408 kB at its lowest.
-    'cargo test --release --lib --no-run --locked -j 1 > /root/forced-act-build.log 2>&1',
-    'tail --lines=3 /root/forced-act-build.log',
-  ]
-    .join('\n',);
-  await guest({
+  await removeTheOldSharedLog({
     chosen,
-    script: build,
-    log: 'guest-crate-build.log',
-    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+    log: 'guest-crate-build-shell.log',
   },);
-  /**
-   The guest's own script: run the arm, refuse a returned one, and copy its log to the shared folder.
-   */
-  const arm = [
-    'set -eu',
-    `export PATH=${OPENZFS_PATH}:/root/.cargo/bin:$PATH`,
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
-    `export CLI_GIT_ZFS_FORCED_ACT_POOL=${POOL}`,
-    `export CLI_GIT_ZFS_FORCED_ACT_PREFIX=${OPENZFS_PREFIX}`,
-    `export CLI_GIT_ZFS_FORCED_ACT_ROOT=${FIXTURE_ROOT}`,
-    `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level all --filterset "test(the_forced_act_guest_arm_tests)" > /root/forced-act-arm.log 2>&1; then status=0; else status=$?; fi',
-    'tail --lines=60 /root/forced-act-arm.log',
-    'test "$status" = 0',
-    // A returning arm is not a passing arm, which the binding's own live recipe also holds.
-    `if grep --quiet '^SKIPPED' /root/forced-act-arm.log; then echo 'the arm returned without running'; exit 1; fi`,
-    ...EXPECTED_MARKERS
-      .map(function markerLine(marker: string,): string {
-        return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/forced-act-arm.log`;
-      },),
-    'cp /root/forced-act-arm.log /mnt/shared/forced-act-arm.log',
-    // The pool goes even when the arm left it behind, so the guest is ready for another run.
-    `zpool destroy -f ${POOL} 2>/dev/null || true`,
-    `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
-  ]
-    .join('\n',);
+  await startDetachedGuestScript({
+    chosen,
+    script: buildScript(),
+    log: 'guest-crate-build-shell.log',
+    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+    nameCheck: 'none',
+  },);
+  await awaitDetachedGuestScript({
+    chosen,
+    log: 'guest-crate-build-shell.log',
+    finishTimeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + FINISH_MARGIN_MS,
+  },);
+  await runTheArm(chosen,);
+}
+
+/**
+ What:
+  Delete one detached script's log in the guest's shared folder before that script starts.
+ Why:
+  The step file truncates its own log when it starts, and the host asks for that log's last line the moment the launcher
+  returns: a log an earlier run left there has a `DONE=` line the host reads as this run's end, and a pull can meet the
+  file while the new step is emptying it. A log that is gone before the start is the one answer to both.
+
+ @param chosen - the run's guest and log folder
+
+ @param log - the log's name inside the shared folder
+
+ @throws GuestDriverError when the guest's own command refused
+
+ @example
+ ```ts
+ await removeTheOldSharedLog({ chosen, log: 'guest-crate-build-shell.log' });
+ ```
+ */
+async function removeTheOldSharedLog({
+  chosen,
+  log,
+}: {
+  readonly chosen: GuestDriverOptions;
+  readonly log: string;
+},): Promise<void> {
   await guest({
     chosen,
-    script: arm,
-    log: 'guest-forced-act.log',
+    script: `rm --force /mnt/shared/${log}`,
+    log: 'guest-remove-the-old-log.log',
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+  },);
+}
+
+/**
+ Start the arm detached behind a build that already ran, read its log, and refuse a run that lacks a phase's line.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks, or the guest script that refused
+ */
+async function runTheArm(chosen: GuestDriverOptions,): Promise<void> {
+  await removeTheOldSharedLog({
+    chosen,
+    log: 'guest-forced-act-shell.log',
+  },);
+  await startDetachedGuestScript({
+    chosen,
+    script: armScript({
+      name: chosen.name,
+      markers: EXPECTED_MARKERS,
+    },),
+    log: 'guest-forced-act-shell.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
+    nameCheck: 'none',
+  },);
+  await awaitDetachedGuestScript({
+    chosen,
+    log: 'guest-forced-act-shell.log',
+    finishTimeoutMilliseconds: ARM_TIMEOUT_MS + FINISH_MARGIN_MS,
   },);
   /**
    The arm's own log, pulled back out of the guest.
    */
-  const pulledPath = join(
-    chosen.logDir,
-    'forced-act-arm.log',
-  );
-  await host({
+  const pulled: string = await pullGuestLog({
     chosen,
-    command: 'mvm',
-    args: [
-      '--backend',
-      'libvirt',
-      'pull',
-      chosen.name,
-      '/mnt/shared/forced-act-arm.log',
-      pulledPath,
-    ],
+    file: '/forced-act-arm.log',
     log: 'host-pull-arm.log',
   },);
-  /**
-   Everything the arm printed once it was pulled back.
-   */
-  const pulled = await readFile(
-    pulledPath,
-    'utf8',
-  );
   for (const marker of EXPECTED_MARKERS) {
     if (!pulled
       .includes(marker,))
@@ -394,6 +394,7 @@ async function destroy(chosen: GuestDriverOptions,): Promise<void> {
 async function all(chosen: GuestDriverOptions,): Promise<void> {
   await create(chosen,);
   await prepare(chosen,);
+  await measureTheStop(chosen,);
   await run(chosen,);
   await destroy(chosen,);
 }
@@ -404,7 +405,9 @@ async function all(chosen: GuestDriverOptions,): Promise<void> {
 const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
   create,
   prepare,
+  'user-manager': measureTheStop,
   run,
+  arm: runTheArm,
   destroy,
   all,
 };

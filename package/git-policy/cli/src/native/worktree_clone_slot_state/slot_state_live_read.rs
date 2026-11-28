@@ -47,12 +47,16 @@ use crate::worktree_clone_slot_state::slot_state_readings::{
     read_binding_reading,
     read_plan,
 };
+use crate::zfs_compatibility_gate::LiveGate;
 use crate::zfs_compatibility_gate::gate_verdict::{
     BeforeRequests,
     Verdict,
 };
 use crate::zfs_compatibility_gate::verdict_line;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    LiveMountedDatasets,
+    MountedDatasets,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
     DatasetIdentity,
     ZfsDevice,
@@ -226,7 +230,7 @@ pub fn read_slot(
     // A record is keyed by the slot's last name, so the path it names says which worktree it belongs to, and the
     // classification proves nothing about a different path from it. Asking the plan folder and the clone's own intent
     // first would open the kernel's ZFS device for a removal, a move or a repair of a plain worktree that shares a bound
-    // slot's last name, which endangers nothing (`refuse_the_removal_with`; finding Low 5 of the alpha.47 pass), so the
+    // slot's last name, which endangers nothing (`the_removal_with`; finding Low 5 of the alpha.47 pass), so the
     // record's path is compared before either is asked.
     let (plan, intent, stands): (PlanReading, IntentFacts, Option<bool>) = match &binding {
         BindingReading::Record(record) if names_another_path(record, slot_path) => {
@@ -253,6 +257,52 @@ pub fn read_slot(
         slot_mount,
         registration_stands: stands,
     };
+}
+
+/// What:
+///  Every reading one slot's state is decided from,
+///  read from this machine's own sources.
+/// Why:
+///  A report that prints one slot's state asks the live pair the add and the
+///  removal already hold,
+///  and a caller outside this folder cannot name the mounted-dataset folder
+///  the pair's mount half comes from,
+///  so the pair is made here with `LiveGate` and `LiveMountedDatasets` rather
+///  than at each reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readings = readTheSlotOnThisMachine(commonDir, 'topic', slotPath);
+/// ```
+pub(crate) fn read_the_slot_on_this_machine(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+) -> SlotReadings {
+    let mounts = the_mounts_on_this_machine();
+    let gate: LiveGate = LiveGate;
+    let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    return read_slot(common_dir, slot, slot_path, &sources);
+}
+
+/// What:
+///  This machine's mount table as the route reads it,
+///  for a reader outside this folder.
+/// Why:
+///  The mounted-dataset folder is one this folder already reads,
+///  and a reader that names it would add a folder use of its own,
+///  so the value is handed out here and the same reader answers both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mounts = theMountsOnThisMachine();
+/// ```
+pub(crate) fn the_mounts_on_this_machine() -> LiveMountedDatasets {
+    return LiveMountedDatasets;
 }
 
 /// What:

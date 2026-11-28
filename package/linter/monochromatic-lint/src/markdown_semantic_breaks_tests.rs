@@ -18,7 +18,14 @@ use crate::diagnostic::{
 };
 use crate::edits::{
     Fix,
+    FixError,
     apply_fixes,
+};
+use crate::fix_loop::{
+    FixStop,
+    FixedSource,
+    SourceChecker,
+    fix_source,
 };
 use crate::markdown_source::{
     MarkdownSource,
@@ -32,6 +39,34 @@ fn check(source: &str) -> Vec<Diagnostic> {
         MarkdownSource::new(String::from("prose.md"), String::from(source), false)
             .expect("fixture");
     return semantic_line_breaks(&context, Severity::Error);
+}
+
+/// The rule as the fix loop's checker, so a test counts the passes a run of it changes.
+struct RuleChecker;
+
+/// Reparse each submitted snapshot and answer the rule's findings on it.
+impl SourceChecker for RuleChecker {
+    fn check(
+        &mut self,
+        source: &str,
+    ) -> Result<Vec<Diagnostic>, FixError> {
+        let context: MarkdownSource =
+            match MarkdownSource::new(String::from("prose.md"), String::from(source), false) {
+                Ok(parsed) => parsed,
+                Err(error) => {
+                    return Err(FixError {
+                        message: error.message,
+                    });
+                }
+            };
+        return Ok(semantic_line_breaks(&context, Severity::Error));
+    }
+}
+
+/// Run the whole bounded fix loop over one source, as one `--fix` run does.
+fn fix_loop(source: &str) -> FixedSource {
+    let mut checker: RuleChecker = RuleChecker;
+    return fix_source(source, &mut checker).expect("fix");
 }
 
 /// Require one-pass convergence while keeping every original byte except the separating spaces the breaks replace.
@@ -211,8 +246,8 @@ fn a_break_in_a_quotation_keeps_the_marker_of_every_depth() {
 
 /// Only the lines the fix inserts carry the copied prefix:
 ///  those get the paragraph's own depth,
-///  while a line the author already wrote stays byte for byte as written,
-///  so the fix still replaces nothing but the separating space at the break point.
+///  while this fixture's author-written lines keep the bytes they were written with,
+///  because the fixture's tail holds three words and so carries no join.
 ///  The tail holds three words so the join of a fragment the old wrap cut does not also apply here.
 #[test]
 fn inserted_lines_take_the_paragraph_depth_and_existing_lines_keep_their_bytes() {
@@ -266,6 +301,88 @@ fn a_fragment_ending_at_a_break_point_stays_and_the_fix_settles() {
         "The counts were the words,\n4,\n5,\nheld,\nfor the pass.\n"
     );
     assert!(check(output.as_str()).is_empty(), "{output}");
+}
+
+/// A break-point character inside a closing emphasis delimiter is the same ending:
+///  the rule wants the line to end after the delimiter,
+///  so a joined fragment is broken again on the next pass.
+#[test]
+fn a_fragment_ending_inside_closing_emphasis_stays_and_the_fix_settles() {
+    for (source, expected) in [
+        (
+            "One two, *held,*\nfour five.\n",
+            "One two,\n*held,*\nfour five.\n",
+        ),
+        (
+            "One two, **held,**\nfour five.\n",
+            "One two,\n**held,**\nfour five.\n",
+        ),
+        (
+            "One two, ~~held,~~\nfour five.\n",
+            "One two,\n~~held,~~\nfour five.\n",
+        ),
+        (
+            "One two, *a b,*\nfour five.\n",
+            "One two,\n*a b,*\nfour five.\n",
+        ),
+    ] {
+        // `fixed` applies exactly one pass and then requires no finding to be left.
+        assert_eq!(fixed(source), expected, "{source:?}");
+    }
+}
+
+/// Two breaks on one line leave two fragments that end at one line ending,
+///  and one line ending takes one join, so the pass settles where the fixes would otherwise compete.
+#[test]
+fn two_breaks_sharing_a_line_ending_settle_in_one_pass() {
+    for (source, expected) in [
+        (
+            "clause one, x, y\nnext line here.\n",
+            "clause one,\nx,\ny next line here.\n",
+        ),
+        (
+            "clause one, x, y, z w\nnext line here.\n",
+            "clause one,\nx,\ny,\nz w next line here.\n",
+        ),
+    ] {
+        assert_eq!(fixed(source), expected, "{source:?}");
+    }
+}
+
+/// What:
+///  The passes one `--fix` run changes on inputs that hold both shapes of a join the rule declines late.
+/// Why:
+///  A join the next pass would undo costs a second pass, and a paragraph of fifteen such lines
+///  spends the loop's whole budget and leaves a finding after the first run;
+///  counting changed passes is what shows one pass settles.
+#[test]
+fn both_shapes_change_one_pass_and_no_more() {
+    // The emphasis-closed fragment, the two breaks on one line, each alone and both in one document.
+    for source in [
+        "One two, *held,*\nfour five.\n",
+        "clause one, x, y\nnext line here.\n",
+        "One two, *held,*\nfour five.\n\nclause one, x, y\nnext line here.\n",
+        "One two, **held,**\nfour five.\n\nclause one, x, y, z w\nnext line here.\n",
+    ] {
+        let result: FixedSource = fix_loop(source);
+        assert_eq!(result.changed_passes, 1, "{source:?}");
+        assert_eq!(result.stop, FixStop::Unchanged, "{source:?}");
+        assert!(result.diagnostics.is_empty(), "{source:?}");
+    }
+    // Fifteen lines that each end inside emphasis: before this control, the loop spent its ten passes.
+    let chain: String = format!(
+        "One two, *a,*\n{}",
+        [
+            "*b,*", "*c,*", "*d,*", "*e,*", "*f,*", "*g,*", "*h,*", "*i,*", "*j,*", "*k,*", "*l,*",
+            "*m,*", "*n,*", "*o,*"
+        ]
+        .map(|line| return format!("{line}\n"))
+        .concat()
+    );
+    let result: FixedSource = fix_loop(chain.as_str());
+    assert_eq!(result.changed_passes, 1, "{chain:?}");
+    assert_eq!(result.stop, FixStop::Unchanged, "{chain:?}");
+    assert!(result.diagnostics.is_empty(), "{chain:?}");
 }
 
 /// A line the fix writes carries the indent the paragraph's first continuation line already has,
