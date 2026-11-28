@@ -1076,8 +1076,9 @@ fn a_publish_that_fails_with_the_versions_name_absent_keeps_the_finished_copy_fo
         Some(&the_locks_record("0.2.1")),
     );
     clear_the_plant();
-    let error =
-        recovered.expect_err("the rename that gives an absent name the finished copy failed");
+    let error = recovered
+        .expect_err("the rename that gives an absent name the finished copy failed")
+        .error;
     assert!(
         error
             .message
@@ -1141,8 +1142,9 @@ fn a_publish_whose_exchange_fails_for_another_reason_keeps_the_finished_copy_and
         Some(&the_locks_record("0.2.1")),
     );
     clear_the_plant();
-    let error =
-        recovered.expect_err("the exchange failed with an answer that is not \"cannot exchange\"");
+    let error = recovered
+        .expect_err("the exchange failed with an answer that is not \"cannot exchange\"")
+        .error;
     assert!(
         error.message.contains("that copy is as it was"),
         "the failure says the copy at the version's name is as it was: {error}"
@@ -1187,7 +1189,9 @@ fn a_publish_whose_first_aside_rename_fails_keeps_the_finished_copy() {
         Some(&the_locks_record("0.2.1")),
     );
     clear_the_plant();
-    let error = recovered.expect_err("the rename that moves the copy there aside failed");
+    let error = recovered
+        .expect_err("the rename that moves the copy there aside failed")
+        .error;
     assert!(
         error.message.contains("cannot move the copy at"),
         "the failure names the rename that failed: {error}"
@@ -1232,8 +1236,9 @@ fn a_publish_whose_second_rename_fails_puts_the_copy_back_and_keeps_the_finished
         Some(&the_locks_record("0.2.1")),
     );
     clear_the_plant();
-    let error =
-        recovered.expect_err("the rename that gives the version's name the finished copy failed");
+    let error = recovered
+        .expect_err("the rename that gives the version's name the finished copy failed")
+        .error;
     assert!(
         error.message.contains("the copy that was there is back at"),
         "the failure says the copy that was there came back: {error}"
@@ -1280,7 +1285,9 @@ fn a_publish_whose_put_back_fails_keeps_the_finished_copy_and_names_the_aside_co
         Some(&the_locks_record("0.2.1")),
     );
     clear_the_plant();
-    let error = recovered.expect_err("the rename into the version's name failed");
+    let error = recovered
+        .expect_err("the rename into the version's name failed")
+        .error;
     assert!(
         error.message.contains("could not be put back from"),
         "the failure names the put-back that failed too: {error}"
@@ -1804,7 +1811,7 @@ fn a_claim_that_fails_for_another_reason_is_reported() {
         Some(&the_locks_record("0.2.1")),
     );
     drop(read_only);
-    let error = recovered.expect_err("the claim's rename was refused");
+    let error = recovered.expect_err("the claim's rename was refused").error;
     assert!(
         error
             .message

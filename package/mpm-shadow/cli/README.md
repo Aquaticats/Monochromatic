@@ -1260,7 +1260,8 @@ whichever route installed them.
   count as finished and cause the working older version to be deleted.
   A failed install removes its staging directory and touches no copy that was already there.
   A publish that fails keeps the finished copy under the hidden name that run holds it at,
-  which the next install of that version publishes without downloading,
+  which an install either publishes or removes as a second one,
+  depending on what the version's name holds by then,
   and its message names that path and the version's name.
   A directory without the marker (one an earlier release unpacked in place,
   or one cut short) is never finished:
@@ -1392,6 +1393,11 @@ so a copy a kill leaves under it is never published and never removed.
   and `.replaced` holds the unfinished copy it replaced,
   which the next install of that tool removes.
 
+A hidden copy that holds a finished install is published by the next install of that version,
+downloading nothing,
+unless that version's name holds a finished copy by then,
+which makes the hidden one a second one that install removes.
+
 The finished copy is what a later install publishes rather than the copy that was there,
 because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
 while the copy at the version's name was unfinished,
@@ -1420,16 +1426,24 @@ a finished copy of another version is left for that version's own install to pub
 
 A recovery whose own publish fails keeps the copy it claimed:
 the copy stays under its `.recovered` name with that run's pair,
-which the next install of that version finds dead,
-claims and publishes,
 and the failure names both the version's name and the path the copy is at.
+Such a sentence promises nothing about a later run,
+because only the run that follows reads what that one would find:
+an install publishes the copy when the version may be kept and its own name holds no finished copy by then,
+and removes it as a second one when that name holds one.
 A recovery that fails does not stop the install that follows it:
 the tool is installed from the network when the network is there,
 the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
-That warning ends with what the run then did,
-because the recovery's own last clause says the copy is still where a later run would publish it from,
-which is false once this run installed the version itself.
+That warning ends with what this run then did.
+When the install that follows put the version at its name,
+the warning says that a later run publishes nothing from the copy and removes it,
+which is what that later run then does;
+when that install failed too,
+the copy stays where the run's own sentence put it.
+The one failure that names no copy is the tool's directory that could not be listed:
+its warning says what this run then did and that the run does not fail for it,
+and nothing about a copy it never read.
 A recovery that failed is a warning,
 and not a failure,
 whenever this tree's lock is satisfied after the run:
@@ -1570,12 +1584,15 @@ toolchain install: removed 2 hidden directories left behind by installs of mpm-s
 
 A removed finished copy is either a second one,
 when the run reads the version's own name as finished,
-or the one copy the version had here,
-and only the second is the copy the version loses.
-The sentence says what that read at the version's name was:
+or the one copy the version had here.
+The sentence says what that read at the version's name was,
+and never what a start of either copy does:
+the test is a completion marker and a program found,
+so a program cut short under its marker reads as finished too,
+and the copy the version's name holds may be the one that cannot run.
 
 ```text
-toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13; 0.2.7-alpha.13 holds its completion marker and its program at its name, so that copy was a second one
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
 ```
 
 ```text
@@ -1620,16 +1637,19 @@ so `prune` leaves that decision to the install.
 A hidden name it cannot judge is printed on standard error and left,
 and the line says what that run read there and what deleting that directory would cost.
 When a known lock names the program that finishes the tool's install,
-a copy the run reads as finished is the version's only one here unless the version stands finished at its own name:
+a copy the run reads as finished is the version's only one here unless the version's own name reads as finished by the
+same test:
 
 ```text
 mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a finished copy of mpm-shadow 0.2.7-alpha.13, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged
 ```
 
 ```text
-mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 is finished at its name, and deleting it by hand loses only that second copy
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a second finished copy of mpm-shadow 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name, and deleting it by hand loses that second copy
 ```
 
+That line names the two reads and no conclusion drawn from them:
+whether the copy the version's name holds behaves when it is started is something this run did not read.
 A directory the run reads as holding no finished copy loses nothing:
 
 ```text

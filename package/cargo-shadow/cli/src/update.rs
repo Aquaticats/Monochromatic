@@ -332,3 +332,21 @@ pub fn update_rust_lockfiles(
     }
     return settle_finish(outcome, finished, recovered, restore_warnings);
 }
+
+/// What:
+/// `#[cfg(test)] mod update_tests;` declares the tests in `src/update_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the catalog update,"
+/// so the behavior of `update` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // update_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "update_tests.rs"]
+mod update_tests;

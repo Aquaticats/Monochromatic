@@ -134,3 +134,10 @@ pub(crate) fn object_name(
     let header: String = format!("{kind} {}\0", body.len());
     return sha1(&[header.as_bytes(), body]);
 }
+
+/// The tests of the SHA-1 used for object names.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "git_sha1_tests.rs"]
+mod git_sha1_tests;

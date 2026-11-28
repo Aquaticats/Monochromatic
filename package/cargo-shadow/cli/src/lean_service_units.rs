@@ -283,3 +283,10 @@ pub fn install_service(
     }
     return Ok(lines);
 }
+
+/// The tests of the service units.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_service_units_tests.rs"]
+mod lean_service_units_tests;

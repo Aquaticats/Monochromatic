@@ -602,7 +602,7 @@ fn a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_
         .args([
             "--ignored",
             "--exact",
-            "real_binary_tests::running_image_lookup_fixture",
+            "real_binary::real_binary_tests::running_image_lookup_fixture",
             "--nocapture",
         ])
         .env(FIXTURE_IMAGE_ROOT, root.path())

@@ -672,6 +672,11 @@ the build's own warning,
 the `FAIL` line,
 the panic's message and the summary.
 
+That test is now `git_sha1::git_sha1_tests::the_digest_of_nothing_is_the_published_one`:
+`refactor/cargo-shadow-cli-lib-rs-is-under-the-line-budget-with-room-for-the-modules-to-come` (2026-11-27)
+moved its declaration from the crate root beside `src/git_sha1.rs`,
+and the figure above is the run as it was measured then.
+
 ## Open
 
 - Which answer the one red run got,

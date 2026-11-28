@@ -1,13 +1,16 @@
 # forbidden-strings 0.6.2 and the CI scan step: a tracked link to a folder reaches the scanner as a file, so every push to `main` failed from 2026-11-20
 
 Status:
-unapproved and non-final (2026-11-27T18:31:59-05:00).
-The workflow side is written,
-its tests pass,
-and the checks were re-run after merging `origin/main`;
-the owner declares completion.
-The last section lists the commits,
-the checks and what is open.
+unapproved and non-final (2026-11-27T18:53:04-05:00).
+Two rounds wrote this record:
+the one merged as `fc1c84b58e`,
+which stopped the read errors,
+and the one for issue #6633,
+which makes the steps inspect what they leave out.
+The owner declares completion.
+The last two sections list the commits,
+the checks,
+the measurements and what is open.
 
 ## Symptom
 
@@ -466,24 +469,277 @@ consumer/uses/base: read error: Is a directory (os error 21)
 there:
 the broken link and the read-through of a link to a file).
 
+## What the steps inspect now (issue #6633)
+
+The requirement issue #6633 states:
+every entry the file scan leaves out of its positional list is still handed
+to the scanner,
+a tracked link by its own name and by its stored target text,
+a submodule gitlink by its own name;
+nothing the file scan inspects today stops being inspected;
+and nothing is followed that was not followed before.
+
+### Three steps and two scanner calls
+
+The file scan writes each entry it leaves out,
+with its raw record,
+to `$RUNNER_TEMP/forbidden-strings.left-out-raw`,
+and its left-out line now says what inspects them instead:
+"The next step scans their own names and,
+for each link,
+its stored target
+text."
+
+A third step,
+"Scan the entries left out of the file scan",
+reads that list and hands every entry over in one scanner call:
+
+```sh
+forbidden-strings --builtin-rules --rules "$rules" \
+  --name-path <entry> [--name-path <entry> ...] -- <input> [<input> ...]
+```
+
+- For a tracked link the input is the link's stored target text,
+  written from the link's own blob in the tree
+  (`git cat-file blob` of the new object the raw record names),
+  never from the path the link points at.
+  `--name-path` name-scans the link's own path segments and content-scans
+  the bytes Git stores for it in the same invocation,
+  which is what the 6632 round measured on `0.6.2`.
+- For a submodule gitlink the input is one empty file written once,
+  so the scanner name-scans the gitlink's path and content-scans nothing,
+  because a gitlink's own commit is not a file of this repository.
+
+Every finding of that call carries `input=N`,
+the pair's index,
+so a finding names the entry it came from even when the entry's matching
+segment is redacted.
+
+Both scanner calls now end their option list with `--`.
+`git diff --raw` names repository paths,
+and a path can begin with a dash,
+which `forbidden-strings` `0.6.2` read as an option:
+measured,
+`forbidden-strings --rules rules.txt -- -dashfile.txt` reports the finding,
+and the same call without `--` answers
+`error: unexpected argument '-d' found` with exit 2.
+A repository file with a dash-leading name would therefore have failed the
+gate with a usage error instead of being scanned,
+which is why both calls now end their option list with `--`.
+That hardening is new with issue #6633's round;
+before it,
+the file scan handed its list to the scanner without one.
+
+### Why this shape and not the others
+
+One scanner call for everything,
+with `--name-path` for every positional file:
+`--name-path` requires one name per positional file,
+so every finding would gain an `input=` label and the output shape every
+other consumer of this gate reads would change,
+and a link to a file would need two entries under one name
+(its read-through and its stored target text)
+to keep today's read-through.
+
+Both calls in one step:
+the repository's linter caps a shell step at 58 code lines
+(`shell/max-lines`,
+`.github/workflows/monochromatic-lint.config.jsonc`),
+and the file scan's body is 53 of them;
+building the pairs needs about twenty more,
+so one step would mean either an over-limit step or compacting tested scope
+logic to buy room,
+which `AGENTS.md` forbids without the owner's approval.
+The file scan's body is 53 code lines and the new step's is 33,
+both measured by `monochromatic-lint`'s own count
+(blank and comment lines excluded).
+
+A script the workflow runs:
+`AGENTS.md` rule `SCR` bans shell scripts in this repository,
+and a TypeScript program would need Node,
+pnpm and `task-run` in a workflow that has none,
+which `doc/decision/mise-free-ci.md` makes the way CI runs a task.
+
+A change in the scanner:
+what a positional link means inside the scanner is issue #6633's separate
+question,
+and any scanner change reaches this workflow only in a release,
+which item 4.9 of
+`doc/decision/cli-git-wrapper-owner-answers-2026-11-12.md` makes a question
+for the owner because `0.6.2` is not an alpha.
+
+Reading the link's target text with `readlink` instead of its Git blob:
+both give the same bytes on a fresh checkout,
+so no case in the test suite tells them apart except the one that asserts
+the mechanism;
+the blob is the tree's own answer,
+it is already named by the raw record the step reads,
+and it does not depend on the checked-out link matching the tree.
+
+### What each kind of changed entry gets now
+
+- A regular file:
+  its path segments and its content,
+  positionally,
+  as before.
+- A link to a file:
+  its path segments,
+  and the content behind it read through the link under
+  the link's own name,
+  as before.
+  Its stored target text is not scanned
+  (see "Limits of what the steps inspect now").
+- A broken link:
+  the scanner's read error and exit 1,
+  as before.
+- A link whose target on disk is a folder:
+  its path segments and its stored target text,
+  in the left-out step.
+- A submodule gitlink:
+  its path segments,
+  in the left-out step.
+- An entry whose mode the filter does not name,
+  or whose path is missing from the raw record:
+  handed over as before,
+  so an unexpected tree state still fails loudly.
+- Every changed entry,
+  when no validated baseline exists:
+  the whole-tree arm still runs `--all`,
+  which inspects neither a link's name nor any target text
+  (see the limits).
+
+### The delta the workflow scans today, measured
+
+Measured on 2026-11-27,
+in this worktree,
+with the released `forbidden-strings` `0.6.2`
+(tag `forbidden-strings-v0.6.2`,
+archive sha256
+`fff00e61b5187878affb37cbd19baa87398e1ca2d312305d817430f79f13b711d`,
+binary sha256
+`8537a0917e209b1d2c34580416d30a50c3da6606c67d4634f5bf86b799036e51`),
+the workflow's own four step bodies
+("Materialize deny-list",
+"List changed files",
+"Scan changed files",
+"Scan the entries left out of the file scan")
+extracted the way
+`package/forbidden-strings/cli/tests/ci_scan_scope/scan_step_command.rs`
+extracts them and run in workflow order,
+the repository's own `forbidden-strings.append.txt` as the rules file,
+a `gh` stand-in answering
+`82d6a8959655c863e4a28579139456f609d5d615` for `run list`,
+stock Git as the runner has it,
+`EVENT_NAME=push`,
+`HEAD_SHA=60ecd08eefd447e7fbf397b134ae7d1b004c52ff`,
+`BRANCH=main`,
+a disposable `RUNNER_TEMP` and scanner cache directory.
+
+```text
+::notice::FORBIDDEN_STRINGS_LIST secret not set; baseline + shared appendix scan.
+Left out 139 of 8158 changed entries the scanner cannot open as a file: folder links 139, submodule gitlinks 0. The next step scans their own names and, for each link, its stored target text. A link to a file, a broken link and an unreadable file stay in the scan.
+Scanning 8019 changed file(s) from 82d6a8959655c863e4a28579139456f609d5d615..60ecd08eefd447e7fbf397b134ae7d1b004c52ff:
+Scanning 139 left-out entries: each one by its own name, and each link by its stored target text:
+```
+
+All four steps exited 0,
+and neither stream held a line with `rule=` or `read error`:
+under the repository's own rules and the embedded baseline,
+the 139 links' own names and stored target texts are clean,
+and so are the 8019 files the file scan read.
+
+The run read this branch's tree,
+which is `main` plus this round's changes,
+so the content of the six entries this round edited or added
+(the workflow file and five files under
+`package/forbidden-strings/cli/tests/ci_scan_scope/`)
+is this branch's and not `60ecd08eef`'s.
+The entry list,
+the counts,
+and every link's stored target text,
+come from the delta's own Git objects and are unaffected.
+
+The left-out step left 140 files in
+`$RUNNER_TEMP/forbidden-strings.link-target-text`:
+139 stored target texts and the one empty file a gitlink would use,
+which this delta does not need.
+The first stored target text is `../../testing`
+for `package/git-policy/cli/src/native/checkout_boot_units/uses/testing`,
+and the record file beside it held 139 raw records.
+
+Two plants show the harness can report a finding on that delta,
+each reverted after its run:
+
+- a rule for `../`,
+  which every `uses/` link's stored target text holds,
+  made the left-out step exit 1 with 139 findings,
+  the first being
+  `package/git-policy/cli/src/native/checkout_boot_units/uses/testing:1 rule=control-left-out-target-text input=0`;
+- a rule for `validated-tree-watermark-v1` made the file scan exit 1 with
+  three findings,
+  the first being
+  `.github/workflows/forbidden-strings.yml:129 rule=control-file-content`.
+
+## Limits of what the steps inspect now
+
+- A link to a file still gets no scan of its stored target text.
+  It stays in the positional list,
+  where the scanner reads the content behind it,
+  and its stored target text is a path,
+  so scanning it would report one problem under two labels and hand the same
+  name to the scanner twice.
+- The whole-tree arm inspects neither a link's name nor any target text,
+  because it runs `--all`,
+  whose walk leaves `Mode::SYMLINK` and `Mode::COMMIT` out.
+  That was true before this round and is true after it.
+  A link that entered before a baseline tree was validated is covered by the
+  delta scan only until a whole-tree run replaces that baseline.
+- The runner stops the job at the first failing step,
+  so a push whose file scan finds something does not run the left-out step,
+  and a finding there appears on the next run.
+  Each step reports its own exit 1 and its own findings.
+- The left-out step reads each target text from the tree's blob,
+  so it is right even when a working-tree link differs from the tree.
+  It needs that blob to be present:
+  a shallow or partial checkout fails the step loudly
+  (`set -euo pipefail` around `git cat-file blob`)
+  instead of skipping an entry,
+  and the workflow checks out with `fetch-depth: 0`.
+- A name holding a line break cannot be matched by a single-line rule,
+  and `forbidden-strings` `0.6.2` answers it with
+  `[REDACTED]: unsupported pathname line break`,
+  which counts toward exit 1.
+  Such a name fails the gate whether or not it holds a forbidden string,
+  which is the scanner's answer today and not a choice these steps make.
+- The left-out step's scan is one scanner call,
+  so a rule-file error ends it for every left-out entry at once;
+  a per-file matcher fault still becomes that file's finding through the
+  scanner's own `catch_unwind` boundary.
+- The left-out list and the materialized target texts stay in `$RUNNER_TEMP`,
+  where the runner discards them with the job,
+  like the rules file and the two lists beside them.
+- The target texts are not removed by the step:
+  no deletion runs over a path this step builds,
+  which `AGENTS.md` rule `RLW` keeps free of variables.
+
 ## Limits of the cure
 
-- A link's own name was inspected before,
+- A link's own name was inspected before that change,
   by the scanner's pathname pass over the positional path
   (`package/forbidden-strings/cli/src/candidate_file_scan.rs:155-160`),
-  and is not inspected now for a link the step leaves out
-  (measured above:
+  and was not inspected for a link the step left out
+  (measured:
   the name rule fired on
   `user/uses/zzqnametoken-folder-link` before the reader failed).
-  The name is still inspected whenever any file inside the folder it
-  points at is scanned,
-  because that file's path carries the folder's name as a segment,
-  and the walk never inspected a link's name at all.
-  What is lost is the case where the link is the only changed entry and
-  its folder name alone would have matched a rule.
-- A link's target text is scanned by neither the walk nor the step.
-  That was true before this change and is true after it,
-  and the owner may want it changed (see below).
+  Issue #6633's round closed that:
+  the step that scans the left-out entries name-scans every one of them.
+- A link's target text was scanned by neither the walk nor the step before
+  that round.
+  The left-out step now scans it for every link the file scan leaves out;
+  a link to a file is still read through without its stored target text
+  being scanned,
+  and the whole-tree arm is unchanged.
+  See "Limits of what the steps inspect now".
 - The disk test assumes the step runs at the repository root,
   which the runner guarantees (`actions/checkout` into `GITHUB_WORKSPACE`
   and the step's default working directory).
@@ -507,7 +763,7 @@ the broken link and the read-through of a link to a file).
 1. What a positional argument that is a link should mean inside the
    scanner.
    Today,
-   measured above:
+   measured:
    a link to a folder is name-scanned and then fails with
    `Is a directory`;
    a link to a file is read through and its target's content is reported
@@ -535,17 +791,21 @@ the broken link and the read-through of a link to a file).
    and item 4.9 of
    `doc/decision/cli-git-wrapper-owner-answers-2026-11-12.md` makes a
    non-alpha release a question for the owner.
-2. Whether a link's own target text should be scanned at all,
-   and if so whether under the link's path or its target's.
-   `--name-path` shows the mechanism exists
-   (materialize the 120000 blob,
-   pass the link path as the logical name),
-   and costs the workflow one `git cat-file` per link plus a temporary file,
-   or a scanner option that reads the link's blob itself.
-   Cost of not doing it:
-   a forbidden string that appears only in a link's target text is
-   undetected,
-   which is true today and was true before this change.
+   Issue #6633's round works around this for the workflow alone:
+   the steps hand each left-out link over as a `--name-path` pair,
+   which `0.6.2` already supports.
+2. A link's own target text is now scanned for a link the file scan leaves
+   out,
+   and not for a link to a file,
+   which stays in the positional list and is read through as before.
+   Two choices remain with the owner:
+   whether the second kind should be scanned twice,
+   once read through and once by its stored text,
+   which costs one more pair per such link and two findings labels for one
+   problem;
+   and whether the whole-tree arm should list the index's links at all,
+   which is a coverage change to the full scan rather than a fix for what
+   the delta scan leaves out.
 3. Whether the 139 `uses/` links should exist as links at all,
    given that a content scan checks neither a link's name nor its target
    text,
@@ -586,7 +846,7 @@ the broken link and the read-through of a link to a file).
   where `git diff --raw` already carries each entry's mode next to the path
   the step needs.
 
-## What was done, what was checked, what is open
+## What the issue #6632 round did, checked and left open
 
 Done,
 in this worktree,
@@ -661,3 +921,213 @@ The three questions in "What is left for the owner" are undecided,
 and no release,
 workflow dispatch,
 container task or mutation task was run.
+
+## What the issue #6633 round did, checked and left open
+
+Done,
+in this worktree,
+in two commits before this record's own:
+
+- `ae0f5c185328283302833749d1680afb98bcb432`
+  (2026-11-27T18:49:08-05:00):
+  `test(forbidden-strings): pin what the scan step hands over for each entry
+  it leaves out`,
+  the fixture's pathname rules,
+  the extraction of the left-out step's body,
+  eight new cases and two rewritten assertions
+  (`package/forbidden-strings/cli/tests/ci_scan_scope/left_out_entry_tests.rs`,
+  `folder_link_entry_tests.rs`,
+  `fixture_inputs.rs`,
+  `scan_step_command.rs`,
+  `ci_scan_scope.rs`).
+- `f2b1b09f4a7022b37d4cb7295145b82029354333`
+  (2026-11-27T18:50:10-05:00):
+  `fix(forbidden-strings): scan each entry the file scan leaves out by name
+  and target text`,
+  the left-out list in the file scan,
+  the third step,
+  the left-out line's new sentence,
+  and `--` on both scanner calls.
+
+The two new cases were red first:
+before the workflow change the module ran 22 cases and
+`9 failed, 13 passed`,
+the two acceptance cases failing with
+
+```text
+a forbidden string in a left-out folder link's own name must fail the step; got status 0
+stdout: Left out 1 of 2 changed entries the scanner cannot open as a file: folder links 1, submodule gitlinks 0. A link to a file, a broken link and an unreadable file stay in the scan.
+Scanning 1 changed file(s) from 178a3642a71a488f9ca5c474aef684cb9cd141bd..820c570480fcd4be866c2bc7104acf043e1a76b1:
+  consumer/main.txt
+```
+
+and
+
+```text
+a forbidden string in a left-out folder link's stored target text must fail the step; got status 0
+stdout: Left out 1 of 2 changed entries the scanner cannot open as a file: folder links 1, submodule gitlinks 0. A link to a file, a broken link and an unreadable file stay in the scan.
+Scanning 1 changed file(s) from fc596c9e361b62039d56e0a094a0c03dd4eca0fd..0f15e462d1c0aadf3e561648824f7e0e2b78064a:
+  consumer/main.txt
+```
+
+The 13 that passed there are today's coverage:
+the clean folder link,
+the link to a file read through,
+the broken link's read error,
+the submodule entry's own left-out line,
+both pull-request cases,
+and the five push-scope cases.
+
+Nine plants show each control can fail,
+each written into the workflow file,
+run,
+and restored from the committed file,
+so no plant was ever committed
+and the workflow file's sha256 matched the committed one after every run
+(`098a13b002e5f3749590724645557f64b16904d6bd2c3d80822e41c82eb386f9`).
+The test module ran 22 cases in each run:
+
+- leaving a folder link in the positional list:
+  8 cases failed,
+  among them the clean folder link,
+  the folder-links-only delta,
+  and the link whose target folder holds a forbidden string,
+  each printing `must pass` with `got status 1`;
+- leaving every `120000` entry out:
+  `broken_link_still_ends_the_step_with_its_read_error` and
+  `changed_link_to_a_file_still_reads_its_target_content` failed,
+  the broken link answering `got status 0`;
+- dropping the submodule gitlink's record:
+  only `push_of_a_submodule_gitlink_whose_own_name_is_forbidden_ends_the_step_1`
+  failed,
+  with `got status 0`;
+- dropping a folder link's record:
+  6 cases failed,
+  among them both pull-request left-out cases,
+  the special-byte case and both acceptance cases;
+- unquoting the name handed to `--name-path`:
+  `push_hands_over_a_link_whose_name_holds_a_space_a_newline_and_a_comma`
+  failed with `got status 2`;
+- dropping the sentence that says what scans the left-out entries:
+  the two cases that assert it failed,
+  printing `the file-scan step must say what scans the entries it left out`;
+- reading the path a link points at instead of its Git object:
+  9 cases failed,
+  each printing `cat: ./<link>: Is a directory`;
+- ignoring the left-out step's findings:
+  the five cases that expect a left-out entry's finding failed,
+  each with `got status 0`;
+- renaming the left-out step:
+  8 cases failed,
+  the declaration case printing
+  ``the workflow must declare its `- name: Scan the entries left out of the file scan` step``.
+
+One further plant replaced the Git blob read with `readlink`:
+21 of 22 cases passed and only the declaration case failed,
+which is the honest result,
+because both give the same bytes on a fresh checkout.
+The declaration case is what pins the mechanism.
+
+Checked in `package/forbidden-strings/cli`:
+
+- `cargo fmt --check`:
+  the first run reported one diff in `folder_link_entry_tests.rs`
+  (a line break this round had removed),
+  `cargo fmt` fixed it and the next run exited 0;
+- `cargo check --locked --offline --all-targets`:
+  exit 0;
+- `cargo clippy --locked --offline --all-targets -- -D warnings`:
+  the first run exited 101 on `clippy::implicit-return` at
+  `package/forbidden-strings/cli/tests/ci_scan_scope/scan_step_command.rs:115`
+  (the new helper's tail expression),
+  a `return` fixed it and the next run exited 0;
+- `cargo nextest run --locked --offline --test ci_scan_scope`:
+  `Summary [   0.976s] 22 tests run: 22 passed, 0 skipped`;
+- the package's own task,
+  `mise run //package/forbidden-strings/cli:test`:
+  `Summary [  23.281s] 381 tests run: 381 passed, 0 skipped`,
+  exit 0.
+  The 6632 round's branch ran 373,
+  and this round adds eight cases.
+
+`monochromatic-lint` reports no finding on any file this round changes:
+the workflow file,
+the five files under
+`package/forbidden-strings/cli/tests/ci_scan_scope/`,
+and this record.
+
+What no check covers,
+and what this round did not run:
+
+- No container task,
+  no mutation task and no release task ran,
+  and nothing in the scanner changed,
+  so no release is owed for this work.
+- No workflow was dispatched and no run of the workflow exists for these
+  changes;
+  the first push run on `main` after the merge is what shows the new step in
+  a live run,
+  and issue #6633 closes on a green one.
+- The plant runs and the delta measurement used the released `0.6.2`
+  binary and stock Git,
+  because the workflow downloads exactly that binary and the runner has
+  stock Git;
+  no scanner was built from this branch.
+
+Merged and re-checked.
+`origin/main` moved twice while this round ran,
+so it was merged twice:
+`e032823a1e` (2026-11-27T18:49:55-05:00) in the merge commit
+`02e9db640f` (2026-11-27T18:57:44-05:00),
+and then `25dec7b462` (2026-11-27T18:58:21-05:00) in
+`e76afec9a2` (2026-11-27T18:58:42-05:00).
+Neither merge touched the workflow file or any test file this round changes.
+
+After the second merge every check above ran again,
+in `package/forbidden-strings/cli`,
+and each printed the same result:
+`cargo fmt --check` exit 0,
+`cargo check --locked --offline --all-targets` exit 0,
+`cargo clippy --locked --offline --all-targets -- -D warnings` exit 0,
+`cargo nextest run --locked --offline --test ci_scan_scope`
+with `Summary [   1.079s] 22 tests run: 22 passed, 0 skipped`,
+and `mise run //package/forbidden-strings/cli:test`
+with `Summary [  26.566s] 381 tests run: 381 passed, 0 skipped`.
+`monochromatic-lint` again reported no finding on any changed file,
+the workflow file and this record among them.
+
+The delta measurement was run again on `82d6a89596..e032823a1e`,
+the tip this branch merged first,
+with the same rules,
+stand-in and binary:
+
+```text
+Left out 139 of 8159 changed entries the scanner cannot open as a file: folder links 139, submodule gitlinks 0. The next step scans their own names and, for each link, its stored target text. A link to a file, a broken link and an unreadable file stay in the scan.
+Scanning 8020 changed file(s) from 82d6a8959655c863e4a28579139456f609d5d615..e032823a1ed89c182d7895688186051728483ed5:
+Scanning 139 left-out entries: each one by its own name, and each link by its stored target text:
+```
+
+All four steps exited 0,
+neither stream held a line with `rule=` or `read error`,
+and the left-out step left 140 files in its target-text folder again.
+Those figures differ from the earlier run's only by the one entry and the one
+file `main` gained between the two tips.
+
+The coordinating session merges this branch,
+and issue #6633 closes on a green push run on `main` that prints the new
+left-out line,
+which no run can show before that merge.
+No workflow was dispatched.
+
+Open:
+
+- The two owner questions in "What is left for the owner" item 2 stay
+  open:
+  whether a link to a file should also have its stored target text scanned,
+  and whether the whole-tree arm should list the index's links.
+- The workflow file's left-out step is one scanner call over every left-out
+  entry,
+  so a push whose file scan fails reports only the file findings first;
+  the left-out step runs on the next push.
+  That ordering is the runner's,
+  and no test covers a live job's step skipping.

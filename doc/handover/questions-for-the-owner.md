@@ -3851,3 +3851,348 @@ Unicode does not count it among the characters that print as nothing.
 The pick is to leave it;
 the other way is to add it to the set by hand,
 which ties the set to a list of the linter's own beside Unicode's.
+
+## Veto open: what four rounds of 2026-11-27 chose or left (recorded 2026-11-27T18:42:35-05:00)
+
+The coordinating session read each round's report whole and wrote this entry.
+None holds a release.
+
+### The wrapper: a slot command behind a shell alias that could not be placed is refused
+
+When Git cannot be asked where a `!` alias's shell runs,
+a removal,
+a move or a prune of a worktree behind that alias was forwarded with no refusal.
+The round on the alias reading (merged as `461d441ef7`) refuses it,
+with words saying what could not be read.
+
+- Refuse it (taken):
+  a bound slot keeps its protection.
+  The cost:
+  such a command is refused whenever one start of Git fails,
+  also in a repository with no record at all,
+  and the person types it again without the alias.
+- Forward it and print a line:
+  nothing is refused that Git would have run.
+  The cost:
+  a removal of a bound slot deletes the registration and the pointer under the clone.
+
+Ranking,
+the round's and the coordinating session's:
+refuse > forward,
+because the owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe.
+
+### The wrapper: the guard in that same failure state
+
+When that ask fails,
+the guard judges the caller's own worktree.
+For an alias whose own words name no other place that is the right worktree.
+For one whose words carry `-C`,
+`--git-dir` or `--work-tree` it is the wrong one.
+
+- Leave it (taken):
+  the guard refuses only what it can prove.
+  The cost:
+  in that failure state a guarded command aimed at another worktree is judged for the caller's.
+- Refuse a guarded command behind such an alias when the ask fails:
+  the hole closes.
+  The cost:
+  a false refusal of every such command whenever one start of Git fails,
+  and no record says the guard may refuse what it cannot place.
+
+Ranking,
+the coordinating session's:
+refuse > leave it,
+because a command judged for the wrong worktree is the failure this release set out to end,
+and a refusal can be typed again.
+The round built neither way of its own accord and left it as it was.
+
+### The wrapper: one more line in the folder rule's allow list, and two more files over the line budget
+
+The plan says the allow list may only shrink
+and that a split inside the `invocation/` folder waits for the crate's move.
+That round made one new file there to keep a file under the budget,
+with one `group-file` line for it,
+and left two other files over the budget,
+at 313 and 305 code lines.
+
+- As the round did (taken):
+  one file stays under the budget at the cost of one line the move deletes.
+- Take the line out and leave that file over the budget too,
+  with the folder's other nine:
+  the list does not grow.
+  The cost:
+  one more file over the budget until the move.
+
+Ranking,
+the coordinating session's:
+take the line out > as the round did,
+because the plan's rule is that the list only shrinks and the round broke it for one file while keeping it for two.
+Nothing is built either way until the owner says.
+
+### The scanner of forbidden strings: what a link given by name means
+
+The workflow no longer hands the scanner a link whose target is a folder
+(issue 6632,
+merged as `fc1c84b58e`),
+and a round now makes it hand over each such link's own name and target text through an option the released scanner has
+(issue 6633).
+Inside the scanner a link given by name is still followed:
+a link to a file is read through,
+and a link to a folder is a read error.
+Each way below needs a release of the scanner,
+which is not an alpha and is asked first.
+
+- Leave it (taken):
+  no release.
+  The cost:
+  any other caller that lists a folder link gets one read error for it.
+- Leave links out of named arguments as the walk does:
+  no read error.
+  The cost:
+  a link to a file is no longer read through.
+- Scan a link's own name and target text and never follow it:
+  the most is inspected.
+  The cost:
+  a new output shape in a security gate,
+  and a link to a file is no longer read through.
+
+Ranking,
+the coordinating session's:
+scan name and target text > leave it > leave links out,
+because the first inspects what Git stores and follows nothing outside the repository,
+and the last inspects least.
+
+### The linter: when its read, fix and release loop ends
+
+Twelve alphas of the linter were released on 2026-11-26 and 2026-11-27,
+by the count of its release commits,
+each read by a second pass,
+each read answered by a fix round and the next alpha.
+The read of `0.5.2-alpha.22` found no High and no Medium finding,
+and nine Low ones on folder names that hold tabs,
+arrows or characters that print as nothing.
+A fix round for seven of them runs.
+
+- Stop reading each alpha once a read finds no High and no Medium
+  (the coordinating session's pick for what follows `0.5.2-alpha.23`):
+  the alpha is still released and locked,
+  and the next read waits for a change that is more than an answer to a read.
+- Go on as now:
+  every alpha is read.
+  The cost:
+  each read finds a handful of Low points on names no repository here holds,
+  and each fix adds reading logic the next read probes.
+
+Ranking,
+the coordinating session's:
+stop at a read with no High and no Medium > go on,
+because the findings no longer change what a person using the linter here meets.
+Until the owner says,
+`0.5.2-alpha.23` is read as the others were.
+
+### `cargo-shadow`: how much room its module list has
+
+`src/lib.rs` holds 201 code lines against the budget of 300,
+after 52 test files were declared by the modules they test (merged as `60ecd08eef`).
+Thirty test files that belong to no one module stay declared there.
+
+- Leave them (taken):
+  99 lines of room.
+- Group those thirty under one parent module:
+  about 149 code lines.
+  The cost:
+  26 more test paths change,
+  for a grouping the suites do not have.
+
+Ranking,
+the round's:
+leave them > group them,
+because the room is enough for 99 more modules.
+
+## Veto open: what the rounds read on the evening of 2026-11-27 chose or left (recorded 2026-11-27T19:13:58-05:00)
+
+Each entry is a choice the coordinating session made,
+or one a round's report left,
+with the way not taken.
+None holds work:
+each stands unless the owner says otherwise.
+
+### `mpm-shadow`: where the Rust row's programs come from
+
+The Claude Sonnet second pass of `0.2.7-alpha.17` found that the folder of links (`.cache/toolchain-bin`)
+takes each program of the Rust row from the first toolchain in name order that holds it,
+not from the pinned one
+(issue 6634).
+This machine's folder points at the pin today,
+because the pin's name sorts first;
+it stops doing so when the pin moves to a later date while the older toolchain stays.
+The fix round was given these picks as its own to show wrong:
+
+- the row's programs come from the toolchain the row names and from no other;
+- the rebuild removes a symbolic link the folder holds for a name no row declares,
+  never a regular file,
+  and the install's report says which it removed;
+- `list` reports a declared component or target the toolchain lacks as drift,
+  since `install` would act on it.
+
+The way not taken for the second pick is today's:
+the rebuild only ever adds links,
+so nothing in the folder is deleted,
+at the cost of a link that dangles or serves a program no row asks for.
+The round lists what the rebuild would remove from a folder like this machine's,
+and that list is read before `0.2.7-alpha.18` is installed here.
+
+### `mpm-shadow`: what a warning and a `prune` line may say
+
+The same pass found a warning that promises a publish the next run does not make,
+and two sentences that call a version whose program is cut short the holder of "a second copy".
+The picks given to that round:
+each warning says what the next run does for the kind of failure that reached it;
+the rule for a finished version
+(a marker and a program found,
+with no size or digest)
+stays,
+as the round before priced it,
+and the two sentences end at what the run read.
+The way not taken:
+check a program's size or digest before calling a version finished,
+which costs every install a read of every program.
+
+### The store fixture: what the round of issue 6410 left
+
+- The branch's history holds merge commits with no `Refs` line,
+  and commits that repeat one tree,
+  made by the pusher before a message was amended.
+  Pick:
+  leave them,
+  since removing them rewrites pushed history.
+- The default deadline of 2,000 ms.
+  It failed four calls falsely under a small cap,
+  and a recorded disk stall on this machine is 2,564 ms.
+  Pick:
+  size it from a measurement under the caps its users run in,
+  which a round is doing now;
+  the way not taken is to keep 2,000 ms and call the small cap the fault.
+- The tool runs in a process group of its own,
+  so that a helper it leaves behind stops with it at the deadline.
+  The cost:
+  an interrupt typed at a terminal no longer reaches the tool,
+  which then runs to the deadline.
+  Pick:
+  keep the group.
+- A helper that moves itself out of the group,
+  and the moment between the leader's exit and the signal in which its number is free to be reused:
+  nothing reaches either.
+  Left as written in the package's README.
+- A call that succeeds does not stop a helper the tool left running.
+  Pick:
+  leave it,
+  since stopping there widens what a passing call signals.
+
+### The scanner's workflow: what the round of issue 6633 left
+
+- A link to a file is read through,
+  and its stored target text is not scanned;
+  a link to a folder now has its text scanned.
+  Ranking:
+  scan it > leave it,
+  because a forbidden string can sit in a link's target text whatever the link points at,
+  and the cost is a second finding under another label when the file behind it matches too.
+  No round runs on it.
+- The whole-tree arm (`--all`) inspects neither a link's name nor its target text.
+  Ranking:
+  list the index's links there too > leave it,
+  because the whole-tree arm is the one that runs when no baseline exists;
+  the cost is every link inspected on each such run.
+  No round runs on it.
+- A name that holds a line break fails the gate whether or not it holds a forbidden string,
+  because the released scanner counts its `unsupported pathname line break` answer.
+  Left:
+  it is the scanner's behaviour,
+  and changing it needs a release that is not an alpha.
+
+### The linter: what the alpha.22 fix round chose
+
+- Where one text is the line for two folders,
+  the raw reading wins,
+  so the line names the folder whose own name begins with the character it wrote.
+  Not taken:
+  the joined reading first,
+  which names a folder the line was not written for.
+- The second reading takes the whole run of whitespace before the file,
+  then the leading run one character at a time.
+  Not taken:
+  trimming both runs whole,
+  which loses a name's own leading whitespace.
+- A dead line that holds an unseen character is told to be deleted,
+  and the sentence still names the character and its place.
+  Not taken:
+  a bare "Delete this line",
+  which leaves the README's promise that every message names it false.
+- A key line whose edited text would still not read as a list line is told to be deleted.
+  Not taken:
+  the advice to take the character out,
+  which the next run contradicts.
+- A line of more than five words whose first folder word is absolute or holds a backslash
+  is refused for that cause before its word count.
+- A six-word line refused for a spaced folder is not told that it would read as a `file-uses` line.
+- The help of a dead `uses` line spells the folder's name in the sentence that says what the name holds,
+  so the name appears twice.
+
+### The driver: a round's edits landed in the main checkout
+
+Rounds of 2026-11-27 wrote edits into the main checkout
+(issue 6636;
+the handover's Next list has what was done).
+The coordinating session put three files of the main checkout back at what `main` holds,
+after saving their differences as a patch,
+with the wrapper's `--no-enforce-worktree`.
+That is a restore in the main checkout made without asking:
+the files were this session's own round's,
+by their content,
+and an edit left there blocks merges.
+Pick for the cure:
+the driver refuses an edit or write call on a main-checkout path > the brief's wording alone,
+because the wording failed twice in one day.
+A round for it starts after the wrapper's release is dispatched.
+
+## Veto open: what two more results of 2026-11-27 left (recorded 2026-11-27T19:25:26-05:00)
+
+### `cargo-shadow`: where the asking again is spent
+
+The Claude Sonnet second pass of `0.1.5-alpha.16` found no High and no Medium point.
+Its Low points say the five asks of the route question,
+about 0.9 s where one ask took about 0.04 s,
+are spent in more states than the records name:
+on hosts with no manager where a socket file,
+a `systemd` directory or a bus was left,
+and on a host whose manager is reachable and refuses at once
+(`app.slice` masked:
+941 ms against 68 ms).
+The picks given to the fix round as its own to show wrong:
+
+- the read of the host counts only the transports the ask can take,
+  shown from systemd's source at the versions met here;
+- an ask the manager answered with a refusal of its own ends the asking,
+  and a failure to reach the manager is asked again,
+  unless a real reexec shows such an answer inside its window,
+  in which case the README names the cost;
+- the README and the package document name every state in which the span is spent.
+
+The way not taken:
+accept the wait everywhere and only correct the sentences,
+which costs each such host about 0.9 s on every call that asks.
+
+### `mpm-shadow`: what the sentences round chose beyond its brief
+
+- The warning states the kept copy's fate only where the publish itself failed.
+  For a failed claim and a failed put-back it says nothing of the copy,
+  because no control can build a state in which the install that follows succeeds there.
+  Not taken:
+  say it in those arms too,
+  on an assertion no test holds.
+- Where the lock was already satisfied,
+  and where the install that followed failed too,
+  the warning claims nothing about a copy.
+- The `prune` line for a second copy keeps its clause on what deleting the directory loses.
+- Two README sentences outside the round's section made the same promise and were corrected with it.

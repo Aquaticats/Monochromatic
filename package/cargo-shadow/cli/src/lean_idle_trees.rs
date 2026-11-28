@@ -250,3 +250,10 @@ pub fn collect_idle_trees(
     let _ = std::fs::remove_dir(&trash);
     return collection;
 }
+
+/// The tests of the idle-tree collection.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_idle_trees_tests.rs"]
+mod lean_idle_trees_tests;
