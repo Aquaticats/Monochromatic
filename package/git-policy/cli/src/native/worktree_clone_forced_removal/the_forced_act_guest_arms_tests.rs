@@ -61,6 +61,7 @@ use crate::worktree_clone_forced_removal::blocker_end::{
 };
 use crate::worktree_clone_forced_removal::descriptor_calls::open_directory;
 use crate::worktree_clone_forced_removal::forced_arm_numbers::TimeoutWindow;
+use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::holder_endings::{
     Ending,
     HolderKind,
@@ -92,7 +93,6 @@ use crate::worktree_clone_forced_removal::taskless_namespace_walk::{
     find_the_taskless_namespaces_holding,
     the_ids_no_task_holds,
     the_ids_this_machines_tasks_hold,
-    the_mount_namespaces_on_this_machine,
     the_table_of_namespace,
 };
 use crate::worktree_clone_forced_removal::the_copy_taken_out_of_a_namespace::{
@@ -103,6 +103,7 @@ use crate::worktree_clone_forced_removal::the_copy_taken_out_of_a_namespace::{
     take_the_copy_out,
     topmost_at,
 };
+use crate::worktree_clone_forced_removal::the_namespace_listing::the_mount_namespaces_on_this_machine;
 // What: the read and the descriptor conversion this file's own holder needs.
 // Why: the holder's ready byte and its namespace descriptor are read by hand, since no library call makes a namespace
 // and hands its descriptor over.
@@ -1473,7 +1474,8 @@ fn a_namespace_no_task_holds(checkout: &Path) -> std::fs::File {
 ///  The namespace a walk found holding the clone,
 ///  as the act's own shapes name it.
 /// Why:
-///  The act reads the checkout's mount, the slot's own dentry and the add's
+///  The act reads the checkout's mount,
+///  the slot's own dentry and the add's
 ///  handle inside that namespace,
 ///  and a taskless namespace has no `/proc/<pid>` path to read them beside,
 ///  so the walk's own descriptor is the one the stages use.
@@ -1520,6 +1522,12 @@ fn phase_taskless(fixture: &Fixture) -> String {
     let handle: RecordedHandle = name_the_handle(&underlay)
         .expect("the underlay's handle is taken before the clone is mounted");
     mount_the_clone(fixture, slot.as_path());
+    // What: how many taskless namespaces held this copy before this phase made one.
+    // Why: the walk must answer none here, or the one it finds after would prove nothing.
+    let before: usize =
+        find_the_taskless_namespaces_holding(Path::new("/proc"), dataset.as_str(), slot.as_path())
+            .expect("the walk answers on this kernel")
+            .len();
     let holding: std::fs::File = a_namespace_no_task_holds(checkout.as_path());
     let identity_of_the_holder: String = format!(
         "mnt:[{}]",
@@ -1533,8 +1541,15 @@ fn phase_taskless(fixture: &Fixture) -> String {
     let listed: Vec<u64> = match the_mount_namespaces_on_this_machine() {
         Ok(ids) => ids,
         Err(refusal) => {
+            // The owner's answer kept this refusal until a kernel of `6.19` or newer measured the walk, and this
+            // phase is what says on which kernel the refusal is still the whole answer: a kernel without the call.
+            assert_eq!(
+                refusal.errno,
+                libc::ENOSYS,
+                "the listing refused this kernel with an errno that is not `ENOSYS`: {refusal}"
+            );
             fields.push(("listns", "ENOSYS"));
-            fields.push(("refusal", refusal.word().word()));
+            fields.push(("refusal", RefusalWord::HolderUnendable.word()));
             // What: the same refusal the arm's own table answers for this kind where no walk is possible.
             // Why: the row and the walk must say one word, or a person reads two different reasons.
             let row: KindEvidence =
@@ -1573,12 +1588,6 @@ fn phase_taskless(fixture: &Fixture) -> String {
         "taskless",
         Box::leak(taskless.len().to_string().into_boxed_str()),
     ));
-    // A control the phase stands on: before the holder was made the walk found no namespace holding this copy, and
-    // after it must find exactly one.
-    let before: usize =
-        find_the_taskless_namespaces_holding(Path::new("/proc"), dataset.as_str(), slot.as_path())
-            .expect("the walk answers on this kernel")
-            .len();
     fields.push((
         "holders-before",
         Box::leak(before.to_string().into_boxed_str()),
@@ -1606,10 +1615,30 @@ fn phase_taskless(fixture: &Fixture) -> String {
         one.identity, identity_of_the_holder,
         "the walk's descriptor names the namespace the phase kept"
     );
-    // The control the act's refusal rests on: while the copy stands in that namespace the dataset is busy, and the
-    // same destroy is accepted once the act took the copy out.
-    let control: bool = destroy_the_clone(fixture);
-    fields.push(("control", if control { "accepted" } else { "busy" }));
+    // The control the act's premise rests on: while the copy stands in that namespace the dataset is busy, and the
+    // same destroy is accepted once the act took the copy out. It is asked in a namespace of its own, because
+    // `zfs destroy` unmounts the dataset from its caller's own namespace on its way even when it refuses.
+    let control: String = in_a_private_namespace("taskless-namespace-control", &|| {
+        return phase_line(
+            "taskless-namespace-control",
+            &[(
+                "destroy",
+                if destroy_the_clone(fixture) {
+                    "accepted"
+                } else {
+                    "busy"
+                },
+            )],
+        );
+    });
+    fields.push((
+        "control",
+        if control.contains("destroy=busy") {
+            "busy"
+        } else {
+            "accepted"
+        },
+    ));
     let copy: NamespaceCopy<'_> = the_copy_a_walk_found(
         &one,
         checkout.as_path(),
