@@ -2927,9 +2927,6 @@ and the two `truepeak` files wait on their branch.
   where a denial's record is and the kernel journal's is not:
   when a round reports a refusal only one program meets,
   the coordinator reads that log.
-- `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again and is brought up to date (`f69208a309`);
-  its scan reads no Rust file,
-  which issue 6594 holds.
 - The service-manager install proof passes end to end (issue 6587,
   `6b1a8e91f4` and `fdd9ce0e83`).
   Two things stopped it:
