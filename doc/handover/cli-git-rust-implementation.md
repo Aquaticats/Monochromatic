@@ -2949,16 +2949,6 @@ and the two `truepeak` files wait on their branch.
 - A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
-- `native:ts-checks` prints the commit it ran on (`3c88496446`,
-  issue 6617):
-  it asked `git -C <the package folder>`,
-  which the wrapper refuses away from a checkout's root,
-  and kept the empty answer in silence;
-  it now asks from the checkout's root and says why when the commit cannot be read.
-  No other `git -C` in the package's `bin/` is refused in silence:
-  each names a checkout's root,
-  or runs `/usr/bin/git`,
-  or throws with the refusal's words.
 - `mpm-shadow`'s launcher names the interpreter that is missing (`4e858efdee`,
   issue 6616):
   for a start the system answers with "No such file or directory",
