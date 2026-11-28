@@ -2830,30 +2830,6 @@ and it is put back on the build of 2026-11-22
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
 
-What the wrapper's alpha.48 splits pass found,
-with no High finding.
-Its verdict:
-"no change of behaviour" is not demonstrated.
-Of the items compared at both ends,
-97.9 percent have identical text,
-no test-only switch is in either release binary,
-no static became two and no trait impl was lost;
-but 318 of the 344 refactor commits carry changed lines that are not moves,
-and the pass read three of them in full.
-Neither pass ran `git commit` in a release binary,
-because without a session bus every commit form stops at one refusal,
-so for the service paths the evidence is the reading,
-the gate,
-and the service-manager install proof,
-which issue 6587's second round ran to its end (`fdd9ce0e83`):
-alpha.48 installed over alpha.47 in a container of the gate image,
-and the proof printed
-
-```text
-THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once
-```
-
-
 - Medium:
   at least 31 definitions became nameable from outside the crate,
   seven of them private helpers a split made bare `pub`
