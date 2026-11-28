@@ -15,9 +15,8 @@
 //!  moves a record aside or writes into one:
 //!  a plan that does not read is reported and left,
 //!  and a foreign entry is never read.
-//!  It is built ahead of the plan's order and no command calls it:
-//!  the step that switches the removal's command path on calls it,
-//!  and that step is where its wiring lives.
+//!  A forwarded command runs it before its own work,
+//!  which is the wiring `invocation/wrapped_command_notices_snapshots_and_manual_push.rs` holds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
