@@ -58,7 +58,8 @@ const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
 ///  test binary with an environment the control states.
 /// Why:
 ///  The environment belongs to a process as well,
-///  so a control whose body needs a variable of its own, such as the verbose switch a notice is said under,
+///  so a control whose body needs a variable of its own,
+///  such as the verbose switch a notice is said under,
 ///  starts the same child of its own by this call and asks the queue's question there.
 ///
 /// In TS you'd write (pseudocode):
