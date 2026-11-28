@@ -6337,9 +6337,12 @@ the wait a stop is given has no value
 (`the_stop_wait` in `forced_arm_numbers.rs` refuses),
 so the stop is built and measured ahead of the value that would let it run.
 
-A kind the evidence does not show is identified and refused,
-never ended,
-and the receipt's seven refusal words name what stopped the act.
+A kind the evidence does not show keeps the ending the decision of 2026-11-22 gives it,
+and its row says that no round shows that ending and names the arm still owed:
+a task of another account and a unit's task take the pinned signal through the root handler,
+and this release runs neither,
+because the waits the act needs ship with no value.
+The receipt's seven refusal words name what stopped the act.
 No sentence of this release offers `--force` as a way to end a holder,
 the removal a person's command runs ends no holder whatever force count it carries,
 and the only callers of this folder are its own controls and its guest arms.

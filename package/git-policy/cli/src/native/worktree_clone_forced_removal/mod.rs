@@ -30,8 +30,10 @@
 //!  (`holder_endings.rs`),
 //!  and by the constant that sizes its wait,
 //!  which ships with no value (`forced_arm_numbers.rs`).
-//!  A kind the evidence does not show is identified and refused,
-//!  never ended.
+//!  A kind the evidence does not show keeps the ending the decision gives it,
+//!  and its row names the arm still owed;
+//!  no command reaches this folder,
+//!  and the waits the act needs ship with no value.
 //!
 //! Files in this folder,
 //! each using only files listed before it:

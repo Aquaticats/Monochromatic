@@ -1,6 +1,7 @@
 //! Controls for the table of kinds:
 //!  every kind has a row,
-//!  the one kind no round shows an ending for is refused with the design's own word,
+//!  a kind whose ending no round shows keeps the ending the accepted answer gives it and names the arm
+//!  still owed,
 //!  a locked holder that is this account's own unit is stopped through its
 //!  manager,
 //!  the taskless namespace's ending is built and names the round that showed it,
@@ -41,7 +42,7 @@ fn every_kind_has_one_row() {
 /// manager,
 /// and the taskless namespace's ending is the one the walk measured.
 #[test]
-fn the_kind_no_round_shows_is_refused_and_a_unit_of_ours_is_stopped() {
+fn the_taskless_row_keeps_the_ending_its_guest_arm_measured_and_a_unit_of_ours_is_stopped() {
     let locked: KindEvidence = ending_of(HolderKind::LockedHolder).expect("the locked row");
     assert_eq!(locked.ending, Ending::StopTheAccountsOwnUnitThenGoOn);
     // The row the owner's answer of 2026-11-26 refused now names the ending the walk measured, and the text that
@@ -76,7 +77,11 @@ fn the_kind_no_round_shows_is_refused_and_a_unit_of_ours_is_stopped() {
 }
 
 /// The kinds whose ending a round shows say where,
-/// and the two that only a schedule of one account's own child reaches say that instead.
+///  and the two that only a schedule of one account's own child reaches say that instead,
+///  with the ending the accepted answer gives them and the arm still owed:
+///  a kind the evidence does not show is no reason to refuse it here,
+///  and `SPEC.md` and this module's own doc said it was
+///  (the gate read of the two-forces design, its H3).
 #[test]
 fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
     for kind in [HolderKind::SessionTask, HolderKind::PathHolder] {
@@ -90,6 +95,26 @@ fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
     }
     for kind in [HolderKind::OtherAccountTask, HolderKind::UnitTask] {
         let row: KindEvidence = ending_of(kind).expect("a row still owed");
+        // What: the decision of 2026-11-22 ends a task of another account and a unit's task through the root
+        //       handler, by `SIGTERM`, a wait and `SIGKILL` to the blockers.
+        // Why:  a refusal here would refuse an ending the accepted answer names, and nothing measured would be the
+        //       reason for it; the arm that is owed is what the row names.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // expect(row.ending).toBe('end-blockers-then-unmount'); expect(row.ending).not.toBe('refuse');
+        // ```
+        assert_eq!(
+            row.ending,
+            Ending::EndBlockersThenUnmount,
+            "{}",
+            kind.word()
+        );
+        assert!(
+            !matches!(row.ending, Ending::Refuse(_)),
+            "no round shows this ending, which is no reason to refuse it: {}",
+            kind.word()
+        );
         assert!(row.shown_by.contains("no round shows"), "{}", row.shown_by);
         assert!(row.owed_arm.contains("another account"), "{}", row.owed_arm);
     }

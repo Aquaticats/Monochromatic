@@ -1,18 +1,22 @@
 //! What:
 //!  What this build may do to each kind of holder,
 //!  the round that showed the ending works,
-//!  and the refusal it answers instead where no round shows it.
+//!  and the arm still owed where no round shows it.
 //! Why:
 //!  Plan step 17 builds the ending "once the owed measurement shows it works",
 //!  so a kind whose ending the probe rounds and this round's guest arm do not
-//!  show is identified and refused rather than ended
+//!  show carries the ending the accepted answer gives it,
+//!  with the row saying no round shows it and naming the arm still owed
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17",
 //!  and `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "Who ends each kind of holder").
+//!  The waits the act needs ship with no value,
+//!  and no command reaches this folder,
+//!  so nothing ends a holder of any kind yet.
 //!  Every answer here names its evidence in one constant beside it,
 //!  so a reader can see which sentence of which log the ending rests on,
-//!  and the two answers that are not endings say which arm is still owed.
+//!  and the answers no round shows say which arm is still owed.
 //!  The table is data rather than prose so that the wrap-level code has one
 //!  place to ask,
 //!  and a round that measures a new kind changes one row.
@@ -82,9 +86,10 @@ impl HolderKind {
 /// What:
 ///  What the act does with one kind of holder.
 /// Why:
-///  The three endings are the design's,
-///  and the two answers that are not endings are the ones this build must give
-///  where nothing measured the ending.
+///  The endings are the design's,
+///  and a refusal is the answer where an accepted rule names one for a kind.
+///  No row here refuses a kind for want of an arm:
+///  the ending the decision gives a kind stays on its row while the arm that shows it is owed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +121,9 @@ pub enum Ending {
     EnterAndTakeTheCopyOut,
     /// Refuse,
     /// naming the reason,
-    /// because no round shows an ending for this kind.
+    /// which is the answer where an accepted rule names one for the kind.
+    /// No row of this table answers with it:
+    /// a kind whose ending no round shows keeps that ending and names the arm still owed.
     Refuse(RefusalWord),
 }
 
