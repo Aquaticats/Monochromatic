@@ -8,15 +8,14 @@
 //!  show is identified and refused rather than ended
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17",
-//! and
-//!  `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+//!  and `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "Who ends each kind of holder").
 //!  Every answer here names its evidence in one constant beside it,
 //!  so a reader can see which sentence of which log the ending rests on,
 //!  and the two answers that are not endings say which arm is still owed.
 //!  The table is data rather than prose so that the wrap-level code has one
 //!  place to ask,
-//! and a round that measures a new kind changes one row.
+//!  and a round that measures a new kind changes one row.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -115,7 +114,7 @@ pub enum Ending {
 ///  and the arm still owed for it.
 /// Why:
 ///  A reader of a report asks "measured where",
-/// and a later round that runs the
+///  and a later round that runs the
 ///  owed arm replaces one row rather than rewriting the prose around it.
 ///
 /// In TS you'd write (pseudocode):
@@ -183,7 +182,7 @@ pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace is refused: this buil
 
 /// What:
 ///  The one table,
-/// in the design's order of kinds.
+///  in the design's order of kinds.
 /// Why:
 ///  One list is what a report prints and what the act reads,
 ///  so no kind can be handled by code without a row that says what it may do.
@@ -285,7 +284,7 @@ impl std::fmt::Display for MissingKind {
 
 /// What:
 ///  Whether a kind's ending needs the block of `SIGTERM`,
-/// wait and `SIGKILL`.
+///  wait and `SIGKILL`.
 /// Why:
 ///  A refusal ends nothing,
 ///  and an act that asked a blocker for its end would be ending a job in a

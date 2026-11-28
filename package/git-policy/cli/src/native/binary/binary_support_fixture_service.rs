@@ -69,7 +69,7 @@ pub enum ServiceEnd {
 ///  named here so every `crate::support_fixture_service::name` and `support::name` path stays the same.
 /// Why:
 ///  Every target now reads one copy of `spawn_owned`,
-/// `own_group` and `group_of`
+///  `own_group` and `group_of`
 ///  (`../testing/test_process_owner.rs`),
 ///  which the library's tests and both other targets include by path,
 ///  so a fix to either lands in all of them.
@@ -180,18 +180,18 @@ pub(crate) use crate::support_fixture_services_of_the_worktrees::*;
 impl FixtureService {
     /// What:
     ///  Waits,
-    /// bounded,
-    /// for every copy of a service's stream this fixture started to end,
+    ///  bounded,
+    ///  for every copy of a service's stream this fixture started to end,
     ///  and answers whether they all did.
     /// Why:
     ///   A copy runs on a thread of its own,
-    /// and the file holds what a service wrote only once that thread has written it.
+    ///  and the file holds what a service wrote only once that thread has written it.
     /// The pipe closes when the last service holding it ends,
     /// so a copy whose service ended always ends,
     /// and the wait is the event a deciding read needs rather than a sleep of a guessed length.
     ///  The answer is the whole meaning of the call:
     /// `true` says every copy of the service's words has ended,
-    /// so a read that decides anything may trust the file.
+    ///  so a read that decides anything may trust the file.
     /// A copy that has not ended before the bound stays here for the next wait,
     /// and so does one whose copier is gone without a word,
     /// because "nothing left to wait for" is not "everything ended";
@@ -261,12 +261,12 @@ pub(crate) const SERVICE_LOG_END_BOUND: std::time::Duration = std::time::Duratio
 
 /// What:
 ///  Waits,
-/// bounded,
-/// for every copy of a service's stream this fixture started to end,
+///  bounded,
+///  for every copy of a service's stream this fixture started to end,
 ///  and answers whether they all did.
 /// Why:
 ///  A copy runs on a thread of its own,
-/// so `SERVICE_LOG_FILE` holds what a service wrote only once that thread has
+///  so `SERVICE_LOG_FILE` holds what a service wrote only once that thread has
 /// written it;
 /// a read that decides anything calls this first,
 /// which is the event and not a sleep of a guessed length.
@@ -284,16 +284,16 @@ pub fn settle_the_service_log(
 
 /// What:
 ///  Waits,
-/// bounded,
-/// for the service of a worktree or of its own Git directory to end,
-/// and answers how it ended.
+///  bounded,
+///  for the service of a worktree or of its own Git directory to end,
+///  and answers how it ended.
 /// Why:
 ///   A control whose subject is a service that ends reads that end as the event it is:
 ///  the child's own exit status,
 /// never a line the service wrote about itself,
 /// which arrives through a copy thread and says only what the service claimed.
 ///  The bound is the control's,
-/// and a service still running when it passes is one that did not end.
+///  and a service still running when it passes is one that did not end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

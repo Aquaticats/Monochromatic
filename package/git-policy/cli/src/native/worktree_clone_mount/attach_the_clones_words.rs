@@ -12,7 +12,7 @@
 //!  Each call is made once and its own errno is kept,
 //!  so a refusal names the step a person must look at rather than a summary,
 //!  and the sentence,
-//! the errno and every way forward are one message a handler
+//!  the errno and every way forward are one message a handler
 //!  prints as it stands
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Descriptor mount and unmount";

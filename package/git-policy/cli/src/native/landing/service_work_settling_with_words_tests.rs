@@ -445,7 +445,7 @@ fn drained_once(
 ///   The notice is written where a command run in that worktree reads it:
 ///   a notice left in the Git directory of the worktree whose command added it is shown by a command about something
 ///   else,
-/// which is what the person complained about.
+///  which is what the person complained about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -799,7 +799,7 @@ impl RelinkScene {
 ///  and that pass settles the record with the words the first wrote.
 /// Why:
 ///   The recovery promises that a kill after the notice is recovered once more,
-/// which replaces the notice instead of
+///  which replaces the notice instead of
 ///   losing it.
 ///   A reason taken back at the first telling makes that promise false:
 ///   the second pass words a notice that no tool ever answered,
@@ -883,10 +883,10 @@ fn a_give_up_killed_between_the_words_and_the_move_settles_on_the_next_pass_with
 ///  and the next pass settles the record with the same words.
 /// Why:
 ///   A rename into `failed` can fail (a full disk,
-/// a directory that is not there),
+///  a directory that is not there),
 ///   and the recovery's words promise the pass after it says the same thing again.
 ///   Nothing scans `failed`,
-/// so a reason taken back before the record got there is an answer nothing can repeat.
+///  so a reason taken back before the record got there is an answer nothing can repeat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -9,14 +9,14 @@
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
 //!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
 //!  "Choice 1:
-//! what selects a root mode").
+//!  what selects a root mode").
 //!  A list of forbidden spellings can only be as complete as the spellings
 //!  someone thought of,
 //!  so the module's whole code text is pinned line for line:
 //!  any line added,
-//! removed,
-//! reordered,
-//! reworded or re-spelled fails here.
+//!  removed,
+//!  reordered,
+//!  reworded or re-spelled fails here.
 //!  The four assertions beside the pin hold what a text pin cannot see:
 //!  which file the crate compiles as that module,
 //!  what its declaration stands under,

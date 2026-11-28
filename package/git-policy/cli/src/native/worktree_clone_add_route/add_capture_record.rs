@@ -1,23 +1,22 @@
 //! What:
 //!  The capture's own record grammar:
-//! its bytes in the grammar's order,
-//! and a
-//!  reader that refuses every shape it did not write.
+//!  its bytes in the grammar's order,
+//!  and a reader that refuses every shape it did not write.
 //! Why:
 //!  A resume after a kill proves the clone against the capture only if the
 //!  capture outlives the process,
-//! so it is a durable record of its own beside
+//!  so it is a durable record of its own beside
 //!  the binding
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "What 'the captured source' is").
 //!  It is keyed by the add's nonce as well as its slot,
-//! so a capture another add
+//!  so a capture another add
 //!  left is never read as this one's.
 //!  The widths its bound rests on are `add_capture_record_bound.rs`'s and the
 //!  fields its reader refuses are `add_capture_record_fields.rs`'s,
 //!  so this file is the order the writer puts its lines in and the reader's
 //!  count and order,
-//! which are the writer's own.
+//!  which are the writer's own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -72,11 +71,10 @@ pub use super::add_capture_record_bound::CAPTURE_FIXED_BYTES;
 
 /// What:
 ///  A capture's bytes,
-/// in the grammar's order.
+///  in the grammar's order.
 /// Why:
 ///  The writer puts every fixed key on its line and one line per entry,
-/// so the
-///  reader's count and order are the writer's own.
+///  so the reader's count and order are the writer's own.
 pub fn encode_capture(capture: &Capture) -> Vec<u8> {
     let mut text: String = String::from(CAPTURE_HEADER);
     text.push('\n');
@@ -135,11 +133,11 @@ fn commit_word(commit: &str) -> &str {
 ///  Read one capture's bytes.
 /// Why:
 ///  A record whose count disagrees with its lines,
-/// whose keys arrive out of
+///  whose keys arrive out of
 ///  order or twice,
-/// or whose values do not fit their types is damage or a later
+///  or whose values do not fit their types is damage or a later
 ///  grammar,
-/// and neither is read under this one.
+///  and neither is read under this one.
 ///
 /// # Errors
 /// The header,

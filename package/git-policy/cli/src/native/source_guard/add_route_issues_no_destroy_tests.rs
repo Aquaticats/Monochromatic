@@ -1,7 +1,7 @@
 //! What:
 //!  The check that no release file of the add route names an entry that
 //!  destroys a clone,
-//! an origin snapshot or a snapshot set.
+//!  an origin snapshot or a snapshot set.
 //! Why:
 //!  The add's preflight refuses on the six permissions its own steps use and
 //!  warns on the three only a removal uses,

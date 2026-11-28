@@ -2607,6 +2607,12 @@ beside two findings for a plain sentence on the next line,
 so a report that the rule broke an inline code span was not reproduced.
 
 The semantic break fix also joins the fragment an old hard wrap cut off.
+Only a fragment a break of the same pass cut joins:
+the joins hang on the breaks one pass plans
+(`markdown_semantic_breaks.rs`,
+the `breaks` list that feeds `fragment_joins`),
+so a line already alone in the input is never joined by itself,
+and a fragment an earlier sweep left stays where it is until a break above it is planned again.
 When the rest of the author's line holds one or two words that do not end at a break-point
 character,
 is not the paragraph's last line,
@@ -2625,6 +2631,17 @@ Removing the deepest indent of a rustdoc run re-projects every line of that run
 (`processors_docs.rs`,
 `run_margin`),
 so such an edit would be refused instead of applied.
+
+A fence is closed by the author's own line,
+and no rule here reports one that is never closed:
+CommonMark runs an unterminated fence to the end of its container,
+so the lines after it are code to every Markdown rule,
+and a fix has nothing to say about the missing closing line.
+The wrapper's round on issue 6642 measured this on 2026-11-27:
+a `//!` fence with the info string `ts` stayed open in
+`package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`,
+the linter reported no finding on that file,
+and a break planted in the same source was reported in the same run.
 
 ## LFS image URLs
 

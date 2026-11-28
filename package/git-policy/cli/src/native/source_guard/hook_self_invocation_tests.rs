@@ -329,17 +329,17 @@ fn files_the_scope_no_longer_reads(sources: &[(String, String)]) -> Vec<String> 
 
 /// What:
 ///  The executable is the reviewed handful of statements,
-/// whole.
+///  whole.
 /// Why:
 ///  `main` is where a start becomes a root mode,
 ///  so its code text is pinned line for line:
 ///  any line added,
-/// removed,
-/// reordered,
-/// reworded or re-spelled fails here,
+///  removed,
+///  reordered,
+///  reworded or re-spelled fails here,
 ///  and the commit that changes it changes this list in the same diff.
 ///  A whole-line comment and a blank line are not code,
-/// so an explanation
+///  so an explanation
 ///  re-pins nothing.
 #[test]
 fn main_is_the_reviewed_handful_of_statements() {

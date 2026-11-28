@@ -11,7 +11,7 @@
 //!  the child is published to the existing signal relay,
 //!  and the person reads one sentence after OpenSSH's refusal at a new host key or a key no agent holds.
 //!  The four readers are Git's own answers,
-//! so `insteadOf` and a push URL are applied exactly as the command applies them.
+//!  so `insteadOf` and a push URL are applied exactly as the command applies them.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -129,7 +129,7 @@ use a_target_the_sentence_may_name::{
 ///  How a typed network command ended when the wrapper kept Git as its child.
 /// Why:
 ///   A code passes through,
-/// and a signal is this process's to end by,
+///  and a signal is this process's to end by,
 ///   exactly as the process replacement let Git's caller see it
 ///   (`forwarding::end_as_git_ended`).
 ///
@@ -151,10 +151,10 @@ pub enum TypedNetworkCommandEnding {
 impl TypedNetworkCommandEnding {
     /// What:
     ///  The code this process ends with,
-    /// after ending by Git's own signal when a signal ended Git.
+    ///  after ending by Git's own signal when a signal ended Git.
     /// Why:
     ///   The plain forward replaced this process with Git,
-    /// so its caller saw `WIFSIGNALED` when Git was signalled;
+    ///  so its caller saw `WIFSIGNALED` when Git was signalled;
     ///   a route that keeps a process around Git has to end the same way or a script takes the wrong branch
     ///   (`forwarding::end_as_git_ended`).
     ///
@@ -175,18 +175,18 @@ impl TypedNetworkCommandEnding {
 
 /// What:
 ///  The relay for a typed network command whose remote ssh carries,
-/// or nothing when this command keeps its process
+///  or nothing when this command keeps its process
 ///  replacement.
 /// Why:
 ///  Every caller asks this before it replaces the process or starts a child,
 ///  so one decision serves the plain forward,
-/// the coordinated run,
-/// the settled copy and the wrapper's own steps:
+///  the coordinated run,
+///  the settled copy and the wrapper's own steps:
 ///  a command ssh does not carry,
-/// a remote Git cannot name,
-/// or a URL this wrapper cannot word all keep today's behaviour.
+///  a remote Git cannot name,
+///  or a URL this wrapper cannot word all keep today's behaviour.
 ///  An `Err` says Git could not be started,
-/// which each caller reports in its own words.
+///  which each caller reports in its own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -378,15 +378,15 @@ pub fn relay_when_ssh_carries(
 ///  Print the sentence when the wrapper's own probe of a typed push stopped at a refusal of ssh's.
 /// Why:
 ///  A typed `push` is probed before it runs:
-/// the wrapper's own `push --dry-run --porcelain` reads the updates,
-/// and at a new host
+///  the wrapper's own `push --dry-run --porcelain` reads the updates,
+///  and at a new host
 ///  key or a key no agent holds that probe is the process that meets the refusal,
-/// so Git's own push never starts.
+///  so Git's own push never starts.
 ///  The person then reads OpenSSH's line in the wrapper's words and no next step;
 ///  the parent that owned the child is this process still,
-/// so it is the one to name it
+///  so it is the one to name it
 ///  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
-/// and the reading `lfs/lfs_pre_push.rs`).
+///  and the reading `lfs/lfs_pre_push.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

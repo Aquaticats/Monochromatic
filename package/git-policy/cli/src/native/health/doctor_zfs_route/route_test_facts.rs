@@ -30,6 +30,14 @@
 use super::handler_checks::PathState;
 use super::mount_checks::MountCheckFacts;
 use super::route_checks::RouteFacts;
+/// The covered entry,
+/// the boot setup and the Sanoid comparison of a healthy machine.
+pub(crate) use super::route_test_facts_boot_and_sanoid::{
+    healthy_boot_protection,
+    healthy_boot_setup,
+    healthy_cancel_command,
+    healthy_sanoid,
+};
 /// One managed clone at the design's healthy state.
 pub(crate) use super::route_test_facts_clone::healthy_clone;
 /// One healthy dataset of each role,
@@ -158,5 +166,9 @@ pub(crate) fn healthy_route_facts() -> RouteFacts {
         },
         staging_binds: staging_binds_value,
         clones: vec![healthy_clone()],
+        boot_protection: healthy_boot_protection(),
+        boot_setup: healthy_boot_setup(),
+        cancel_command: healthy_cancel_command(),
+        sanoid: healthy_sanoid(),
     };
 }

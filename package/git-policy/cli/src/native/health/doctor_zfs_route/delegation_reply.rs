@@ -58,7 +58,7 @@ pub enum Inheritance {
 /// Why:
 ///  The route cares about the account's own user and groups,
 ///  and a grant to everyone,
-/// to a named set or to whoever creates a dataset
+///  to a named set or to whoever creates a dataset
 ///  below the grant's dataset reaches the account while being wider than the
 ///  decided shape.
 ///

@@ -253,6 +253,31 @@ pub mod worktree_clone_mount_protocol;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount_protocol::*;
 
+/// The clone-mount route's event filter,
+/// which plan step 19 builds ahead of the dispatch that calls it:
+///  the pool and dataset one ZED delivery carries,
+///  the two names the route's clone parent has,
+///  and the decision that drops every history event which is not about the
+///  parent or a dataset below it.
+/// No command reaches it in this release:
+///  step 19's wiring calls it at the head of the handler's dispatch.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_event_filter;
+
+/// The clone-mount route's merge device,
+/// which plan step 19 builds ahead of the sweep entry that would call it:
+///  the one root-owned folder under `/run`,
+///  the route-wide run claim of one event-driven pass,
+///  the mark a trigger writes when it asked for a pass,
+///  the one extra pass that mark buys,
+///  and every line the device answers with.
+/// The pass budget and its number are plan step 22's,
+/// so nothing here reads or writes one.
+/// No command reaches it in this release:
+///  step 19's wiring calls its taker at the entry of the default sweep.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_sweep_merge;
+
 /// The unmount half of the ZFS worktree clone route:
 ///  one removal's staging folder under the account's `~/.cache`,
 ///  the record beside it,
@@ -401,6 +426,24 @@ pub mod worktree_clone_removal_cancel;
 /// The same re-export for `worktree_clone_removal_cancel`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_removal_cancel::*;
+
+/// The management grammar's two ZFS route words,
+/// `cancel-worktree-removal <slot>` and `settle-worktree-clone-record`,
+/// and the answer each prints:
+/// the place an invocation runs in,
+/// the pool a command reads when a read first needs one,
+/// the reversing request a cancellation files,
+/// and each command's statuses and streams.
+/// The grammar of `invocation/` parses the words and dispatches them here,
+/// and the two commands are reached through no other path in this release.
+/// It is deliberately not `pub mod`:
+/// these are the wrapper's own two commands,
+/// and nothing here is a name a release owes another crate,
+/// so the published surface and its list of names stay as they were.
+/// It is Linux only,
+/// like the pool and the mount table both commands read.
+#[cfg(target_os = "linux")]
+pub(crate) mod worktree_clone_cancel_and_settle_commands;
 
 /// The record that carries an origin snapshot's cleanup past the clone and the registration:
 /// its folder,
@@ -628,13 +671,13 @@ pub mod clone_holder_scan;
 ///  the reads it makes before its first act and change,
 ///  and every word it answers with.
 /// Plan step 17 builds it ahead of the removal's cut,
-/// so no person's command
+///  so no person's command
 ///  reaches it and no sentence offers the flag,
 ///  and its waits ship with no value until the owner decides one or step 22's
 ///  measurement sizes them.
 /// It is Linux only,
 /// like the `/proc` reads,
-/// the pidfds and the mount calls it would make.
+///  the pidfds and the mount calls it would make.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_forced_removal;
 

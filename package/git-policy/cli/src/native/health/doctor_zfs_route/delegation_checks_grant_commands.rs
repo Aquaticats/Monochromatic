@@ -152,7 +152,7 @@ fn scope_flag(inheritance: Inheritance) -> &'static str {
 ///  a creation-time permission comes off with `-c`,
 ///  a permission set's member with `-s`,
 ///  and a user's,
-/// a group's or everyone's with the scope and holder they were
+///  a group's or everyone's with the scope and holder they were
 ///  granted with
 ///  (OpenZFS `zfs-2.4.4`,
 ///  `man/man8/zfs-allow.8`,

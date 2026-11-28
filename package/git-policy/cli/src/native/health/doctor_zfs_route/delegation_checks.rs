@@ -134,7 +134,7 @@ use super::delegation_reply::{
 ///  in the decided place and the wider grant's removal,
 ///  and a route permission that reaches the account through a named set leaves
 ///  the answer unknown with the set,
-/// the permission and the command named,
+///  the permission and the command named,
 ///  because the design grants each permission directly and this check does not
 ///  prove a delegation that arrives another way.
 ///
@@ -240,7 +240,7 @@ pub fn check_delegation(facts: &DelegationFacts) -> CheckOutcome {
 ///  The add's preflight splits its verdict by which step uses a permission,
 ///  and the split needs the values rather than the one sentence the check
 ///  builds,
-/// so the missing set is answered on its own
+///  so the missing set is answered on its own
 ///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
 ///  choice 3C's cost).
 ///

@@ -93,7 +93,7 @@ pub struct RecordedHandle {
 
 /// What:
 ///  Why a handle could not be taken,
-/// reopened or described.
+///  reopened or described.
 /// Why:
 ///  Each call refuses for its own reason,
 ///  and the report names which one the act stopped at rather than "the handle

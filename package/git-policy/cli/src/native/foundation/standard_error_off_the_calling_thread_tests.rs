@@ -107,7 +107,7 @@ fn whole_lines_are_handed_over_one_each_and_the_unfinished_line_stays() {
 ///  when its newline arrives.
 /// Why:
 ///  `write!` and `writeln!` hand over their words,
-/// their values and their newline as separate
+///  their values and their newline as separate
 ///  writes,
 ///  and a reader must see one line rather than three.
 ///

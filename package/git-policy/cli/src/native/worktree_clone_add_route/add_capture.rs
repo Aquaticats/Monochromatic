@@ -1,40 +1,39 @@
 //! What:
 //!  The frozen capture of a clean source the clone route proves its clone
 //!  against:
-//! the index's bytes by size and digest,
-//! and every tracked path's
+//!  the index's bytes by size and digest,
+//!  and every tracked path's
 //!  kind,
-//! size,
-//! times and execute bit.
+//!  size,
+//!  times and execute bit.
 //! Why:
 //!  A snapshot and a clone are taken after the capture,
-//! so a write between the
+//!  so a write between the
 //!  two would otherwise reach the new worktree unproven.
-//! The proof reads the
+//!  The proof reads the
 //!  clone's own files and no Git run against its copied administration
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The frozen proof",
-//! parts C1,
-//! C2 and C5).
+//!  parts C1,
+//!  C2 and C5).
 //!  Step 10 builds the parts a clean source needs:
-//! the index's bytes,
-//! every
-//!  tracked path's facts,
-//! and the commit the caller's add checks out.
-//! Step 11 adds
+//!  the index's bytes,
+//!  every tracked path's facts,
+//!  and the commit the caller's add checks out.
+//!  Step 11 adds
 //!  the two digests a dirty source needs (C3 and C4):
-//! the content of every path
+//!  the content of every path
 //!  the index's stat data cannot vouch for,
-//! and the content of every path in the
+//!  and the content of every path in the
 //!  racy set,
-//! which is the set a same-tick write can hide in.
+//!  which is the set a same-tick write can hide in.
 //!  A path the source has deleted is recorded as absent and carries no digest,
 //!  because there are no bytes to digest and the proof's kind comparison is what
 //!  refuses such a path coming back.
 //!  Every path is read below a held handle of the source root,
-//! one plain name
+//!  one plain name
 //!  at a time,
-//! so a directory swapped for a link while the capture runs is an
+//!  so a directory swapped for a link while the capture runs is an
 //!  error and not a detour.
 //!
 //! In TS you'd write (pseudocode):
@@ -106,7 +105,7 @@ impl CapturedKind {
 ///  One tracked path's facts at the capture.
 /// Why:
 ///  Every field is compared with the clone's own file,
-/// and the refusal names
+///  and the refusal names
 ///  the path and the field that differed.
 ///
 /// In TS you'd write (pseudocode):
@@ -142,7 +141,7 @@ pub struct CapturedEntry {
 /// Why:
 ///  A write between the capture and the snapshot that leaves every compared
 ///  field equal is caught by the bytes alone,
-/// and these digests are the bytes.
+///  and these digests are the bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -161,7 +160,7 @@ pub struct CapturedDigest {
 ///  The index's own facts at the capture.
 /// Why:
 ///  D1 compares the clone's copied index with these,
-/// so any write to the index
+///  so any write to the index
 ///  between the capture and the snapshot refuses.
 ///
 /// In TS you'd write (pseudocode):
@@ -182,7 +181,7 @@ pub struct CapturedIndex {
 ///  Everything one capture holds.
 /// Why:
 ///  The capture is the record a resumed add proves its clone from,
-/// so it names
+///  so it names
 ///  the add by nonce and the repository and source it was taken in.
 ///
 /// In TS you'd write (pseudocode):
@@ -218,8 +217,7 @@ pub struct Capture {
 ///  What the capture reads the source with.
 /// Why:
 ///  The caller holds the proven index bytes and the registration,
-/// and this
-///  value keeps the capture's own steps free of the add's other state.
+///  and this value keeps the capture's own steps free of the add's other state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -258,20 +256,20 @@ const REGULAR_MODE: u32 = 0o100_000;
 
 /// What:
 ///  A path the capture cannot record,
-/// in words naming the path and the reason.
+///  in words naming the path and the reason.
 /// Why:
 ///  A refusal here ends the add before the snapshot,
-/// with nothing mutated but
+///  with nothing mutated but
 ///  the claim,
-/// the slot and the registration,
-/// and the person needs the path.
+///  the slot and the registration,
+///  and the person needs the path.
 pub type CaptureRefusal = String;
 
 /// What:
 ///  Take the frozen capture of a clean source.
 /// Why:
 ///  It runs immediately before the snapshot,
-/// and every read is below a held
+///  and every read is below a held
 ///  handle of the source root.
 ///
 /// # Errors
@@ -376,9 +374,9 @@ pub fn capture_the_source(input: &CaptureInput<'_>) -> Result<Capture, CaptureRe
 /// Why:
 ///  C4's set is the entries whose recorded time is not at least one tick older
 ///  than the index's own modification time,
-/// and an answer this process cannot
+///  and an answer this process cannot
 ///  read treats every entry as racy,
-/// which is the safe direction.
+///  which is the safe direction.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -408,7 +406,7 @@ fn coarse_tick_nanos() -> Option<u64> {
 ///  than the index's own modification time.
 /// Why:
 ///  A write in the file's own tick leaves both recorded times equal,
-/// so only the
+///  so only the
 ///  digest of its bytes can refuse it.
 ///  An unreadable tick makes every entry racy rather than none.
 ///
@@ -439,7 +437,7 @@ fn is_racy(
 ///  read in one linear pass with a fixed buffer.
 /// Why:
 ///  A tracked file may be any size,
-/// and the capture streams it rather than
+///  and the capture streams it rather than
 ///  holding it.
 ///
 /// # Errors
@@ -472,7 +470,7 @@ fn digest_the_file(
 ///  One entry's facts as the words the record writes after `entry=`.
 /// Why:
 ///  The record is the durable half of the capture,
-/// so the writer and the reader
+///  so the writer and the reader
 ///  share one spelling.
 pub fn entry_words(entry: &CapturedEntry) -> String {
     let target: String = match entry.link_target.as_deref() {
@@ -496,7 +494,7 @@ pub fn entry_words(entry: &CapturedEntry) -> String {
 ///  One digest's facts as the words the record writes after `digest=`.
 /// Why:
 ///  The record is the durable half of the capture,
-/// so the writer and the reader
+///  so the writer and the reader
 ///  share one spelling.
 pub fn digest_words(digest: &CapturedDigest) -> String {
     return format!(

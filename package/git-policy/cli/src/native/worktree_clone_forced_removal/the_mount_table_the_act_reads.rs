@@ -117,7 +117,7 @@ pub fn topmost_at(
 ///  Read `/proc/self/mountinfo` inside the namespace the child is in.
 /// Why:
 ///  The table is the kernel's own and this child's,
-/// not the handler's,
+///  not the handler's,
 ///  which is what makes the read-after a fact about the namespace it changed.
 pub(super) fn read_the_table() -> Result<String, std::io::Error> {
     return crate::plain_file::read_plain_text_at(

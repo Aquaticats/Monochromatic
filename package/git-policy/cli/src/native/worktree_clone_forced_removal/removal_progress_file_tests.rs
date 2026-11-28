@@ -59,7 +59,7 @@ fn a_nonce() -> RequestNonce {
 /// Why:
 ///  A control that busy-waited would be synthetic load,
 ///  and this is the same wait the heartbeat makes:
-/// a channel with a timeout.
+///  a channel with a timeout.
 fn pause(period: Duration) {
     let (_sender, receiver) = std::sync::mpsc::channel::<()>();
     let _timed_out: Result<(), std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(period);

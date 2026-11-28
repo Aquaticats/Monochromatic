@@ -12,10 +12,10 @@ use crate::typed_network_command_relay::a_target_the_sentence_may_name::Target;
 
 /// What:
 ///  The host the proposal's fixture names,
-/// so the sentence can be compared with the kept file byte for byte.
+///  so the sentence can be compared with the kept file byte for byte.
 /// Why:
 ///  The three texts were measured with `target` standing for the host,
-/// and a comparison against them is only exact with the
+///  and a comparison against them is only exact with the
 ///  same word in the slot.
 ///
 /// In TS you'd write (pseudocode):
@@ -86,8 +86,7 @@ fn one_refusal_is_recorded_once() {
 
 /// The host-key sentence is the seventh revision's kept file byte for byte,
 /// with the fixture host in both of its slots:
-/// the one
-/// the owner's decision names,
+/// the one the owner's decision names,
 /// whose fingerprint clause is in the design's "The words".
 #[test]
 fn the_host_key_sentence_is_the_kept_file_byte_for_byte() {

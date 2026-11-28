@@ -262,6 +262,15 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(notes, "{problem}");
     }
+    // A ZFS clone's removal killed after its head destroy leaves a plan whose head is `gone`, a registration and a
+    //  binding, and no next removal can run once the registration is gone, so the tail is finished here without a
+    //  person (`worktree_clone_removal_finish_pass`, plan step 16). A repository with no plan costs one `stat`.
+    for problem in crate::worktree_clone_removal_finish_pass::finish_the_removal_plans_live(
+        common_dir.as_path(),
+    ) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(notes, "{problem}");
+    }
     // A subvolume a removal renamed aside is named by a record of its own, which outlives the delete's queue record: a round
     //  that settled that record before the rename, a destroy the kernel refused, and a command killed between the rename and
     //  its repair all leave the directory standing with nothing else naming its delete. This is the command that queues it

@@ -12,7 +12,7 @@
 //!  the pool refusing its listing is evidence a person confirms,
 //!  never a reason to leave the slot with no command
 //!  (the design writer's K14,
-//! added after the eleventh read).
+//!  added after the eleventh read).
 //!  A binding at `cloned` or `mounted` whose clone is gone is the settling command's,
 //!  proved or not.
 //!  Beside a standing plan the command is the plan design's,
@@ -208,31 +208,18 @@ pub const SETTLING_COMMAND_WORDS: &str =
 /// The words every refusal and report prints where a removal would be the way
 /// out.
 /// Why:
-///  No command of this release removes a clone,
-///  so naming one as the way out would send a person to a command that does not
-///  exist;
-///  this file is where the project states the one command a state names,
-///  and it says here that this one is not built
+///  A removal is the way out of most of the states this crate reports,
+///  and a sentence that named a command the release did not have would send a
+///  person nowhere,
+///  so the sentence lives here once and each caller appends it
 ///  (`SPEC.md`,
 ///  "Removal of a ZFS worktree clone").
-pub const NO_REMOVAL_WORDS: &str =
-    "this release has no removal for a clone, so the clone and its record stay until it does";
-
-/// The words that say a command the project designed for a state cannot be run
-/// in this release.
-/// Why:
-///  Two commands a state names are built ahead of the grammar that would reach
-///  them,
-///  so a sentence that tells a person to run one sends them to a command that
-///  answers with the usage text and exit 2
-///  (`SPEC.md`,
-///  "The settling command,
-/// built and reachable from no command",
-///  and "The cancel command,
-/// built and reachable from no command").
-///  The round that adds either to the grammar deletes this claim from one place,
-///  and every sentence that prints it follows.
-pub const NOT_ADMITTED_YET: &str = "no management grammar admits it in this release";
+///  The name is older than the removal it names:
+///  it was the words that said no removal existed,
+///  and it keeps its name so that no reader's line moves
+///  (`worktree_clone_slot_state`,
+/// `health/doctor_zfs_route` and this folder all read it)
+pub const NO_REMOVAL_WORDS: &str = "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
 
 /// What:
 ///  The command one state names.
@@ -378,7 +365,7 @@ impl NextCommand {
         return match self {
             NextCommand::TheAddAgain => format!("run the add again at `{slot}`"),
             NextCommand::TheSettlingCommand => format!(
-                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, and it is built while {NOT_ADMITTED_YET}, so it cannot be run yet: read the evidence above, and leave the record and its slot as they stand until a release that answers it ships"
+                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places: read the evidence above, and run it once the two values you type are the ones the record holds"
             ),
             NextCommand::GitWorktreeRemove => format!(
                 "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"

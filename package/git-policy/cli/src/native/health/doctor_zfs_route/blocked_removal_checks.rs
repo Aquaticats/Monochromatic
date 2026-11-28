@@ -20,9 +20,9 @@
 //!  and the forced arm's holder-ending has no measurement yet,
 //!  so nothing here offers it until that flag is set.
 //!  A removal without `--force` cancels itself,
-//! which the project decided,
+//!  which the project decided,
 //!  and the caller and its session are never ended:
-//! where the caller's own
+//!  where the caller's own
 //!  session holds the clone the removal refuses instead
 //!  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`).
 //!  The kept `cancel-worktree-removal <slot>` command is the design's way back
@@ -49,8 +49,8 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 ///  Everything the blocked-removal line reads.
 /// Why:
 ///  The intent,
-/// the plan's names,
-/// the scan and the caller's session are four
+///  the plan's names,
+///  the scan and the caller's session are four
 ///  different reads of one clone,
 ///  and a line that took three of them would describe a state nobody saw.
 ///  The plan's presence is its own fact beside its lines,

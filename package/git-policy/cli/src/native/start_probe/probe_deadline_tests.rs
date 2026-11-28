@@ -9,7 +9,7 @@
 //!  The mode's wait and its kill must agree on where the boundary is,
 //!  and a margin larger than the value would be a bound that fires at once.
 //!  The variable's read sits behind a Cargo feature,
-//! so a release build never
+//!  so a release build never
 //!  reads it;
 //!  the last control starts a child of this test binary with the variable set,
 //!  which is the only way a build without the feature is asked the question,

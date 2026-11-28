@@ -900,6 +900,11 @@ when `store-fsync.log` carries both `PROBE` lines,
 and when neither log holds a `SKIPPED` line,
 so an arm that returned without running fails the run.
 `--keep-guest` keeps a failed run's guest to inspect.
+`run` may be repeated in one guest.
+The holder-scan arm takes down the mounts a previous run left at its checkout
+before it removes that folder (`holder-scan-arm-script-fixture.ts`),
+so a guest that already ran the step runs it again,
+and a run killed part-way leaves the same mounts for the next run's first lines.
 
 ## The ZFS sweep arms
 
@@ -1049,6 +1054,15 @@ and the sweep guest arm reads a locally set value,
 an inherited one and the default through the route's own dataset-stats request
 (`SNAPDIR-REPLY`).
 
+The arm's assertion about the listing is one line of `grep`:
+`^\.zfs$`,
+which the script writes as a raw string so the backslash reaches the guest's `grep`
+(`snapdir-arm-script-fixture.ts`).
+Before 2026-11-27 the guest ran `^.zfs$`,
+whose dot matches any character,
+so a listing that held `xzfs` and no `.zfs` passed the `visible` row;
+the escaped dot asserts the directory itself.
+
 The arm does not test the distro's mount generator:
 the integration pass ran that question with its own positive control,
 found a unit for the checkout dataset and none for a clone-container child,
@@ -1184,7 +1198,8 @@ and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
 So `mount-git-worktree-clone-datasets-guest.ts`,
 `removal-lineage-proof-guest.ts`,
-`settling-command-guest.ts` and
+`settling-command-guest.ts`,
+`cancel-and-settle-commands-guest.ts` and
 `zfs-step-22-measurements-guest.ts` hold no plain long command at all.
 
 Every other plain `guest()` command in this package is listed here,
@@ -1293,6 +1308,42 @@ where a step's duration is its whole step:
 - `e2e/start-probe-arms/timing-arms.ts:198` is the `timings-boot-first` arm,
   with a bound of 900 s.
   It took 12 s.
+- `e2e/lost-event-arms/zed-arms.ts`'s judge is the one test the lost-event
+  driver runs plainly,
+  with a bound of 300 s.
+  It is not timed on its own;
+  it reads the deliveries and the receipts the case script left and prints
+  `LOST-EVENTS every case held`.
+
+## The management grammar's two ZFS route words
+
+`cancel-and-settle-commands-guest.ts` runs the two words the management grammar
+admits in a guest of the same recipe:
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` and
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot>
+--confirm-removal-of <slot> --confirm-clone-guid <digits>`.
+Both commands read `/dev/zfs` and this process's mount table,
+so the arms run only in a guest of the round's own,
+and each one starts the built wrapper through a `git` link in a fixture search
+path with an environment that names no session bus.
+
+The arms live in `src/native/binary/binary_zfs_grammar_commands_guest_tests.rs`
+and run one at a time,
+one `native_binary` nextest run each,
+because each builds the design's checkout and its clone over the same pool:
+the cancel word's refusal of a slot no removal has touched,
+the settling word's refusal of a clone that still stands and its settlement of a
+clone a person destroyed outside the wrapper,
+and the cancel word's reversal of a removal a kill left,
+which the shipped handler answers on its own sweep while the wrapper waits for
+the receipt.
+A run passes only when the pulled `grammar-commands-arm.log` carries every
+`GRAMMAR` line and no `SKIPPED` line.
+
+```sh
+# package/git-policy/cli: one throwaway guest for all three arms
+node e2e/cancel-and-settle-commands-guest.ts all --name <guest> --log-dir <dir>
+```
 
 ## The step 22 measurement driver
 
@@ -1320,3 +1371,61 @@ so a round that needs the numbers again runs it by hand.
 # package/git-policy/cli: one throwaway guest for the whole measurement
 node e2e/zfs-step-22-measurements-guest.ts all --name <guest> --log-dir <dir>
 ```
+
+## The lost-event triggers' guest cases
+
+`lost-event-triggers-guest.ts` runs plan step 19's lost-event cases in a guest
+with a real `zfs-zed.service`:
+
+- an event a ZED start replays,
+- a dropped event with nobody waiting,
+- a dropped event with a live caller,
+- two zedlets ZED forked at once,
+- a stale receipt,
+- and a pending unmount across a restart.
+
+The handler side is built ahead of the wiring that calls it,
+so the installed zedlet is this arm's own:
+`/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets` runs one test
+of the crate's `native_binary` target,
+and that process reads the delivery ZED handed it,
+decides it through the released `worktree_clone_mount_event_filter`,
+and,
+when the event passes,
+runs the released `worktree_clone_mount_sweep_merge` around a stand-in pass
+that files the product's receipt.
+The stand-in is the pass's work alone:
+it reads the request the driver wrote under `/opt/lost-events`,
+because the sweep that reads a clone's intent property is plan step 8's.
+Everything else is the product's:
+the filter's rule and words,
+the device's folder under `/run`,
+its claim and its mark,
+and the receipt writer.
+
+The fixture is the guest's own file-backed pool `zfsr9`:
+a clone parent,
+one clone under it,
+and a dataset outside the parent whose property change is the event the filter
+drops.
+The cases change only the guest's `/etc/zfs/zed.d`,
+its `zfs-zed.service` and its
+`/run`.
+
+```sh
+# package/git-policy/cli: one throwaway guest for the whole arm
+node e2e/lost-event-triggers-guest.ts all --name zfs-r9-lost-event-triggers --log-dir <dir>
+```
+
+The evidence is `lost-event-arm.log`,
+which carries one `LOST-EVENT` line per case,
+and `lost-event-judge.log`,
+which carries the judge's claims and ends `LOST-EVENTS every case held`.
+The driver refuses a case log that lacks one of its lines and a judge that did
+not print the last one,
+so an arm that returned without running fails the run.
+`--keep-guest` keeps a failed run's guest to inspect.
+
+Its build runs detached (`e2e/adoption-guest-arms/detached-step.ts`),
+because a test build of this crate takes minutes in a guest,
+and its one plain `guest()` command is the judge above.

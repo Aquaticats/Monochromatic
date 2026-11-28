@@ -1,6 +1,6 @@
 //! What:
 //!  The abort forms' operations,
-//! the state that makes each abort live,
+//!  the state that makes each abort live,
 //!  and the record each form restores its tree from.
 //! Why:
 //!  The mappings are the whole decision:
@@ -152,7 +152,7 @@ fn the_skip_forms_end_the_operation_their_abort_does() {
 }
 
 /// A skip writes back the tree it stopped at,
-/// which is `HEAD`,
+///  which is `HEAD`,
 ///  measured against the operation's recorded original head.
 #[test]
 fn a_skip_restores_head() {
@@ -240,7 +240,7 @@ fn each_abort_form_is_live_only_with_its_own_state() {
 
 /// A rebase that applies patches is a rebase to `git am --abort`,
 ///  which ends it;
-/// a rebase to `git rebase --abort` stays a rebase.
+///  a rebase to `git rebase --abort` stays a rebase.
 #[test]
 fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
     assert_eq!(

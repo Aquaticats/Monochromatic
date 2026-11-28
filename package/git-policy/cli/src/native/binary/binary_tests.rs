@@ -1281,10 +1281,19 @@ mod zfs_add_guest;
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
+/// Plan step 19's lost-event cases in a guest with a real ZED:
+/// an event a ZED start replays,
+/// a dropped event with and without a live caller,
+/// zedlets run at once,
+/// a stale receipt,
+/// and a pending unmount across a restart,
+/// driven through this crate's own event filter and merge device.
+#[path = "binary_zfs_lost_event_triggers_guest_tests.rs"]
+mod zfs_lost_event_triggers_guest;
+
 /// Plan step 22's guest measurements:
 /// the add against ordinary Git,
-/// the
-/// waits,
+/// the waits,
 /// the sweep's cost,
 /// retention and the request budget.
 #[path = "binary_zfs_step_22_measurement_guest_tests.rs"]
@@ -1348,6 +1357,13 @@ mod zfs_slot_state_guest_fixture;
 /// and the refusal beside Git's own answer.
 #[path = "binary_zfs_slot_state_guest_tests.rs"]
 mod zfs_slot_state_guest;
+
+/// The management grammar's two ZFS route words in the throwaway guest:
+/// the cancel command's refusals and its reversal of a removal a kill left,
+/// and the settling command's refusal and its two settlements,
+/// each through the built wrapper.
+#[path = "binary_zfs_grammar_commands_guest_tests.rs"]
+mod zfs_grammar_commands_guest;
 
 /// Plan step 14's refusal arms through the built wrapper's `git worktree remove`:
 /// the healthy proof and its loss,

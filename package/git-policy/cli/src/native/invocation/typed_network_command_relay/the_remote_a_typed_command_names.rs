@@ -7,7 +7,7 @@
 //!  every other command keeps the process replacement it has today
 //!  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
 //!  The URL is read from Git itself,
-//! so `url.<base>.insteadOf` rewrites are applied exactly as the command will apply them.
+//!  so `url.<base>.insteadOf` rewrites are applied exactly as the command will apply them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -45,13 +45,13 @@ pub use super::the_options_before_the_remote::TypedNetworkCommand;
 
 /// What:
 ///  The typed network command this argument list names,
-/// its words after the command word,
-/// and Git's global options before it.
+///  its words after the command word,
+///  and Git's global options before it.
 /// Why:
 ///  One reading decides all three,
-/// so a caller cannot pair one command's word with another's arguments;
+///  so a caller cannot pair one command's word with another's arguments;
 ///  the global options matter because `-C` moves the directory Git reads the repository in,
-/// and the remote must be read in the
+///  and the remote must be read in the
 ///  repository the command itself will read.
 ///
 /// In TS you'd write (pseudocode):
@@ -101,8 +101,8 @@ pub fn typed_command(
 ///  The reading names the caller's choices so one function can answer for all four:
 ///  a clone carries its URL in its own words and needs no repository,
 ///  and a fetch,
-/// pull or push names a remote the repository knows,
-/// or a URL of its own.
+///  pull or push names a remote the repository knows,
+///  or a URL of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,11 +119,11 @@ pub enum RemoteRead<'a> {
 
 /// What:
 ///  How the remote URL is read for a command:
-/// a clone's own word,
-/// or a remote name.
+///  a clone's own word,
+///  or a remote name.
 /// Why:
 ///  The caller states the command,
-/// and this says which of Git's two questions to ask.
+///  and this says which of Git's two questions to ask.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,19 +157,19 @@ pub fn remote_read_for<'a>(
 
 /// What:
 ///  The URL Git will use,
-/// asked of Git,
-/// with every `insteadOf` rewrite applied.
+///  asked of Git,
+///  with every `insteadOf` rewrite applied.
 /// Why:
 ///   A remote written `gh:served.git` becomes `ssh://target/work/served.git` through `url.<base>.insteadOf`,
 ///   and the transport that decides whether ssh carries the command is the rewritten one
 ///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-/// "Where the host comes from").
+///  "Where the host comes from").
 ///   A push asks for the push URL,
-/// because a `pushurl` or a `pushInsteadOf` can send it elsewhere.
+///  because a `pushurl` or a `pushInsteadOf` can send it elsewhere.
 ///   Nothing is read when Git refuses the question:
-/// an unknown remote,
-/// or no remote at all,
-/// keeps today's behaviour.
+///  an unknown remote,
+///  or no remote at all,
+///  keeps today's behaviour.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -255,10 +255,10 @@ pub fn remote_url(
 
 /// What:
 ///  Ask Git one question about the remote and answer the URL it printed,
-/// or nothing when it refused.
+///  or nothing when it refused.
 /// Why:
 ///  The question reads configuration alone and connects to nothing,
-/// and a refused question must keep today's behaviour instead
+///  and a refused question must keep today's behaviour instead
 ///  of a relay over a transport nobody read.
 ///
 /// In TS you'd write (pseudocode):
@@ -311,17 +311,17 @@ fn ask_for_a_url(
 
 /// What:
 ///  Whether ssh carries a URL:
-/// the schemes ssh speaks,
-/// or Git's scp-like `[user@]host:path` form,
-/// which is ssh too.
+///  the schemes ssh speaks,
+///  or Git's scp-like `[user@]host:path` form,
+///  which is ssh too.
 /// Why:
 ///   Only a command ssh carries is relayed,
-/// and everything else keeps its process replacement.
+///  and everything else keeps its process replacement.
 ///   An `https`,
-/// `git`,
-/// `file` or local-path remote must not get a pseudo-terminal or a pipe
+///  `git`,
+///  `file` or local-path remote must not get a pseudo-terminal or a pipe
 ///   (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
-/// "Reading first leaves every command ssh does not
+///  "Reading first leaves every command ssh does not
 ///   carry exactly as it is today").
 ///
 /// In TS you'd write (pseudocode):

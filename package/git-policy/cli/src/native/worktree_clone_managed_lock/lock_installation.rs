@@ -9,13 +9,13 @@
 //!  and because a staging file would leave the registration unprotected for a moment
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //!  "The lock is lost,
-//! the registration is there").
+//!  the registration is there").
 //!  A kill inside the write leaves a prefix,
 //!  which is still a lock that still stops a prune and reads as S2 or S3 afterwards,
 //!  so nothing is staged,
-//! renamed or flushed here:
+//!  renamed or flushed here:
 //!  the record is the durable half and the lock's loss is the state S4,
-//! installable again.
+//!  installable again.
 //!  A lock that stands is never overwritten,
 //!  and nothing here decides whether the command may install:
 //!  the caller holds the slot's claim and has proved the registration.
