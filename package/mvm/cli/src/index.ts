@@ -222,6 +222,7 @@ export {
   ovhSshExecArgs,
 } from './backend/ovh/ssh.ts';
 export * from './backend/registry.ts';
+export * from './backend/size-request.ts';
 export type {
   Backend,
   BackendKind,
