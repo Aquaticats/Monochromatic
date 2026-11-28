@@ -2949,12 +2949,6 @@ and the two `truepeak` files wait on their branch.
 - A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
-- Claude Code restarted this session unasked at 2026-11-27T14:02:39-05:00
-  (`doc/troubleshooting/claude-code-restarts-a-session-unasked-and-stops-its-tracked-background-commands.md`;
-  rules `RZN` to `RZG` of `CLAUDE.md`).
-  Rounds in their own units ran on;
-  the session's background wait was killed and was started again;
-  an earlier subagent was still reachable by a message to its id.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
