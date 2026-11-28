@@ -2944,13 +2944,6 @@ and the two `truepeak` files wait on their branch.
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-- `native:ts-checks` says what a passing check ran (`8dcc43ed1e`,
-  issue 6613),
-  and refuses a unit test run that reported no suite or fewer suites than the package holds unit test files.
-  On `main` at that commit it printed
-  `89 unit test files, and 186 suites reported [PASS]`.
-  The type check can report no count of files without `--extendedDiagnostics` in the shared task template,
-  and says so.
 - The gate's reader of a container's control group keeps a whole reading (`9ea0d98dda`,
   issue 6614),
   by the rule issue 6610 gave the check scope's reader:
