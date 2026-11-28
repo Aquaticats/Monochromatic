@@ -884,6 +884,37 @@ Unapproved and non-final.
   and 6660 (twenty commands and `mvm-mcp` that can run a build older than their source).
   Issue 6655 is closed.
 
+#### Started and done between 07:15 and 07:30
+
+Unapproved and non-final.
+
+- Five more rounds ended and were merged after their reports were read whole:
+  the `mpm-shadow` fix on its alpha.20 read
+  (a notice a stream refuses no longer ends the command),
+  step 22's two guest measurements (`b30ef786e0`),
+  and the revisions of the hosted-runners (`60064b0024`),
+  Dylint (`e63bf58c19`)
+  and line-break (`dc42566e69`) proposals.
+- `mpm-shadow` `0.2.7-alpha.21` is releasing (run 46143657292);
+  its lock and its second pass follow.
+- Eight readers on Claude Sonnet run:
+  two second passes of the wrapper's `0.6.1-alpha.53`,
+  and gate reads of the development-profile,
+  sizes,
+  crate split,
+  hosted-runners,
+  Dylint and line-break proposals.
+  Their briefs are under `~/temp/agent/briefs-for-release-reads-written-2026-11-28/`
+  and `~/temp/agent/briefs-for-gate-reads-written-2026-11-28/`,
+  and each review goes to a scratch folder named for it.
+- What waits for the owner from these rounds is in `doc/handover/questions-for-the-owner.md`,
+  the section recorded this morning.
+- Owed issues:
+  the container-limit package's unit task is red on `main`
+  because the OVHcloud backend's image file is missing from the container-start-sites ledger;
+  and the account companion answered past its 100 ms deadline under load in one guest run,
+  so that an add fell back to the ordinary Git route.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
