@@ -76,7 +76,7 @@ const WITHOUT_A_LINE_FEED: &[u8] = b"one\ntwo";
 
 /// The two words a control plans,
 ///  which write the index and so read this repository's configuration.
-const THE_COMMAND: [&str; 2] = ["reset", "--hard"];
+const THE_COMMAND: &[&str] = &["reset", "--hard"];
 
 /// The settings file this crate reads,
 ///  which holds the invalid text a control writes.
