@@ -2927,19 +2927,7 @@ and the two `truepeak` files wait on their branch.
   where a denial's record is and the kernel journal's is not:
   when a round reports a refusal only one program meets,
   the coordinator reads that log.
-- The service-manager install proof passes end to end (issue 6587,
-  `6b1a8e91f4` and `fdd9ce0e83`).
-  Two things stopped it:
-  Git wrote `/work` as a user that did not own it,
-  and this host's Git profile refused the marks file `git fast-import` writes beside the journal
-  when the service cannot hand it an unnamed scratch file,
-  as in a container's root home.
-  The coordinator's first rule for that name matched nothing
-  (`@{int}` stops at ten digits and the marks carry sixteen);
-  the corrected rule is proved with a refused control name
-  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
-  seventeenth batch).
-  The reload proof's control arm cannot pass:
+- The reload proof's control arm cannot pass:
   it needs a release from before the remedy of 2026-11-12,
   and its choices are
   `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`,
