@@ -1316,8 +1316,10 @@ That reading found the start probe's shared header broken since `dcf5877982`:
 an unquoted handler assignment ran the wrapper as a command,
 so every arm after `green` stopped at its fourth line,
 in `main`'s driver and the rewritten one alike.
-It is quoted now,
-and those arms run.
+`dacca205b6` (2026-11-27T11:57:11-05:00) quoted it,
+and those arms run;
+that commit is older than `0.6.1-alpha.51`,
+so the quoting is not one of the merges of the release after it.
 
 ## A round runs no whole container gate
 

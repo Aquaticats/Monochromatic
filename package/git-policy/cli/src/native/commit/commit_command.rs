@@ -56,10 +56,16 @@ use crate::diagnostics::{
     EngineFailureCode,
     render_engine_failure,
 };
+/// The answer a finding carries about what a commit does with the bytes it names.
+use crate::event_hints::CommitCorrection;
 use crate::git_version::check_git_version;
 use crate::policy_checks::ShippedChecks;
 use crate::policy_engine::StageRequest;
-use crate::policy_events::render_policy_events;
+/// The events a policy pass or the gate reports.
+use crate::policy_events::{
+    PolicyEvent,
+    render_policy_events,
+};
 use crate::policy_trigger::Trigger;
 use crate::post_commit::{
     NO_BLOCKING_CAUSE,
@@ -110,6 +116,29 @@ fn stop_of_an_ending(result: &TransactionResult) -> Option<CommitStopReason> {
         return None;
     }
     return Some(reason_of_events(result.events.as_slice()));
+}
+
+/// What:
+///  Whether one event of a commit's own policy pass still belongs in the report of a commit that landed,
+///  already filtered to true.
+/// Why:
+///   A commit whose selection is read-only reads the index before the commit is made,
+///  so a finding of that pass says the index holds the bytes and that staging them again is the next step.
+///  Once the commit lands that sentence is stale:
+///  the bytes are in a commit,
+///  and the post-commit gate reports them with the step landed bytes need.
+///  Every other event of the pass stands as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const belongsInALandingReport = (event) => !(event.type === 'finding' && event.commitCorrection === 'nothing-corrects-what-the-index-holds');
+/// ```
+fn belongs_in_a_landing_report(event: &PolicyEvent) -> bool {
+    return !matches!(
+        event,
+        PolicyEvent::Finding(finding)
+            if finding.commit_correction == Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds)
+    );
 }
 
 /// What:
@@ -185,7 +214,7 @@ fn run_timed<F: RepositoryFacts>(
     };
     // Every command line lands through the resident service; a machine with none to reach or start ends here with the plain
     // message of its platform.
-    let served: ServiceCommit = match service_commit(&invocation, checks, &request, timing) {
+    let mut served: ServiceCommit = match service_commit(&invocation, checks, &request, timing) {
         Ok(found) => found,
         Err(stop) => {
             // A stop inside the build phase leaves it before its figure is taken, and the record must still state what the build spent.
@@ -200,6 +229,17 @@ fn run_timed<F: RepositoryFacts>(
     //  finding 3). A release build holds no read of `CLI_GIT_TEST_ONLY_SERVICE_FAULT`, so a command that is not a control
     //  reaches nothing, and a build made for a control reaches it only when its variable names this point.
     crate::service_fault::reach("after-answer");
+    // What: A commit that landed reports the bytes it holds, not the index the pass read before it.
+    // Why:  the pass ran before the commit was made, so a sentence about the index is stale the moment those bytes
+    //       are in a commit; the gate below names the landed bytes and the step they need, once.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (commit.landed) commit.events = commit.events.filter(belongsInALandingReport);
+    // ```
+    if served.result.landed_oid.is_some() {
+        served.result.events.retain(belongs_in_a_landing_report);
+    }
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     // Why nothing landed, read before the result is taken apart for the work after a landing.
     let ended: Option<CommitStopReason> = stop_of_an_ending(&served.result);

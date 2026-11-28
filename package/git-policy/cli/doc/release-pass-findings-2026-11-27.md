@@ -1,4 +1,11 @@
-# What the wrapper's `0.6.1-alpha.48` release passes found
+# What the wrapper's release passes found
+
+The first part is the round of 2026-11-27 over `0.6.1-alpha.48`.
+The part about the alpha.52 second pass is the round of 2026-11-28
+over `0.6.1-alpha.52`.
+Each part is unapproved and non-final.
+
+## The alpha.48 release passes
 
 Round of 2026-11-27,
 unapproved and non-final.
@@ -381,3 +388,522 @@ a literal further than the next code line from its call's `(`.
 
 The guide's section on the published surface and its section on a guard's scope,
 excuses and anchor now say the same things as those docs.
+
+## The alpha.52 second pass: the `final-newline` hints
+
+Round of 2026-11-28,
+unapproved and non-final.
+
+A second pass by another agent read `0.6.1-alpha.52` (`bf46e60f6d`)
+against `0.6.1-alpha.51` (`81b06993bd`).
+That agent is of the same vendor as some of the authors,
+so the pass is not an independent review.
+It reported four things about the hint a `final-newline` finding carries.
+This round reproduced each one against the released binaries and against the built executable,
+changed what the records and the runs support,
+and kept each sentence that was true.
+Everything below is this round's own measurement unless it names the pass.
+
+The pass's other findings about the reading of a `!` alias
+(M1,
+L1 and L2 in its report)
+belong to the round that holds that subject.
+Nothing here says anything about them.
+
+### The answers a finding can carry about a commit
+
+`src/native/policy/event_hints.rs` answers what a commit does with the bytes a finding names.
+Three answers are left:
+
+- `CorrectsUnlessTheSelectionIsReadOnly`,
+  for an `add` and for a direct check,
+  whose bytes a commit that takes them corrects unless its selection is read-only;
+- `NothingCorrectsWhatTheIndexHolds`,
+  for a commit whose selection is read-only and which has not landed;
+- `NothingCorrectsWhatACommitHolds`,
+  for a landed commit and for a pushed tree.
+
+A fourth answer said the lifecycle corrects the bytes itself.
+It is gone with the arm that printed it,
+because no path of the built executable printed it.
+`finding_hint` no longer takes whether the finding offers a patch,
+so no caller can choose a wording by a fact a reported pass never holds.
+
+### Low 3: the `add` hint named a commit form this wrapper refuses
+
+The pass read `git commit --message K1` inside a container
+and saw it refused with `commit-only/pathspec-required`,
+where the hint said a plain commit also corrects the ending.
+This wrapper refuses a commit that names no path,
+so those words named a form a person cannot use.
+
+Measured again through this worktree's build:
+`git commit --message=plain` in a fixture whose index holds the file exits 1,
+and the same commit with `-- a.txt` lands bytes ending with one line feed.
+The control `binary::final_newline_hint_steps::the_commit_the_hint_names_is_the_form_that_corrects_the_ending`
+runs both and reads the landed blob.
+
+The sentence changed inside the `add` hint.
+
+Before:
+
+```text
+a plain commit, one that takes the whole file, also corrects the ending while this repository's settings keep
+`final-newline` on
+```
+
+After:
+
+```text
+a commit that names the file, as in `git commit -- <path>`, also corrects the ending while this repository's
+settings keep `final-newline` on
+```
+
+The same change turned the hint's "then stage the file again" into "then stage the file",
+because a direct check now gives this hint and a checked file need not have been staged before.
+
+### Low 6: the direct check promised a correction a read-only selection does not make
+
+The pass's row K8 ran `check -- a.txt`
+and then `git commit --include --message K8 -- a.txt`,
+which landed the bytes with no line feed although the check had promised a correction.
+`commit --patch` does the same in its row K3.
+
+Two shapes were open,
+as the pass put them:
+carry the `add` hint's carve-out into the direct check's hint,
+or map a direct check to the answer an `add` gives.
+This round took the second,
+because the two lifecycles answer the same fact.
+Both report worktree bytes that a commit corrects only by taking them,
+and neither records anything itself.
+The `add` hint's clause about an index that already holds the bytes is true of a checked file too,
+and a check may have staged nothing,
+so one text serves both and the two cannot drift apart again.
+`policy_final_newline::commit_correction` maps `CandidateRequest::Add` and `CandidateRequest::Direct`
+to `CorrectsUnlessTheSelectionIsReadOnly`.
+
+The sentence at the direct check.
+
+Before:
+
+```text
+Hint: if you are committing this file, a commit that takes it corrects the ending for you while this repository's
+settings keep `final-newline` on; to correct it now without committing, run `git monochromatic-git-policy-cli fix --
+<path>`.
+```
+
+After,
+and this is the `add` text too:
+
+```text
+Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- <path>` and then stage the file with
+`git add -- <path>`, because an index that already holds these bytes keeps them until the file is staged once more;
+a commit that names the file, as in `git commit -- <path>`, also corrects the ending while this repository's settings
+keep `final-newline` on, but a commit whose selection is read-only (`-p`, `-i` or `--include`) records the bytes it
+takes exactly as they are.
+```
+
+The controls are
+`policy::final_newline_hint_of_each_lifecycle_tests::a_direct_check_says_what_corrects_the_bytes_it_read`,
+which reads the rendered finding in-process,
+and `binary::final_newline_hint_steps::a_direct_check_gives_the_hint_whose_commit_corrects_the_bytes_it_read`,
+which reads the hint the built executable prints and then lands the commit it names.
+
+### Low 4: at `warn`, a commit that landed printed a sentence the landing had made stale
+
+A commit whose selection is read-only reads the index before the commit is made.
+Its finding says the index holds the bytes and that staging them again is the next step.
+At `warn` that commit then lands,
+and the post-commit gate reports the same file with the landed sentence,
+so one run printed both for one file:
+
+```text
+{"type":"finding","trigger":"pre-forward","policyId":"final-newline","path":"a.txt","hint":"Hint: if you are committing this file, edit it so it ends with exactly one newline, then stage it again."}
+{"type":"finding","trigger":"post-commit","policyId":"final-newline","path":"a.txt","hint":"Hint: this file's bytes are already in a commit, so nothing here corrects them; edit the file so it ends with exactly one newline, then commit the correction."}
+```
+
+`commit::commit_command::run_timed` now drops a finding whose answer is `NothingCorrectsWhatTheIndexHolds`
+when the service answers with a landed commit.
+The pass ran before the landing,
+and the gate reports the bytes the landing holds.
+Nothing else of that pass is dropped,
+and a commit that does not land keeps the staged sentence.
+
+The control
+`binary::final_newline_hint_steps::a_read_only_selection_records_the_bytes_it_takes_until_the_file_is_staged_again`
+asks for one finding line and reads the landed sentence.
+On `main`'s release code it answers two lines.
+The same control reads the bytes the selection recorded,
+so the carve-out the hints now name is pinned by a run:
+`git commit --include -- a.txt` lands the bytes with no line feed,
+which is what the words say.
+
+At `error` the cost is nothing.
+The commit does not land,
+so the staged sentence is the only one printed and it is true.
+`binary::final_newline_hint_steps::the_read_only_selection_that_does_not_land_says_to_edit_and_stage_again`
+reads that sentence,
+the untouched `HEAD`,
+and the corrected bytes the person's edit and staging then land.
+
+One narrow path reports nothing at all.
+A commit that lands and whose gate cannot read the new commit reports the gate's engine failure and no finding,
+and the staged sentence would have been the only word about the file.
+
+### Low 5: the records described a finding no run prints
+
+The `README.md` and `SPEC.md` sentences said that a commit which may correct the bytes,
+and `git monochromatic-git-policy-cli fix`,
+say the correction is that command's own.
+No run printed such a finding,
+and none can.
+`fix` runs the bounded convergence of `policy_convergence`.
+A patch-capable commit runs the same convergence (`commit::commit_convergence`).
+A pass that proposes a correction is followed by the pass that applies it,
+so the pass a run reports holds no finding at all.
+
+Measured here with the released alpha.52 binary,
+`git monochromatic-git-policy-cli fix -- a.txt` at `warn` and again at `error` printed one line and no finding:
+
+```text
+{"schemaVersion":1,"sequence":0,"type":"fix-summary","trigger":"direct-fix","passes":1,"changedPaths":["a.txt"]}
+```
+
+The same holds through this worktree's build for `fix` and for a commit that names the file.
+`binary::final_newline_hint_steps::a_direct_fix_reports_a_summary_and_leaves_one_line_feed` reads the first,
+and `binary::final_newline_hint_steps::the_commit_the_hint_names_is_the_form_that_corrects_the_ending` the second.
+Both are green on `main`'s release code as well,
+and that is the finding:
+the arm was unreachable before this round touched it.
+
+What went:
+
+- the hint arm for a finding that offers a patch;
+- the `finding_hint` parameter that chose it;
+- the two in-process controls that drove one stage with a patch-capable commit and with a direct fix;
+- the two records' sentences.
+
+`README.md` and `SPEC.md` now say what a run prints.
+The correction appears as a `fix-summary`,
+and a correcting lifecycle reports no finding.
+
+### The controls that run the step each hint names
+
+Each hint was pinned by an exact-text control,
+and no control ran the step its hint names,
+so a change that stopped a commit from correcting the ending would have left every one of them green.
+`binary::final_newline_hint_steps` holds one control per hint.
+Each runs the named step through the built executable in a fixture and reads the bytes that result:
+
+- `the_add_hint_s_two_steps_leave_one_line_feed_in_the_worktree_and_the_index`:
+  `add`,
+  then `fix -- a.txt`,
+  then `git add -- a.txt`,
+  and the worktree and the index both end with exactly one line feed;
+- `a_direct_check_gives_the_hint_whose_commit_corrects_the_bytes_it_read`:
+  `check -- a.txt`,
+  then `git commit -- a.txt`,
+  and the landed blob ends with one line feed;
+- `the_commit_the_hint_names_is_the_form_that_corrects_the_ending`:
+  a commit with no path is refused,
+  and `git commit -- a.txt` lands the corrected bytes;
+- `a_read_only_selection_records_the_bytes_it_takes_until_the_file_is_staged_again`:
+  `git commit --include -- a.txt` lands the uncorrected bytes and one landed sentence,
+  then the edit,
+  the staging and the commit land the corrected bytes;
+- `the_read_only_selection_that_does_not_land_says_to_edit_and_stage_again`:
+  the same selection at `error` prints the staged sentence and leaves `HEAD` alone,
+  and the edit and staging after it land the corrected bytes;
+- `a_direct_fix_reports_a_summary_and_leaves_one_line_feed`:
+  `fix -- a.txt` prints the summary alone and leaves the corrected worktree.
+
+The fixtures' `observe` helper removes every `hint` field,
+so a control can compare an event's bytes with the retired wrapper's.
+These controls read `observe_raw` instead and drop only the lines a wait prints.
+
+### What is open
+
+- The `warn` shape of Low 4 is this round's choice and stands open to the owner's veto.
+  The way not taken is to print both sentences.
+  That costs a person a sentence the landing had already made stale.
+  What is taken costs the file its only word when a landed commit's gate cannot read the new commit.
+- `CommitCorrection` keeps one variant for the two lifecycles that read worktree bytes and drops the one that
+  told a direct check apart.
+  A reader who wants the answer named after the bytes rather than after the commit has an easy rename here.
+  Nothing in this round's findings needs it.
+
+## The read of `0.6.1-alpha.52`: the guest drivers' shared steps
+
+Round of 2026-11-28,
+unapproved and non-final.
+This file also holds the passes over `0.6.1-alpha.48`;
+the section here is one read of `0.6.1-alpha.52` that the session weighed,
+and the round that answered four of its findings and checked the fifth.
+Only the owner declares it complete.
+
+The read is a second pass by another agent of the same vendor as some of the authors,
+so it is no independent review.
+Its limits are the ones it states:
+it started no guest,
+it built no binary,
+and it drove the drivers of the package against a stand-in `mvm`,
+`node` and `tar`.
+The round below kept to the same ground:
+every reproduction runs a stand-in for `mvm`,
+and no guest of this machine was used.
+
+The read rated two Mediums and three Lows on the shared steps that every guest driver runs
+(`bin/mvm-guest-step-command.ts`,
+`bin/mvm-guest-detached-script.ts`,
+`bin/mvm-guest-command-line.ts`,
+`bin/mvm-guest-whole-run.ts`).
+The Mediums were both consequences of the merge `98996296fb`,
+which replaced three sets of guest helpers with one,
+and the release said of that merge only that what every driver sends its guest is unchanged.
+Two of those claims were about the drivers' own process and about the status of a command,
+and both were false.
+
+### What a real `mvm exec` answers for a command that exits nonzero
+
+The refusal of a refused launcher rests on this,
+so it was taken from the producer's source and its controls,
+not from memory.
+`package/mvm/cli/src/cli.ts` answers the guest command's own status:
+`const result = await backend.exec({ command, name })`,
+then `if (result.exitCode !== 0) process.exitCode = result.exitCode`.
+The status itself is the guest agent's answer,
+`exitCodeOf` in `package/mvm/cli/src/guest-exec-status.ts`,
+which is `exitcode` when the answer has one and `128 + signal` when a signal ended the command.
+The controls beside it agree:
+`guest-exec.unit.test.ts` returns `exitCode: 3` for a command ending `exit 3`,
+and `137` for one that ended `kill -KILL $$`.
+
+So a launcher whose first line is `test "$(hostname)" = NAME || exit 1`
+ends `mvm exec` with status 1 on another machine's guest,
+and a status other than zero is exactly "the launcher was refused".
+
+### M1: an interrupted driver left the step it had started running
+
+Every step command is started in a process group of its own (`detached: true`),
+which is what lets a step's bound stop everything the step started.
+The same separation is what a terminal's interrupt key cannot reach:
+SIGINT goes to the driver's own group,
+so the driver ended and the step went on working with nobody reading it,
+bounded at the two hours a guest build may take (7,200,000 ms),
+and no driver handled a signal.
+
+Reproduced before the change with the real `forced-act-guest.ts create`
+and a stand-in `node` for the recipe step that records its own process number and sleeps,
+SIGINT sent to the driver's group as a terminal sends it:
+
+```text
+before-main e2e/forced-act-guest.ts create: driver pid 1146505 leads group 1146505; the step it started is pid 1146521
+before-main: before the signal, the step is alive=true
+before-main: after SIGINT to the driver's group: driver exit code null signal SIGINT; step alive=true
+before-main: the step outlived the driver, and this reading killed it
+```
+
+`01cb2ed4c9` holds the step commands this process is still waiting for in
+`bin/mvm-guest-live-steps.ts`,
+and a signal that ends the driver stops each through the group stop its own deadline uses
+(`stopProcessGroup`),
+says one line naming the command and its process group,
+and then ends the driver the way the signal would have:
+the handlers go first,
+so the re-raised signal has its default action.
+SIGHUP,
+SIGINT and SIGTERM are the three signals,
+because a terminal that went away is the same
+hazard as one that was interrupted.
+The same driver,
+the same signal,
+after the change:
+
+```text
+after e2e/forced-act-guest.ts create: driver pid 1257141 leads group 1257141; the step it started is pid 1257237
+after: after SIGINT to the driver's group: driver exit code null signal SIGINT; step alive=false
+git-policy guest step: SIGINT, so this run stopped every step command it had started and still had running: node .../e2e/run-fixture.ts create --name m1-after-guest --log-dir .../logs (process group 1257237)
+```
+
+The controls are three cases of `bin/mvm-guest-step-command.unit.test.ts`,
+each running the driver as a program of its own,
+because a signal's disposition belongs to the whole process:
+SIGINT and SIGTERM each stop the step and name it,
+and a step that had already ended is neither stopped again nor named.
+Shown red by taking the hold out of `awaitStepCommand`:
+
+```text
+[FAIL] stops the step it started when SIGINT ends the driver, and names what it stopped
+  AssertionError: expected false to equal true  -- interrupted.stepIsGone
+[FAIL] stops the step it started when SIGTERM ends the driver, and names what it stopped
+[PASS] stops and names no step that had already ended
+```
+
+What the change does not do,
+and the record of it says so:
+a guest the interrupted run had made is left as it was,
+because taking a guest away is a step of the run's own,
+so the guest's name and `mvm destroy` are what a person needs next.
+
+### M2: a refused launcher was waited out instead of refused
+
+`startDetachedGuestScript` called `runQuietStepCommand` for the `mvm exec`
+that starts the launcher and threw the status away,
+while its own doc promised a throw "when the guest could not be asked to start the script".
+The adoption and start-probe drivers then waited for a log no guest would write,
+for `crateBuildTimeoutMilliseconds + buildFinishMarginMilliseconds`
+(2,400,000 + 180,000 ms,
+43 minutes,
+`e2e/adoption-guest-arms/crate-build.ts:88` and `e2e/start-probe-arms/crate-build.ts:200`),
+and the step 22 driver for its own crate-build bound.
+Before the merge the three drivers failed at once,
+with the guest's name,
+through `e2e/guest-host/guest-side-scripts.ts:187`.
+
+Reproduced against a stand-in `mvm` that accepts both pushes and exits 1 for the launcher,
+the driver program then doing what every driver does next:
+
+```text
+before-main: the driver program exited with 0
+the start returned after 129 ms, although the launcher exited 1
+the wait refused after 15205 ms: build.log: the guest script did not finish inside 3000 ms; see build.log
+```
+
+The wait's bound was 3,000 ms and it answered after 15,205 ms,
+because a look that finds no status line waits one `POLL_INTERVAL_MS` (15,000 ms) first:
+the real drivers' wait would be the 43 minutes of their own bound.
+
+`09e47a5285` reads the status and refuses a nonzero one at once,
+naming the launcher's command,
+its status and the guest's name:
+
+```text
+after: the start refused after 66 ms: mvm --backend libvirt exec guest-a -- sh /mnt/shared/build.log.launch.sh exited 1: the launcher was refused, so 'guest-a' started none of build.log.step.sh
+```
+
+The controls are two cases of `bin/mvm-guest-detached-script.unit.test.ts`:
+one reads the refusal,
+the guest's name,
+the status,
+the three calls the stand-in was given and
+that nothing came after the launcher,
+and the other is the case where the launcher exits zero,
+which must reach the wait,
+so the probe is shown able to tell the two apart.
+Shown red by dropping the status again:
+
+```text
+[FAIL] refuses at once when the launcher exited nonzero, naming the guest and the status
+  expected 'the start returned\nthe wait refused:…' to include 'the start refused:'
+[PASS] waits for the script when the launcher exited zero
+```
+
+The removal-lineage and settling drivers carried `nameCheck: 'none'` and ignored the launcher's
+status before the merge too,
+so what changes for them is new behaviour and not restored behaviour:
+a launcher that `mvm` could not run,
+or a guest the command could not reach,
+refuses at once with the launcher's status and the guest's name
+instead of leaving them to wait out the build's bound for a log that would never appear.
+`e2e/README.md` says that,
+and says which drivers carry no name check at all.
+
+### L3: the step-shaped name check guarded nothing
+
+`bin/mvm-guest-command-line.ts` wrote the `step` shape as `test "$(hostname)" = NAME`
+with no `|| exit` and no `set -e`,
+so on a machine of another name the step file ran the script anyway,
+while the shape's doc said the detached script refuses itself.
+`e2e/step-22-arms/detached-step.ts` is the driver that sends this shape,
+and its check was the only one its scripts carried.
+
+Reproduced by running the package's own step text with `sh` and a stand-in `hostname`:
+
+```text
+## before-main: the step-shaped check, run with sh on a machine of another name
+sh exit status: 0
+the log the step file left: "the script itself ran\nDONE=0\n"
+## before-main: the same file on the guest it names, which is the positive control
+sh exit status: 0
+the log the step file left: "the script itself ran\nDONE=0\n"
+```
+
+`85213b9623` makes the shape refuse,
+and writes the status line the host already waits for before it exits,
+because a step file that exited without one would leave the host asking until the script's bound
+passed:
+
+```text
+test "$(hostname)" = guest-a || { echo "DONE=1" >> /mnt/shared/build.log; exit 1; }
+...
+## after: the step-shaped check, run with sh on a machine of another name
+sh exit status: 1
+the log the step file left: "DONE=1\n"
+## after: the same file on the guest it names, which is the positive control
+sh exit status: 0
+the log the step file left: "the script itself ran\nDONE=0\n"
+```
+
+So the host's next look finds `DONE=1` and refuses with the status the step wrote,
+at once rather than at the end of the script's bound.
+The shape was kept rather than dropped,
+because the step 22 driver's record says the check has always sat in its step file,
+and because the one place the three helper sets disagreed is worth keeping as a distinction.
+Its controls are two cases of `bin/mvm-guest-command-line.unit.test.ts`,
+which run the step file with `sh` on another machine's name and on the guest's own,
+and the two text cases beside them.
+Shown red by writing the bare check again:
+
+```text
+[FAIL] puts a check that refuses, and its status line, in the step when the launcher carries none
+[FAIL] bounds the script, sends both streams to the shared log and appends its status
+[FAIL] refuses at once, and writes the status line the host waits for, on a machine of another name
+  expected +0 to equal 1
+[PASS] runs the script on the guest it names, which is what the refusal is told apart from
+```
+
+### L4: the sentences whose wording the merge changed, checked and left
+
+The read argued from the source that two failure sentences changed with the merge:
+`git-policy guest run: destroying '<name>' also failed` (from the old lifecycle's own label)
+and `exited -1` where the old helper printed `exited null` for a command a signal ended.
+Nothing in the package or in this repository's records reads either sentence:
+`rg 'exited -1'` and `rg 'exited null'` find nothing at all,
+`rg 'also failed'` finds unrelated prose and the slot-state driver's own line,
+and no test asserts either form.
+So both sentences are left as they are,
+and this record says they were checked.
+
+### L5: two sentences that did not say what their own code says
+
+`e2e/README.md` said four drivers "hold no plain long command at all"
+(and five on `main` by 2026-11-28,
+because another round added `cancel-and-settle-commands-guest.ts` to that list)
+over a list that names three plain `guest()` commands of one of them,
+each bounded at 900 s and none timed on its own
+(`e2e/adoption-guest-arms/store-dataset-and-fsync.ts:115`,
+`delegation-arm.ts:155`,
+`snapdir-arm.ts:149`).
+The sentence names those three now and says what the section's own rule owes them:
+a command bounded above five minutes runs detached,
+nothing has timed these three,
+so a round that keeps them plain owes a measurement under five minutes or a detached script.
+
+The package guide said the start probe's shared header "is quoted now",
+which reads as one of the merges of this release.
+It was quoted before the release:
+`dacca205b6` (2026-11-27T11:57:11-05:00) quoted it,
+and that commit is an ancestor of `0.6.1-alpha.51`.
+The guide names the commit and its time now.
+
+### What the read's own ground did not cover
+
+No guest was started,
+so none of these readings says what a real `mvm` does with a signal
+sent to its own client,
+and the two scripts a launcher runs were never executed inside a guest.
+The step-shaped check was read with `sh` of this host,
+with the guest's shared folder replaced by a folder of the round's own.
+What a `mvm exec` answers for a nonzero command is the producer's source and its controls,
+not a guest of this round.

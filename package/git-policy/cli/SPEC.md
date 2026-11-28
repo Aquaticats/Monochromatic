@@ -24512,20 +24512,25 @@ and every engine failure code,
 has a hint,
 and the test suite fails when one is added without it.
 A finding's hint says what corrects the bytes it names where the finding is made.
-The `final-newline` finding of an `add` names
+The `final-newline` finding of an `add` and of a direct check names
 `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
 which are the steps that work where the add is refused at `error` severity,
 and which also correct an index that already holds the bytes;
-it names a commit's own correction only for a commit that takes the whole file,
-because a commit whose selection is read-only records the staged bytes as they are.
-The same finding of a direct check says a commit that takes the file corrects the ending
-while this repository's settings keep `final-newline` on,
-and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+the same two places name a commit's own correction for a commit that names the file,
+as in `git commit -- <path>`,
+because a commit whose selection is read-only (`-p`,
+`-i`,
+`--include`) records the bytes it takes as they are.
 The same finding of a commit whose selection is read-only says to edit the file and stage it again,
 because the index holds the bytes as they are and no commit corrects them.
 The same finding of a landed commit and of a pushed tree says to edit the file and commit the correction,
 because a commit already records those bytes as they are.
-A finding of a patch-capable commit or of a direct fix says the correction is that lifecycle's own.
+A commit that lands reports the bytes it holds and not the index the pass read before it:
+the staged-lifecycle sentence of a read-only selection is dropped once the commit lands,
+and only the landed sentence of the post-commit gate is left.
+No finding a run prints offers a patch,
+because a lifecycle that may correct the bytes applies its correction in a pass of its own and reports that pass's
+`fix-summary` alone.
 Plain stderr notices that report a divergence from real Git's behavior end with a hint in the same voice.
 A reader that ignores unknown fields is unaffected.
 
@@ -26370,17 +26375,19 @@ warn and continue without offering an inapplicable patch.
 An explicit error override makes those findings blocking.
 The hint of a finding here says what corrects the file where the finding is made.
 A direct check reads worktree bytes a commit takes,
-so its hint names that commit's correction,
-which happens while the settings keep `final-newline` on,
-and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+so its hint is the one an `add` gives:
+the fix and the staging after it,
+then the commit that names the file,
+which corrects the ending while the settings keep `final-newline` on,
+unless its selection is read-only.
 An `add` may be refused at `error` severity,
 which stages nothing,
 and an index keeps the bytes it already holds,
 so its hint leads with `git monochromatic-git-policy-cli fix -- <path>`
 and the `git add -- <path>` staging after it,
-and names a commit's correction only for a commit that takes the whole file,
+and names a commit's correction for a commit that names the file,
 because `-p`,
-`-i` and `--include` record the staged bytes as they are.
+`-i` and `--include` record the bytes they take as they are.
 A commit whose selection is read-only (`-p`,
 `-i`,
 `--include`) names bytes nothing corrects,
