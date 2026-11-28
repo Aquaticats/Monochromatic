@@ -1418,7 +1418,10 @@ and a line that reads as none of them fails the run:
   because no folder name it names holds an arrow word,
   and a `uses` line that sets two of them off with whitespace is refused,
   with a sentence that says so.
-  The file rule reads no `uses` line,
+  The file rule's list tolerates no `uses` line:
+  its reader reads one as it reads any other entry,
+  and the rule matches one use between two files and one finding's key,
+  so a `uses` line of that list is reported as tolerating nothing,
   and a `file-uses` line whose folder name holds a set-off arrow is read from its last arrow,
   whose place a file name cannot take.
   A line stays alive while its two folders still make that use and still sit in one loop together,
@@ -1579,7 +1582,8 @@ Every key names exactly one finding:
   so no later edit of a tree can print a line that the next run cannot read,
   and the price is that a package selecting the folder rule stops on such a name
   even where no line of its list carries it.
-  The file rule reads no `uses` line and names such a folder in a key,
+  No `uses` line of the file rule's list is ever tolerated,
+  and such a folder is named in a key,
   which holds the name as written,
   so the arrow words of a folder name are refused only while the folder rule is selected.
   A file name and an entry of a `uses` folder keep their backslashes and arrow words as the source writes them,
@@ -2026,7 +2030,7 @@ what they say and what a walk costs.
   ends with ` ->`,
   or is `->` stops the run only while the folder rule is selected.
   A package that selects the file rule alone reads such a tree as alpha.17 did,
-  because that rule reads no `uses` line and names such a folder in a key,
+  because no `uses` line of that rule's list is tolerated and such a folder is named in a key,
   which holds the name as written.
   A folder name that holds ` -> ` between two names stops the run under the same condition,
   while alpha.17 refused that one even under the file rule alone:
@@ -2237,7 +2241,12 @@ and what the messages say.
   and a folder name holding a space makes a sixth,
   so the whole list is refused,
   and the refusal names that folder and says that the space in its name is why:
-  a loop of files in such a folder is untangled or the folder is renamed.
+  a loop of files in such a folder is untangled or the folder is renamed,
+  and a folder that holds no module file is told the rename alone,
+  because no loop of files is inside it to untangle.
+  A character a reader cannot see that stands in that folder's own name is named with its place,
+  and the note leaves the taking out of the line out of its advice there,
+  because renaming the folder is the edit that takes the character out.
   A folder name holding a tab,
   a no-break space or a doubled space is refused the same way,
   and the refusal spells that character and says what renaming must give.
@@ -2264,9 +2273,21 @@ and what the messages say.
   The second reading takes the whole run of whitespace the gap before the file left,
   because no folder name the rules accept ends in whitespace,
   and at the start one character of its run at a time,
+  from the fewest characters taken off to the most,
   because a folder name may begin with whitespace and only the tree says how much of the run is its own:
   so a folder named ` src/c d` is named for every gap spelling
-  whose extra character can be told from that name's own whitespace.
+  whose extra character can be told from that name's own whitespace,
+  and between two names the one that keeps more of that run is named first.
+  Each name those readings give is offered to the file system one at a time and none is kept,
+  and a name whose first folder is longer than the longest name the package folder holds is not offered at all,
+  because no folder of the package can be called it:
+  so a gap of 64,000 whitespace characters costs one pass over the line
+  and one question per name the package folder's own names allow,
+  where `0.5.2-alpha.23` built one name per character of the gap and kept them all.
+  Measured on 2026-11-27 over three rounds of three arms on a line of 64,033 characters,
+  this release's wall time was 1.10 times `0.5.2-alpha.22`'s (range 0.73 to 1.21)
+  and its peak resident memory 0.97 times that release's (range 0.95 to 1.02),
+  against 981 times (range 580 to 1,071) and 180 times (range 179 to 195) for `0.5.2-alpha.23`.
   Where the same text is the line for two folders,
   the first reading names the folder whose own name begins with the character,
   and the third reading is the one that can name a folder the line was not written for:
@@ -2336,17 +2357,32 @@ and what the messages say.
   and no message says which column an editor shows.
   A character with no plain name is named by its code point in the same sentence,
   where the quote spells it.
+  A line holding more than one of them says how many stand beside the first,
+  and its sentence names the edit as the one that takes both or all of them out,
+  because that is the edit the sentence describes.
   A line whose only fault is that character is told to take it out:
   a dead line the reader took for one finding's key,
   a line the reader refuses,
   and a dead `file-uses` line whose file name holds one that no module of its folder holds.
+  A file name takes that character out and no whitespace character with it,
+  and its line says the entry is live again only if the use still exists.
   A line that spells a real module file's own name,
   and one whose character stands in the folder's name rather than a file's,
   is told to be deleted,
   because taking the character out would name another file or folder.
   A whitespace character where one belongs replaces it,
   and a sentence about what the line would read as after that edit
-  is said only when the edited text does read as a line of the list.
+  is said only when the edited text does read as a line of the list:
+  the reader that reads the list is asked about that text,
+  and a text it refuses,
+  or one that would repeat a line already on the list,
+  is answered by telling the reader to delete the line instead.
+  A blank cell of the Braille block is left as written,
+  because it is a character with a glyph of its own:
+  the set is Unicode's `Cf`,
+  `Cc` and `Default_Ignorable_Code_Point`,
+  and no one of them names U+2800,
+  so the quote keeps it and no sentence calls it unseen.
 
 ### Links and other tools
 
@@ -2472,6 +2508,26 @@ The grouped editor refuses a nonempty-to-empty file rewrite.
 
 Pipe-table conversion and semantic line breaks are implemented.
 Production Rust and Markdown commands have not been replaced.
+
+The semantic break fix also joins the fragment an old hard wrap cut off.
+When the rest of the author's line holds one or two words that do not end at a break-point
+character,
+is not the paragraph's last line,
+carries no hard break,
+and the following line carries no block marker,
+the fragment joins the line that continues its clause through one space,
+where the joined line stays under 120 characters.
+A fragment that ends at a break-point character stays alone,
+because the rule wants a line to end there and would break it again on the next pass,
+so `4,` and `held,` keep their lines.
+A line the fix writes takes the indent the paragraph's first continuation line carries,
+so the lines of one paragraph are written at one depth,
+which is what a Rust doc comment keeps when its old lines were written one space deeper.
+The fix never rewrites a line the author wrote.
+Removing the deepest indent of a rustdoc run re-projects every line of that run
+(`processors_docs.rs`,
+`run_margin`),
+so such an edit would be refused instead of applied.
 
 ## LFS image URLs
 

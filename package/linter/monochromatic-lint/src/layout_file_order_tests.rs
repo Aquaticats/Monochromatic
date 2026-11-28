@@ -1088,3 +1088,58 @@ fn a_dead_file_use_line_takes_a_character_out_only_when_no_module_of_the_folder_
         "the use is gone, so the line is deleted: {in_folder}"
     );
 }
+
+/// A dead `file-uses` line for a folder a `#[path]` names outside the package is judged by the file the walk reached,
+///  with the walk the line writes read back first,
+///  because the tree spells that file from the package folder and the line spells it from its own:
+///  a reader that joined the line's folder to the package folder without reading the `..` away
+///  told a line that spells a real module file's own name to take that character out.
+#[test]
+fn a_dead_file_use_line_for_a_folder_outside_the_package_names_the_file_the_walk_reached() {
+    // What: a package whose one folder is a sibling of it, reached with `..`, holding a real module file named with the character.
+    // Why: the tree spells that file `../outside/o\u{200b}ne.rs`, and the line writes the same walk.
+    let outside = package_with(&[
+        (
+            "pkg/Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n[lib]\npath = \"lib.rs\"\n",
+        ),
+        (
+            "pkg/lib.rs",
+            "//! Index.\n#[path = \"../outside/mod.rs\"]\npub mod m0;\n",
+        ),
+        (
+            "outside/mod.rs",
+            "//! Folder.\n//!\n//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `two.rs`: two.\n//! - `o\u{200b}ne.rs`: one.\n#[path = \"o\u{200b}ne.rs\"]\nmod one;\nmod two;\n",
+        ),
+        ("outside/two.rs", "/// Two.\npub struct Two;\n"),
+        (
+            "outside/o\u{200b}ne.rs",
+            "use super::two::Two;\n/// One.\npub struct One(pub Two);\n",
+        ),
+    ]);
+    let root: std::path::PathBuf = outside.path.join("pkg");
+    let genuine: String = findings_with_list(
+        root.as_path(),
+        "file-uses ../outside o\u{200b}ne.rs -> two.rs\n",
+    )
+    .join("\n");
+    assert!(
+        genuine.contains("tolerates nothing any more. Delete the line"),
+        "the name is the file the walk reached, so the use is what is gone: {genuine}"
+    );
+    assert!(
+        !genuine.contains("no module of this folder is called the name it holds"),
+        "the folder's module is called that name: {genuine}"
+    );
+    // What: the control, a file name the same folder does not hold, which is the case the advice is for.
+    // Why: an advice that never fired for a folder reached through `..` would pass the lines above.
+    let mistyped: String = findings_with_list(
+        root.as_path(),
+        "file-uses ../outside one\u{200b}.rs -> two.rs\n",
+    )
+    .join("\n");
+    assert!(
+        mistyped.contains("no module of this folder is called the name it holds"),
+        "no module of the folder is called `one\u{200b}.rs`: {mistyped}"
+    );
+}

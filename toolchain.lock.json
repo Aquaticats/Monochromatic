@@ -611,7 +611,7 @@
     },
     "cargo:monochromatic-lint": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.5.2-alpha.23",
+      "version": "0.5.2-alpha.24",
       "route": "archive",
       "bins": [
         "monochromatic-lint"
@@ -622,20 +622,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.23/monochromatic-lint-0.5.2-alpha.23-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "7d1c275e076320a953a8a6c46eba64278d6c723f5e18cde44afa75bb1b7d9eb1"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.24/monochromatic-lint-0.5.2-alpha.24-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "e9f4635d817b8cd2aa95e1b842c077082260993c81c08ba4f6368cb5edfe4245"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.23/monochromatic-lint-0.5.2-alpha.23-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "2e1b4f1638e3a14a71da0fef8eed2c5828fc3cd13bdc713af739c768c03da2ce"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.24/monochromatic-lint-0.5.2-alpha.24-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "01eb936a8deac46f11e3f0e36db6d247e92745b523c6fa3484ee9a431824111e"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.23/monochromatic-lint-0.5.2-alpha.23-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "6ea7bcba9b33ee9a9842af63e32aee8e015a51f87c1538144521cd41020d4062"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.24/monochromatic-lint-0.5.2-alpha.24-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "21f9f232b626f2027bce83c0e60b4f736769451d3fb30129a58e1d8ecca204eb"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.23/monochromatic-lint-0.5.2-alpha.23-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "3f4cc75e04d60ce00191e7ece48b75dfa0bafa5c50df1da703152dbbf89b10d7"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.24/monochromatic-lint-0.5.2-alpha.24-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "9dbd1c016651ff34e70d40858aa337760dd99ae8a5aa089858f19de86f4b1383"
         }
       }
     },
@@ -1682,5 +1682,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:25b07e2ad6b6c160419aafd6b498c89f11b39a5bb45998906d713ea0dcdbc709"
+  "digest": "sha256:314998c63edcb525c756d6b69e9f4d4a593d3d7d641f2f2a3ef099d648d92db6"
 }

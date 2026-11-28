@@ -418,28 +418,22 @@ pub fn sync_tools(
                 report.installed.push(tool.declaration.id.clone());
                 if let Some(problem) = recovery_problem {
                     // What: the recovery's own words, followed by what this run then did,
-                    //  and, when that failure named a copy, by what the next run does with it.
+                    //  and, when that failure named a finished copy, by what a later install does with it.
                     // Why: the recovery's own sentences name the copy it kept and say where it is,
                     //  and they promise nothing about a later run, because this run cannot know what that one reads.
-                    //  This run does: it put the version at its name, so a later run finds the copy a second one.
-                    //  Only the publish's own failure states it: that is the arm whose copy a control can leave behind
-                    //  with the version at its name afterwards, and a failed listing names no copy at all.
+                    //  This one does: it put the version at its name, so a later run finds the copy a second one.
+                    //  Which copy the failure named is the failure's own answer: a failed listing names none,
+                    //  and a failed put-back names the copy that was there, not a finished one.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts
-                    // const fate = problem.thePublishKeptItsCopy
-                    //   ? 'so a later run publishes nothing from that copy and removes it, and the run does not fail for it'
-                    //   : 'so the run does not fail for it';
-                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, ${fate}`);
+                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, ${problem.whatALaterInstallDoes()}`);
                     // ```
-                    let fate: &str = if problem.the_publish_kept_its_copy {
-                        "so a later run publishes nothing from that copy and removes it, and the run does not fail for it"
-                    } else {
-                        "so the run does not fail for it"
-                    };
                     report.warnings.push(format!(
-                        "{problem}; the install this run went on to make put {} {} at its name, {fate}",
-                        tool.declaration.id, tool.version
+                        "{problem}; the install this run went on to make put {} {} at its name, {}",
+                        tool.declaration.id,
+                        tool.version,
+                        problem.what_a_later_install_does()
                     ));
                 }
             }
@@ -468,11 +462,23 @@ pub fn sync_tools(
             .failed
             .push(("postinstall links".to_string(), error.message)),
     }
-    match rebuild_exposure(ctx, &entries) {
-        Ok(exposure) => report.removed_exposure_links.extend(exposure.links_removed),
-        Err(error) => report
+    // What: the rebuild's own report, whose removals are named, and the error that stopped it, if any.
+    // Why: a removal made before a later failure left the folder, and the run that failed still has to name it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const exposure = rebuildExposure(ctx, entries);
+    // report.removedExposureLinks.push(...exposure.report.linksRemoved);
+    // if (exposure.error) report.failed.push(['exposure directory', exposure.error.message]);
+    // ```
+    let exposure = rebuild_exposure(ctx, &entries);
+    report
+        .removed_exposure_links
+        .extend(exposure.report.links_removed);
+    if let Some(error) = exposure.error {
+        report
             .failed
-            .push(("exposure directory".to_string(), error.message)),
+            .push(("exposure directory".to_string(), error.message));
     }
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
